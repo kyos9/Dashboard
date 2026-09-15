@@ -68,12 +68,12 @@ function StockRow({ stock, onSaved, onError }: { stock: Stock; onSaved: () => vo
   }
 
   return (
-    <tr style={{ opacity: stock.active ? 1 : 0.5 }}>
+    <tr className={stock.active ? '' : 'inactive'}>
       <td>
         <strong>{stock.ticker}</strong>
       </td>
       <td>
-        <input type="number" style={{ width: 80 }} value={dcaAmount} onChange={(e) => setDcaAmount(Number(e.target.value))} />
+        <input type="number" style={{ width: 90 }} value={dcaAmount} onChange={(e) => setDcaAmount(Number(e.target.value))} />
       </td>
       <td>
         <select value={dcaPeriod} onChange={(e) => setDcaPeriod(e.target.value as DcaPeriod)}>
@@ -82,13 +82,10 @@ function StockRow({ stock, onSaved, onError }: { stock: Stock; onSaved: () => vo
         </select>
       </td>
       <td>
-        <input
-          type="number"
-          style={{ width: 60 }}
-          value={targetWeight}
-          onChange={(e) => setTargetWeight(Number(e.target.value))}
-        />
-        %
+        <div className="input-with-button">
+          <input type="number" value={targetWeight} onChange={(e) => setTargetWeight(Number(e.target.value))} />
+          <span>%</span>
+        </div>
       </td>
       <td>
         <select value={rebalancePeriod} onChange={(e) => setRebalancePeriod(e.target.value as RebalancePeriod)}>
@@ -97,25 +94,21 @@ function StockRow({ stock, onSaved, onError }: { stock: Stock; onSaved: () => vo
         </select>
       </td>
       <td>
-        <input
-          type="number"
-          style={{ width: 60 }}
-          placeholder="기본값"
-          value={bandPct}
-          onChange={(e) => setBandPct(e.target.value)}
-        />
+        <input type="number" style={{ width: 80 }} placeholder="기본값" value={bandPct} onChange={(e) => setBandPct(e.target.value)} />
       </td>
       <td>
         <input type="date" value={reviewOverride} onChange={(e) => setReviewOverride(e.target.value)} />
       </td>
       <td>
-        <button onClick={save} disabled={saving}>
-          저장
-        </button>
-        <button onClick={refresh} disabled={refreshing}>
-          새로고침
-        </button>
-        <button onClick={toggleActive}>{stock.active ? '비활성화' : '활성화'}</button>
+        <div className="btn-group">
+          <button className="primary" onClick={save} disabled={saving}>
+            저장
+          </button>
+          <button onClick={refresh} disabled={refreshing}>
+            새로고침
+          </button>
+          <button onClick={toggleActive}>{stock.active ? '비활성화' : '활성화'}</button>
+        </div>
       </td>
     </tr>
   )
@@ -154,57 +147,63 @@ export function StockManager() {
   return (
     <div>
       <h2>종목 관리</h2>
-      {error && <p style={{ color: 'red' }}>{error}</p>}
+      {error && <p className="error-text">{error}</p>}
 
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 20, flexWrap: 'wrap' }}>
+      <div className="form-row" style={{ marginBottom: 20 }}>
         <input
+          style={{ width: 120 }}
           placeholder="티커 (예: VOO)"
           value={form.ticker}
           onChange={(e) => setForm({ ...form, ticker: e.target.value })}
         />
-        <input
-          type="number"
-          placeholder="DCA 금액"
-          value={form.dca_amount}
-          onChange={(e) => setForm({ ...form, dca_amount: Number(e.target.value) })}
-        />
-        <select
-          value={form.dca_period}
-          onChange={(e) => setForm({ ...form, dca_period: e.target.value as DcaPeriod })}
-        >
-          <option value="monthly">월</option>
-          <option value="quarterly">분기</option>
-        </select>
-        <input
-          type="number"
-          placeholder="목표비중 %"
-          value={form.target_weight_pct}
-          onChange={(e) => setForm({ ...form, target_weight_pct: Number(e.target.value) })}
-        />
-        <button onClick={handleCreate} disabled={creating}>
+        <div className="field-group">
+          <input
+            type="number"
+            style={{ width: 100 }}
+            placeholder="DCA 금액"
+            value={form.dca_amount}
+            onChange={(e) => setForm({ ...form, dca_amount: Number(e.target.value) })}
+          />
+          <select value={form.dca_period} onChange={(e) => setForm({ ...form, dca_period: e.target.value as DcaPeriod })}>
+            <option value="monthly">월</option>
+            <option value="quarterly">분기</option>
+          </select>
+        </div>
+        <div className="field-group">
+          <input
+            type="number"
+            style={{ width: 90 }}
+            placeholder="목표비중 %"
+            value={form.target_weight_pct}
+            onChange={(e) => setForm({ ...form, target_weight_pct: Number(e.target.value) })}
+          />
+        </div>
+        <button className="primary" onClick={handleCreate} disabled={creating}>
           종목 추가
         </button>
       </div>
 
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-        <thead>
-          <tr style={{ textAlign: 'left', borderBottom: '2px solid #ddd' }}>
-            <th>티커</th>
-            <th>DCA 금액</th>
-            <th>DCA 주기</th>
-            <th>목표비중</th>
-            <th>리밸런싱 주기</th>
-            <th>밴드(%p)</th>
-            <th>리뷰 마감일 오버라이드</th>
-            <th>작업</th>
-          </tr>
-        </thead>
-        <tbody>
-          {stocks.map((s) => (
-            <StockRow key={s.ticker} stock={s} onSaved={load} onError={setError} />
-          ))}
-        </tbody>
-      </table>
+      <div className="table-scroll">
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>티커</th>
+              <th>DCA 금액</th>
+              <th>DCA 주기</th>
+              <th>목표비중</th>
+              <th>리밸런싱 주기</th>
+              <th>밴드(%p)</th>
+              <th>리뷰 마감일 오버라이드</th>
+              <th>작업</th>
+            </tr>
+          </thead>
+          <tbody>
+            {stocks.map((s) => (
+              <StockRow key={s.ticker} stock={s} onSaved={load} onError={setError} />
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }

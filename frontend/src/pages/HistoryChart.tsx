@@ -101,7 +101,7 @@ export function HistoryChart() {
   return (
     <div>
       <h2>히스토리 차트</h2>
-      <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+      <div className="form-row" style={{ marginBottom: 12 }}>
         <select value={ticker} onChange={(e) => setTicker(e.target.value)}>
           {stocks.map((s) => (
             <option key={s.ticker} value={s.ticker}>
@@ -117,9 +117,11 @@ export function HistoryChart() {
           ))}
         </select>
       </div>
-      {error && <p style={{ color: 'red' }}>{error}</p>}
-      <div ref={containerRef} style={{ width: '100%' }} />
-      <p style={{ fontSize: 12, color: '#666' }}>
+      {error && <p className="error-text">{error}</p>}
+      <div className="card" style={{ padding: 8 }}>
+        <div ref={containerRef} style={{ width: '100%' }} />
+      </div>
+      <p className="hint" style={{ marginTop: 10 }}>
         <span style={{ color: MARKER_COLOR.buy_signal }}>●</span> 무릎매수(시그널) &nbsp;
         <span style={{ color: MARKER_COLOR.buy_fallback }}>●</span> 무릎매수(폴백) &nbsp;
         <span style={{ color: MARKER_COLOR.shoulder_ref }}>●</span> 어깨매도(참고) — 로그 스케일

@@ -16,7 +16,9 @@ function EditableRow({ row, onSaved, onError }: { row: MergedRow; onSaved: () =>
       ? ''
       : String(row.target.rebalance_band_pct),
   )
-  const [quantity, setQuantity] = useState<string>(row.holding ? String(row.holding.quantity) : '0')
+  const [quantity, setQuantity] = useState<string>(
+    row.holding ? String(Number(row.holding.quantity.toFixed(4))) : '0',
+  )
   const [saving, setSaving] = useState(false)
 
   const saveTarget = async () => {
@@ -47,6 +49,7 @@ function EditableRow({ row, onSaved, onError }: { row: MergedRow; onSaved: () =>
   }
 
   const signal = row.current.rebalance_signal
+  const excessColor = row.current.excess_pct > 0 ? 'var(--color-danger)' : row.current.excess_pct < 0 ? 'var(--color-info)' : undefined
 
   return (
     <tr>
@@ -54,58 +57,46 @@ function EditableRow({ row, onSaved, onError }: { row: MergedRow; onSaved: () =>
         <strong>{row.ticker}</strong>
       </td>
       <td>
-        <input type="number" style={{ width: 60 }} value={quantity} onChange={(e) => setQuantity(e.target.value)} />
-        <button onClick={saveHolding} disabled={saving}>
-          저장
-        </button>
+        <div className="input-with-button">
+          <input type="number" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+          <button onClick={saveHolding} disabled={saving}>
+            저장
+          </button>
+        </div>
       </td>
       <td>
-        <input
-          type="number"
-          style={{ width: 60 }}
-          value={targetWeight}
-          onChange={(e) => setTargetWeight(Number(e.target.value))}
-        />
-        %
+        <div className="input-with-button">
+          <input type="number" value={targetWeight} onChange={(e) => setTargetWeight(Number(e.target.value))} />
+          <span>%</span>
+        </div>
       </td>
       <td>{row.current.actual_weight_pct.toFixed(1)}%</td>
-      <td style={{ color: row.current.excess_pct > 0 ? '#dc2626' : row.current.excess_pct < 0 ? '#2563eb' : undefined }}>
+      <td style={{ color: excessColor }}>
         {row.current.excess_pct > 0 ? '+' : ''}
         {row.current.excess_pct.toFixed(1)}%p
       </td>
       <td>
-        <input
-          type="number"
-          style={{ width: 60 }}
-          placeholder="기본값"
-          value={bandPct}
-          onChange={(e) => setBandPct(e.target.value)}
-        />
-        <button onClick={saveTarget} disabled={saving}>
-          저장
-        </button>
+        <div className="input-with-button">
+          <input type="number" placeholder="기본값" value={bandPct} onChange={(e) => setBandPct(e.target.value)} />
+          <button onClick={saveTarget} disabled={saving}>
+            저장
+          </button>
+        </div>
       </td>
       <td>{row.current.next_review_date}</td>
       <td>{row.current.shoulder_signal_fired_in_period ? '발동' : '-'}</td>
       <td>
-        {signal.active
-          ? signal.reasons.map((r) => (
-              <span
-                key={r}
-                style={{
-                  display: 'inline-block',
-                  background: '#7c3aed',
-                  color: '#fff',
-                  borderRadius: 999,
-                  padding: '2px 8px',
-                  fontSize: 11,
-                  marginRight: 4,
-                }}
-              >
+        {signal.active ? (
+          <div className="badge-row" style={{ marginBottom: 0 }}>
+            {signal.reasons.map((r) => (
+              <span key={r} className="badge badge-purple">
                 {r}
               </span>
-            ))
-          : '-'}
+            ))}
+          </div>
+        ) : (
+          '-'
+        )}
       </td>
     </tr>
   )
@@ -150,38 +141,45 @@ export function RebalancePanel() {
   return (
     <div>
       <h2>리밸런싱</h2>
-      {error && <p style={{ color: 'red' }}>{error}</p>}
+      {error && <p className="error-text">{error}</p>}
 
-      <div style={{ marginBottom: 16 }}>
-        전역 기본 밴드 임계값:{' '}
-        <input type="number" style={{ width: 60 }} value={bandInput} onChange={(e) => setBandInput(e.target.value)} />
-        %p <button onClick={saveSettings}>저장</button>
-        {settings && <span style={{ marginLeft: 8, color: '#888' }}>(현재 적용값: {settings.default_rebalance_band_pct}%p)</span>}
+      <div className="form-row" style={{ marginBottom: 20 }}>
+        <span>전역 기본 밴드 임계값:</span>
+        <div className="input-with-button">
+          <input type="number" value={bandInput} onChange={(e) => setBandInput(e.target.value)} />
+          <span>%p</span>
+          <button className="primary" onClick={saveSettings}>
+            저장
+          </button>
+        </div>
+        {settings && <span className="hint">(현재 적용값: {settings.default_rebalance_band_pct}%p)</span>}
       </div>
 
       {rows.length === 0 ? (
-        <p>등록된 종목이 없습니다.</p>
+        <p className="hint">등록된 종목이 없습니다.</p>
       ) : (
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <thead>
-            <tr style={{ textAlign: 'left', borderBottom: '2px solid #ddd' }}>
-              <th>티커</th>
-              <th>보유수량</th>
-              <th>목표비중</th>
-              <th>현재비중</th>
-              <th>초과분</th>
-              <th>밴드(%p)</th>
-              <th>다음 리뷰 마감일</th>
-              <th>어깨매도(참고) 발동</th>
-              <th>비중조절 신호</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <EditableRow key={row.ticker} row={row} onSaved={load} onError={setError} />
-            ))}
-          </tbody>
-        </table>
+        <div className="table-scroll">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>티커</th>
+                <th>보유수량</th>
+                <th>목표비중</th>
+                <th>현재비중</th>
+                <th>초과분</th>
+                <th>밴드(%p)</th>
+                <th>다음 리뷰 마감일</th>
+                <th>어깨매도(참고) 발동</th>
+                <th>비중조절 신호</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <EditableRow key={row.ticker} row={row} onSaved={load} onError={setError} />
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   )

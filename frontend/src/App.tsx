@@ -9,7 +9,7 @@ function App() {
   return (
     <BrowserRouter>
       <NavBar />
-      <main style={{ padding: 20 }}>
+      <main className="page">
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/history" element={<HistoryChart />} />
