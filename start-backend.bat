@@ -3,7 +3,7 @@ chcp 65001 >nul
 cd /d "%~dp0backend"
 
 if not exist ".venv\Scripts\activate.bat" (
-    echo [오류] 가상환경(.venv)이 없습니다. setup.bat을 먼저 실행해주세요.
+    echo [오류] .venv 폴더가 없습니다. setup.bat을 먼저 실행해주세요.
     pause
     exit /b 1
 )
