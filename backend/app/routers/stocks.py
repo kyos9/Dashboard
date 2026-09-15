@@ -3,9 +3,9 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models import Stock
-from app.schemas import StockCreate, StockOut, StockUpdate
+from app.schemas import RefreshResult, StockCreate, StockCreateResult, StockOut, StockUpdate
 from app.services import data_ingestion
-from app.services.pipeline import refresh_and_evaluate_stock
+from app.services.pipeline import refresh_all_active_stocks, refresh_and_evaluate_stock
 
 router = APIRouter(prefix="/api/stocks", tags=["stocks"])
 
@@ -15,7 +15,7 @@ def list_stocks(db: Session = Depends(get_db)):
     return db.query(Stock).order_by(Stock.ticker.asc()).all()
 
 
-@router.post("", response_model=StockOut)
+@router.post("", response_model=StockCreateResult)
 def create_stock(payload: StockCreate, db: Session = Depends(get_db)):
     ticker = payload.ticker.upper().strip()
     if db.query(Stock).filter_by(ticker=ticker).first():
@@ -24,6 +24,7 @@ def create_stock(payload: StockCreate, db: Session = Depends(get_db)):
     stock = Stock(
         ticker=ticker,
         name=payload.name,
+        category=payload.category,
         dca_amount=payload.dca_amount,
         dca_period=payload.dca_period,
         rebalance_period=payload.rebalance_period,
@@ -37,11 +38,11 @@ def create_stock(payload: StockCreate, db: Session = Depends(get_db)):
 
     try:
         refresh_and_evaluate_stock(db, stock, full_backfill=True)
-    except data_ingestion.DataIngestionError:
+    except data_ingestion.DataIngestionError as exc:
         # 종목 등록 자체는 유지하고, 데이터 백필은 이후 수동 새로고침으로 재시도 가능
-        pass
+        return StockCreateResult(stock=StockOut.model_validate(stock), data_loaded=False, data_error=str(exc))
 
-    return stock
+    return StockCreateResult(stock=StockOut.model_validate(stock), data_loaded=True)
 
 
 @router.put("/{ticker}", response_model=StockOut)
@@ -66,6 +67,21 @@ def deactivate_stock(ticker: str, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(stock)
     return stock
+
+
+@router.post("/refresh-all", response_model=list[RefreshResult])
+def refresh_all_stocks(db: Session = Depends(get_db)):
+    """활성 종목 전체를 한 번에 갱신한다. 일부 종목이 실패해도 나머지는 계속 진행한다."""
+    results = refresh_all_active_stocks(db)
+    return [
+        RefreshResult(
+            ticker=r["ticker"],
+            ok="error" not in r,
+            rows_upserted=r.get("rows_upserted"),
+            error=r.get("error"),
+        )
+        for r in results
+    ]
 
 
 @router.post("/{ticker}/refresh")

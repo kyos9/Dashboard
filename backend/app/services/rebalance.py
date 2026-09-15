@@ -58,14 +58,25 @@ def shoulder_fired_in_current_period(db: Session, stock: Stock, today: dt.date) 
     return count > 0
 
 
-def compute_actual_weights(db: Session, stocks: list[Stock]) -> dict[str, float]:
-    """Holding 수량 x 최신 종가 기준 실제비중(%). 보유가 전혀 없으면 전 종목 0.0."""
-    values: dict[str, float] = {}
+def compute_positions(db: Session, stocks: list[Stock]) -> dict[str, dict]:
+    """종목별 보유수량/최신 종가/평가금액을 한 번에 계산한다."""
+    positions: dict[str, dict] = {}
     for stock in stocks:
         holding = db.query(Holding).filter_by(ticker=stock.ticker).first()
         close = get_latest_close(db, stock.ticker)
         qty = holding.quantity if holding else 0.0
-        values[stock.ticker] = (qty * close) if (close is not None) else 0.0
+        positions[stock.ticker] = {
+            "quantity": qty,
+            "last_close": close,
+            "value": (qty * close) if (close is not None) else 0.0,
+        }
+    return positions
+
+
+def compute_actual_weights(db: Session, stocks: list[Stock]) -> dict[str, float]:
+    """Holding 수량 x 최신 종가 기준 실제비중(%). 보유가 전혀 없으면 전 종목 0.0."""
+    positions = compute_positions(db, stocks)
+    values = {ticker: pos["value"] for ticker, pos in positions.items()}
 
     total = sum(values.values())
     if total <= 0:
@@ -89,10 +100,17 @@ def compute_rebalance_signal(
 def compute_rebalance_current(db: Session, today: dt.date | None = None) -> list[dict]:
     today = today or dt.date.today()
     stocks = db.query(Stock).filter(Stock.active.is_(True)).all()
-    actual_weights = compute_actual_weights(db, stocks)
+    positions = compute_positions(db, stocks)
+    total_value = sum(pos["value"] for pos in positions.values())
+    actual_weights = (
+        {ticker: (pos["value"] / total_value) * 100 for ticker, pos in positions.items()}
+        if total_value > 0
+        else {ticker: 0.0 for ticker in positions}
+    )
 
     rows = []
     for stock in stocks:
+        position = positions[stock.ticker]
         actual = actual_weights.get(stock.ticker, 0.0)
         excess = actual - stock.target_weight_pct
         band = band_for_stock(db, stock)
@@ -108,6 +126,9 @@ def compute_rebalance_current(db: Session, today: dt.date | None = None) -> list
                 "next_review_date": review_date,
                 "shoulder_signal_fired_in_period": shoulder_fired_in_current_period(db, stock, today),
                 "rebalance_signal": {"active": active, "reasons": reasons},
+                "quantity": position["quantity"],
+                "last_close": position["last_close"],
+                "current_value": position["value"],
             }
         )
     return rows

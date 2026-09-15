@@ -4,9 +4,11 @@ import type {
   HistoryResponse,
   RebalanceRow,
   RebalanceTarget,
+  RefreshResult,
   Settings,
   Stock,
   StockCreateInput,
+  StockCreateResult,
   StockUpdateInput,
 } from '../types'
 
@@ -28,11 +30,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   listStocks: () => request<Stock[]>('/stocks'),
   createStock: (payload: StockCreateInput) =>
-    request<Stock>('/stocks', { method: 'POST', body: JSON.stringify(payload) }),
+    request<StockCreateResult>('/stocks', { method: 'POST', body: JSON.stringify(payload) }),
   updateStock: (ticker: string, payload: StockUpdateInput) =>
     request<Stock>(`/stocks/${ticker}`, { method: 'PUT', body: JSON.stringify(payload) }),
   deactivateStock: (ticker: string) => request<Stock>(`/stocks/${ticker}`, { method: 'DELETE' }),
   refreshStock: (ticker: string) => request<unknown>(`/stocks/${ticker}/refresh`, { method: 'POST' }),
+  refreshAll: () => request<RefreshResult[]>('/stocks/refresh-all', { method: 'POST' }),
 
   getDashboard: () => request<DashboardCard[]>('/dashboard'),
 

@@ -1,31 +1,36 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useAppState } from '../AppState'
 import { api } from '../api/client'
-import type { Holding, RebalanceRow, RebalanceTarget, Settings } from '../types'
+import { money, num, qty, signed } from '../lib/display'
+import type { Holding, RebalanceRow, RebalanceTarget, Settings, Stock } from '../types'
 
-interface MergedRow {
+/** 조정 필요금액이 총자산의 이 비율 미만이면 주문하지 않고 "유지"로 본다 (거래비용 대비 실익 없음) */
+const NOISE_THRESHOLD_PCT = 0.5
+
+interface Row {
   ticker: string
   current: RebalanceRow
   target: RebalanceTarget | null
   holding: Holding | null
+  stock: Stock | null
 }
 
-function EditableRow({ row, onSaved, onError }: { row: MergedRow; onSaved: () => void; onError: (e: string) => void }) {
-  const [targetWeight, setTargetWeight] = useState(row.current.target_weight_pct)
-  const [bandPct, setBandPct] = useState<string>(
+function SettingsRow({ row, onSaved, onError }: { row: Row; onSaved: () => void; onError: (e: string) => void }) {
+  const [targetWeight, setTargetWeight] = useState(String(row.current.target_weight_pct))
+  const [bandPct, setBandPct] = useState(
     row.target?.rebalance_band_pct === null || row.target?.rebalance_band_pct === undefined
       ? ''
       : String(row.target.rebalance_band_pct),
   )
-  const [quantity, setQuantity] = useState<string>(
-    row.holding ? String(Number(row.holding.quantity.toFixed(4))) : '0',
-  )
+  const [quantity, setQuantity] = useState(String(Number(row.current.quantity.toFixed(4))))
   const [saving, setSaving] = useState(false)
 
-  const saveTarget = async () => {
+  const save = async () => {
     setSaving(true)
     try {
+      await api.updateHolding(row.ticker, Number(quantity))
       await api.updateRebalanceTarget(row.ticker, {
-        target_weight_pct: targetWeight,
+        target_weight_pct: Number(targetWeight),
         rebalance_band_pct: bandPct === '' ? null : Number(bandPct),
       })
       onSaved()
@@ -36,151 +41,351 @@ function EditableRow({ row, onSaved, onError }: { row: MergedRow; onSaved: () =>
     }
   }
 
-  const saveHolding = async () => {
-    setSaving(true)
-    try {
-      await api.updateHolding(row.ticker, Number(quantity))
-      onSaved()
-    } catch (e) {
-      onError(String(e))
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const signal = row.current.rebalance_signal
-  const excessColor = row.current.excess_pct > 0 ? 'var(--color-danger)' : row.current.excess_pct < 0 ? 'var(--color-info)' : undefined
-
   return (
     <tr>
       <td>
-        <strong>{row.ticker}</strong>
+        <div className="ticker-cell">
+          <span className="ticker-name">{row.stock?.name ?? row.ticker}</span>
+          <span className="ticker-sub">{row.ticker}</span>
+        </div>
+      </td>
+      <td>
+        <input type="number" step="any" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
       </td>
       <td>
         <div className="input-with-button">
-          <input type="number" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
-          <button onClick={saveHolding} disabled={saving}>
-            저장
-          </button>
+          <input type="number" step="any" value={targetWeight} onChange={(e) => setTargetWeight(e.target.value)} />
+          <span className="unit">%</span>
         </div>
       </td>
       <td>
         <div className="input-with-button">
-          <input type="number" value={targetWeight} onChange={(e) => setTargetWeight(Number(e.target.value))} />
-          <span>%</span>
+          <input
+            type="number"
+            step="any"
+            placeholder="기본값"
+            value={bandPct}
+            onChange={(e) => setBandPct(e.target.value)}
+          />
+          <span className="unit">%p</span>
         </div>
       </td>
-      <td>{row.current.actual_weight_pct.toFixed(1)}%</td>
-      <td style={{ color: excessColor }}>
-        {row.current.excess_pct > 0 ? '+' : ''}
-        {row.current.excess_pct.toFixed(1)}%p
-      </td>
+      <td className="num-cell">{row.current.next_review_date}</td>
       <td>
-        <div className="input-with-button">
-          <input type="number" placeholder="기본값" value={bandPct} onChange={(e) => setBandPct(e.target.value)} />
-          <button onClick={saveTarget} disabled={saving}>
-            저장
-          </button>
-        </div>
-      </td>
-      <td>{row.current.next_review_date}</td>
-      <td>{row.current.shoulder_signal_fired_in_period ? '발동' : '-'}</td>
-      <td>
-        {signal.active ? (
-          <div className="badge-row" style={{ marginBottom: 0 }}>
-            {signal.reasons.map((r) => (
-              <span key={r} className="badge badge-purple">
-                {r}
-              </span>
-            ))}
-          </div>
-        ) : (
-          '-'
-        )}
+        <button className="primary sm" onClick={save} disabled={saving}>
+          {saving ? '저장 중…' : '저장'}
+        </button>
       </td>
     </tr>
   )
 }
 
 export function RebalancePanel() {
-  const [rows, setRows] = useState<MergedRow[]>([])
+  const { refreshKey, notifyDataChanged } = useAppState()
+  const [rows, setRows] = useState<Row[]>([])
   const [settings, setSettings] = useState<Settings | null>(null)
   const [bandInput, setBandInput] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  const load = () => {
-    Promise.all([api.getRebalanceCurrent(), api.listRebalanceTargets(), api.listHoldings(), api.getSettings()])
-      .then(([current, targets, holdings, s]) => {
-        const targetByTicker = new Map(targets.map((t) => [t.ticker, t]))
-        const holdingByTicker = new Map(holdings.map((h) => [h.ticker, h]))
+  /** 사용자가 직접 넣은 총 운용자산. 비워두면 보유 평가금액 합계를 쓴다 (현금 비중까지 반영하고 싶을 때 입력). */
+  const [totalOverride, setTotalOverride] = useState('')
+
+  const reload = () => {
+    setLoading(true)
+    Promise.all([
+      api.getRebalanceCurrent(),
+      api.listRebalanceTargets(),
+      api.listHoldings(),
+      api.getSettings(),
+      api.listStocks(),
+    ])
+      .then(([current, targets, holdings, s, stocks]) => {
+        const targetBy = new Map(targets.map((t) => [t.ticker, t]))
+        const holdingBy = new Map(holdings.map((h) => [h.ticker, h]))
+        const stockBy = new Map(stocks.map((st) => [st.ticker, st]))
         setRows(
           current.map((c) => ({
             ticker: c.ticker,
             current: c,
-            target: targetByTicker.get(c.ticker) ?? null,
-            holding: holdingByTicker.get(c.ticker) ?? null,
+            target: targetBy.get(c.ticker) ?? null,
+            holding: holdingBy.get(c.ticker) ?? null,
+            stock: stockBy.get(c.ticker) ?? null,
           })),
         )
         setSettings(s)
         setBandInput(String(s.default_rebalance_band_pct))
       })
       .catch((e) => setError(String(e)))
+      .finally(() => setLoading(false))
   }
 
-  useEffect(load, [])
+  useEffect(reload, [refreshKey])
+
+  const handleSaved = () => {
+    setError(null)
+    notifyDataChanged()
+  }
 
   const saveSettings = async () => {
     try {
       await api.updateSettings({ default_rebalance_band_pct: Number(bandInput) })
-      load()
+      handleSaved()
     } catch (e) {
       setError(String(e))
     }
   }
 
+  const plan = useMemo(() => {
+    const holdingsTotal = rows.reduce((s, r) => s + r.current.current_value, 0)
+    const parsed = Number(totalOverride.replace(/,/g, ''))
+    const total = totalOverride.trim() !== '' && Number.isFinite(parsed) && parsed > 0 ? parsed : holdingsTotal
+    const targetSum = rows.reduce((s, r) => s + r.current.target_weight_pct, 0)
+
+    const orders = rows.map((r) => {
+      const targetValue = (total * r.current.target_weight_pct) / 100
+      const adjust = targetValue - r.current.current_value
+      const close = r.current.last_close
+      const shares = close && close > 0 ? adjust / close : null
+      const material = total > 0 && Math.abs(adjust) / total > NOISE_THRESHOLD_PCT / 100
+      return {
+        row: r,
+        targetValue,
+        adjust,
+        shares,
+        action: !material ? ('hold' as const) : adjust > 0 ? ('buy' as const) : ('sell' as const),
+      }
+    })
+
+    return { holdingsTotal, total, targetSum, orders, cash: total - holdingsTotal }
+  }, [rows, totalOverride])
+
+  const signalled = rows.filter((r) => r.current.rebalance_signal.active)
+
+  if (loading) return <p className="hint">불러오는 중…</p>
+
+  if (rows.length === 0) {
+    return (
+      <div className="empty-state">
+        <h3>리밸런싱할 종목이 없습니다</h3>
+        <p>종목 관리 화면에서 종목을 추가하고 목표 비중을 설정해주세요.</p>
+      </div>
+    )
+  }
+
   return (
     <div>
-      <h2>리밸런싱</h2>
-      {error && <p className="error-text">{error}</p>}
-
-      <div className="form-row" style={{ marginBottom: 20 }}>
-        <span>전역 기본 밴드 임계값:</span>
-        <div className="input-with-button">
-          <input type="number" value={bandInput} onChange={(e) => setBandInput(e.target.value)} />
-          <span>%p</span>
-          <button className="primary" onClick={saveSettings}>
-            저장
-          </button>
+      <div className="page-head">
+        <div>
+          <h2>리밸런싱 · 주문 가이드</h2>
+          <p className="hint">
+            목표 비중과 현재 비중의 차이를 금액과 주수로 환산합니다. 실제 매도 실행일은 종목별 리뷰 마감일이며,
+            비중조절 신호는 조기 참고 알림입니다.
+          </p>
         </div>
-        {settings && <span className="hint">(현재 적용값: {settings.default_rebalance_band_pct}%p)</span>}
       </div>
 
-      {rows.length === 0 ? (
-        <p className="hint">등록된 종목이 없습니다.</p>
-      ) : (
+      {error && <p className="error-text">{error}</p>}
+
+      <div className="kpi-grid">
+        <div className="kpi">
+          <div className="kpi-head">
+            <span className="kpi-title">총 운용자산</span>
+          </div>
+          <div className="field">
+            <input
+              type="text"
+              inputMode="numeric"
+              placeholder={money(plan.holdingsTotal)}
+              value={totalOverride}
+              onChange={(e) => setTotalOverride(e.target.value)}
+            />
+          </div>
+          <p className="kpi-foot">
+            보유 평가금액 합계 {money(plan.holdingsTotal)}
+            {plan.cash > 0.5 && ` · 미투자 현금 ${money(plan.cash)}`}
+            <br />
+            현금까지 포함해 비중을 맞추려면 총액을 직접 입력하세요.
+          </p>
+        </div>
+
+        <div className="kpi">
+          <div className="kpi-head">
+            <span className="kpi-title">목표 비중 합계</span>
+          </div>
+          <div className="kpi-figure">
+            <span className={`big ${Math.abs(plan.targetSum - 100) < 0.01 ? 'up' : 'down'}`}>
+              {num(plan.targetSum, 1)}%
+            </span>
+          </div>
+          <p className="kpi-foot">
+            {Math.abs(plan.targetSum - 100) < 0.01
+              ? '합계가 100%로 맞습니다.'
+              : `100%에서 ${signed(plan.targetSum - 100, 1, '%p')} 벗어나 있어 목표 금액이 총자산과 어긋납니다.`}
+          </p>
+        </div>
+
+        <div className="kpi">
+          <div className="kpi-head">
+            <span className="kpi-title">비중조절 신호</span>
+          </div>
+          <div className="kpi-figure">
+            <span className="big">{signalled.length}</span>
+            <span className="hint">종목</span>
+          </div>
+          <p className="kpi-foot">
+            {signalled.length === 0
+              ? '모든 종목이 설정한 밴드 이내입니다.'
+              : signalled.map((r) => `${r.ticker}: ${r.current.rebalance_signal.reasons.join(', ')}`).join(' · ')}
+          </p>
+        </div>
+
+        <div className="kpi">
+          <div className="kpi-head">
+            <span className="kpi-title">전역 기본 밴드</span>
+          </div>
+          <div className="input-with-button">
+            <input type="number" step="any" value={bandInput} onChange={(e) => setBandInput(e.target.value)} />
+            <span className="unit">%p</span>
+            <button className="primary sm" onClick={saveSettings}>
+              저장
+            </button>
+          </div>
+          <p className="kpi-foot">
+            종목별 밴드를 비워두면 이 값이 적용됩니다. 현재 적용값 {settings?.default_rebalance_band_pct ?? '—'}%p
+          </p>
+        </div>
+      </div>
+
+      <div className="section">
+        <div className="section-head">
+          <h3>자동 산출된 주문 가이드</h3>
+          <span className="hint">
+            조정 필요금액이 총자산의 {NOISE_THRESHOLD_PCT}% 미만이면 "유지"로 표시합니다.
+          </span>
+        </div>
         <div className="table-scroll">
-          <table className="data-table">
+          <table className="data-table" style={{ minWidth: 1020 }}>
             <thead>
               <tr>
-                <th>티커</th>
-                <th>보유수량</th>
-                <th>목표비중</th>
-                <th>현재비중</th>
-                <th>초과분</th>
-                <th>밴드(%p)</th>
-                <th>다음 리뷰 마감일</th>
-                <th>어깨매도(참고) 발동</th>
-                <th>비중조절 신호</th>
+                <th style={{ minWidth: 150 }}>구분 / 종목</th>
+                <th style={{ minWidth: 118 }}>현재 평가금액</th>
+                <th style={{ minWidth: 118 }}>목표 금액</th>
+                <th style={{ minWidth: 118 }}>조정 필요금액</th>
+                <th style={{ minWidth: 104 }}>
+                  현재 비중
+                  <br />
+                  (목표 대비)
+                </th>
+                <th style={{ minWidth: 104 }}>주문 액션</th>
+                <th style={{ minWidth: 104 }}>예상 주문 주수</th>
+                <th style={{ minWidth: 140 }}>비중조절 신호</th>
+              </tr>
+            </thead>
+            <tbody>
+              {plan.orders.map(({ row, targetValue, adjust, shares, action }) => (
+                <tr key={row.ticker}>
+                  <td>
+                    <div className="ticker-cell">
+                      {row.stock?.category && <span className="cat-tag">{row.stock.category}</span>}
+                      <span className="ticker-name">{row.stock?.name ?? row.ticker}</span>
+                      <span className="ticker-sub">
+                        {row.ticker} · {qty(row.current.quantity)}주
+                      </span>
+                    </div>
+                  </td>
+                  <td className="num-cell">{money(row.current.current_value)}</td>
+                  <td className="num-cell">{money(targetValue)}</td>
+                  <td className={`num-cell ${adjust > 0 ? 'up' : adjust < 0 ? 'down' : ''}`}>
+                    {adjust > 0 ? '+' : ''}
+                    {money(adjust)}
+                  </td>
+                  <td>
+                    <div className="metric">
+                      <span className="metric-value">{num(row.current.actual_weight_pct, 1)}%</span>
+                      <span className="metric-note">
+                        목표 {num(row.current.target_weight_pct, 0)}% ·{' '}
+                        {signed(row.current.excess_pct, 1, '%p')}
+                      </span>
+                    </div>
+                  </td>
+                  <td>
+                    {action === 'buy' ? (
+                      <span className="badge badge-green">매수 (BUY)</span>
+                    ) : action === 'sell' ? (
+                      <span className="badge badge-red">매도 (SELL)</span>
+                    ) : (
+                      <span className="badge badge-grey">유지 (HOLD)</span>
+                    )}
+                  </td>
+                  <td className="num-cell">
+                    {shares === null || action === 'hold' ? '—' : `${signed(shares, 2)}주`}
+                  </td>
+                  <td>
+                    <div className="badge-row">
+                      {row.current.rebalance_signal.reasons.map((r) => (
+                        <span key={r} className="badge badge-purple">
+                          {r}
+                        </span>
+                      ))}
+                      {row.current.shoulder_signal_fired_in_period && (
+                        <span className="badge badge-amber">기간 내 어깨매도 발동</span>
+                      )}
+                      {!row.current.rebalance_signal.active &&
+                        !row.current.shoulder_signal_fired_in_period && (
+                          <span className="hint">밴드 이내</span>
+                        )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td>합계</td>
+                <td className="num-cell">{money(plan.holdingsTotal)}</td>
+                <td className="num-cell">{money(plan.orders.reduce((s, o) => s + o.targetValue, 0))}</td>
+                <td className="num-cell">{money(plan.orders.reduce((s, o) => s + o.adjust, 0))}</td>
+                <td colSpan={4} />
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      <div className="section">
+        <div className="section-head">
+          <h3>보유수량 · 목표 비중 설정</h3>
+          <span className="hint">수량과 목표 비중을 바꾸면 위 주문 가이드가 즉시 다시 계산됩니다.</span>
+        </div>
+        <div className="table-scroll">
+          <table className="data-table" style={{ minWidth: 840 }}>
+            <thead>
+              <tr>
+                <th style={{ minWidth: 150 }}>종목</th>
+                <th style={{ minWidth: 120 }}>보유수량</th>
+                <th style={{ minWidth: 155 }}>목표 비중</th>
+                <th style={{ minWidth: 155 }}>
+                  밴드 임계값
+                  <br />
+                  (비워두면 기본값)
+                </th>
+                <th style={{ minWidth: 118 }}>다음 리뷰 마감일</th>
+                <th style={{ minWidth: 80 }}>저장</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((row) => (
-                <EditableRow key={row.ticker} row={row} onSaved={load} onError={setError} />
+                <SettingsRow key={row.ticker} row={row} onSaved={handleSaved} onError={setError} />
               ))}
             </tbody>
           </table>
         </div>
-      )}
+        <p className="hint" style={{ marginTop: 10 }}>
+          리뷰 마감일은 리밸런싱 주기(분기/반기)의 마지막 거래일로 자동 계산되며, 종목 관리 화면에서 개인 일정에
+          맞춰 직접 지정할 수도 있습니다.
+        </p>
+      </div>
     </div>
   )
 }

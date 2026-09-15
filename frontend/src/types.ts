@@ -6,6 +6,7 @@ export type BuyStatus = 'recommended' | 'confirmed'
 export interface Stock {
   ticker: string
   name: string | null
+  category: string | null
   active: boolean
   added_at: string
   dca_amount: number
@@ -19,6 +20,7 @@ export interface Stock {
 export interface StockCreateInput {
   ticker: string
   name?: string
+  category?: string | null
   dca_amount?: number
   dca_period?: DcaPeriod
   rebalance_period?: RebalancePeriod
@@ -29,9 +31,18 @@ export interface StockCreateInput {
 
 export type StockUpdateInput = Partial<Omit<StockCreateInput, 'ticker'>> & { active?: boolean }
 
+/** 종목 등록 결과 — 최초 시세 백필이 실제로 됐는지까지 알려준다 */
+export interface StockCreateResult {
+  stock: Stock
+  data_loaded: boolean
+  data_error: string | null
+}
+
 export interface LatestIndicators {
   date: string | null
   close: number | null
+  prev_close: number | null
+  change_pct: number | null
   ma5: number | null
   ma20: number | null
   ma50: number | null
@@ -58,12 +69,22 @@ export interface RebalanceSignal {
   reasons: string[]
 }
 
+/** 무릎매수(v2) 네 조건의 개별 충족 여부. null = 데이터 부족으로 판정 불가 */
+export interface KneeConditions {
+  di_bearish: boolean | null
+  disparity_negative: boolean | null
+  volatility_or_volume: boolean | null
+  adx_trending: boolean | null
+}
+
 export interface DashboardCard {
   ticker: string
   name: string | null
+  category: string | null
   data_stale: boolean
   indicators: LatestIndicators
   knee_buy_v2: boolean
+  knee_conditions: KneeConditions
   shoulder_sell_ref: boolean
   current_period_buy: PendingBuy | null
   rebalance_signal: RebalanceSignal
@@ -112,4 +133,14 @@ export interface RebalanceRow {
   next_review_date: string
   shoulder_signal_fired_in_period: boolean
   rebalance_signal: RebalanceSignal
+  quantity: number
+  last_close: number | null
+  current_value: number
+}
+
+export interface RefreshResult {
+  ticker: string
+  ok: boolean
+  rows_upserted: number | null
+  error: string | null
 }
