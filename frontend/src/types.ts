@@ -148,3 +148,10 @@ export interface RefreshResult {
   error: string | null
   hint: string | null
 }
+
+/** 백엔드가 알려주는 실행 중인 버전 — 업데이트가 반영됐는지 확인용 */
+export interface HealthInfo {
+  status: string
+  version: string
+  providers: string[]
+}

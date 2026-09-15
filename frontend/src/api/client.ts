@@ -6,6 +6,7 @@ import type {
   RebalanceTarget,
   RefreshResult,
   Settings,
+  HealthInfo,
   Stock,
   StockCreateInput,
   StockCreateResult,
@@ -62,6 +63,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  getHealth: () => request<HealthInfo>('/health'),
+
   listStocks: () => request<Stock[]>('/stocks'),
   createStock: (payload: StockCreateInput) =>
     request<StockCreateResult>('/stocks', { method: 'POST', body: JSON.stringify(payload) }),

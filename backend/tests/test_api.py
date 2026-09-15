@@ -45,7 +45,7 @@ def test_health(api):
     client, _ = api
     r = client.get("/api/health")
     assert r.status_code == 200
-    assert r.json() == {"status": "ok"}
+    assert r.json()["status"] == "ok"
 
 
 def test_create_list_stock(api):
@@ -286,3 +286,12 @@ def test_confirm_buy_execution(api):
     r2 = client.get("/api/rebalance/holdings")
     voo = next(h for h in r2.json() if h["ticker"] == "VOO")
     assert voo["quantity"] == 5.0
+
+
+def test_health_reports_version_and_providers(api):
+    """헤더가 이 값을 보여주므로, 어느 코드가 도는지 화면에서 확인할 수 있어야 한다."""
+    client, _ = api
+    body = client.get("/api/health").json()
+    assert body["status"] == "ok"
+    assert body["version"]  # 예: "0.3.0 (abc1234)"
+    assert body["providers"] == ["yahoo", "stooq"]

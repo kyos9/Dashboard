@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { useAppState } from '../AppState'
+import { api } from '../api/client'
+import type { HealthInfo } from '../types'
 
 type Theme = 'dark' | 'light'
 
@@ -26,6 +28,12 @@ const TABS = [
 export function AppHeader() {
   const { refreshAll, refreshing, lastSync, refreshError } = useAppState()
   const [theme, setTheme] = useState<Theme>(readStoredTheme)
+  const [health, setHealth] = useState<HealthInfo | null>(null)
+
+  // 실행 중인 백엔드 버전을 헤더에 띄운다 — 업데이트 후 서버를 다시 켰는지 한눈에 확인하려고.
+  useEffect(() => {
+    api.getHealth().then(setHealth).catch(() => setHealth(null))
+  }, [])
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
@@ -55,6 +63,11 @@ export function AppHeader() {
             <h1 className="brand-title">
               신호판
               <span className="badge badge-blue">무릎매수 v2</span>
+              {health && (
+                <span className="badge badge-grey mono" title={`시세 제공자: ${health.providers.join(' → ')}`}>
+                  v{health.version}
+                </span>
+              )}
             </h1>
             <p className="brand-sub">기술적 타이밍 시그널 · DCA 매수 워크플로우 · 비중조절 신호</p>
           </div>

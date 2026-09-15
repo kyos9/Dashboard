@@ -4,8 +4,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app import version
 from app.db import init_db
 from app.routers import buys, dashboard, history, rebalance, stocks
+from app.services import providers
 from app.services.scheduler import shutdown_scheduler, start_scheduler
 
 
@@ -37,4 +39,9 @@ app.include_router(buys.router)
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok"}
+    """상태 + 실행 중인 버전. 화면 헤더가 이 값을 보여준다."""
+    return {
+        "status": "ok",
+        "version": version.version_string(),
+        "providers": providers.configured_order(),
+    }
