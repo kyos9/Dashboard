@@ -10,7 +10,14 @@
 
 ## 로컬 실행
 
-### 백엔드
+### Windows — 더블클릭으로 실행
+
+1. **`setup.bat`** — 처음 한 번만 더블클릭 (venv 생성, 백엔드/프런트엔드 패키지 설치)
+2. **`start-all.bat`** — 그 다음부터는 이것만 더블클릭하면 백엔드/프런트엔드가 각자 창에서 켜지고, 잠시 후 브라우저가 자동으로 열립니다
+
+개별 실행이 필요하면 `start-backend.bat` / `start-frontend.bat`을 따로 실행해도 됩니다.
+
+### 백엔드 (수동 실행 / macOS·Linux)
 
 ```bash
 cd backend
