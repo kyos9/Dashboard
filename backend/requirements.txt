@@ -2,7 +2,7 @@ fastapi==0.115.6
 uvicorn[standard]==0.34.0
 sqlalchemy==2.0.53
 pydantic==2.13.5
-yfinance==0.2.51
+yfinance==1.7.0
 pandas==3.0.5
 numpy==2.3.3
 pandas-market-calendars==4.6.1
