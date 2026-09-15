@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAppState } from '../AppState'
 import { api } from '../api/client'
+import { ErrorNotice } from '../components/ErrorNotice'
 import {
   CATEGORY_UNSET,
   categoryOf,
@@ -120,7 +121,7 @@ export function Dashboard() {
   const [cards, setCards] = useState<DashboardCard[]>([])
   const [weights, setWeights] = useState<RebalanceRow[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<unknown>(null)
   const [busyId, setBusyId] = useState<number | null>(null)
 
   const [category, setCategory] = useState<string>('전체')
@@ -137,7 +138,7 @@ export function Dashboard() {
         setCards(c)
         setWeights(w)
       })
-      .catch((e) => setError(String(e)))
+      .catch(setError)
       .finally(() => setLoading(false))
   }, [refreshKey])
 
@@ -147,7 +148,7 @@ export function Dashboard() {
       await api.confirmBuy(buyId, true)
       notifyDataChanged()
     } catch (e) {
-      setError(String(e))
+      setError(e)
     } finally {
       setBusyId(null)
     }
@@ -207,7 +208,7 @@ export function Dashboard() {
   )
 
   if (loading) return <p className="hint">불러오는 중…</p>
-  if (error) return <p className="error-text">{error}</p>
+  if (error && cards.length === 0) return <ErrorNotice error={error} />
 
   if (cards.length === 0) {
     return (
@@ -223,6 +224,8 @@ export function Dashboard() {
 
   return (
     <div>
+      <ErrorNotice error={error} onDismiss={() => setError(null)} />
+
       <div className="kpi-grid">
         <div className="kpi">
           <div className="kpi-head">

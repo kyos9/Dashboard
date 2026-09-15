@@ -200,6 +200,19 @@ h4 {
   box-shadow: 0 0 0 3px var(--red-soft);
 }
 
+.header-alert {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  padding: 10px clamp(14px, 3vw, 28px);
+  background: var(--red-soft);
+  border-bottom: 1px solid rgba(240, 82, 82, 0.35);
+  color: var(--red);
+  font-size: 13px;
+  line-height: 1.55;
+  word-break: keep-all;
+}
+
 /* ---------- 탭 ---------- */
 
 .tabs {
@@ -1090,9 +1103,47 @@ button:disabled {
   background: var(--red-soft);
   border: 1px solid rgba(240, 82, 82, 0.35);
   border-radius: var(--radius-sm);
-  padding: 10px 13px;
+  padding: 11px 14px;
+  margin: 0 0 14px;
   font-size: 13px;
   word-break: keep-all;
+}
+
+.error-head {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  line-height: 1.55;
+}
+
+.error-dismiss {
+  margin-left: auto;
+  flex: none;
+  color: var(--red);
+  border-color: rgba(240, 82, 82, 0.35);
+}
+
+.error-detail {
+  margin-top: 9px;
+  border-top: 1px solid rgba(240, 82, 82, 0.25);
+  padding-top: 8px;
+}
+
+.error-detail summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+.error-detail p {
+  margin: 8px 0 0;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.6;
+  /* 긴 예외 메시지는 URL·경로가 섞여 있어 어절 단위로는 넘칠 수 있다 */
+  overflow-wrap: break-word;
+  color: var(--text-dim);
 }
 
 /* ---------- 차트 ---------- */

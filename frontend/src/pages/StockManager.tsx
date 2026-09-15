@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAppState } from '../AppState'
 import { api } from '../api/client'
+import { ErrorNotice } from '../components/ErrorNotice'
 import { money } from '../lib/display'
 import type { DcaPeriod, RebalancePeriod, Stock, StockCreateInput } from '../types'
 
@@ -17,7 +18,7 @@ const emptyForm: StockCreateInput = {
 /** 구분 입력을 돕는 예시값 — 자유 입력이므로 강제되지 않는다 */
 const CATEGORY_SUGGESTIONS = ['지수', '알파', '안전자산']
 
-function StockRow({ stock, onSaved, onError }: { stock: Stock; onSaved: () => void; onError: (e: string) => void }) {
+function StockRow({ stock, onSaved, onError }: { stock: Stock; onSaved: () => void; onError: (e: unknown) => void }) {
   const [name, setName] = useState(stock.name ?? '')
   const [category, setCategory] = useState(stock.category ?? '')
   const [dcaAmount, setDcaAmount] = useState(String(stock.dca_amount))
@@ -44,7 +45,7 @@ function StockRow({ stock, onSaved, onError }: { stock: Stock; onSaved: () => vo
       })
       onSaved()
     } catch (e) {
-      onError(String(e))
+      onError(e)
     } finally {
       setSaving(false)
     }
@@ -56,18 +57,18 @@ function StockRow({ stock, onSaved, onError }: { stock: Stock; onSaved: () => vo
       else await api.updateStock(stock.ticker, { active: true })
       onSaved()
     } catch (e) {
-      onError(String(e))
+      onError(e)
     }
   }
 
   const refresh = async () => {
     setRefreshing(true)
-    onError('')
+    onError(null)
     try {
       await api.refreshStock(stock.ticker)
       onSaved()
     } catch (e) {
-      onError(String(e))
+      onError(e)
     } finally {
       setRefreshing(false)
     }
@@ -153,15 +154,15 @@ export function StockManager() {
   const { refreshKey, notifyDataChanged } = useAppState()
   const [stocks, setStocks] = useState<Stock[]>([])
   const [form, setForm] = useState<StockCreateInput>(emptyForm)
-  const [error, setError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<{ tone: 'green' | 'amber'; text: string } | null>(null)
+  const [error, setError] = useState<unknown>(null)
+  const [notice, setNotice] = useState<{ tone: 'green' | 'amber'; text: string; detail?: string } | null>(null)
   const [creating, setCreating] = useState(false)
 
   useEffect(() => {
     api
       .listStocks()
       .then(setStocks)
-      .catch((e) => setError(String(e)))
+      .catch(setError)
   }, [refreshKey])
 
   const handleSaved = () => {
@@ -195,13 +196,14 @@ export function StockManager() {
           : {
               tone: 'amber',
               text:
-                `${result.stock.ticker}은(는) 등록됐지만 시세를 받지 못했습니다 (${result.data_error}). ` +
-                `티커 철자를 확인하고 아래 "시세 갱신"으로 다시 시도해주세요.`,
+                `${result.stock.ticker}은(는) 등록됐지만 시세를 받지 못했습니다. ` +
+                (result.data_hint ?? '아래 "시세 갱신"으로 다시 시도해주세요.'),
+              detail: result.data_error ?? undefined,
             },
       )
       notifyDataChanged()
     } catch (e) {
-      setError(String(e))
+      setError(e)
     } finally {
       setCreating(false)
     }
@@ -227,12 +229,20 @@ export function StockManager() {
         </div>
       </div>
 
-      {error && <p className="error-text">{error}</p>}
+      <ErrorNotice error={error} onDismiss={() => setError(null)} />
       {notice && (
-        <p className={`callout ${notice.tone}`}>
+        <div className={`callout ${notice.tone}`}>
           <span className="ico">{notice.tone === 'green' ? '✓' : '⚠'}</span>
-          {notice.text}
-        </p>
+          <div>
+            {notice.text}
+            {notice.detail && (
+              <details className="error-detail">
+                <summary>기술적 원인 보기</summary>
+                <p>{notice.detail}</p>
+              </details>
+            )}
+          </div>
+        </div>
       )}
 
       <div className="panel">

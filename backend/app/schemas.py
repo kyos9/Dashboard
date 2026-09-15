@@ -55,7 +55,8 @@ class StockCreateResult(BaseModel):
 
     stock: StockOut
     data_loaded: bool
-    data_error: Optional[str] = None
+    data_error: Optional[str] = None  # 제공자별 기술적 원인
+    data_hint: Optional[str] = None  # 사용자가 다음에 할 일
 
 
 class LatestIndicators(BaseModel):
@@ -169,7 +170,8 @@ class RefreshResult(BaseModel):
     ticker: str
     ok: bool
     rows_upserted: Optional[int] = None
-    error: Optional[str] = None
+    error: Optional[str] = None  # 제공자별 기술적 원인
+    hint: Optional[str] = None  # 사용자가 다음에 할 일
 
 
 class ConfirmBuyRequest(BaseModel):

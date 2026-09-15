@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAppState } from '../AppState'
 import { api } from '../api/client'
+import { ErrorNotice } from '../components/ErrorNotice'
 import { money, num, qty, signed } from '../lib/display'
 import type { Holding, RebalanceRow, RebalanceTarget, Settings, Stock } from '../types'
 
@@ -15,7 +16,7 @@ interface Row {
   stock: Stock | null
 }
 
-function SettingsRow({ row, onSaved, onError }: { row: Row; onSaved: () => void; onError: (e: string) => void }) {
+function SettingsRow({ row, onSaved, onError }: { row: Row; onSaved: () => void; onError: (e: unknown) => void }) {
   const [targetWeight, setTargetWeight] = useState(String(row.current.target_weight_pct))
   const [bandPct, setBandPct] = useState(
     row.target?.rebalance_band_pct === null || row.target?.rebalance_band_pct === undefined
@@ -35,7 +36,7 @@ function SettingsRow({ row, onSaved, onError }: { row: Row; onSaved: () => void;
       })
       onSaved()
     } catch (e) {
-      onError(String(e))
+      onError(e)
     } finally {
       setSaving(false)
     }
@@ -85,7 +86,7 @@ export function RebalancePanel() {
   const [rows, setRows] = useState<Row[]>([])
   const [settings, setSettings] = useState<Settings | null>(null)
   const [bandInput, setBandInput] = useState('')
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<unknown>(null)
   const [loading, setLoading] = useState(true)
 
   /** 사용자가 직접 넣은 총 운용자산. 비워두면 보유 평가금액 합계를 쓴다 (현금 비중까지 반영하고 싶을 때 입력). */
@@ -116,7 +117,7 @@ export function RebalancePanel() {
         setSettings(s)
         setBandInput(String(s.default_rebalance_band_pct))
       })
-      .catch((e) => setError(String(e)))
+      .catch(setError)
       .finally(() => setLoading(false))
   }
 
@@ -132,7 +133,7 @@ export function RebalancePanel() {
       await api.updateSettings({ default_rebalance_band_pct: Number(bandInput) })
       handleSaved()
     } catch (e) {
-      setError(String(e))
+      setError(e)
     }
   }
 
@@ -185,7 +186,7 @@ export function RebalancePanel() {
         </div>
       </div>
 
-      {error && <p className="error-text">{error}</p>}
+      <ErrorNotice error={error} onDismiss={() => setError(null)} />
 
       <div className="kpi-grid">
         <div className="kpi">

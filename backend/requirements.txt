@@ -3,6 +3,8 @@ uvicorn[standard]==0.34.0
 sqlalchemy==2.0.53
 pydantic==2.13.5
 yfinance==1.7.0
+# Stooq 대체 조회용 (yfinance의 전이 의존성이기도 하지만 직접 쓰므로 명시한다)
+requests==2.34.2
 pandas==3.0.5
 numpy==2.3.3
 pandas-market-calendars==4.6.1

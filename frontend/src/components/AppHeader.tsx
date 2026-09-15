@@ -80,6 +80,13 @@ export function AppHeader() {
         </div>
       </header>
 
+      {refreshError && (
+        <div className="header-alert">
+          <span aria-hidden="true">⚠</span>
+          <span>{refreshError}</span>
+        </div>
+      )}
+
       <nav className="tabs">
         {TABS.map((tab) => (
           <NavLink

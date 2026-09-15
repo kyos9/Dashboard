@@ -1,18 +1,20 @@
-"""야후 파이낸스(yfinance) 연동 — 일봉 OHLCV 수집 및 지표 갱신.
+"""일봉 OHLCV 수집 및 지표 갱신.
 
-중요: 스펙의 백테스트는 investing.com 종가 기준이므로, 여기서도 분할(split)은 반영하되
-배당 재투자 조정은 하지 않은 종가를 사용한다 (`auto_adjust=False`로 받은 Close).
-Adj Close는 참고용으로만 별도 컬럼에 저장하고 지표 계산에는 쓰지 않는다.
+실제 시세 조회는 `app.services.providers`가 맡는다 (야후 → Stooq 순서로 시도).
+여기서는 받아온 데이터를 저장하고 지표/시그널을 다시 계산하는 일만 한다.
+
+중요: 스펙의 백테스트는 investing.com 종가 기준이므로, 분할(split)은 반영하되 배당 재투자
+조정은 하지 않은 종가를 사용한다. Adj Close는 참고용으로만 저장하고 지표 계산에는 쓰지 않는다.
 """
 
 import datetime as dt
 import logging
 
 import pandas as pd
-import yfinance as yf
 from sqlalchemy.orm import Session
 
 from app.models import IndicatorDaily, PriceDaily, SignalDaily
+from app.services import providers
 from app.services.indicators import compute_indicators
 from app.services.signals import compute_signals
 
@@ -23,29 +25,19 @@ MIN_LOOKBACK_TRADING_DAYS = 260
 
 
 class DataIngestionError(Exception):
-    pass
+    """시세 수집 실패. `hint`에는 사용자가 다음에 할 일이 담긴다."""
+
+    def __init__(self, message: str, hint: str = ""):
+        self.hint = hint
+        super().__init__(message)
 
 
 def fetch_price_history(ticker: str, period: str = "max") -> pd.DataFrame:
-    """yfinance로 일봉 OHLCV 조회."""
-    data = yf.download(ticker, period=period, interval="1d", auto_adjust=False, progress=False)
-    if data is None or data.empty:
-        raise DataIngestionError(f"no data returned for {ticker}")
-
-    if isinstance(data.columns, pd.MultiIndex):
-        data.columns = data.columns.get_level_values(0)
-    data = data.rename(columns=lambda c: str(c).lower().replace(" ", "_"))
-    data.index = pd.to_datetime(data.index).date
-    data.index.name = "date"
-
-    required = ["open", "high", "low", "close", "volume"]
-    missing = [c for c in required if c not in data.columns]
-    if missing:
-        raise DataIngestionError(f"missing columns {missing} for {ticker}")
-    if "adj_close" not in data.columns:
-        data["adj_close"] = data["close"]
-
-    return data[required + ["adj_close"]]
+    """제공자들을 순서대로 시도해 일봉 OHLCV를 가져온다."""
+    try:
+        return providers.fetch_price_history(ticker, period=period)
+    except providers.AllProvidersFailed as exc:
+        raise DataIngestionError(str(exc), hint=exc.hint()) from exc
 
 
 def upsert_prices(db: Session, ticker: str, df: pd.DataFrame) -> int:
@@ -142,9 +134,11 @@ def refresh_ticker(db: Session, ticker: str, full_backfill: bool = False) -> dic
     period = "max" if full_backfill else "2y"
     try:
         price_df = fetch_price_history(ticker, period=period)
-    except Exception as exc:  # yfinance/네트워크 예외 전체를 포괄
+    except DataIngestionError:
+        raise  # 원인과 안내(hint)가 이미 담겨 있으므로 그대로 올린다
+    except Exception as exc:  # 제공자 계층이 못 잡은 예외까지 포괄
         logger.warning("failed to fetch price history for %s: %s", ticker, exc)
-        raise DataIngestionError(str(exc)) from exc
+        raise DataIngestionError(f"{ticker}: {type(exc).__name__} — {exc}") from exc
 
     n_upserted = upsert_prices(db, ticker, price_df)
     indicator_df = recompute_indicators(db, ticker)

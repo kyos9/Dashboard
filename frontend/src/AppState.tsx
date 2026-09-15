@@ -30,13 +30,16 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       const results = await api.refreshAll()
       const failed = results.filter((r) => !r.ok)
       if (failed.length > 0) {
+        // 사유가 같으면 한 번만 보여준다 (네트워크가 막히면 전 종목이 같은 이유로 실패한다)
+        const hints = [...new Set(failed.map((f) => f.hint).filter(Boolean))]
         setRefreshError(
-          `${failed.length}개 종목 갱신 실패 — ${failed.map((f) => `${f.ticker}: ${f.error}`).join(' / ')}`,
+          `${failed.length}개 종목 갱신 실패 (${failed.map((f) => f.ticker).join(', ')}) — ` +
+            (hints.join(' ') || failed[0].error || '원인 불명'),
         )
       }
       setLastSync(new Date())
     } catch (e) {
-      setRefreshError(String(e))
+      setRefreshError(e instanceof Error ? e.message : String(e))
     } finally {
       setRefreshing(false)
       setRefreshKey((k) => k + 1)

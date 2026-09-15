@@ -13,6 +13,7 @@ import {
 } from 'lightweight-charts'
 import { useAppState } from '../AppState'
 import { api } from '../api/client'
+import { ErrorNotice } from '../components/ErrorNotice'
 import type { HistoryResponse, Stock } from '../types'
 
 const RANGE_OPTIONS = [
@@ -72,7 +73,7 @@ export function HistoryChart() {
   const [stocks, setStocks] = useState<Stock[]>([])
   const [range, setRange] = useState<Range>('1y')
   const [history, setHistory] = useState<HistoryResponse | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<unknown>(null)
   const [loading, setLoading] = useState(false)
 
   const ticker = searchParams.get('ticker') ?? ''
@@ -92,7 +93,7 @@ export function HistoryChart() {
           setSearchParams({ ticker: active[0].ticker }, { replace: true })
         }
       })
-      .catch((e) => setError(String(e)))
+      .catch(setError)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey])
 
@@ -103,7 +104,7 @@ export function HistoryChart() {
     api
       .getHistory(ticker, range)
       .then(setHistory)
-      .catch((e) => setError(String(e)))
+      .catch(setError)
       .finally(() => setLoading(false))
   }, [ticker, range, refreshKey])
 
@@ -233,7 +234,7 @@ export function HistoryChart() {
         </div>
       </div>
 
-      {error && <p className="error-text">{error}</p>}
+      <ErrorNotice error={error} onDismiss={() => setError(null)} />
 
       <div className="chart-shell">
         <div ref={containerRef} style={{ width: '100%' }} />

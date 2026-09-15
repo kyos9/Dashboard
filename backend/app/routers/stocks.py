@@ -10,6 +10,19 @@ from app.services.pipeline import refresh_all_active_stocks, refresh_and_evaluat
 router = APIRouter(prefix="/api/stocks", tags=["stocks"])
 
 
+def _failure_detail(exc: data_ingestion.DataIngestionError) -> dict:
+    """실패 원인과 다음에 할 일을 나눠서 돌려준다.
+
+    예전에는 "no data returned for VOO"만 줘서 네트워크 문제인지 티커 오타인지 구분할 수
+    없었다. `hint`는 사용자가 바로 읽을 안내, `message`는 제공자별 기술적 원인이라
+    화면에서 접어둘 수 있다.
+    """
+    return {
+        "hint": getattr(exc, "hint", "") or "잠시 후 다시 시도해주세요.",
+        "message": str(exc),
+    }
+
+
 @router.get("", response_model=list[StockOut])
 def list_stocks(db: Session = Depends(get_db)):
     return db.query(Stock).order_by(Stock.ticker.asc()).all()
@@ -40,7 +53,13 @@ def create_stock(payload: StockCreate, db: Session = Depends(get_db)):
         refresh_and_evaluate_stock(db, stock, full_backfill=True)
     except data_ingestion.DataIngestionError as exc:
         # 종목 등록 자체는 유지하고, 데이터 백필은 이후 수동 새로고침으로 재시도 가능
-        return StockCreateResult(stock=StockOut.model_validate(stock), data_loaded=False, data_error=str(exc))
+        detail = _failure_detail(exc)
+        return StockCreateResult(
+            stock=StockOut.model_validate(stock),
+            data_loaded=False,
+            data_error=detail["message"],
+            data_hint=detail["hint"],
+        )
 
     return StockCreateResult(stock=StockOut.model_validate(stock), data_loaded=True)
 
@@ -79,6 +98,7 @@ def refresh_all_stocks(db: Session = Depends(get_db)):
             ok="error" not in r,
             rows_upserted=r.get("rows_upserted"),
             error=r.get("error"),
+            hint=r.get("hint"),
         )
         for r in results
     ]
@@ -92,5 +112,5 @@ def refresh_stock(ticker: str, db: Session = Depends(get_db)):
     try:
         result = refresh_and_evaluate_stock(db, stock, full_backfill=False)
     except data_ingestion.DataIngestionError as exc:
-        raise HTTPException(status_code=502, detail=f"data refresh failed: {exc}") from exc
+        raise HTTPException(status_code=502, detail=_failure_detail(exc)) from exc
     return result

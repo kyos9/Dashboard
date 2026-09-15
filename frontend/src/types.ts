@@ -35,7 +35,10 @@ export type StockUpdateInput = Partial<Omit<StockCreateInput, 'ticker'>> & { act
 export interface StockCreateResult {
   stock: Stock
   data_loaded: boolean
+  /** 제공자별 기술적 원인 */
   data_error: string | null
+  /** 사용자가 다음에 할 일 */
+  data_hint: string | null
 }
 
 export interface LatestIndicators {
@@ -143,4 +146,5 @@ export interface RefreshResult {
   ok: boolean
   rows_upserted: number | null
   error: string | null
+  hint: string | null
 }

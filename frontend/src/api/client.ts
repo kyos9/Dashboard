@@ -14,6 +14,40 @@ import type {
 
 const BASE = '/api'
 
+/**
+ * API 오류. 백엔드는 실패 사유를 `hint`(사용자가 할 일)와 `message`(기술적 원인)로 나눠
+ * 내려주므로, 화면에서 안내를 앞세우고 기술적 내용은 접어둘 수 있다.
+ */
+export class ApiError extends Error {
+  readonly status: number
+  readonly hint: string | null
+  readonly detail: string
+
+  constructor(status: number, hint: string | null, detail: string) {
+    super(hint || detail || `요청이 실패했습니다 (HTTP ${status})`)
+    this.name = 'ApiError'
+    this.status = status
+    this.hint = hint
+    this.detail = detail
+  }
+}
+
+function parseError(status: number, statusText: string, body: string): ApiError {
+  try {
+    const parsed = JSON.parse(body)
+    const detail = parsed?.detail
+    if (detail && typeof detail === 'object') {
+      return new ApiError(status, detail.hint ?? null, detail.message ?? body)
+    }
+    if (typeof detail === 'string') {
+      return new ApiError(status, null, detail)
+    }
+  } catch {
+    // JSON이 아니면 본문을 그대로 쓴다
+  }
+  return new ApiError(status, null, body || `${status} ${statusText}`)
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     headers: { 'Content-Type': 'application/json' },
@@ -21,7 +55,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
-    throw new Error(`${res.status} ${res.statusText}: ${body}`)
+    throw parseError(res.status, res.statusText, body)
   }
   if (res.status === 204) return undefined as T
   return (await res.json()) as T

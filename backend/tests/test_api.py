@@ -172,7 +172,9 @@ def test_refresh_all_reports_per_ticker_result(api, monkeypatch):
     r = client.post("/api/stocks/refresh-all")
     assert r.status_code == 200
     by_ticker = {row["ticker"]: row for row in r.json()}
-    assert by_ticker["VOO"] == {"ticker": "VOO", "ok": True, "rows_upserted": 12, "error": None}
+    assert by_ticker["VOO"] == {
+        "ticker": "VOO", "ok": True, "rows_upserted": 12, "error": None, "hint": None,
+    }
     # 한 종목이 실패해도 나머지는 갱신되고, 실패 사유가 함께 돌아온다
     assert by_ticker["ZZZZ"]["ok"] is False
     assert "no data returned" in by_ticker["ZZZZ"]["error"]

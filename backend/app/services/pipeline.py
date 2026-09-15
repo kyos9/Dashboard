@@ -26,5 +26,5 @@ def refresh_all_active_stocks(db: Session) -> list[dict]:
             results.append(refresh_and_evaluate_stock(db, stock, full_backfill=False))
         except data_ingestion.DataIngestionError as exc:
             logger.warning("skip refresh for %s: %s", stock.ticker, exc)
-            results.append({"ticker": stock.ticker, "error": str(exc)})
+            results.append({"ticker": stock.ticker, "error": str(exc), "hint": exc.hint})
     return results
