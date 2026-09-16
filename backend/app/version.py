@@ -9,7 +9,7 @@ from functools import lru_cache
 from pathlib import Path
 
 # 국내주식(종목명 검색)과 통화 구분을 넣은 버전. 기능이 바뀔 때마다 올린다.
-APP_VERSION = "0.5.0"
+APP_VERSION = "0.6.0"
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 

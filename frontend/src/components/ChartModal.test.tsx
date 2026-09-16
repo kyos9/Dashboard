@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../api/client'
 import type { HistoryResponse } from '../types'
-import { ChartModal } from './ChartModal'
+import { ChartModal, needsBackfill } from './ChartModal'
 
 const series = { setData: vi.fn() }
 const chart = {
@@ -27,7 +27,8 @@ const HISTORY: HistoryResponse = {
     { date: '2026-09-15', close: 76_000 },
     { date: '2026-09-16', close: 76_900 },
   ],
-  markers: [{ date: '2026-09-16', kind: 'buy_signal', status: 'recommended' }],
+  markers: [{ date: '2026-09-16', kind: 'buy' }],
+  coverage: { first_date: '2021-09-16', last_date: '2026-09-16', rows: 1_250 },
 }
 
 beforeEach(() => {
@@ -84,5 +85,83 @@ describe('차트 팝업', () => {
     expect(document.body.style.overflow).toBe('hidden')
     unmount()
     expect(document.body.style.overflow).not.toBe('hidden')
+  })
+})
+
+describe('저장 구간 안내', () => {
+  it('저장된 시세 구간을 적는다', async () => {
+    vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
+    render(<ChartModal ticker="005930.KS" name="삼성전자" onClose={() => {}} />)
+
+    expect(await screen.findByText(/저장된 시세 2021-09-16 ~ 2026-09-16/)).toBeInTheDocument()
+  })
+
+  it('고른 기간보다 저장된 시세가 짧으면 전체 기간을 다시 받게 한다', async () => {
+    // "5년을 눌렀는데 1년만 보인다"는 차트가 아니라 받아둔 데이터의 문제다.
+    // 평소 갱신은 최근 2년만 받으므로, 그대로 두면 앞부분은 영영 비어 있다.
+    const short: HistoryResponse = {
+      ...HISTORY,
+      coverage: { first_date: '2025-09-16', last_date: '2026-09-16', rows: 250 },
+    }
+    const history = vi.spyOn(api, 'getHistory').mockResolvedValue(short)
+    const refresh = vi.spyOn(api, 'refreshStock').mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    render(<ChartModal ticker="VOO" onClose={() => {}} />)
+
+    await user.click(await screen.findByRole('button', { name: '5년' }))
+    await user.click(await screen.findByRole('button', { name: '전체 기간 다시 받기' }))
+
+    // 평소 갱신(2년)이 아니라 전체를 받아야 한다
+    await waitFor(() => expect(refresh).toHaveBeenCalledWith('VOO', true))
+    // 받은 뒤에는 다시 그려야 한다 (1y 최초 + 5y + 다시받기 후)
+    await waitFor(() => expect(history).toHaveBeenCalledTimes(3))
+  })
+
+  it('저장된 시세가 고른 기간을 덮으면 다시 받으라고 하지 않는다', async () => {
+    vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
+    render(<ChartModal ticker="005930.KS" onClose={() => {}} />)
+
+    await screen.findByText(/저장된 시세/)
+    expect(screen.queryByRole('button', { name: '전체 기간 다시 받기' })).toBeNull()
+  })
+
+  it('다시 받다가 실패하면 이유를 보여준다', async () => {
+    vi.spyOn(api, 'getHistory').mockResolvedValue({
+      ...HISTORY,
+      coverage: { first_date: '2025-09-16', last_date: '2026-09-16', rows: 250 },
+    })
+    vi.spyOn(api, 'refreshStock').mockRejectedValue(new Error('시세 서버에 연결하지 못했습니다'))
+    const user = userEvent.setup()
+    render(<ChartModal ticker="VOO" onClose={() => {}} />)
+
+    await user.click(await screen.findByRole('button', { name: '5년' }))
+    await user.click(await screen.findByRole('button', { name: '전체 기간 다시 받기' }))
+
+    expect(await screen.findByText(/시세 서버에 연결하지 못했습니다/)).toBeInTheDocument()
+  })
+})
+
+describe('기간 대비 저장 구간 판정', () => {
+  const withCoverage = (first: string | null): HistoryResponse => ({
+    ...HISTORY,
+    coverage: { first_date: first, last_date: '2026-09-16', rows: first ? 100 : 0 },
+  })
+
+  it('1년을 골랐는데 반년치뿐이면 모자란 것이다', () => {
+    const halfYear = new Date(Date.now() - 180 * 86_400_000).toISOString().slice(0, 10)
+    expect(needsBackfill(withCoverage(halfYear), '1y')).toBe(true)
+  })
+
+  it('휴장일 때문에 며칠 비는 것은 모자란 게 아니다', () => {
+    const almost = new Date(Date.now() - 362 * 86_400_000).toISOString().slice(0, 10)
+    expect(needsBackfill(withCoverage(almost), '1y')).toBe(false)
+  })
+
+  it('전체를 고르면 얼마나 더 있는지 알 수 없으므로 언제나 다시 받아볼 수 있다', () => {
+    expect(needsBackfill(withCoverage('1990-01-02'), 'max')).toBe(true)
+  })
+
+  it('저장된 시세가 아예 없으면 차트가 아니라 등록·갱신의 문제다', () => {
+    expect(needsBackfill(withCoverage(null), '5y')).toBe(false)
   })
 })

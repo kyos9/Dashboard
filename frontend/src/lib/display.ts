@@ -202,18 +202,39 @@ export interface SignalCondition {
   metric: MetricKey
   label: string
   detail: string
+  /** 열 머리글에 한 번만 적는 짧은 조건식 */
+  header: string
 }
 
 export const SIGNAL_CONDITIONS: SignalCondition[] = [
-  { key: 'di_bearish', metric: 'di', label: 'DI 약세', detail: '-DI > +DI — 하락 방향이 우위' },
-  { key: 'disparity_negative', metric: 'disparity', label: '이격도 < 0', detail: '종가가 MA20 아래' },
+  {
+    key: 'di_bearish',
+    metric: 'di',
+    label: 'DI 약세',
+    detail: '-DI > +DI — 하락 방향이 우위',
+    header: '-DI > +DI',
+  },
+  {
+    key: 'disparity_negative',
+    metric: 'disparity',
+    label: '이격도 < 0',
+    detail: '종가가 MA20 아래',
+    header: '< 0',
+  },
   {
     key: 'volatility_or_volume',
     metric: 'volume',
     label: '변동성·거래량',
     detail: 'StdDev20 축소 또는 거래량비 > 1.1',
+    header: '변동성↓ 또는 >1.1',
   },
-  { key: 'adx_trending', metric: 'adx', label: 'ADX > 20', detail: '추세가 형성된 구간' },
+  {
+    key: 'adx_trending',
+    metric: 'adx',
+    label: 'ADX > 20',
+    detail: '추세가 형성된 구간',
+    header: '> 20',
+  },
 ]
 
 export const CONDITION_BY_METRIC: Record<MetricKey, SignalCondition> = SIGNAL_CONDITIONS.reduce(

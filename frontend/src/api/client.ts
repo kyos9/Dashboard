@@ -93,7 +93,9 @@ export const api = {
   purgeStock: (ticker: string) =>
     request<void>(`/stocks/${encodeURIComponent(ticker)}/purge`, { method: 'DELETE' }),
   deactivateStock: (ticker: string) => request<Stock>(`/stocks/${ticker}`, { method: 'DELETE' }),
-  refreshStock: (ticker: string) => request<unknown>(`/stocks/${ticker}/refresh`, { method: 'POST' }),
+  /** `full`이면 처음 등록할 때처럼 전체 기간을 다시 받는다 (평소 갱신은 최근 2년) */
+  refreshStock: (ticker: string, full = false) =>
+    request<unknown>(`/stocks/${ticker}/refresh${full ? '?full=true' : ''}`, { method: 'POST' }),
   refreshAll: () => request<RefreshResult[]>('/stocks/refresh-all', { method: 'POST' }),
 
   getDashboard: () => request<DashboardCard[]>('/dashboard'),

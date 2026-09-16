@@ -290,8 +290,8 @@ describe('대시보드 · 상태 표시', () => {
     renderDashboard()
 
     const row = await cardRow('VOO')
-    expect(within(row).getByText(/DI 약세/)).toBeInTheDocument()
-    expect(within(row).getByText(/ADX > 20/)).toBeInTheDocument()
+    expect(within(row).getByLabelText('DI 약세 충족')).toBeInTheDocument()
+    expect(within(row).getByLabelText('변동성·거래량 미충족')).toBeInTheDocument()
     expect(row.textContent).not.toMatch(/\d\/4/)
   })
 })
@@ -316,11 +316,27 @@ describe('대시보드 · 조건 표시', () => {
     const row = await cardRow('VOO')
     const cells = within(row).getAllByRole('cell')
     // 순서 / 종목 / 현재가 / 이격도 / ADX / DI / 거래량비 / 200일선 / 신호등 / 매수
-    expect(cells[4].textContent).toContain('ADX > 20')
-    expect(cells[5].textContent).toContain('DI 약세')
-    expect(cells[6].textContent).toContain('변동성·거래량')
+    expect(within(cells[4]).getByLabelText(/^ADX > 20/)).toBeInTheDocument()
+    expect(within(cells[5]).getByLabelText(/^DI 약세/)).toBeInTheDocument()
+    expect(within(cells[6]).getByLabelText(/^변동성·거래량/)).toBeInTheDocument()
     // 종합 신호등 칸에는 더 이상 조건을 늘어놓지 않는다
-    expect(cells[8].textContent).not.toContain('DI 약세')
+    expect(within(cells[8]).queryByLabelText(/DI 약세/)).toBeNull()
+  })
+
+  it('조건이 무엇인지는 열 머리글에 한 번만 적는다', async () => {
+    // 행마다 "이격도 < 0"을 반복하면 다섯 종목에 화면이 다 찬다.
+    // 조건은 그 열의 성질이지 행마다 달라지는 값이 아니다.
+    mockApi()
+    renderDashboard()
+
+    const table = (await screen.findAllByRole('table'))[0]
+    const headers = within(table).getAllByRole('columnheader')
+    expect(headers[3].textContent).toContain('매수 조건 < 0')
+    expect(headers[5].textContent).toContain('매수 조건 -DI > +DI')
+
+    // 값 칸에는 기호만 남는다
+    const row = await cardRow('VOO')
+    expect(within(row).getAllByRole('cell')[3].textContent).not.toContain('이격도')
   })
 
   it('충족과 미충족을 기호로 구분한다', async () => {
@@ -338,10 +354,10 @@ describe('대시보드 · 조건 표시', () => {
     renderDashboard()
 
     const row = await cardRow('VOO')
-    expect(within(row).getByText('✓ DI 약세')).toBeInTheDocument()
-    expect(within(row).getByText('· 이격도 < 0')).toBeInTheDocument()
+    expect(within(row).getByLabelText('DI 약세 충족')).toHaveTextContent('✓')
+    expect(within(row).getByLabelText('이격도 < 0 미충족')).toHaveTextContent('·')
     // 판정 불가는 미충족과 다르다 (데이터가 모자란 것이지 조건이 틀린 게 아니다)
-    expect(within(row).getByText('? 변동성·거래량')).toBeInTheDocument()
+    expect(within(row).getByLabelText('변동성·거래량 판정 불가')).toHaveTextContent('?')
   })
 })
 
@@ -352,6 +368,7 @@ describe('대시보드 · 차트 열기', () => {
       ticker: '005930.KS',
       prices: [],
       markers: [],
+      coverage: { first_date: null, last_date: null, rows: 0 },
     })
     const user = userEvent.setup()
     renderDashboard()

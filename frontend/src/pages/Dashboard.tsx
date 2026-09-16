@@ -77,6 +77,41 @@ function ConditionTag({ metric, conditions }: { metric: MetricKey; conditions: K
   )
 }
 
+/**
+ * 표에서는 조건을 기호 하나로만 찍는다.
+ *
+ * 칸마다 값·해석·조건을 세 줄씩 쌓으니 한 행이 130px이 되어, 다섯 종목이면 이미
+ * 화면을 넘겼다. 조건이 무엇인지는 열 머리글에 한 번만 적혀 있으므로(그 열의 성질이지
+ * 행마다 달라지는 값이 아니다) 행에는 충족 여부만 있으면 된다. 자세한 말은 마우스를
+ * 올리면 나오고, 카드 보기에는 그대로 다 적혀 있다.
+ */
+function ConditionMark({ metric, conditions }: { metric: MetricKey; conditions: KneeConditions }) {
+  const condition = CONDITION_BY_METRIC[metric]
+  const met = conditions[condition.key]
+  const mark = conditionMark(met)
+  return (
+    <span
+      className={`cond-mark${met === true ? ' met' : ''}`}
+      title={`${condition.label} — ${condition.detail} · ${mark.word}`}
+      aria-label={`${condition.label} ${mark.word}`}
+    >
+      {mark.sign}
+    </span>
+  )
+}
+
+/** 열 머리글 — 이름, 부제, 그리고 이 열이 맡은 매수 조건 */
+function MetricHead({ title, sub, metric }: { title: string; sub: string; metric?: MetricKey }) {
+  return (
+    <>
+      {title}
+      <br />
+      <span className="th-sub">{sub}</span>
+      {metric && <span className="th-cond">매수 조건 {CONDITION_BY_METRIC[metric].header}</span>}
+    </>
+  )
+}
+
 /** 끌어서 순서 바꾸기. 마우스를 못 쓰는 상황을 위해 위아래 화살표 키도 받는다. */
 function DragHandle({
   ticker,
@@ -133,6 +168,7 @@ function StockName({ card, onChart }: { card: DashboardCard; onChart: (card: Das
   )
 }
 
+/** 표의 지표 한 칸 — 값 하나와 조건 기호 하나, 한 줄이다 */
 function Metric({
   value,
   tone,
@@ -142,15 +178,17 @@ function Metric({
 }: {
   value: string
   tone: string
+  /** 해석 문구. 표에서는 마우스를 올렸을 때만 나온다 */
   note: string
   metric?: MetricKey
   conditions?: KneeConditions
 }) {
   return (
-    <div className="metric">
-      <span className={`metric-chip ${tone}`}>{value}</span>
-      <span className="metric-note">{note}</span>
-      {metric && conditions && <ConditionTag metric={metric} conditions={conditions} />}
+    <div className="metric-line">
+      <span className={`metric-chip ${tone}`} title={note}>
+        {value}
+      </span>
+      {metric && conditions && <ConditionMark metric={metric} conditions={conditions} />}
     </div>
   )
 }
@@ -172,9 +210,11 @@ function PriceCell({ card }: { card: DashboardCard }) {
   const change = card.indicators.change_pct
   const dir = change === null ? '' : change > 0 ? 'up' : change < 0 ? 'down' : ''
   return (
-    <div className="metric">
+    <div className="metric-line">
       <span className="metric-value">{price(card.indicators.close, card.currency)}</span>
-      <span className={`metric-note ${dir}`}>{change === null ? '전일 대비 —' : signed(change, 2, '%')}</span>
+      <span className={`metric-note ${dir}`} title="전일 대비">
+        {change === null ? '—' : signed(change, 2, '%')}
+      </span>
     </div>
   )
 }
@@ -194,20 +234,21 @@ function BuyCell({
   return (
     <div className="metric">
       <div className="badge-row">
-        <span className={`badge ${buy.type === 'signal' ? 'badge-green' : 'badge-blue'}`}>
-          {buy.type === 'signal' ? '시그널 매수' : '정기(폴백) 매수'}
+        <span
+          className={`badge ${buy.type === 'signal' ? 'badge-green' : 'badge-blue'}`}
+          title={buy.type === 'signal' ? '매수 시그널이 떠서 잡힌 매수' : '기간 내 시그널이 없어 마지막 거래일에 잡힌 정기 매수'}
+        >
+          {buy.type === 'signal' ? '시그널' : '정기'} {amount(buy.amount, card.currency)}
         </span>
-        {buy.status === 'recommended' ? (
-          <span className="badge badge-amber">추천 · 미확정</span>
-        ) : (
-          <span className="badge badge-grey">매수 확정됨</span>
-        )}
+        {buy.status === 'confirmed' && <span className="badge badge-grey">확정됨</span>}
       </div>
-      <span className="metric-note mono">
-        {buy.exec_date} · {amount(buy.amount, card.currency)}
-      </span>
       {buy.status === 'recommended' && (
-        <button className="success sm" disabled={busyId === buy.id} onClick={() => onConfirm(buy.id)}>
+        <button
+          className="success sm"
+          disabled={busyId === buy.id}
+          title={`${buy.exec_date} 추천 — 누르면 매수 확정으로 기록합니다`}
+          onClick={() => onConfirm(buy.id)}
+        >
           {busyId === buy.id ? '처리 중…' : '매수완료 확인'}
         </button>
       )}
@@ -771,39 +812,31 @@ function SignalMatrix({
 }) {
   return (
     <div className="table-scroll">
-      <table className="data-table fixed" style={{ minWidth: 1226 }}>
+      <table className="data-table fixed" style={{ minWidth: 1310 }}>
         <thead>
           <tr>
             <th style={{ width: 44 }} aria-label="순서" />
             <th style={{ width: 154 }}>구분 / 종목</th>
-            <th style={{ width: 106 }}>현재가</th>
-            <th style={{ width: 122 }}>
-              이격도
-              <br />
-              (MA20 대비)
+            <th style={{ width: 128 }}>
+              <MetricHead title="현재가" sub="(전일 대비)" />
+            </th>
+            <th style={{ width: 132 }}>
+              <MetricHead title="이격도" sub="(MA20 대비)" metric="disparity" />
+            </th>
+            <th style={{ width: 118 }}>
+              <MetricHead title="ADX" sub="(추세 강도)" metric="adx" />
+            </th>
+            <th style={{ width: 150 }}>
+              <MetricHead title="DI 방향" sub="(+DI / -DI)" metric="di" />
+            </th>
+            <th style={{ width: 150 }}>
+              <MetricHead title="거래량비" sub="(MA5/MA20)" metric="volume" />
             </th>
             <th style={{ width: 112 }}>
-              ADX
-              <br />
-              (추세 강도)
+              <MetricHead title="200일선" sub="(장기 추세)" />
             </th>
-            <th style={{ width: 126 }}>
-              DI 방향
-              <br />
-              (+DI / -DI)
-            </th>
-            <th style={{ width: 126 }}>
-              거래량비
-              <br />
-              (MA5/MA20)
-            </th>
-            <th style={{ width: 110 }}>
-              200일선
-              <br />
-              (장기 추세)
-            </th>
-            <th style={{ width: 154 }}>종합 신호등</th>
-            <th style={{ width: 172 }}>이번 기간 매수</th>
+            <th style={{ width: 150 }}>종합 신호등</th>
+            <th style={{ width: 168 }}>이번 기간 매수</th>
           </tr>
         </thead>
         <tbody>

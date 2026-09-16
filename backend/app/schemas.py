@@ -156,15 +156,25 @@ class HistoryPoint(BaseModel):
 
 
 class HistoryMarker(BaseModel):
+    """시그널이 뜬 날. 차트에 점 하나로 찍힌다."""
+
     date: dt.date
-    kind: str  # "buy_signal" | "buy_fallback" | "shoulder_ref"
-    status: Optional[BuyStatus] = None
+    kind: str  # "buy" | "sell"
+
+
+class HistoryCoverage(BaseModel):
+    """이 종목에 대해 실제로 저장돼 있는 시세 구간 (요청한 범위와 무관한 전체 기준)."""
+
+    first_date: Optional[dt.date] = None
+    last_date: Optional[dt.date] = None
+    rows: int = 0
 
 
 class HistoryResponse(BaseModel):
     ticker: str
     prices: list[HistoryPoint]
     markers: list[HistoryMarker]
+    coverage: HistoryCoverage
 
 
 class HoldingUpdate(BaseModel):

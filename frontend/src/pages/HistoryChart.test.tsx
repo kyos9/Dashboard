@@ -54,6 +54,7 @@ const HISTORY: HistoryResponse = {
     { date: '2026-09-16', close: 76_900 },
   ],
   markers: [],
+  coverage: { first_date: '2021-09-16', last_date: '2026-09-16', rows: 1_250 },
 }
 
 function renderChart() {

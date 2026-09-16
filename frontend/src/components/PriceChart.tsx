@@ -12,23 +12,19 @@ import {
 } from 'lightweight-charts'
 import type { HistoryResponse } from '../types'
 
+/* 차트에는 매수/매도 두 가지 점만 찍는다. 색은 대시보드 신호등과 같은 뜻으로 맞춘다
+   (초록 = 사라는 신호, 빨강 = 팔라는 신호). */
 export const MARKER_COLOR: Record<string, string> = {
-  buy_signal: '#22c55e',
-  buy_fallback: '#3b82f6',
-  shoulder_ref: '#f0b429',
-}
-const MARKER_LABEL: Record<string, string> = {
-  buy_signal: '매수 시그널',
-  buy_fallback: '정기 매수',
-  shoulder_ref: '매도 시그널',
+  buy: '#22c55e',
+  sell: '#f05252',
 }
 
 /** 같은 흐름으로 볼 최대 간격(일). 주말/공휴일을 건너뛰어도 연속으로 인정하도록 넉넉히 잡는다. */
 const STREAK_GAP_DAYS = 4
 
 /**
- * 매도 시그널은 며칠씩 연달아 뜨기 때문에 그대로 찍으면 라벨이 서로 겹쳐 읽을 수 없다.
- * 연속 발동 구간을 하나로 묶어 시작일에만 표시하고, 며칠짜리였는지를 라벨에 적는다.
+ * 시그널은 며칠씩 연달아 뜨기 때문에 그대로 찍으면 점이 뭉쳐 하나의 덩어리가 된다.
+ * 연속 발동 구간을 하나로 묶어 시작일에만 찍는다.
  */
 export function collapseStreaks<T extends { date: string }>(items: T[]): { head: T; length: number }[] {
   const sorted = [...items].sort((a, b) => a.date.localeCompare(b.date))
@@ -138,28 +134,17 @@ export function PriceChart({ history, height = 440 }: Props) {
       history.prices.map((p) => ({ time: p.date as Time, value: p.close })),
     )
 
-    // 매수는 기간당 한 번뿐이라 그대로 찍고, 매도 시그널은 연속 구간을 묶어 겹침을 없앤다.
-    const buyMarkers: SeriesMarker<Time>[] = history.markers
-      .filter((m) => m.kind !== 'shoulder_ref')
-      .map((m) => ({
-        time: m.date as Time,
-        position: 'belowBar',
-        color: MARKER_COLOR[m.kind],
-        shape: 'arrowUp',
-        text: m.status === 'recommended' ? `${MARKER_LABEL[m.kind]} 추천` : MARKER_LABEL[m.kind],
+    // 글자는 붙이지 않는다 — 몇 달치를 한 화면에 놓으면 라벨끼리 겹쳐서 선이 안 보인다.
+    // 매수는 선 아래, 매도는 선 위에 찍어 색과 위치 두 가지로 구분된다.
+    const dots = (kind: 'buy' | 'sell'): SeriesMarker<Time>[] =>
+      collapseStreaks(history.markers.filter((m) => m.kind === kind)).map(({ head }) => ({
+        time: head.date as Time,
+        position: kind === 'buy' ? 'belowBar' : 'aboveBar',
+        color: MARKER_COLOR[kind],
+        shape: 'circle',
       }))
 
-    const shoulderMarkers: SeriesMarker<Time>[] = collapseStreaks(
-      history.markers.filter((m) => m.kind === 'shoulder_ref'),
-    ).map(({ head, length }) => ({
-      time: head.date as Time,
-      position: 'aboveBar',
-      color: MARKER_COLOR.shoulder_ref,
-      shape: 'circle',
-      text: length > 1 ? `매도 시그널 ${length}일` : '매도 시그널',
-    }))
-
-    const markers = [...buyMarkers, ...shoulderMarkers].sort((a, b) =>
+    const markers = [...dots('buy'), ...dots('sell')].sort((a, b) =>
       String(a.time) < String(b.time) ? -1 : String(a.time) > String(b.time) ? 1 : 0,
     )
 
@@ -174,17 +159,22 @@ export function PriceChart({ history, height = 440 }: Props) {
   )
 }
 
-/** 범례에 쓸 마커 집계 */
+/** 범례에 쓸 집계 — 점 하나가 "연속으로 뜬 한 구간"이라 일수와 구간 수를 나눠 센다 */
 export function useMarkerCounts(history: HistoryResponse | null) {
   return useMemo(() => {
-    const shoulderDays = history?.markers.filter((m) => m.kind === 'shoulder_ref') ?? []
-    return {
-      buy_signal: history?.markers.filter((m) => m.kind === 'buy_signal').length ?? 0,
-      buy_fallback: history?.markers.filter((m) => m.kind === 'buy_fallback').length ?? 0,
-      shoulderDays: shoulderDays.length,
-      shoulderStreaks: collapseStreaks(shoulderDays).length,
+    const count = (kind: 'buy' | 'sell') => {
+      const days = history?.markers.filter((m) => m.kind === kind) ?? []
+      return { days: days.length, streaks: collapseStreaks(days).length }
     }
+    return { buy: count('buy'), sell: count('sell') }
   }, [history])
+}
+
+/** 저장된 시세 구간을 사람이 읽는 말로 — "5년을 눌렀는데 1년만 보인다"의 답이 여기 있다 */
+export function coverageText(history: HistoryResponse | null): string {
+  const coverage = history?.coverage
+  if (!coverage || !coverage.first_date || !coverage.last_date) return '저장된 시세 없음'
+  return `저장된 시세 ${coverage.first_date} ~ ${coverage.last_date} · ${coverage.rows.toLocaleString('ko-KR')}거래일`
 }
 
 export function ChartLegend({
@@ -198,22 +188,18 @@ export function ChartLegend({
   return (
     <div className="legend-row">
       <span>
-        <i className="legend-dot" style={{ background: MARKER_COLOR.buy_signal }} aria-hidden="true" />
-        매수 시그널 {counts.buy_signal}건
+        <i className="legend-dot" style={{ background: MARKER_COLOR.buy }} aria-hidden="true" />
+        매수 {counts.buy.streaks}구간 · {counts.buy.days}일
       </span>
       <span>
-        <i className="legend-dot" style={{ background: MARKER_COLOR.buy_fallback }} aria-hidden="true" />
-        정기 매수 {counts.buy_fallback}건
-      </span>
-      <span>
-        <i className="legend-dot" style={{ background: MARKER_COLOR.shoulder_ref }} aria-hidden="true" />
-        매도 시그널 {counts.shoulderStreaks}구간 · {counts.shoulderDays}일
+        <i className="legend-dot" style={{ background: MARKER_COLOR.sell }} aria-hidden="true" />
+        매도 {counts.sell.streaks}구간 · {counts.sell.days}일
       </span>
       <span className="hint">
         {loading
           ? '불러오는 중…'
           : history
-            ? `${history.prices.length}거래일 · 세로축 로그 스케일`
+            ? `${history.prices.length}거래일 표시 · 세로축 로그 스케일`
             : ''}
       </span>
     </div>

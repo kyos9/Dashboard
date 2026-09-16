@@ -203,12 +203,19 @@ def refresh_all_stocks(db: Session = Depends(get_db)):
 
 
 @router.post("/{ticker}/refresh")
-def refresh_stock(ticker: str, db: Session = Depends(get_db)):
+def refresh_stock(ticker: str, full: bool = False, db: Session = Depends(get_db)):
+    """이 종목의 시세를 다시 받는다.
+
+    평소 갱신은 최근 2년만 받는다 — 매일 돌리는 일에 10년치를 매번 내려받을 이유가 없다.
+    `full=true`면 처음 등록할 때처럼 전체 기간을 받는다. 등록 시점에 시세를 못 받았거나
+    (그때는 기록이 비어 있다) 차트에서 5년·전체를 눌렀는데 앞부분이 비어 있을 때 쓴다 —
+    이 경로가 없으면 등록 이후로는 2년보다 앞선 시세를 채울 방법이 아예 없었다.
+    """
     stock = db.query(Stock).filter_by(ticker=ticker.upper()).first()
     if stock is None:
         raise HTTPException(status_code=404, detail="stock not found")
     try:
-        result = refresh_and_evaluate_stock(db, stock, full_backfill=False)
+        result = refresh_and_evaluate_stock(db, stock, full_backfill=full)
     except data_ingestion.DataIngestionError as exc:
         raise HTTPException(status_code=502, detail=_failure_detail(exc)) from exc
     return result

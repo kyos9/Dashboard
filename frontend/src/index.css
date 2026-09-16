@@ -1519,3 +1519,80 @@ table.data-table tr.dirty td {
 table.data-table tr.dirty:hover td {
   background: var(--amber-soft);
 }
+
+/* ---------- 압축한 지표 칸 ----------
+   표에서는 한 칸이 한 줄이다. 값·해석·조건을 세 줄씩 쌓으면 다섯 종목에 화면이
+   다 찬다. 해석 문구는 마우스를 올리면 나오고, 조건이 무엇인지는 열 머리글이 말한다. */
+
+.metric-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.metric-line .metric-note {
+  font-size: 11.5px;
+}
+
+/* 조건 충족 표시 — 기호 하나 */
+.cond-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex: none;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text-faint);
+  background: var(--slate-soft);
+  border: 1px solid var(--border);
+  cursor: help;
+}
+
+.cond-mark.met {
+  color: var(--green);
+  background: var(--green-soft);
+  border-color: rgba(34, 197, 94, 0.45);
+}
+
+/* 열 머리글의 부제와 조건 */
+.th-sub {
+  font-weight: 600;
+  color: var(--text-faint);
+}
+
+.th-cond {
+  display: block;
+  margin-top: 3px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+/* 차트 아래 저장 구간 안내 */
+.chart-coverage {
+  margin-top: 6px;
+}
+
+/* 글 속에 섞이는 버튼 (전체 기간 다시 받기 등) */
+.link-btn {
+  padding: 0;
+  font: inherit;
+  color: var(--blue);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.link-btn:disabled {
+  color: var(--text-faint);
+  cursor: default;
+}

@@ -609,3 +609,81 @@ def test_deactivate_keeps_the_record(api):
     client.delete("/api/stocks/VOO")
     stocks = {s["ticker"]: s for s in client.get("/api/stocks").json()}
     assert stocks["VOO"]["active"] is False
+
+
+def test_history_marks_buy_and_sell_signal_days(api):
+    """차트 점은 시그널이 뜬 날에서 나온다.
+
+    매수 실행 기록에서 뽑던 때는, 그 기록이 종목 등록 이후 기간부터만 생기는 탓에
+    매도 시그널은 히스토리 전체에 깔리고 매수는 하나도 없는 일이 흔했다. 차트만 보면
+    "매도밖에 없는 종목"처럼 보인다.
+    """
+    client, SessionLocal = api
+    client.post("/api/stocks", json={"ticker": "NVDA", "target_weight_pct": 20})
+
+    today = dt.date.today()
+    with SessionLocal() as db:
+        for offset, (buy, sell) in enumerate(
+            [(True, False), (False, True), (False, False), (True, True)]
+        ):
+            day = today - dt.timedelta(days=offset)
+            db.add(PriceDaily(ticker="NVDA", date=day, open=1, high=1, low=1, close=100.0, volume=1))
+            db.add(SignalDaily(ticker="NVDA", date=day, knee_buy_v2=buy, shoulder_sell_ref=sell))
+        db.commit()
+
+    markers = client.get("/api/history/NVDA?range=1y").json()["markers"]
+    kinds = sorted(m["kind"] for m in markers)
+    # 매수 2일(그중 하루는 매도도 같이) + 매도 2일
+    assert kinds == ["buy", "buy", "sell", "sell"]
+    # 같은 날 둘 다 뜨면 점도 둘 다 찍힌다 (한쪽이 조용히 가려지면 안 된다)
+    both = today - dt.timedelta(days=3)
+    assert sorted(m["kind"] for m in markers if m["date"] == both.isoformat()) == ["buy", "sell"]
+
+
+def test_history_reports_stored_coverage(api):
+    """"5년을 눌렀는데 1년만 보인다"가 차트 탓인지 데이터 탓인지 구분되어야 한다."""
+    client, SessionLocal = api
+    client.post("/api/stocks", json={"ticker": "NVDA", "target_weight_pct": 20})
+
+    today = dt.date.today()
+    with SessionLocal() as db:
+        for offset in (0, 200, 400):
+            db.add(
+                PriceDaily(
+                    ticker="NVDA", date=today - dt.timedelta(days=offset),
+                    open=1, high=1, low=1, close=100.0, volume=1,
+                )
+            )
+        db.commit()
+
+    body = client.get("/api/history/NVDA?range=6mo").json()
+    # 요청 범위는 6개월이지만 저장 구간은 전체 기준으로 알려준다
+    assert len(body["prices"]) == 1
+    assert body["coverage"]["rows"] == 3
+    assert body["coverage"]["first_date"] == (today - dt.timedelta(days=400)).isoformat()
+    assert body["coverage"]["last_date"] == today.isoformat()
+
+
+def test_history_coverage_is_empty_when_no_prices(api):
+    client, _ = api
+    client.post("/api/stocks", json={"ticker": "NVDA", "target_weight_pct": 20})
+    coverage = client.get("/api/history/NVDA").json()["coverage"]
+    assert coverage == {"first_date": None, "last_date": None, "rows": 0}
+
+
+def test_refresh_accepts_full_backfill(api, monkeypatch):
+    """전체 기간 다시 받기 — 등록 이후로는 2년보다 앞선 시세를 채울 방법이 없었다."""
+    client, _ = api
+    client.post("/api/stocks", json={"ticker": "VOO", "target_weight_pct": 20})
+
+    seen = []
+
+    def fake_refresh(db, stock, full_backfill=False, price_df=None):
+        seen.append(full_backfill)
+        return {"ticker": stock.ticker, "rows_upserted": 1}
+
+    monkeypatch.setattr("app.routers.stocks.refresh_and_evaluate_stock", fake_refresh)
+
+    client.post("/api/stocks/VOO/refresh")
+    client.post("/api/stocks/VOO/refresh?full=true")
+    assert seen == [False, True]

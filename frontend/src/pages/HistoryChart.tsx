@@ -4,7 +4,8 @@ import { useAppState } from '../AppState'
 import { api } from '../api/client'
 import { ErrorNotice } from '../components/ErrorNotice'
 import { ChartLegend, PriceChart } from '../components/PriceChart'
-import { RANGE_OPTIONS, type Range } from '../components/ChartModal'
+import { ChartCoverage, RANGE_OPTIONS, type Range } from '../components/ChartModal'
+import { stockLabel } from '../lib/display'
 import type { HistoryResponse, Stock } from '../types'
 
 export function HistoryChart() {
@@ -15,6 +16,7 @@ export function HistoryChart() {
   const [history, setHistory] = useState<HistoryResponse | null>(null)
   const [error, setError] = useState<unknown>(null)
   const [loading, setLoading] = useState(false)
+  const [reloadKey, setReloadKey] = useState(0)
 
   const ticker = searchParams.get('ticker') ?? ''
 
@@ -41,7 +43,7 @@ export function HistoryChart() {
       .then(setHistory)
       .catch(setError)
       .finally(() => setLoading(false))
-  }, [ticker, range, refreshKey])
+  }, [ticker, range, refreshKey, reloadKey])
 
   if (stocks.length === 0 && !error) {
     return (
@@ -60,7 +62,7 @@ export function HistoryChart() {
         <div>
           <h2>히스토리 차트</h2>
           <p className="hint">
-            로그 스케일 종가 차트에 매수 실행일과 매도 시그널 발동일을 표시합니다.
+            로그 스케일 종가 차트에 매수·매도 시그널이 뜬 날을 점으로 표시합니다.
           </p>
         </div>
       </div>
@@ -74,7 +76,7 @@ export function HistoryChart() {
               className={`chip${ticker === s.ticker ? ' active' : ''}`}
               onClick={() => setSearchParams({ ticker: s.ticker }, { replace: true })}
             >
-              {s.name ?? s.ticker}
+              {stockLabel(s)}
             </button>
           ))}
         </div>
@@ -95,11 +97,20 @@ export function HistoryChart() {
 
       {current && (
         <p className="hint chart-caption">
-          {current.name ?? current.ticker} · {current.ticker}
+          {stockLabel(current)} · {current.ticker}
         </p>
       )}
       <PriceChart history={history} />
       <ChartLegend history={history} loading={loading} />
+      {ticker && (
+        <ChartCoverage
+          ticker={ticker}
+          history={history}
+          range={range}
+          onReloaded={() => setReloadKey((k) => k + 1)}
+          onError={setError}
+        />
+      )}
     </div>
   )
 }

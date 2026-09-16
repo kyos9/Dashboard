@@ -138,16 +138,24 @@ export interface HistoryPoint {
   close: number
 }
 
+/** 시그널이 뜬 날. 차트에 점 하나로 찍힌다 */
 export interface HistoryMarker {
   date: string
-  kind: 'buy_signal' | 'buy_fallback' | 'shoulder_ref'
-  status: BuyStatus | null
+  kind: 'buy' | 'sell'
+}
+
+/** 이 종목에 대해 실제로 저장돼 있는 시세 구간 (요청한 범위와 무관) */
+export interface HistoryCoverage {
+  first_date: string | null
+  last_date: string | null
+  rows: number
 }
 
 export interface HistoryResponse {
   ticker: string
   prices: HistoryPoint[]
   markers: HistoryMarker[]
+  coverage: HistoryCoverage
 }
 
 export interface Holding {
