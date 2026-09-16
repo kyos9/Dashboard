@@ -214,7 +214,8 @@ describe('대시보드 · 상태 표시', () => {
     expect(await screen.findByText(/시세가 오래되어 판정에서 제외/)).toBeInTheDocument()
   })
 
-  it('무릎매수 조건 충족 개수를 보여준다', async () => {
+  it('어느 조건이 걸렸는지 조건별로 보여준다 (개수 요약은 쓰지 않는다)', async () => {
+    // "2/4"는 어느 조건이 모자란지 알려주지 않아 판단에 쓸 수 없다
     mockApi([
       card({
         ticker: 'VOO',
@@ -228,6 +229,9 @@ describe('대시보드 · 상태 표시', () => {
     ])
     renderDashboard()
 
-    expect(await screen.findByText('무릎 조건 2/4')).toBeInTheDocument()
+    const row = await cardRow('VOO')
+    expect(within(row).getByText(/DI 약세/)).toBeInTheDocument()
+    expect(within(row).getByText(/ADX > 20/)).toBeInTheDocument()
+    expect(row.textContent).not.toMatch(/\d\/4/)
   })
 })

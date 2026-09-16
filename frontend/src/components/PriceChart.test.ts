@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { collapseStreaks } from './HistoryChart'
+import { collapseStreaks } from './PriceChart'
 
 /**
  * 어깨매도는 며칠씩 연속으로 발동한다. 그대로 마커를 찍으면 라벨이 겹쳐 읽을 수 없어서

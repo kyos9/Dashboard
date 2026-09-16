@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { ChartModal } from '../components/ChartModal'
 import { useAppState } from '../AppState'
 import { api } from '../api/client'
 import { ErrorNotice } from '../components/ErrorNotice'
@@ -8,7 +9,6 @@ import {
   CATEGORY_UNSET,
   categoryOf,
   KNEE_CONDITION_LABELS,
-  kneeMetCount,
   MARKET_LABEL,
   num,
   price,
@@ -44,10 +44,8 @@ function TrafficBadge({ traffic }: { traffic: Traffic }) {
 
 /** 무릎매수 네 조건 중 무엇이 충족됐는지 — 시그널이 안 뜬 이유를 바로 알 수 있게 한다 */
 function KneeConditionChips({ conditions }: { conditions: KneeConditions }) {
-  const met = kneeMetCount(conditions)
   return (
     <div className="metric">
-      <span className={`cond-score${met === 4 ? ' full' : ''}`}>무릎 조건 {met}/4</span>
       <div className="cond-row">
         {KNEE_CONDITION_LABELS.map(({ key, label, detail }) => (
           <span
@@ -140,6 +138,7 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<unknown>(null)
   const [busyId, setBusyId] = useState<number | null>(null)
+  const [chartCard, setChartCard] = useState<DashboardCard | null>(null)
 
   const [category, setCategory] = useState<string>('전체')
   const [quick, setQuick] = useState<QuickFilter>('all')
@@ -409,9 +408,17 @@ export function Dashboard() {
           <p>필터를 바꾸거나 "모두 보기"를 선택해주세요.</p>
         </div>
       ) : view === 'table' ? (
-        <SignalMatrix cards={visible} busyId={busyId} onConfirm={handleConfirm} />
+        <SignalMatrix cards={visible} busyId={busyId} onConfirm={handleConfirm} onChart={setChartCard} />
       ) : (
-        <SignalCards cards={visible} busyId={busyId} onConfirm={handleConfirm} />
+        <SignalCards cards={visible} busyId={busyId} onConfirm={handleConfirm} onChart={setChartCard} />
+      )}
+
+      {chartCard && (
+        <ChartModal
+          ticker={chartCard.ticker}
+          name={chartCard.name}
+          onClose={() => setChartCard(null)}
+        />
       )}
 
       <p className="hint" style={{ marginTop: 14 }}>
@@ -426,10 +433,12 @@ function SignalMatrix({
   cards,
   busyId,
   onConfirm,
+  onChart,
 }: {
   cards: DashboardCard[]
   busyId: number | null
   onConfirm: (id: number) => void
+  onChart: (card: DashboardCard) => void
 }) {
   return (
     <div className="table-scroll">
@@ -486,9 +495,9 @@ function SignalMatrix({
                   <div className="ticker-cell">
                     {card.category && <span className="cat-tag">{card.category}</span>}
                     <span className="ticker-name">{card.name ?? card.ticker}</span>
-                    <Link to={`/history?ticker=${card.ticker}`} className="ticker-sub">
+                    <button className="ticker-sub link" onClick={() => onChart(card)}>
                       {card.ticker} · {MARKET_LABEL[card.market]} · 차트 보기
-                    </Link>
+                    </button>
                   </div>
                 </td>
                 <td>
@@ -543,10 +552,12 @@ function SignalCards({
   cards,
   busyId,
   onConfirm,
+  onChart,
 }: {
   cards: DashboardCard[]
   busyId: number | null
   onConfirm: (id: number) => void
+  onChart: (card: DashboardCard) => void
 }) {
   return (
     <div className="card-grid">
@@ -565,9 +576,9 @@ function SignalCards({
               <div className="ticker-cell">
                 {card.category && <span className="cat-tag">{card.category}</span>}
                 <span className="ticker-name">{card.name ?? card.ticker}</span>
-                <Link to={`/history?ticker=${card.ticker}`} className="ticker-sub">
+                <button className="ticker-sub link" onClick={() => onChart(card)}>
                   {card.ticker} · {MARKET_LABEL[card.market]} · 차트 보기
-                </Link>
+                </button>
               </div>
               <div className="stock-card-price">
                 <span className="big">{price(ind.close, card.currency)}</span>

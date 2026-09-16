@@ -184,10 +184,6 @@ export const KNEE_CONDITION_LABELS: { key: keyof KneeConditions; label: string; 
   { key: 'adx_trending', label: 'ADX > 20', detail: '추세가 형성된 구간' },
 ]
 
-export function kneeMetCount(conditions: KneeConditions): number {
-  return KNEE_CONDITION_LABELS.filter(({ key }) => conditions[key] === true).length
-}
-
 export const CATEGORY_UNSET = '미분류'
 
 export function categoryOf(value: string | null | undefined): string {

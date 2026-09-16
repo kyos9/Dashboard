@@ -4,7 +4,6 @@ import {
   amount,
   categoryOf,
   CATEGORY_UNSET,
-  kneeMetCount,
   num,
   providerLabel,
   price,
@@ -132,30 +131,6 @@ describe('종합 신호등', () => {
 
   it('아무 조건도 없으면 관망', () => {
     expect(trafficLight(card({})).state).toBe('watch')
-  })
-})
-
-describe('무릎매수 조건 카운트', () => {
-  it('충족된 조건만 센다 (판정 불가는 제외)', () => {
-    expect(
-      kneeMetCount({
-        di_bearish: true,
-        disparity_negative: true,
-        volatility_or_volume: false,
-        adx_trending: null,
-      }),
-    ).toBe(2)
-  })
-
-  it('네 조건이 모두 참이면 4', () => {
-    expect(
-      kneeMetCount({
-        di_bearish: true,
-        disparity_negative: true,
-        volatility_or_volume: true,
-        adx_trending: true,
-      }),
-    ).toBe(4)
   })
 })
 
