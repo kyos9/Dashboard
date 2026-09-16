@@ -38,6 +38,10 @@ LINE = "─" * 70
 # 액면분할·병합이 종가에 반영되지 않았다는 뜻이다.
 MAX_DAILY_MOVE_PCT = 35.0
 
+# 지표가 실제로 쓰는 구간 (MA200 워밍업 포함). 이보다 오래된 데이터의 이상값은
+# 지금의 시그널 판정에 영향을 주지 않는다.
+INDICATOR_WINDOW_DAYS = 260
+
 # 삼성전자 2018-05-04 액면분할(50:1) 직전 구간. 분할이 소급 반영된 종가라면 5만원대,
 # 반영되지 않은 원본이라면 250만원대가 나온다.
 SPLIT_CHECK = {
@@ -47,6 +51,10 @@ SPLIT_CHECK = {
     "adjusted_max": 200_000.0,
     "note": "2018-05-04 액면분할 50:1",
 }
+
+# 두 제공자의 종가를 "같은 기준"으로 볼 허용 오차. 소수점 반올림이나 체결 단위 차이는
+# 이보다 훨씬 작고, 기준이 다르면(배당 조정 등) 이보다 크게 벌어진다.
+SAME_BASIS_TOLERANCE_PCT = 0.1
 
 # 모양이 다른 종목들 — 일반 보통주만 되고 나머지가 안 되는 경우를 잡는다
 SHAPES = [
@@ -147,23 +155,38 @@ try:
             record("FAIL", f"분할 미반영 원본 종가로 보입니다 ({peak:,.0f}원)")
             info("→ 분할일에 가짜 급락이 생겨 그 구간의 지표가 전부 틀어집니다.")
 
-    # 2-2) 전 구간에서 가격제한폭을 넘는 급변 — 아직 모르는 분할·병합을 찾는다
+    # 2-2) 가격제한폭을 넘는 급변 — 아직 모르는 분할·병합을 찾는다.
+    # 지표는 최근 구간만 쓰므로(MA200 워밍업 포함 약 260거래일), 아주 오래된 한두 날의
+    # 이상값은 지금 판정에 영향을 주지 않는다. 둘을 나눠서 보여준다.
     changes = frame["close"].pct_change().abs() * 100
     spikes = changes[changes > MAX_DAILY_MOVE_PCT]
-    if spikes.empty:
-        record("PASS", f"전 구간에 일간 ±{MAX_DAILY_MOVE_PCT:.0f}% 초과 급변이 없습니다")
+    recent_cutoff = frame.index[-INDICATOR_WINDOW_DAYS] if len(frame) > INDICATOR_WINDOW_DAYS else frame.index[0]
+    recent_spikes = [(d, v) for d, v in spikes.items() if d >= recent_cutoff]
+    old_spikes = [(d, v) for d, v in spikes.items() if d < recent_cutoff]
+
+    if not recent_spikes:
+        record("PASS", f"지표에 쓰이는 최근 구간({recent_cutoff} 이후)에 이상 급변이 없습니다")
     else:
-        record("WARN", f"가격제한폭을 넘는 날이 {len(spikes)}일 있습니다")
-        for date, pct in list(spikes.items())[:5]:
+        record("FAIL", f"최근 구간에 가격제한폭을 넘는 날이 {len(recent_spikes)}일 있습니다")
+        for date, pct in recent_spikes[:5]:
             info(f"{date}: {pct:.1f}%")
-        info("→ 실제 등락이 아니라 반영되지 않은 분할·병합일 수 있습니다.")
+        info("→ 반영되지 않은 분할·병합일 수 있습니다. 그 구간의 지표가 틀어집니다.")
+
+    if old_spikes:
+        info(
+            f"참고: {recent_cutoff} 이전에도 {len(old_spikes)}일 있습니다 "
+            f"(가장 이른 날 {old_spikes[0][0]}, {old_spikes[0][1]:.0f}%). "
+            "지표는 최근 구간만 쓰므로 지금 판정에는 영향이 없습니다."
+        )
 except Exception as exc:
     record("FAIL", f"시세를 받지 못해 확인하지 못했습니다 — {brief(exc)}")
 
 
 # ── 3. 제공자 간 종가 일치 ───────────────────────────────────────────
-# 백필은 네이버, 이후 갱신은 야후로 붙을 수 있다. 두 곳의 종가 기준이 다르면 한 시계열에
-# 서로 다른 기준이 섞이고, 이어붙인 지점에서 지표가 튄다.
+# 앱은 한 종목을 되도록 한 제공자에게서만 받지만, 그쪽이 막히면 다른 곳으로 넘어간다.
+# 그때 종가 기준이 다르면 이어붙인 지점에서 지표가 튄다. 그래서 "얼마나 다른가"보다
+# "언제 다른가"가 중요하다 — 마지막 날만 다르면 한쪽이 아직 장중/지연값인 것이고,
+# 예전 날짜까지 다르면 기준 자체가 다른 것이다.
 section("3. 네이버와 야후가 같은 종가를 주는가")
 try:
     ticker = "005930.KS"
@@ -180,20 +203,33 @@ try:
         if not common:
             record("WARN", "겹치는 날짜가 없어 비교하지 못했습니다")
         else:
-            worst_date, worst_pct = None, 0.0
+            diffs = []
             for date in common:
                 a = float(naver_frame.loc[date, "close"])
                 b = float(yahoo_frame.loc[date, "close"])
                 if a:
-                    diff = abs(a - b) / a * 100
-                    if diff > worst_pct:
-                        worst_date, worst_pct = date, diff
-            print(f"  겹치는 거래일 {len(common)}일, 최대 차이 {worst_pct:.3f}% ({worst_date})")
-            if worst_pct < 0.5:
-                record("PASS", "두 제공자의 종가 기준이 같습니다 (섞여도 안전)")
+                    diffs.append((date, abs(a - b) / a * 100, a, b))
+
+            latest = diffs[-1]
+            settled = diffs[:-1]  # 마지막 거래일을 뺀 나머지
+            over = [d for d in settled if d[1] > SAME_BASIS_TOLERANCE_PCT]
+            worst = max(settled, key=lambda d: d[1]) if settled else latest
+
+            print(f"  겹치는 거래일 {len(diffs)}일")
+            print(f"  마지막 거래일 {latest[0]}: 네이버 {latest[2]:,.0f} / 야후 {latest[3]:,.0f} "
+                  f"({latest[1]:.3f}% 차이)")
+            print(f"  그 이전 최대 차이: {worst[1]:.3f}% ({worst[0]})")
+
+            if not over:
+                record("PASS", f"마지막 거래일을 빼면 모든 날이 {SAME_BASIS_TOLERANCE_PCT}% 이내로 같습니다")
+                if latest[1] > SAME_BASIS_TOLERANCE_PCT:
+                    info("마지막 거래일만 다른 것은 한쪽이 아직 장중값이거나 반영이 늦은 경우로,")
+                    info("다음 날 갱신하면 맞춰집니다. 기준이 다른 것이 아닙니다.")
             else:
-                record("FAIL", f"종가 기준이 다릅니다 (최대 {worst_pct:.2f}% 차이)")
-                info("→ 한 종목의 히스토리를 한 제공자로만 채우도록 고정해야 합니다.")
+                record("FAIL", f"지난 거래일 {len(over)}일이 {SAME_BASIS_TOLERANCE_PCT}% 넘게 다릅니다")
+                for date, pct, a, b in over[:5]:
+                    info(f"{date}: 네이버 {a:,.0f} / 야후 {b:,.0f} ({pct:.2f}%)")
+                info("→ 종가 기준이 서로 다릅니다. 한 종목은 한 제공자로만 받아야 합니다.")
 except Exception as exc:
     record("FAIL", f"비교하지 못했습니다 — {brief(exc)}")
 

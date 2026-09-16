@@ -118,10 +118,34 @@ def test_korean_stock_falls_back_to_yahoo_when_naver_is_blocked(monkeypatch):
     monkeypatch.setattr(
         providers,
         "build_providers",
-        lambda ticker: [
+        lambda ticker, prefer=None: [
             _Provider("naver", error=ProviderUnavailable("naver", "연결 거부")),
             _Provider("yahoo", result=frame),
         ],
     )
 
     assert len(providers.fetch_price_history("005930.KS", "2y")) == 1
+
+
+def test_previous_provider_is_tried_first():
+    """이미 이 종목을 받아온 제공자를 먼저 쓴다.
+
+    제공자마다 종가 기준이 조금씩 다를 수 있어서, 한 종목의 히스토리는 되도록 한 곳에서만
+    받아야 이어붙인 지점에서 지표가 튀지 않는다.
+    """
+    names = [p.name for p in providers.build_providers("005930.KS", prefer="yahoo")]
+    assert names[0] == "yahoo"
+    # 나머지는 평소 순서를 유지한다 — 선호 제공자가 막히면 그대로 넘어가야 한다
+    assert set(names) == {"yahoo", "naver"}
+
+
+def test_unknown_preference_is_ignored():
+    """해당 시장에서 쓰지 않는 제공자를 넘겨도 순서가 망가지면 안 된다."""
+    assert [p.name for p in providers.build_providers("005930.KS", prefer="stooq")] == [
+        "naver",
+        "yahoo",
+    ]
+    assert [p.name for p in providers.build_providers("005930.KS", prefer="없는제공자")] == [
+        "naver",
+        "yahoo",
+    ]

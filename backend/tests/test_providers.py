@@ -232,7 +232,7 @@ def test_falls_back_to_second_provider_when_first_is_blocked(monkeypatch):
     """야후가 막혀도 Stooq로 조회되면 앱은 정상 동작해야 한다."""
     blocked = _FakeProvider("yahoo", error=ProviderUnavailable("yahoo", "CONNECT tunnel failed, 403"))
     working = _FakeProvider("stooq", result=_frame())
-    monkeypatch.setattr(providers, "build_providers", lambda ticker: [blocked, working])
+    monkeypatch.setattr(providers, "build_providers", lambda ticker, prefer=None: [blocked, working])
 
     df = providers.fetch_price_history("VOO", "6mo")
     assert len(df) == 1
@@ -244,7 +244,7 @@ def test_falls_back_to_second_provider_when_first_is_blocked(monkeypatch):
 def test_first_success_short_circuits(monkeypatch):
     first = _FakeProvider("yahoo", result=_frame())
     second = _FakeProvider("stooq", result=_frame())
-    monkeypatch.setattr(providers, "build_providers", lambda ticker: [first, second])
+    monkeypatch.setattr(providers, "build_providers", lambda ticker, prefer=None: [first, second])
 
     providers.fetch_price_history("VOO", "6mo")
     assert second.calls == 0
@@ -255,7 +255,7 @@ def test_all_failures_report_every_provider_reason(monkeypatch):
     monkeypatch.setattr(
         providers,
         "build_providers",
-        lambda ticker: [
+        lambda ticker, prefer=None: [
             _FakeProvider("yahoo", error=ProviderUnavailable("yahoo", "타임아웃")),
             _FakeProvider("stooq", error=ProviderUnavailable("stooq", "HTTP 503")),
         ],
@@ -274,7 +274,7 @@ def test_hint_points_at_ticker_typo_when_all_say_not_found(monkeypatch):
     monkeypatch.setattr(
         providers,
         "build_providers",
-        lambda ticker: [
+        lambda ticker, prefer=None: [
             _FakeProvider("yahoo", error=TickerNotFound("yahoo", "없는 티커")),
             _FakeProvider("stooq", error=TickerNotFound("stooq", "없는 심볼")),
         ],
@@ -291,7 +291,7 @@ def test_provider_crash_does_not_block_next_provider(monkeypatch):
     """한 제공자 구현이 터져도 다음 제공자는 시도돼야 한다."""
     crashing = _FakeProvider("yahoo", error=RuntimeError("예상치 못한 버그"))
     working = _FakeProvider("stooq", result=_frame())
-    monkeypatch.setattr(providers, "build_providers", lambda ticker: [crashing, working])
+    monkeypatch.setattr(providers, "build_providers", lambda ticker, prefer=None: [crashing, working])
 
     assert len(providers.fetch_price_history("VOO", "6mo")) == 1
 
@@ -342,7 +342,7 @@ def test_korean_ticker_hint_mentions_code_format(monkeypatch):
     monkeypatch.setattr(
         providers,
         "build_providers",
-        lambda ticker: [_FakeProvider("naver", error=TickerNotFound("naver", "없는 종목코드"))],
+        lambda ticker, prefer=None: [_FakeProvider("naver", error=TickerNotFound("naver", "없는 종목코드"))],
     )
     with pytest.raises(providers.AllProvidersFailed) as excinfo:
         providers.fetch_price_history("999999.KS", "6mo")

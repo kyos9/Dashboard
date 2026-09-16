@@ -80,10 +80,20 @@ def provider_overview() -> dict[str, list[str]]:
     return {market.value: configured_order(market) for market in Market}
 
 
-def build_providers(ticker: str) -> list[PriceProvider]:
-    """이 티커를 다룰 수 있는 제공자만 순서대로."""
+def build_providers(ticker: str, prefer: str | None = None) -> list[PriceProvider]:
+    """이 티커를 다룰 수 있는 제공자만 순서대로.
+
+    `prefer`는 이미 이 종목의 시세를 준 적 있는 제공자다. 있으면 맨 앞으로 올린다 —
+    제공자마다 종가 기준이 조금씩 다를 수 있어서, 한 종목은 되도록 한 곳에서만
+    받아야 이어붙인 지점에서 지표가 튀지 않는다. (그 제공자가 막혀 있으면 평소 순서대로
+    다음 제공자로 넘어간다. 값이 아예 없는 것보다는 낫다.)
+    """
+    order = configured_order(market_of(ticker))
+    if prefer in _FACTORIES and prefer in order:
+        order = [prefer] + [name for name in order if name != prefer]
+
     timeout = _timeout()
-    providers = [_FACTORIES[name](timeout=timeout) for name in configured_order(market_of(ticker))]
+    providers = [_FACTORIES[name](timeout=timeout) for name in order]
     return [p for p in providers if p.supports(ticker)]
 
 
@@ -121,7 +131,7 @@ class AllProvidersFailed(Exception):
         return "잠시 후 다시 시도해주세요."
 
 
-def fetch_price_history(ticker: str, period: str = "max") -> pd.DataFrame:
+def fetch_price_history(ticker: str, period: str = "max", prefer: str | None = None) -> pd.DataFrame:
     """제공자를 순서대로 시도해 첫 성공을 돌려준다.
 
     한 제공자가 실패해도 즉시 포기하지 않는다. 야후가 막히는 환경에서도 앱이 돌아가야 하고,
@@ -129,7 +139,7 @@ def fetch_price_history(ticker: str, period: str = "max") -> pd.DataFrame:
     """
     failures: list[ProviderError] = []
 
-    for provider in build_providers(ticker):
+    for provider in build_providers(ticker, prefer=prefer):
         try:
             df = provider.fetch(ticker, period)
             # 어느 제공자가 준 값인지 호출부가 알 수 있게 (저장할 때 기록한다)

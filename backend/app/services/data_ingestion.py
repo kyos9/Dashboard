@@ -32,12 +32,26 @@ class DataIngestionError(Exception):
         super().__init__(message)
 
 
-def fetch_price_history(ticker: str, period: str = "max") -> pd.DataFrame:
+def fetch_price_history(
+    ticker: str, period: str = "max", prefer: str | None = None
+) -> pd.DataFrame:
     """제공자들을 순서대로 시도해 일봉 OHLCV를 가져온다."""
     try:
-        return providers.fetch_price_history(ticker, period=period)
+        return providers.fetch_price_history(ticker, period=period, prefer=prefer)
     except providers.AllProvidersFailed as exc:
         raise DataIngestionError(str(exc), hint=exc.hint()) from exc
+
+
+def stored_source(db: Session, ticker: str) -> str | None:
+    """이 종목의 시세를 지금까지 준 제공자. 여럿이면(=이미 섞였으면) None."""
+    rows = (
+        db.query(PriceDaily.source)
+        .filter(PriceDaily.ticker == ticker, PriceDaily.source.isnot(None))
+        .distinct()
+        .all()
+    )
+    sources = {row[0] for row in rows}
+    return next(iter(sources)) if len(sources) == 1 else None
 
 
 def upsert_prices(db: Session, ticker: str, df: pd.DataFrame) -> int:
@@ -145,8 +159,10 @@ def recompute_signals(db: Session, ticker: str, indicator_df: pd.DataFrame | Non
 def refresh_ticker(db: Session, ticker: str, full_backfill: bool = False) -> dict:
     """가격 데이터 갱신 + 지표/시그널 재계산. 실패 시 예외를 던지되 이전 데이터는 그대로 유지된다."""
     period = "max" if full_backfill else "2y"
+    # 이 종목을 지금까지 받아온 곳을 먼저 시도한다 (섞이지 않게)
+    prefer = None if full_backfill else stored_source(db, ticker)
     try:
-        price_df = fetch_price_history(ticker, period=period)
+        price_df = fetch_price_history(ticker, period=period, prefer=prefer)
     except DataIngestionError:
         raise  # 원인과 안내(hint)가 이미 담겨 있으므로 그대로 올린다
     except Exception as exc:  # 제공자 계층이 못 잡은 예외까지 포괄

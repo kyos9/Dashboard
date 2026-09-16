@@ -67,7 +67,7 @@ def test_refresh_ticker_uses_mocked_fetch(db_session, monkeypatch):
     db_session.commit()
 
     df = _fake_price_df(300)
-    monkeypatch.setattr(data_ingestion, "fetch_price_history", lambda ticker, period="max": df)
+    monkeypatch.setattr(data_ingestion, "fetch_price_history", lambda ticker, period="max", prefer=None: df)
 
     result = data_ingestion.refresh_ticker(db_session, "TST", full_backfill=True)
     assert result["rows_upserted"] == 300
@@ -204,3 +204,58 @@ def test_upsert_without_provider_keeps_existing_source(db_session):
     data_ingestion.upsert_prices(db_session, "TST", plain)
 
     assert {row.source for row in db_session.query(PriceDaily).filter_by(ticker="TST")} == {"yahoo"}
+
+
+def test_refresh_prefers_the_provider_that_already_filled_this_ticker(db_session, monkeypatch):
+    """갱신할 때는 지금까지 이 종목을 받아온 곳을 먼저 시도한다."""
+    db_session.add(Stock(ticker="005930.KS", target_weight_pct=0.0))
+    db_session.commit()
+
+    first = _fake_price_df(5)
+    first.attrs["provider"] = "naver"
+    data_ingestion.upsert_prices(db_session, "005930.KS", first)
+
+    seen = {}
+
+    def fake_fetch(ticker, period="max", prefer=None):
+        seen["prefer"] = prefer
+        df = _fake_price_df(5)
+        df.attrs["provider"] = prefer or "yahoo"
+        return df
+
+    monkeypatch.setattr(data_ingestion, "fetch_price_history", fake_fetch)
+    data_ingestion.refresh_ticker(db_session, "005930.KS")
+    assert seen["prefer"] == "naver"
+
+
+def test_full_backfill_does_not_pin_the_old_provider(db_session, monkeypatch):
+    """전체 백필은 처음부터 다시 받는 것이므로 평소 순서를 그대로 쓴다."""
+    db_session.add(Stock(ticker="005930.KS", target_weight_pct=0.0))
+    db_session.commit()
+
+    first = _fake_price_df(5)
+    first.attrs["provider"] = "yahoo"
+    data_ingestion.upsert_prices(db_session, "005930.KS", first)
+
+    seen = {}
+
+    def fake_fetch(ticker, period="max", prefer=None):
+        seen["prefer"] = prefer
+        return _fake_price_df(5)
+
+    monkeypatch.setattr(data_ingestion, "fetch_price_history", fake_fetch)
+    data_ingestion.refresh_ticker(db_session, "005930.KS", full_backfill=True)
+    assert seen["prefer"] is None
+
+
+def test_mixed_history_has_no_single_preference(db_session):
+    """이미 섞여 있으면 어느 쪽을 선호할지 정할 수 없다 — 억지로 하나를 고르지 않는다."""
+    db_session.add(Stock(ticker="005930.KS", target_weight_pct=0.0))
+    db_session.commit()
+
+    for provider, start in (("naver", "2024-01-02"), ("yahoo", "2024-03-01")):
+        df = _fake_price_df(5, start=start)
+        df.attrs["provider"] = provider
+        data_ingestion.upsert_prices(db_session, "005930.KS", df)
+
+    assert data_ingestion.stored_source(db_session, "005930.KS") is None
