@@ -322,6 +322,26 @@ def test_symbol_search_returns_candidates_for_partial_name(api):
     assert "086520.KQ" in tickers  # 에코프로
 
 
+def test_listing_status_reports_what_search_covers(api):
+    """검색이 내장 목록만 보고 있는지, 거래소 목록까지 받았는지 화면이 알아야 한다."""
+    client, Session = api
+
+    body = client.get("/api/symbols/listing-status").json()
+    assert body["cached_count"] == 0  # 아직 받지 않았다
+    assert body["seed_count"] > 0
+    assert body["seed_as_of"]  # 내장 목록이 언제 기준인지 밝힌다
+
+    from app.models import KrxListing
+
+    with Session() as session:
+        session.add(KrxListing(code="005930", name="삼성전자", board="KOSPI"))
+        session.commit()
+
+    body = client.get("/api/symbols/listing-status").json()
+    assert body["cached_count"] == 1
+    assert body["updated_at"] is not None
+
+
 def test_refresh_listing_reports_count(api, monkeypatch):
     client, _ = api
     monkeypatch.setattr(
@@ -472,3 +492,39 @@ def test_dashboard_query_count_does_not_grow_with_stocks(api):
 
     # 종목이 3배가 돼도 쿼리는 거의 그대로여야 한다
     assert with_six <= with_two + 2, f"{with_two} -> {with_six} 쿼리 (종목당 추가 조회 발생)"
+
+
+def test_staleness_is_judged_against_the_stocks_own_market(api, monkeypatch):
+    """"오늘"은 시장마다 다르다. 서버 시계로 재면 한 쪽이 하루 더 오래돼 보인다.
+
+    한국이 9월 17일이고 미국이 아직 9월 16일일 때, 두 종목 모두 각자 시장의
+    마지막 거래일 종가를 가지고 있다면 어느 쪽도 "오래됐다"가 되면 안 된다.
+    """
+    import datetime as dt
+
+    from app.markets import Market
+    from app.models import PriceDaily, Stock
+
+    client, Session = api
+    korea_today = dt.date(2026, 9, 17)
+    us_today = dt.date(2026, 9, 16)
+
+    monkeypatch.setattr(
+        "app.routers.dashboard.market_today",
+        lambda market=Market.US: korea_today if market is Market.KR else us_today,
+    )
+
+    with Session() as session:
+        session.add(Stock(ticker="005930.KS", name="삼성전자", target_weight_pct=50))
+        session.add(Stock(ticker="VOO", name="S&P500", target_weight_pct=50))
+        for ticker, date in (("005930.KS", korea_today), ("VOO", us_today)):
+            session.add(
+                PriceDaily(
+                    ticker=ticker, date=date, open=1, high=1, low=1, close=1, volume=1
+                )
+            )
+        session.commit()
+
+    cards = {c["ticker"]: c for c in client.get("/api/dashboard").json()}
+    assert cards["005930.KS"]["data_stale"] is False
+    assert cards["VOO"]["data_stale"] is False

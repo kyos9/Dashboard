@@ -8,6 +8,7 @@ import type {
   RefreshResult,
   Settings,
   SettingsUpdate,
+  ListingStatus,
   SymbolMatch,
   HealthInfo,
   Stock,
@@ -71,6 +72,8 @@ export const api = {
   /** 종목명/코드로 후보를 찾는다 — 사용자가 고른 뒤에 등록한다 */
   searchSymbols: (q: string, limit = 8) =>
     request<SymbolMatch[]>(`/symbols/search?q=${encodeURIComponent(q)}&limit=${limit}`),
+  /** 지금 몇 종목이 검색 가능한지 — 내장 목록만인지, 거래소 목록까지 받았는지 */
+  getListingStatus: () => request<ListingStatus>('/symbols/listing-status'),
   /** 한국거래소 상장목록을 다시 받아 캐시한다 (신규 상장·사명 변경 반영) */
   refreshSymbolListing: () =>
     request<{ ok: boolean; count: number; error?: string; hint?: string }>(

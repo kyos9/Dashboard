@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 import logging
 import re
@@ -23,6 +24,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.markets import (
@@ -38,6 +40,11 @@ from app.markets import (
 logger = logging.getLogger(__name__)
 
 SEED_PATH = Path(__file__).resolve().parent.parent / "data" / "krx_seed.json"
+
+# 내장 목록을 손으로 정리한 시점. 이후의 신규 상장·사명 변경은 들어 있지 않으므로
+# 화면에 그대로 보여준다 — 목록이 언제 기준인지 모르면 "검색이 안 된다"의 원인을
+# 사용자가 짐작할 수 없다.
+SEED_AS_OF = "2026-09"
 
 # 미국식 티커 모양 (VOO, BRK-B, ^GSPC). 한글이 섞이면 당연히 해당 없음.
 US_TICKER_RE = re.compile(r"^\^?[A-Za-z][A-Za-z0-9.\-]{0,9}$")
@@ -243,6 +250,52 @@ def _bare_code_candidates(code: str) -> list[SymbolMatch]:
         )
         for index, board in enumerate((Board.KOSPI, Board.KOSDAQ))
     ]
+
+
+# 상장목록은 자주 바뀌지 않는다 (신규 상장·사명 변경 정도). 이보다 오래되면 다시 받는다.
+LISTING_STALE_AFTER = dt.timedelta(days=7)
+
+
+def krx_listing_updated_at(db: Session) -> dt.datetime | None:
+    """상장목록 캐시를 마지막으로 받아온 시각. 캐시가 비어 있으면 None."""
+    from app.models import KrxListing
+
+    try:
+        return db.query(func.max(KrxListing.updated_at)).scalar()
+    except Exception:
+        logger.exception("KRX 캐시 시각 조회 실패")
+        return None
+
+
+def listing_status(db: Session) -> dict:
+    """지금 무엇으로 검색되고 있는지. 화면에서 그대로 보여준다."""
+    from app.models import KrxListing
+
+    try:
+        cached = db.query(func.count(KrxListing.code)).scalar() or 0
+    except Exception:
+        logger.exception("KRX 캐시 개수 조회 실패")
+        cached = 0
+
+    updated_at = krx_listing_updated_at(db) if cached else None
+    return {
+        "cached_count": cached,
+        "updated_at": updated_at.isoformat() if updated_at else None,
+        "seed_count": len(load_seed()),
+        "seed_as_of": SEED_AS_OF,
+    }
+
+
+def refresh_krx_listing_if_stale(db: Session, timeout: int = 30) -> int | None:
+    """비어 있거나 오래됐을 때만 받아온다. 건너뛰었으면 None.
+
+    내장 목록은 주요 종목 위주라 중소형주는 이름으로 찾을 수 없다. 사용자가 버튼을
+    누르기를 기다리는 대신, 앱이 알아서 한 번 채워둔다.
+    """
+    updated_at = krx_listing_updated_at(db)
+    if updated_at is not None and dt.datetime.utcnow() - updated_at < LISTING_STALE_AFTER:
+        return None
+    return refresh_krx_listing(db, timeout=timeout)
 
 
 def refresh_krx_listing(db: Session, timeout: int = 30) -> int:

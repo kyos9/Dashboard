@@ -5,6 +5,7 @@ import { ErrorNotice } from '../components/ErrorNotice'
 import { SymbolSearch } from '../components/SymbolSearch'
 import { CURRENCY_META, MARKET_LABEL, money } from '../lib/display'
 import type {
+  ListingStatus,
   DcaPeriod,
   RebalancePeriod,
   Stock,
@@ -162,6 +163,19 @@ function StockRow({ stock, onSaved, onError }: { stock: Stock; onSaved: () => vo
   )
 }
 
+/** 지금 무엇으로 검색되고 있는지 한 줄로. 목록이 언제 기준인지 모르면
+ *  "검색이 안 된다"의 원인을 사용자가 짐작할 수 없다. */
+function listingHint(listing: ListingStatus | null): string {
+  if (!listing) {
+    return '신규 상장이나 사명이 바뀐 종목이 검색되지 않을 때 누르세요.'
+  }
+  if (listing.cached_count > 0) {
+    const when = listing.updated_at ? listing.updated_at.slice(0, 10) : '최근'
+    return `거래소 목록 ${listing.cached_count.toLocaleString('ko-KR')}종목으로 검색합니다 (${when} 받음). 새로 상장된 종목이 안 나오면 누르세요.`
+  }
+  return `아직 거래소 목록을 받지 못해 내장 목록 ${listing.seed_count.toLocaleString('ko-KR')}종목(${listing.seed_as_of} 기준)으로만 검색합니다. 중소형주를 찾으려면 눌러주세요.`
+}
+
 export function StockManager() {
   const { refreshKey, notifyDataChanged } = useAppState()
   const [stocks, setStocks] = useState<Stock[]>([])
@@ -171,12 +185,19 @@ export function StockManager() {
   const [creating, setCreating] = useState(false)
   const [picked, setPicked] = useState<SymbolMatch | null>(null)
   const [listingBusy, setListingBusy] = useState(false)
+  const [listing, setListing] = useState<ListingStatus | null>(null)
 
   useEffect(() => {
     api
       .listStocks()
       .then(setStocks)
       .catch(setError)
+  }, [refreshKey])
+
+  // 지금 무엇으로 검색되는지는 "왜 이 종목이 안 나오지?"의 답이므로 화면에 띄워둔다.
+  // 실패해도 검색 자체는 되므로 오류로 처리하지 않는다.
+  useEffect(() => {
+    api.getListingStatus().then(setListing).catch(() => setListing(null))
   }, [refreshKey])
 
   const handleSaved = () => {
@@ -236,6 +257,7 @@ export function StockManager() {
     setNotice(null)
     try {
       const result = await api.refreshSymbolListing()
+      api.getListingStatus().then(setListing).catch(() => {})
       setNotice(
         result.ok
           ? { tone: 'green', text: `한국거래소 상장목록 ${result.count.toLocaleString('ko-KR')}종목을 받았습니다. 신규 상장·사명 변경이 검색에 반영됩니다.` }
@@ -293,10 +315,7 @@ export function StockManager() {
           <button className="ghost sm" onClick={() => void refreshListing()} disabled={listingBusy}>
             {listingBusy ? '받는 중…' : '거래소 목록 갱신'}
           </button>
-          <span className="hint">
-            신규 상장이나 사명이 바뀐 종목이 검색되지 않을 때 누르세요. 주요 종목은 내장 목록으로
-            항상 검색됩니다.
-          </span>
+          <span className="hint">{listingHint(listing)}</span>
         </div>
         <div className="form-grid">
           <div className="field field-wide">

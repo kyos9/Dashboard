@@ -4,6 +4,8 @@
 직접 확인한다.
 """
 
+import datetime as dt
+
 import pytest
 import requests
 
@@ -155,3 +157,41 @@ def test_local_hit_does_not_touch_network(monkeypatch, db_session):
 
     monkeypatch.setattr(requests, "get", should_not_be_called)
     assert symbols.resolve("삼성전자", db=db_session).ticker == "005930.KS"
+
+
+def test_listing_refresh_is_skipped_while_cache_is_fresh(db_session, monkeypatch):
+    """상장목록은 자주 바뀌지 않는다. 앱을 켤 때마다 받으면 낭비다."""
+    from app.models import KrxListing
+
+    db_session.add(
+        KrxListing(code="005930", name="삼성전자", board="KOSPI", updated_at=dt.datetime.utcnow())
+    )
+    db_session.commit()
+
+    def should_not_run(timeout=30):
+        raise AssertionError("최신 캐시가 있는데 다시 받았습니다")
+
+    monkeypatch.setattr(krx, "fetch_all", should_not_run)
+    assert symbols.refresh_krx_listing_if_stale(db_session) is None
+
+
+def test_listing_refresh_runs_when_cache_is_empty(db_session, monkeypatch):
+    """캐시가 비어 있으면 (= 첫 실행) 받아와야 한다."""
+    monkeypatch.setattr(
+        krx, "fetch_all", lambda timeout=30: [{"code": "005930", "name": "삼성전자", "board": "KOSPI"}]
+    )
+    assert symbols.refresh_krx_listing_if_stale(db_session) == 1
+
+
+def test_listing_refresh_runs_when_cache_is_old(db_session, monkeypatch):
+    from app.models import KrxListing
+
+    stale = dt.datetime.utcnow() - symbols.LISTING_STALE_AFTER - dt.timedelta(days=1)
+    db_session.add(KrxListing(code="005930", name="옛이름", board="KOSPI", updated_at=stale))
+    db_session.commit()
+
+    monkeypatch.setattr(
+        krx, "fetch_all", lambda timeout=30: [{"code": "005930", "name": "삼성전자", "board": "KOSPI"}]
+    )
+    assert symbols.refresh_krx_listing_if_stale(db_session) == 1
+    assert db_session.query(KrxListing).filter_by(code="005930").one().name == "삼성전자"

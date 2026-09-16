@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppStateProvider } from '../AppState'
 import { api, ApiError } from '../api/client'
-import type { Stock, StockCreateResult, SymbolMatch } from '../types'
+import type { ListingStatus, Stock, StockCreateResult, SymbolMatch } from '../types'
 import { StockManager } from './StockManager'
 
 const SAMSUNG: SymbolMatch = {
@@ -45,9 +45,16 @@ function created(overrides: Partial<StockCreateResult> = {}): StockCreateResult 
   }
 }
 
-function mockApi(stocks: Stock[] = []) {
+function mockApi(stocks: Stock[] = [], listing: Partial<ListingStatus> = {}) {
   vi.spyOn(api, 'listStocks').mockResolvedValue(stocks)
   vi.spyOn(api, 'searchSymbols').mockResolvedValue([SAMSUNG])
+  vi.spyOn(api, 'getListingStatus').mockResolvedValue({
+    cached_count: 0,
+    updated_at: null,
+    seed_count: 176,
+    seed_as_of: '2026-09',
+    ...listing,
+  })
   vi.spyOn(api, 'getHealth').mockResolvedValue({
     status: 'ok',
     version: 'test',
@@ -207,5 +214,33 @@ describe('거래소 목록 갱신', () => {
 
     await user.click(screen.getByRole('button', { name: '거래소 목록 갱신' }))
     expect(await screen.findByText(/내장 목록으로 검색됩니다/)).toBeInTheDocument()
+  })
+})
+
+describe('종목 검색 범위 안내', () => {
+  it('거래소 목록을 아직 못 받았으면 내장 목록 기준임을 밝힌다', async () => {
+    // 목록이 언제 기준인지 모르면 "왜 이 종목이 안 나오지?"의 원인을 짐작할 수 없다
+    mockApi()
+    renderManager()
+
+    const hint = await screen.findByText(/내장 목록 176종목/)
+    expect(hint.textContent).toContain('2026-09 기준')
+    expect(hint.textContent).toContain('중소형주')
+  })
+
+  it('거래소 목록을 받았으면 몇 종목을 언제 받았는지 보여준다', async () => {
+    mockApi([], { cached_count: 2743, updated_at: '2026-09-16T05:00:00' })
+    renderManager()
+
+    const hint = await screen.findByText(/거래소 목록 2,743종목/)
+    expect(hint.textContent).toContain('2026-09-16')
+  })
+
+  it('목록 상태를 못 읽어도 화면은 그대로 뜬다', async () => {
+    mockApi()
+    vi.spyOn(api, 'getListingStatus').mockRejectedValue(new Error('연결 실패'))
+    renderManager()
+
+    expect(await screen.findByText(/신규 상장이나 사명이 바뀐 종목/)).toBeInTheDocument()
   })
 })

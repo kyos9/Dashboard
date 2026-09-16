@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.markets import currency_of_stock, market_of_stock
+from app.markets import Market, currency_of_stock, market_of_stock
 from app.models import BuyExecution, IndicatorDaily, SignalDaily, Stock
 from app.schemas import (
     DashboardCard,
@@ -14,7 +14,7 @@ from app.schemas import (
     RebalanceSignal,
 )
 from app.services import queries, rebalance
-from app.services.trading_calendar import period_trading_bounds
+from app.services.trading_calendar import market_today, period_trading_bounds
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
@@ -111,7 +111,9 @@ def get_dashboard(db: Session = Depends(get_db)):
     buys_by_ticker = _current_period_buys(db, stocks, latest_signal_dates)
 
     cards = []
-    today = dt.date.today()
+    # "오늘"은 시장마다 다르다. 서버 시계로 재면 한국 종목은 미국이 아직 어제일 때
+    # 하루 더 오래된 것처럼 보인다. 시장별로 한 번씩만 구해 재사용한다.
+    today_by_market = {market: market_today(market) for market in Market}
     for stock in stocks:
         recent_prices = prices_by_ticker.get(stock.ticker, [])
         price = recent_prices[0] if recent_prices else None
@@ -124,9 +126,10 @@ def get_dashboard(db: Session = Depends(get_db)):
         signal_rows = signals_by_ticker.get(stock.ticker, [])
         signal = signal_rows[0] if signal_rows else None
 
+        market = market_of_stock(stock)
         data_stale = True
         if price is not None:
-            data_stale = (today - price.date).days > STALE_AFTER_DAYS
+            data_stale = (today_by_market[market] - price.date).days > STALE_AFTER_DAYS
 
         prev_close = prev_price.close if prev_price else None
         change_pct = None
@@ -178,7 +181,7 @@ def get_dashboard(db: Session = Depends(get_db)):
                 ticker=stock.ticker,
                 name=stock.name,
                 category=stock.category,
-                market=market_of_stock(stock),
+                market=market,
                 currency=currency_of_stock(stock),
                 data_stale=data_stale,
                 price_source=price.source if price else None,

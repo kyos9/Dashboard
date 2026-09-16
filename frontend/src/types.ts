@@ -7,6 +7,18 @@ export type BuyStatus = 'recommended' | 'confirmed'
 export type Market = 'US' | 'KR'
 export type Currency = 'USD' | 'KRW'
 
+/** 지금 무엇으로 종목이 검색되고 있는지 */
+export interface ListingStatus {
+  /** 한국거래소에서 받아 캐시한 종목 수 (0이면 아직 못 받았다는 뜻) */
+  cached_count: number
+  /** 캐시를 받아온 시각 */
+  updated_at: string | null
+  /** 앱에 내장된 주요 종목 수 */
+  seed_count: number
+  /** 내장 목록을 정리한 시점 (이후 신규 상장·사명 변경은 들어 있지 않다) */
+  seed_as_of: string
+}
+
 /** 종목 검색 결과 한 건 */
 export interface SymbolMatch {
   ticker: string

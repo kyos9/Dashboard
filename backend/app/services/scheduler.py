@@ -7,8 +7,13 @@
 - 한국: UTC 07:30 = KST 16:30. 코스피/코스닥 마감(15:30 KST) 직후다.
 
 한국 종목을 미국 일정에만 맡기면, 한국 거래일 낮 내내 전날 종가가 걸려 있게 된다.
+
+여기에 더해 한국거래소 상장목록도 주기적으로 받아둔다. 내장 목록은 주요 종목
+위주라 중소형주가 이름으로 검색되지 않는데, 사용자가 "거래소 목록 갱신" 버튼의
+존재를 알아야만 해결되는 상태였다.
 """
 
+import datetime as dt
 import logging
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -39,6 +44,24 @@ def _korea_refresh_job() -> None:
     _refresh(Market.KR, "korea")
 
 
+def _listing_refresh_job() -> None:
+    """상장목록 캐시 채우기. 실패해도 앱은 내장 목록으로 계속 검색된다."""
+    from app.services import symbols
+
+    db = SessionLocal()
+    try:
+        count = symbols.refresh_krx_listing_if_stale(db)
+        if count is None:
+            logger.debug("상장목록 캐시가 아직 최신입니다")
+        else:
+            logger.info("상장목록 %s종목을 받았습니다", count)
+    except Exception as exc:
+        # 네트워크가 막혀 있어도 정상 동작이다. 로그를 시끄럽게 만들지 않는다.
+        logger.info("상장목록을 받지 못했습니다 (내장 목록으로 검색됩니다): %s", exc)
+    finally:
+        db.close()
+
+
 def start_scheduler() -> BackgroundScheduler:
     global _scheduler
     if _scheduler is not None:
@@ -46,6 +69,17 @@ def start_scheduler() -> BackgroundScheduler:
     scheduler = BackgroundScheduler(timezone="UTC")
     scheduler.add_job(_daily_refresh_job, "cron", hour=22, minute=30, id="daily_refresh")
     scheduler.add_job(_korea_refresh_job, "cron", hour=7, minute=30, id="korea_refresh")
+    # 켜고 나서 잠깐 뒤에 한 번 — 시작을 붙잡지 않으면서 첫 실행에 목록을 채운다
+    scheduler.add_job(
+        _listing_refresh_job,
+        "date",
+        run_date=dt.datetime.now() + dt.timedelta(seconds=15),
+        id="listing_refresh_startup",
+    )
+    # 이후에는 주 1회 (일요일 UTC 20:00 = 월요일 KST 05:00, 개장 전)
+    scheduler.add_job(
+        _listing_refresh_job, "cron", day_of_week="sun", hour=20, minute=0, id="listing_refresh"
+    )
     scheduler.start()
     _scheduler = scheduler
     return scheduler

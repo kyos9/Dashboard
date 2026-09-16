@@ -28,6 +28,12 @@ def search_symbols(
     return [SymbolMatchOut(**match.to_dict()) for match in matches]
 
 
+@router.get("/listing-status")
+def listing_status(db: Session = Depends(get_db)):
+    """지금 몇 종목이 검색 가능한지 — 내장 목록만인지, 거래소 목록까지 받았는지."""
+    return symbols.listing_status(db)
+
+
 @router.post("/refresh-listing")
 def refresh_listing(db: Session = Depends(get_db)):
     """한국거래소 상장목록을 다시 받아 캐시한다.
