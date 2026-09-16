@@ -528,3 +528,77 @@ def test_staleness_is_judged_against_the_stocks_own_market(api, monkeypatch):
     cards = {c["ticker"]: c for c in client.get("/api/dashboard").json()}
     assert cards["005930.KS"]["data_stale"] is False
     assert cards["VOO"]["data_stale"] is False
+
+
+def test_stock_order_is_user_defined(api):
+    """티커 알파벳순은 "무엇을 먼저 보는가"와 아무 상관이 없다."""
+    client, _ = api
+    for ticker in ("VOO", "005930.KS", "QQQ"):
+        client.post("/api/stocks", json={"ticker": ticker, "target_weight_pct": 0})
+
+    # 기본은 티커순
+    assert [s["ticker"] for s in client.get("/api/stocks").json()] == ["005930.KS", "QQQ", "VOO"]
+
+    response = client.put("/api/stocks/order", json={"tickers": ["VOO", "005930.KS", "QQQ"]})
+    assert response.status_code == 200
+    assert [s["ticker"] for s in response.json()] == ["VOO", "005930.KS", "QQQ"]
+
+    # 다시 조회해도 그 순서, 대시보드도 같은 순서로 보여야 한다
+    assert [s["ticker"] for s in client.get("/api/stocks").json()] == ["VOO", "005930.KS", "QQQ"]
+    assert [c["ticker"] for c in client.get("/api/dashboard").json()] == ["VOO", "005930.KS", "QQQ"]
+
+
+def test_stock_order_rejects_unknown_ticker(api):
+    """모르는 티커가 섞이면 순서를 반쯤 바꾼 채로 두지 않고 통째로 거절한다."""
+    client, _ = api
+    client.post("/api/stocks", json={"ticker": "VOO", "target_weight_pct": 0})
+
+    response = client.put("/api/stocks/order", json={"tickers": ["VOO", "ZZZZ"]})
+    assert response.status_code == 404
+    assert "ZZZZ" in response.json()["detail"]
+
+
+def test_stocks_left_out_of_the_order_go_last(api):
+    """화면이 보내지 않은 종목(비활성 등)이 중간에 끼어들면 안 된다."""
+    client, _ = api
+    for ticker in ("VOO", "QQQ", "SCHD"):
+        client.post("/api/stocks", json={"ticker": ticker, "target_weight_pct": 0})
+
+    client.put("/api/stocks/order", json={"tickers": ["SCHD", "QQQ"]})
+    assert [s["ticker"] for s in client.get("/api/stocks").json()] == ["SCHD", "QQQ", "VOO"]
+
+
+def test_purge_removes_the_stock_and_everything_attached(api):
+    """정말 지울 때는 딸린 기록까지 같이 지운다 (외래키가 남으면 다시 못 넣는다)."""
+    import datetime as dt
+
+    from app.models import PriceDaily, Stock
+
+    client, Session = api
+    client.post("/api/stocks", json={"ticker": "VOO", "target_weight_pct": 0})
+    with Session() as session:
+        session.add(
+            PriceDaily(
+                ticker="VOO", date=dt.date(2026, 9, 16), open=1, high=1, low=1, close=1, volume=1
+            )
+        )
+        session.commit()
+
+    assert client.delete("/api/stocks/VOO/purge").status_code == 204
+
+    with Session() as session:
+        assert session.query(Stock).filter_by(ticker="VOO").first() is None
+        assert session.query(PriceDaily).filter_by(ticker="VOO").count() == 0
+
+    # 같은 티커를 다시 넣을 수 있어야 한다
+    assert client.post("/api/stocks", json={"ticker": "VOO", "target_weight_pct": 0}).status_code == 200
+
+
+def test_deactivate_keeps_the_record(api):
+    """비활성화는 화면에서 치우는 것일 뿐, 받아둔 시세를 버리지 않는다."""
+    client, _ = api
+    client.post("/api/stocks", json={"ticker": "VOO", "target_weight_pct": 0})
+
+    client.delete("/api/stocks/VOO")
+    stocks = {s["ticker"]: s for s in client.get("/api/stocks").json()}
+    assert stocks["VOO"]["active"] is False

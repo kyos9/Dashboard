@@ -86,6 +86,12 @@ export const api = {
     request<StockCreateResult>('/stocks', { method: 'POST', body: JSON.stringify(payload) }),
   updateStock: (ticker: string, payload: StockUpdateInput) =>
     request<Stock>(`/stocks/${ticker}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  /** 화면에 보여줄 순서를 저장한다 (보낸 차례가 곧 순서) */
+  updateStockOrder: (tickers: string[]) =>
+    request<Stock[]>('/stocks/order', { method: 'PUT', body: JSON.stringify({ tickers }) }),
+  /** 종목과 딸린 기록을 전부 지운다 — 되돌릴 수 없다 */
+  purgeStock: (ticker: string) =>
+    request<void>(`/stocks/${encodeURIComponent(ticker)}/purge`, { method: 'DELETE' }),
   deactivateStock: (ticker: string) => request<Stock>(`/stocks/${ticker}`, { method: 'DELETE' }),
   refreshStock: (ticker: string) => request<unknown>(`/stocks/${ticker}/refresh`, { method: 'POST' }),
   refreshAll: () => request<RefreshResult[]>('/stocks/refresh-all', { method: 'POST' }),

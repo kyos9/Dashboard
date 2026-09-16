@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.markets import Market, currency_of_stock, market_of_stock
-from app.models import BuyExecution, IndicatorDaily, SignalDaily, Stock
+from app.models import BuyExecution, IndicatorDaily, SignalDaily, Stock, stock_order
 from app.schemas import (
     DashboardCard,
     KneeConditions,
@@ -91,7 +91,7 @@ def _current_period_buys(db: Session, stocks: list[Stock], latest_signal_dates: 
 
 @router.get("", response_model=list[DashboardCard])
 def get_dashboard(db: Session = Depends(get_db)):
-    stocks = db.query(Stock).filter(Stock.active.is_(True)).order_by(Stock.ticker.asc()).all()
+    stocks = db.query(Stock).filter(Stock.active.is_(True)).order_by(*stock_order()).all()
     tickers = [stock.ticker for stock in stocks]
 
     rebalance_rows = {

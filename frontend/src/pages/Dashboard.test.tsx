@@ -1,9 +1,16 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppStateProvider } from '../AppState'
 import { api } from '../api/client'
-import type { DashboardCard, LatestIndicators, RebalanceCurrent, RebalanceRow } from '../types'
+import type {
+  DashboardCard,
+  LatestIndicators,
+  RebalanceCurrent,
+  RebalanceRow,
+  Stock,
+} from '../types'
 import { Dashboard } from './Dashboard'
 
 const INDICATORS: LatestIndicators = {
@@ -116,9 +123,29 @@ const REBALANCE: RebalanceCurrent = {
   ],
 }
 
+function stockOf(card: DashboardCard): Stock {
+  return {
+    ticker: card.ticker,
+    name: card.name,
+    category: card.category,
+    market: card.market,
+    currency: card.currency,
+    active: true,
+    added_at: '2026-01-01T00:00:00',
+    dca_amount: 0,
+    dca_period: 'monthly',
+    rebalance_period: 'quarterly',
+    target_weight_pct: 0,
+    rebalance_band_pct: null,
+    review_date_override: null,
+    sort_order: 0,
+  }
+}
+
 function mockApi(cards = CARDS, rebalance = REBALANCE) {
   vi.spyOn(api, 'getDashboard').mockResolvedValue(cards)
   vi.spyOn(api, 'getRebalanceCurrent').mockResolvedValue(rebalance)
+  vi.spyOn(api, 'listStocks').mockResolvedValue(cards.map(stockOf))
   vi.spyOn(api, 'getHealth').mockResolvedValue({
     status: 'ok',
     version: 'test',
@@ -134,6 +161,16 @@ function renderDashboard() {
       </AppStateProvider>
     </MemoryRouter>,
   )
+}
+
+/** 표에 보이는 순서대로의 티커 목록 */
+async function tickerOrder() {
+  const table = (await screen.findAllByRole('table'))[0]
+  return within(table)
+    .getAllByRole('row')
+    .slice(1)
+    .map((tr) => tr.querySelector('.ticker-sub')?.textContent?.split(' ·')[0]?.trim())
+    .filter(Boolean)
 }
 
 async function cardRow(ticker: string) {
@@ -233,5 +270,80 @@ describe('대시보드 · 상태 표시', () => {
     expect(within(row).getByText(/DI 약세/)).toBeInTheDocument()
     expect(within(row).getByText(/ADX > 20/)).toBeInTheDocument()
     expect(row.textContent).not.toMatch(/\d\/4/)
+  })
+})
+
+describe('대시보드 · 종목 순서와 설정', () => {
+  it('순서를 바꾸면 화면이 바로 바뀌고 서버에 저장된다', async () => {
+    mockApi()
+    const save = vi.spyOn(api, 'updateStockOrder').mockResolvedValue([])
+    const user = userEvent.setup()
+    renderDashboard()
+
+    await cardRow('VOO')
+    expect(await tickerOrder()).toEqual(['005930.KS', 'VOO'])
+
+    await user.click(screen.getByRole('button', { name: 'VOO 위로' }))
+
+    // 응답을 기다리지 않고 바로 바뀌어 보여야 한다
+    expect(await tickerOrder()).toEqual(['VOO', '005930.KS'])
+    await waitFor(() => expect(save).toHaveBeenCalledWith(['VOO', '005930.KS']))
+  })
+
+  it('맨 위/맨 아래에서는 화살표를 누를 수 없다', async () => {
+    mockApi()
+    renderDashboard()
+
+    expect(await screen.findByRole('button', { name: '005930.KS 위로' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'VOO 아래로' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '005930.KS 아래로' })).toBeEnabled()
+  })
+
+  it('저장에 실패하면 이유를 보여준다', async () => {
+    mockApi()
+    vi.spyOn(api, 'updateStockOrder').mockRejectedValue(new Error('백엔드가 응답하지 않습니다'))
+    const user = userEvent.setup()
+    renderDashboard()
+
+    await cardRow('VOO')
+    await user.click(screen.getByRole('button', { name: 'VOO 위로' }))
+
+    expect(await screen.findByText(/백엔드가 응답하지 않습니다/)).toBeInTheDocument()
+  })
+
+  it('설정 버튼으로 그 자리에서 종목을 고칠 수 있다', async () => {
+    mockApi()
+    const update = vi.spyOn(api, 'updateStock').mockResolvedValue({} as never)
+    const user = userEvent.setup()
+    renderDashboard()
+
+    await user.click(await screen.findByRole('button', { name: '005930.KS 설정' }))
+
+    const dialog = screen.getByRole('dialog', { name: /삼성전자 설정/ })
+    await user.clear(within(dialog).getByLabelText('목표 비중 (%)'))
+    await user.type(within(dialog).getByLabelText('목표 비중 (%)'), '35')
+    await user.click(within(dialog).getByRole('button', { name: '저장' }))
+
+    await waitFor(() =>
+      expect(update).toHaveBeenCalledWith('005930.KS', expect.objectContaining({ target_weight_pct: 35 })),
+    )
+  })
+
+  it('완전 삭제는 한 번 더 확인을 받는다', async () => {
+    mockApi()
+    const purge = vi.spyOn(api, 'purgeStock').mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    renderDashboard()
+
+    await user.click(await screen.findByRole('button', { name: 'VOO 설정' }))
+    const dialog = screen.getByRole('dialog', { name: /VOO 설정/ })
+
+    await user.click(within(dialog).getByRole('button', { name: '완전 삭제' }))
+    // 아직 지우면 안 된다 — 되돌릴 수 없는 동작이다
+    expect(purge).not.toHaveBeenCalled()
+    expect(within(dialog).getByText(/되돌릴 수 없고/)).toBeInTheDocument()
+
+    await user.click(within(dialog).getByRole('button', { name: '네, 완전히 지웁니다' }))
+    await waitFor(() => expect(purge).toHaveBeenCalledWith('VOO'))
   })
 })

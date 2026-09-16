@@ -63,6 +63,10 @@ class Stock(Base):
     rebalance_band_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
     review_date_override: Mapped[dt.date | None] = mapped_column(Date, nullable=True)
 
+    # 화면에 보여줄 순서. 사용자가 직접 정한다 — 티커 알파벳순은 "무엇을 먼저 보는가"와
+    # 아무 상관이 없다. 값이 같으면 티커순으로 떨어지므로 새 종목은 뒤에 붙는다.
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
     @validates("ticker")
     def _sync_market_and_currency(self, key: str, value: str) -> str:
         """티커가 정해지면 시장/통화도 함께 정한다.
@@ -182,3 +186,12 @@ class KrxListing(Base):
     board: Mapped[str] = mapped_column(String, nullable=False)  # KOSPI / KOSDAQ / KONEX
     instrument: Mapped[str] = mapped_column(String, default="STOCK", nullable=False)
     updated_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow, nullable=False)
+
+
+def stock_order():
+    """종목을 화면에 보여줄 순서.
+
+    사용자가 정한 순서를 먼저 쓰고, 같은 값이면 티커순으로 떨어뜨린다. 정렬 기준을
+    한 곳에 모아두지 않으면 화면마다 순서가 달라져 같은 포트폴리오가 다르게 보인다.
+    """
+    return (Stock.sort_order.asc(), Stock.ticker.asc())

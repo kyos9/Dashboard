@@ -1417,3 +1417,45 @@ button.ticker-sub.link {
 table.data-table.fixed {
   table-layout: fixed;
 }
+
+/* 행별 순서/설정 버튼 */
+.row-controls {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.row-controls .icon-btn {
+  width: 28px;
+  height: 28px;
+  font-size: 13px;
+}
+
+.row-controls .icon-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* 되돌릴 수 없는 동작 — 눌러도 되는 버튼처럼 보이면 안 된다 */
+button.danger {
+  color: var(--red);
+  background: var(--red-soft);
+  border: 1px solid rgba(240, 82, 82, 0.4);
+}
+
+button.danger:hover:not(:disabled) {
+  background: rgba(240, 82, 82, 0.2);
+}
+
+.modal-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.edit-modal {
+  width: min(760px, 100%);
+}

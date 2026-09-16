@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ChartModal } from '../components/ChartModal'
+import { StockEditModal } from '../components/StockEditModal'
+import { isEdge, moveOne } from '../lib/reorder'
 import { useAppState } from '../AppState'
 import { api } from '../api/client'
 import { ErrorNotice } from '../components/ErrorNotice'
@@ -22,7 +24,7 @@ import {
   trafficLight,
   type Traffic,
 } from '../lib/display'
-import type { Currency, DashboardCard, KneeConditions, RebalanceRow } from '../types'
+import type { Currency, DashboardCard, KneeConditions, RebalanceRow, Stock } from '../types'
 
 /* 비중 스택 바에 쓰는 색 (최대 8종목까지 구분되고, 그 이상은 반복) */
 const SLICE_COLORS = ['#38bdf8', '#a855f7', '#22c55e', '#f0b429', '#f05252', '#2dd4bf', '#f472b6', '#818cf8']
@@ -57,6 +59,54 @@ function KneeConditionChips({ conditions }: { conditions: KneeConditions }) {
           </span>
         ))}
       </div>
+    </div>
+  )
+}
+
+/** 순서 바꾸기 + 설정 열기. 보고 있는 자리에서 바로 손볼 수 있게 한다. */
+function RowControls({
+  ticker,
+  atTop,
+  atBottom,
+  busy,
+  onMove,
+  onEdit,
+}: {
+  ticker: string
+  atTop: boolean
+  atBottom: boolean
+  busy: boolean
+  onMove: (ticker: string, direction: 'up' | 'down') => void
+  onEdit: (ticker: string) => void
+}) {
+  return (
+    <div className="row-controls">
+      <button
+        className="icon-btn"
+        onClick={() => onMove(ticker, 'up')}
+        disabled={atTop || busy}
+        aria-label={`${ticker} 위로`}
+        title="위로"
+      >
+        ↑
+      </button>
+      <button
+        className="icon-btn"
+        onClick={() => onMove(ticker, 'down')}
+        disabled={atBottom || busy}
+        aria-label={`${ticker} 아래로`}
+        title="아래로"
+      >
+        ↓
+      </button>
+      <button
+        className="icon-btn"
+        onClick={() => onEdit(ticker)}
+        aria-label={`${ticker} 설정`}
+        title="설정 · 삭제"
+      >
+        ⚙
+      </button>
     </div>
   )
 }
@@ -139,6 +189,9 @@ export function Dashboard() {
   const [error, setError] = useState<unknown>(null)
   const [busyId, setBusyId] = useState<number | null>(null)
   const [chartCard, setChartCard] = useState<DashboardCard | null>(null)
+  const [stocks, setStocks] = useState<Stock[]>([])
+  const [editing, setEditing] = useState<Stock | null>(null)
+  const [reordering, setReordering] = useState(false)
 
   const [category, setCategory] = useState<string>('전체')
   const [quick, setQuick] = useState<QuickFilter>('all')
@@ -149,15 +202,46 @@ export function Dashboard() {
   useEffect(() => {
     setLoading(true)
     setError(null)
-    Promise.all([api.getDashboard(), api.getRebalanceCurrent()])
-      .then(([c, rebalance]) => {
+    Promise.all([api.getDashboard(), api.getRebalanceCurrent(), api.listStocks()])
+      .then(([c, rebalance, stockList]) => {
         setCards(c)
         setWeights(rebalance.rows)
         setBaseCurrency(rebalance.base_currency)
+        setStocks(stockList)
       })
       .catch(setError)
       .finally(() => setLoading(false))
   }, [refreshKey])
+
+  /**
+   * 순서를 한 칸 옮긴다. 필터가 걸려 있어도 "보이는 이웃"과 자리를 바꾸므로
+   * 누른 결과가 항상 눈에 보인다.
+   */
+  const handleMove = async (ticker: string, direction: 'up' | 'down') => {
+    const order = stocks.map((s) => s.ticker)
+    const next = moveOne(order, visible.map((c) => c.ticker), ticker, direction)
+    if (next.join() === order.join()) return
+
+    // 서버 응답을 기다리는 동안에도 순서가 바로 바뀌어 보이게 한다
+    const previousStocks = stocks
+    const previousCards = cards
+    const byTicker = new Map(stocks.map((s) => [s.ticker, s]))
+    setStocks(next.map((t) => byTicker.get(t)!).filter(Boolean))
+    setCards((previous) => [...previous].sort((a, b) => next.indexOf(a.ticker) - next.indexOf(b.ticker)))
+
+    setReordering(true)
+    try {
+      await api.updateStockOrder(next)
+    } catch (e) {
+      // 저장에 실패했으면 화면도 되돌린다. 다시 불러오면(notifyDataChanged) 오류 문구가
+      // 같이 지워져서, 사용자는 순서가 저장된 줄 알게 된다.
+      setStocks(previousStocks)
+      setCards(previousCards)
+      setError(e)
+    } finally {
+      setReordering(false)
+    }
+  }
 
   const handleConfirm = async (buyId: number) => {
     setBusyId(buyId)
@@ -231,6 +315,17 @@ export function Dashboard() {
       }),
     [cards, category, quick],
   )
+
+  // 순서 화살표는 "보이는 목록" 기준으로 끝인지 판단해야 누른 결과가 눈에 보인다
+  const rowControls: RowControlProps = {
+    tickers: visible.map((c) => c.ticker),
+    busy: reordering,
+    onMove: (ticker, direction) => void handleMove(ticker, direction),
+    onEdit: (ticker) => {
+      const stock = stocks.find((s) => s.ticker === ticker)
+      if (stock) setEditing(stock)
+    },
+  }
 
   if (loading) return <p className="hint">불러오는 중…</p>
   if (error && cards.length === 0) return <ErrorNotice error={error} />
@@ -408,9 +503,29 @@ export function Dashboard() {
           <p>필터를 바꾸거나 "모두 보기"를 선택해주세요.</p>
         </div>
       ) : view === 'table' ? (
-        <SignalMatrix cards={visible} busyId={busyId} onConfirm={handleConfirm} onChart={setChartCard} />
+        <SignalMatrix
+          cards={visible}
+          busyId={busyId}
+          onConfirm={handleConfirm}
+          onChart={setChartCard}
+          controls={rowControls}
+        />
       ) : (
-        <SignalCards cards={visible} busyId={busyId} onConfirm={handleConfirm} onChart={setChartCard} />
+        <SignalCards
+          cards={visible}
+          busyId={busyId}
+          onConfirm={handleConfirm}
+          onChart={setChartCard}
+          controls={rowControls}
+        />
+      )}
+
+      {editing && (
+        <StockEditModal
+          stock={editing}
+          onSaved={notifyDataChanged}
+          onClose={() => setEditing(null)}
+        />
       )}
 
       {chartCard && (
@@ -434,11 +549,13 @@ function SignalMatrix({
   busyId,
   onConfirm,
   onChart,
+  controls,
 }: {
   cards: DashboardCard[]
   busyId: number | null
   onConfirm: (id: number) => void
   onChart: (card: DashboardCard) => void
+  controls: RowControlProps
 }) {
   return (
     <div className="table-scroll">
@@ -478,6 +595,7 @@ function SignalMatrix({
               (무릎매수 조건)
             </th>
             <th style={{ minWidth: 172 }}>이번 기간 매수</th>
+            <th style={{ minWidth: 112 }}>순서 / 설정</th>
           </tr>
         </thead>
         <tbody>
@@ -539,6 +657,16 @@ function SignalMatrix({
                 <td>
                   <BuyCell card={card} busyId={busyId} onConfirm={onConfirm} />
                 </td>
+                <td>
+                  <RowControls
+                    ticker={card.ticker}
+                    atTop={isEdge(controls.tickers, card.ticker, 'up')}
+                    atBottom={isEdge(controls.tickers, card.ticker, 'down')}
+                    busy={controls.busy}
+                    onMove={controls.onMove}
+                    onEdit={controls.onEdit}
+                  />
+                </td>
               </tr>
             )
           })}
@@ -548,16 +676,25 @@ function SignalMatrix({
   )
 }
 
+interface RowControlProps {
+  tickers: string[]
+  busy: boolean
+  onMove: (ticker: string, direction: 'up' | 'down') => void
+  onEdit: (ticker: string) => void
+}
+
 function SignalCards({
   cards,
   busyId,
   onConfirm,
   onChart,
+  controls,
 }: {
   cards: DashboardCard[]
   busyId: number | null
   onConfirm: (id: number) => void
   onChart: (card: DashboardCard) => void
+  controls: RowControlProps
 }) {
   return (
     <div className="card-grid">
@@ -649,6 +786,14 @@ function SignalCards({
 
             <div className="card-actions">
               <BuyCell card={card} busyId={busyId} onConfirm={onConfirm} />
+              <RowControls
+                ticker={card.ticker}
+                atTop={isEdge(controls.tickers, card.ticker, 'up')}
+                atBottom={isEdge(controls.tickers, card.ticker, 'down')}
+                busy={controls.busy}
+                onMove={controls.onMove}
+                onEdit={controls.onEdit}
+              />
             </div>
           </article>
         )

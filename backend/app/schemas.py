@@ -65,6 +65,13 @@ class StockOut(BaseModel):
     target_weight_pct: float
     rebalance_band_pct: Optional[float]
     review_date_override: Optional[dt.date]
+    sort_order: int = 0
+
+
+class StockOrderUpdate(BaseModel):
+    """화면에 보여줄 순서. 받은 목록의 차례가 곧 순서다."""
+
+    tickers: list[str]
 
 
 class StockCreateResult(BaseModel):

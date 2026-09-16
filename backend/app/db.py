@@ -39,6 +39,7 @@ def _apply_additive_migrations(bind=None) -> None:
             # 실제 값은 아래 _backfill_stock_markets가 티커를 보고 다시 채운다.
             "market": "VARCHAR DEFAULT 'US' NOT NULL",
             "currency": "VARCHAR DEFAULT 'USD' NOT NULL",
+            "sort_order": "INTEGER DEFAULT 0 NOT NULL",
         },
         "price_daily": {
             # 이 컬럼이 생기기 전에 저장된 행은 출처를 알 수 없으므로 nullable로 둔다

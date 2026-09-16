@@ -47,6 +47,8 @@ export interface Stock {
   target_weight_pct: number
   rebalance_band_pct: number | null
   review_date_override: string | null
+  /** 화면에 보여줄 순서 — 사용자가 정한다 */
+  sort_order: number
 }
 
 export interface StockCreateInput {

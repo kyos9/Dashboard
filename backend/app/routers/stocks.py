@@ -3,8 +3,23 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.markets import normalize_ticker
-from app.models import Stock
-from app.schemas import RefreshResult, StockCreate, StockCreateResult, StockOut, StockUpdate
+from app.models import (
+    BuyExecution,
+    Holding,
+    IndicatorDaily,
+    PriceDaily,
+    SignalDaily,
+    Stock,
+    stock_order,
+)
+from app.schemas import (
+    RefreshResult,
+    StockCreate,
+    StockCreateResult,
+    StockOrderUpdate,
+    StockOut,
+    StockUpdate,
+)
 from app.services import data_ingestion, symbols
 from app.services.pipeline import refresh_all_active_stocks, refresh_and_evaluate_stock
 
@@ -26,7 +41,31 @@ def _failure_detail(exc: data_ingestion.DataIngestionError) -> dict:
 
 @router.get("", response_model=list[StockOut])
 def list_stocks(db: Session = Depends(get_db)):
-    return db.query(Stock).order_by(Stock.ticker.asc()).all()
+    return db.query(Stock).order_by(*stock_order()).all()
+
+
+@router.put("/order", response_model=list[StockOut])
+def update_stock_order(payload: StockOrderUpdate, db: Session = Depends(get_db)):
+    """화면에 보여줄 순서를 저장한다. 받은 목록의 차례가 곧 순서다.
+
+    목록에 없는 종목은 건드리지 않고 뒤로 밀린다 — 비활성 종목까지 매번 보내게
+    하면 화면이 모르는 사이에 순서를 덮어쓸 수 있다.
+    """
+    wanted = [normalize_ticker(t) for t in payload.tickers]
+    by_ticker = {s.ticker: s for s in db.query(Stock).all()}
+
+    unknown = [t for t in wanted if t not in by_ticker]
+    if unknown:
+        raise HTTPException(status_code=404, detail=f"등록되지 않은 종목: {', '.join(unknown)}")
+
+    for position, ticker in enumerate(wanted):
+        by_ticker[ticker].sort_order = position
+    # 목록에 없던 종목은 뒤로 (순서를 정한 적 없는 종목이 중간에 끼지 않게)
+    for stock in by_ticker.values():
+        if stock.ticker not in wanted:
+            stock.sort_order = len(wanted)
+    db.commit()
+    return db.query(Stock).order_by(*stock_order()).all()
 
 
 def _resolve_ticker(db: Session, raw: str) -> tuple[str, str | None, str | None]:
@@ -125,6 +164,26 @@ def deactivate_stock(ticker: str, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(stock)
     return stock
+
+
+@router.delete("/{ticker}/purge", status_code=204)
+def purge_stock(ticker: str, db: Session = Depends(get_db)):
+    """종목과 그 종목에 딸린 기록을 전부 지운다. 되돌릴 수 없다.
+
+    비활성화(`DELETE /{ticker}`)와 일부러 나눠뒀다. 대부분의 경우 원하는 건
+    "화면에서 치우기"이고, 그때 시세·지표·매수 기록까지 날리면 나중에 다시 넣었을 때
+    전부 새로 받아야 한다. 정말 지우려는 사람만 이 경로로 오게 한다.
+    """
+    normalized = normalize_ticker(ticker)
+    stock = db.query(Stock).filter_by(ticker=normalized).first()
+    if stock is None:
+        raise HTTPException(status_code=404, detail="stock not found")
+
+    # 외래키가 stocks.ticker를 가리키므로 딸린 행을 먼저 지운다
+    for model in (PriceDaily, IndicatorDaily, SignalDaily, BuyExecution, Holding):
+        db.query(model).filter(model.ticker == normalized).delete(synchronize_session=False)
+    db.delete(stock)
+    db.commit()
 
 
 @router.post("/refresh-all", response_model=list[RefreshResult])

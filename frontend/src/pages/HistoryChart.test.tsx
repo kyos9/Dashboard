@@ -43,6 +43,7 @@ function stock(ticker: string, name: string): Stock {
     target_weight_pct: 0,
     rebalance_band_pct: null,
     review_date_override: null,
+    sort_order: 0,
   }
 }
 

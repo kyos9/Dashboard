@@ -57,7 +57,16 @@ SCORE_NAME_PREFIX = 80.0
 SCORE_ALIAS_PREFIX = 74.0
 SCORE_NAME_CONTAINS = 60.0
 SCORE_ALIAS_CONTAINS = 54.0
-SCORE_TICKER_GUESS = 50.0
+
+# 티커 모양으로 친 입력(VOO, SCHD). 이름·별칭에 **부분적으로** 걸리는 후보보다는 위,
+# 이름 앞부분이 그대로 맞는 후보보다는 아래에 둔다.
+#
+# 전보다 높였다. 이 값이 부분 일치보다 낮았을 때 "SCHD"를 치면 별칭에 그 글자가 든
+# 국내 ETF(`tiger schd`, `sol schd`)가 앞서면서, 그것도 둘이 동점이라 자동 해석이
+# 실패했다 — 정확한 티커를 그대로 쳤는데 "종목을 찾지 못했습니다"가 나왔다.
+# 이름 앞부분 일치(80)보다는 낮게 둬야 "TIGER"나 "KODEX"처럼 티커 모양이면서 실은
+# 국내 ETF 브랜드인 말이 엉뚱한 해외 티커로 잡히지 않는다.
+SCORE_TICKER_GUESS = 76.0
 
 
 @dataclass(frozen=True)

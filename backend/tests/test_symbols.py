@@ -201,3 +201,27 @@ def test_search_survives_broken_seed(monkeypatch):
     monkeypatch.setattr(symbols, "load_seed", lambda: [])
     assert symbols.resolve("VOO", allow_network=False).ticker == "VOO"
     assert symbols.resolve("삼성전자", allow_network=False) is None
+
+
+def test_exact_ticker_beats_partial_alias_match():
+    """정확히 친 티커가, 별칭에 그 글자가 들어갔을 뿐인 후보에 밀리면 안 된다.
+
+    "SCHD"는 미국 ETF 티커인데, 국내에 `tiger schd` / `sol schd`를 별칭으로 가진
+    ETF가 있다. 부분 일치가 더 높은 점수를 받던 시절에는 그 둘이 앞서고 서로 동점이라
+    자동 해석이 실패해 "종목을 찾지 못했습니다"가 나왔다.
+    """
+    match = symbols.resolve("SCHD", allow_network=False)
+    assert match is not None
+    assert match.ticker == "SCHD"
+
+
+def test_etf_brand_words_still_show_candidates():
+    """반대로 "TIGER"·"KODEX"는 티커 모양이지만 국내 ETF 브랜드다.
+
+    이름 앞부분이 맞는 후보가 더 강한 신호이므로, 해외 티커로 단정하지 않고
+    후보를 보여줘야 한다.
+    """
+    for brand in ("TIGER", "KODEX"):
+        assert symbols.resolve(brand, allow_network=False) is None
+        candidates = symbols.search(brand, allow_network=False, limit=3)
+        assert all(c.market is Market.KR for c in candidates)

@@ -16,7 +16,7 @@ import datetime as dt
 from sqlalchemy.orm import Session
 
 from app.markets import Currency, currency_of_stock, market_of_stock
-from app.models import Holding, PortfolioSettings, SignalDaily, Stock
+from app.models import Holding, PortfolioSettings, SignalDaily, Stock, stock_order
 from app.services import fx, queries
 from app.services.trading_calendar import market_today, period_trading_bounds
 
@@ -143,7 +143,7 @@ def compute_rebalance_signal(
 
 def compute_rebalance_current(db: Session, today: dt.date | None = None) -> dict:
     """리밸런싱 현황 전체. 기준통화·환율과 종목별 행을 함께 돌려준다."""
-    stocks = db.query(Stock).filter(Stock.active.is_(True)).order_by(Stock.ticker.asc()).all()
+    stocks = db.query(Stock).filter(Stock.active.is_(True)).order_by(*stock_order()).all()
 
     rate = fx.get_usd_krw(db)
     base = fx.base_currency(db)

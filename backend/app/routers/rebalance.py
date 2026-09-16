@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models import Holding, PortfolioSettings, Stock
+from app.models import Holding, PortfolioSettings, Stock, stock_order
 from app.schemas import (
     FxOut,
     HoldingOut,
@@ -30,7 +30,7 @@ def _get_stock_or_404(db: Session, ticker: str) -> Stock:
 
 @router.get("/targets", response_model=list[RebalanceTargetOut])
 def list_targets(db: Session = Depends(get_db)):
-    stocks = db.query(Stock).order_by(Stock.ticker.asc()).all()
+    stocks = db.query(Stock).order_by(*stock_order()).all()
     return [
         RebalanceTargetOut(
             ticker=s.ticker,
@@ -61,7 +61,7 @@ def update_target(ticker: str, payload: RebalanceTargetUpdate, db: Session = Dep
 
 @router.get("/holdings", response_model=list[HoldingOut])
 def list_holdings(db: Session = Depends(get_db)):
-    stocks = db.query(Stock).order_by(Stock.ticker.asc()).all()
+    stocks = db.query(Stock).order_by(*stock_order()).all()
     holdings_by_ticker = {h.ticker: h for h in db.query(Holding).all()}
     out = []
     for s in stocks:
