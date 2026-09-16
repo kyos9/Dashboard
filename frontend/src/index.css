@@ -1099,8 +1099,11 @@ select {
   color: var(--text);
 }
 
-input[type='number'] {
+/* 숫자칸 — 자릿수를 눈으로 맞출 수 있게 고정폭 + 오른쪽 정렬 */
+.num-input {
   font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 
 input:focus,
@@ -1169,6 +1172,15 @@ button:disabled {
   align-items: center;
 }
 
+/* 표의 작업 칸 — 버튼이 둘째 줄로 내려가면 행 높이가 제각각이 된다 */
+.btn-group.tight {
+  flex-wrap: nowrap;
+}
+
+.btn-group.tight button {
+  white-space: nowrap;
+}
+
 /* 입력칸 + 단위/버튼 조합 — 숫자가 잘리지 않도록 최소폭 확보 */
 .input-with-button {
   display: flex;
@@ -1185,6 +1197,26 @@ button:disabled {
 .input-with-button .unit {
   font-size: 12px;
   color: var(--text-faint);
+  white-space: nowrap;
+}
+
+/*
+ * 표 안에서 쓰는 변형. 줄바꿈을 막아 헤더와 입력칸이 한 줄에서 맞도록 한다 —
+ * 칸이 좁으면 입력칸이 줄어들 뿐, 단위나 선택박스가 아래로 떨어지지 않는다.
+ */
+.input-with-button.tight {
+  flex-wrap: nowrap;
+}
+
+.input-with-button.tight input {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 64px;
+}
+
+.input-with-button.tight select {
+  flex: 0 0 auto;
+  width: auto;
 }
 
 .hint {
@@ -1376,4 +1408,12 @@ button.ticker-sub.link {
     border-radius: 0;
     border: none;
   }
+}
+
+/*
+ * 폭을 지정한 표. 브라우저가 내용에 맞춰 칸을 늘이면 헤더와 입력칸의 경계가 서로
+ * 어긋나 보인다. th에 준 폭을 그대로 쓰게 해서 한 행이 눈으로 맞도록 한다.
+ */
+table.data-table.fixed {
+  table-layout: fixed;
 }

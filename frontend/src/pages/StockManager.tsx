@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAppState } from '../AppState'
 import { api } from '../api/client'
 import { ErrorNotice } from '../components/ErrorNotice'
+import { NumberInput } from '../components/NumberInput'
 import { SymbolSearch } from '../components/SymbolSearch'
 import { CURRENCY_META, MARKET_LABEL, money } from '../lib/display'
 import type {
@@ -107,18 +108,27 @@ function StockRow({ stock, onSaved, onError }: { stock: Stock; onSaved: () => vo
         />
       </td>
       <td>
-        <div className="input-with-button">
+        <div className="input-with-button tight">
           <span className="unit">{CURRENCY_META[stock.currency].symbol}</span>
-          <input type="number" step="any" value={dcaAmount} onChange={(e) => setDcaAmount(e.target.value)} />
-          <select value={dcaPeriod} onChange={(e) => setDcaPeriod(e.target.value as DcaPeriod)} style={{ width: 74 }}>
+          <NumberInput
+            value={dcaAmount}
+            onChange={setDcaAmount}
+            allowDecimal={stock.currency !== 'KRW'}
+            aria-label={`${stock.ticker} DCA 금액`}
+          />
+          <select value={dcaPeriod} onChange={(e) => setDcaPeriod(e.target.value as DcaPeriod)}>
             <option value="monthly">월</option>
             <option value="quarterly">분기</option>
           </select>
         </div>
       </td>
       <td>
-        <div className="input-with-button">
-          <input type="number" step="any" value={targetWeight} onChange={(e) => setTargetWeight(e.target.value)} />
+        <div className="input-with-button tight">
+          <NumberInput
+            value={targetWeight}
+            onChange={setTargetWeight}
+            aria-label={`${stock.ticker} 목표 비중`}
+          />
           <span className="unit">%</span>
         </div>
       </td>
@@ -132,13 +142,12 @@ function StockRow({ stock, onSaved, onError }: { stock: Stock; onSaved: () => vo
         </select>
       </td>
       <td>
-        <div className="input-with-button">
-          <input
-            type="number"
-            step="any"
+        <div className="input-with-button tight">
+          <NumberInput
             placeholder="기본값"
             value={bandPct}
-            onChange={(e) => setBandPct(e.target.value)}
+            onChange={setBandPct}
+            aria-label={`${stock.ticker} 밴드 임계값`}
           />
           <span className="unit">%p</span>
         </div>
@@ -147,7 +156,7 @@ function StockRow({ stock, onSaved, onError }: { stock: Stock; onSaved: () => vo
         <input type="date" value={reviewOverride} onChange={(e) => setReviewOverride(e.target.value)} />
       </td>
       <td>
-        <div className="btn-group">
+        <div className="btn-group tight">
           <button className="primary sm" onClick={save} disabled={saving}>
             {saving ? '저장 중…' : '저장'}
           </button>
@@ -350,12 +359,11 @@ export function StockManager() {
           </div>
           <div className="field">
             <label htmlFor="new-amount">DCA 금액 ({newCurrencyMeta.symbol})</label>
-            <input
+            <NumberInput
               id="new-amount"
-              type="number"
-              step="any"
-              value={form.dca_amount}
-              onChange={(e) => setForm({ ...form, dca_amount: Number(e.target.value) })}
+              value={String(form.dca_amount ?? 0)}
+              onChange={(v) => setForm({ ...form, dca_amount: Number(v) })}
+              allowDecimal={picked?.market !== 'KR'}
             />
           </div>
           <div className="field">
@@ -371,12 +379,10 @@ export function StockManager() {
           </div>
           <div className="field">
             <label htmlFor="new-weight">목표 비중 (%)</label>
-            <input
+            <NumberInput
               id="new-weight"
-              type="number"
-              step="any"
-              value={form.target_weight_pct}
-              onChange={(e) => setForm({ ...form, target_weight_pct: Number(e.target.value) })}
+              value={String(form.target_weight_pct ?? 0)}
+              onChange={(v) => setForm({ ...form, target_weight_pct: Number(v) })}
             />
           </div>
           <div className="field">
@@ -409,30 +415,30 @@ export function StockManager() {
           </div>
         ) : (
           <div className="table-scroll">
-            <table className="data-table" style={{ minWidth: 1260 }}>
+            <table className="data-table fixed" style={{ minWidth: 1386 }}>
               <thead>
                 <tr>
-                  <th style={{ minWidth: 92 }}>티커</th>
-                  <th style={{ minWidth: 130 }}>표시 이름</th>
-                  <th style={{ minWidth: 104 }}>구분</th>
-                  <th style={{ minWidth: 215 }}>DCA 금액 / 주기</th>
-                  <th style={{ minWidth: 155 }}>목표 비중</th>
-                  <th style={{ minWidth: 92 }}>
+                  <th style={{ width: 118 }}>티커</th>
+                  <th style={{ width: 132 }}>표시 이름</th>
+                  <th style={{ width: 108 }}>구분</th>
+                  <th style={{ width: 228 }}>DCA 금액 / 주기</th>
+                  <th style={{ width: 132 }}>목표 비중</th>
+                  <th style={{ width: 104 }}>
                     리밸런싱
                     <br />
                     주기
                   </th>
-                  <th style={{ minWidth: 155 }}>
+                  <th style={{ width: 148 }}>
                     밴드 임계값
                     <br />
                     (비워두면 기본값)
                   </th>
-                  <th style={{ minWidth: 140 }}>
+                  <th style={{ width: 168 }}>
                     리뷰 마감일
                     <br />
                     직접 지정
                   </th>
-                  <th style={{ minWidth: 210 }}>작업</th>
+                  <th style={{ width: 248 }}>작업</th>
                 </tr>
               </thead>
               <tbody>

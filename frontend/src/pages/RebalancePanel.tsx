@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useAppState } from '../AppState'
 import { api } from '../api/client'
 import { ErrorNotice } from '../components/ErrorNotice'
+import { NumberInput } from '../components/NumberInput'
 import { amount, CURRENCY_META, num, price, qty, signed, signedAmount } from '../lib/display'
 import { buildOrderPlan, NOISE_THRESHOLD_PCT } from '../lib/orderPlan'
 import type {
@@ -59,22 +60,25 @@ function SettingsRow({ row, onSaved, onError }: { row: Row; onSaved: () => void;
         </div>
       </td>
       <td>
-        <input type="number" step="any" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+        <NumberInput value={quantity} onChange={setQuantity} aria-label={`${row.ticker} 보유수량`} />
       </td>
       <td>
-        <div className="input-with-button">
-          <input type="number" step="any" value={targetWeight} onChange={(e) => setTargetWeight(e.target.value)} />
+        <div className="input-with-button tight">
+          <NumberInput
+            value={targetWeight}
+            onChange={setTargetWeight}
+            aria-label={`${row.ticker} 목표 비중`}
+          />
           <span className="unit">%</span>
         </div>
       </td>
       <td>
-        <div className="input-with-button">
-          <input
-            type="number"
-            step="any"
+        <div className="input-with-button tight">
+          <NumberInput
             placeholder="기본값"
             value={bandPct}
-            onChange={(e) => setBandPct(e.target.value)}
+            onChange={setBandPct}
+            aria-label={`${row.ticker} 밴드 임계값`}
           />
           <span className="unit">%p</span>
         </div>
@@ -284,12 +288,11 @@ export function RebalancePanel() {
             ))}
           </div>
           <div className="input-with-button">
-            <input
-              type="number"
-              step="any"
+            <NumberInput
               placeholder={fx ? num(fx.usd_krw, 2) : '자동'}
               value={fxInput}
-              onChange={(e) => setFxInput(e.target.value)}
+              onChange={setFxInput}
+              aria-label="원/달러 환율 직접 입력"
             />
             <span className="unit">원/$</span>
             <button className="primary sm" onClick={() => void saveFxOverride()} disabled={fxBusy}>
@@ -350,7 +353,7 @@ export function RebalancePanel() {
             <span className="kpi-title">전역 기본 밴드</span>
           </div>
           <div className="input-with-button">
-            <input type="number" step="any" value={bandInput} onChange={(e) => setBandInput(e.target.value)} />
+            <NumberInput value={bandInput} onChange={setBandInput} aria-label="전역 기본 밴드" />
             <span className="unit">%p</span>
             <button className="primary sm" onClick={saveSettings}>
               저장
@@ -486,19 +489,19 @@ export function RebalancePanel() {
           <span className="hint">수량과 목표 비중을 바꾸면 위 주문 가이드가 즉시 다시 계산됩니다.</span>
         </div>
         <div className="table-scroll">
-          <table className="data-table" style={{ minWidth: 840 }}>
+          <table className="data-table fixed" style={{ minWidth: 860 }}>
             <thead>
               <tr>
-                <th style={{ minWidth: 150 }}>종목</th>
-                <th style={{ minWidth: 120 }}>보유수량</th>
-                <th style={{ minWidth: 155 }}>목표 비중</th>
-                <th style={{ minWidth: 155 }}>
+                <th style={{ width: 208 }}>종목</th>
+                <th style={{ width: 132 }}>보유수량</th>
+                <th style={{ width: 132 }}>목표 비중</th>
+                <th style={{ width: 148 }}>
                   밴드 임계값
                   <br />
                   (비워두면 기본값)
                 </th>
-                <th style={{ minWidth: 118 }}>다음 리뷰 마감일</th>
-                <th style={{ minWidth: 80 }}>저장</th>
+                <th style={{ width: 144 }}>다음 리뷰 마감일</th>
+                <th style={{ width: 96 }}>저장</th>
               </tr>
             </thead>
             <tbody>
