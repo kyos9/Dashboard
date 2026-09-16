@@ -106,4 +106,13 @@ class PriceProvider(Protocol):
 
     name: str
 
+    def supports(self, ticker: str) -> bool:
+        """이 제공자가 해당 티커를 다룰 수 있는지.
+
+        다루지 못하는 티커는 아예 시도하지 않는다 — Stooq에 한국 종목을 물어보면
+        "그런 심볼 없음"이 돌아오는데, 그걸 실패 사유로 보여주면 사용자가 티커 오타로
+        오해하게 된다.
+        """
+        ...
+
     def fetch(self, ticker: str, period: str) -> pd.DataFrame: ...

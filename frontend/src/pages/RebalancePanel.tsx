@@ -2,11 +2,32 @@ import { useEffect, useMemo, useState } from 'react'
 import { useAppState } from '../AppState'
 import { api } from '../api/client'
 import { ErrorNotice } from '../components/ErrorNotice'
-import { money, num, qty, signed } from '../lib/display'
-import type { Holding, RebalanceRow, RebalanceTarget, Settings, Stock } from '../types'
+import { amount, CURRENCY_META, num, price, qty, signed, signedAmount } from '../lib/display'
+import type {
+  Currency,
+  FxInfo,
+  Holding,
+  RebalanceRow,
+  RebalanceTarget,
+  Settings,
+  Stock,
+} from '../types'
 
 /** 조정 필요금액이 총자산의 이 비율 미만이면 주문하지 않고 "유지"로 본다 (거래비용 대비 실익 없음) */
 const NOISE_THRESHOLD_PCT = 0.5
+
+/**
+ * 기준통화 금액을 그 종목을 실제로 거래하는 통화로 되돌린다.
+ *
+ * 비중과 목표 금액은 기준통화로 계산해야 맞지만, 주문은 현지 통화로 넣는다.
+ * 주수를 구할 때도 현지 종가로 나눠야 하므로 이 환산이 필요하다.
+ */
+function toNative(valueBase: number, currency: Currency, base: Currency, usdKrw: number): number {
+  if (currency === base || !usdKrw) return valueBase
+  if (base === 'KRW' && currency === 'USD') return valueBase / usdKrw
+  if (base === 'USD' && currency === 'KRW') return valueBase * usdKrw
+  return valueBase
+}
 
 interface Row {
   ticker: string
@@ -47,7 +68,9 @@ function SettingsRow({ row, onSaved, onError }: { row: Row; onSaved: () => void;
       <td>
         <div className="ticker-cell">
           <span className="ticker-name">{row.stock?.name ?? row.ticker}</span>
-          <span className="ticker-sub">{row.ticker}</span>
+          <span className="ticker-sub">
+            {row.ticker} · {price(row.current.last_close, row.current.currency)}
+          </span>
         </div>
       </td>
       <td>
@@ -89,6 +112,11 @@ export function RebalancePanel() {
   const [error, setError] = useState<unknown>(null)
   const [loading, setLoading] = useState(true)
 
+  const [baseCurrency, setBaseCurrency] = useState<Currency>('KRW')
+  const [fx, setFx] = useState<FxInfo | null>(null)
+  const [fxInput, setFxInput] = useState('')
+  const [fxBusy, setFxBusy] = useState(false)
+
   /** 사용자가 직접 넣은 총 운용자산. 비워두면 보유 평가금액 합계를 쓴다 (현금 비중까지 반영하고 싶을 때 입력). */
   const [totalOverride, setTotalOverride] = useState('')
 
@@ -106,7 +134,7 @@ export function RebalancePanel() {
         const holdingBy = new Map(holdings.map((h) => [h.ticker, h]))
         const stockBy = new Map(stocks.map((st) => [st.ticker, st]))
         setRows(
-          current.map((c) => ({
+          current.rows.map((c) => ({
             ticker: c.ticker,
             current: c,
             target: targetBy.get(c.ticker) ?? null,
@@ -114,8 +142,11 @@ export function RebalancePanel() {
             stock: stockBy.get(c.ticker) ?? null,
           })),
         )
+        setBaseCurrency(current.base_currency)
+        setFx(current.fx)
         setSettings(s)
         setBandInput(String(s.default_rebalance_band_pct))
+        setFxInput(s.usd_krw_override === null ? '' : String(s.usd_krw_override))
       })
       .catch(setError)
       .finally(() => setLoading(false))
@@ -137,29 +168,74 @@ export function RebalancePanel() {
     }
   }
 
+  const changeBaseCurrency = async (next: Currency) => {
+    try {
+      await api.updateSettings({ base_currency: next })
+      handleSaved()
+    } catch (e) {
+      setError(e)
+    }
+  }
+
+  const saveFxOverride = async () => {
+    setFxBusy(true)
+    try {
+      const trimmed = fxInput.trim()
+      await api.updateSettings({ usd_krw_override: trimmed === '' ? null : Number(trimmed) })
+      handleSaved()
+    } catch (e) {
+      setError(e)
+    } finally {
+      setFxBusy(false)
+    }
+  }
+
+  const refreshFx = async () => {
+    setFxBusy(true)
+    try {
+      await api.refreshFx()
+      handleSaved()
+    } catch (e) {
+      setError(e)
+    } finally {
+      setFxBusy(false)
+    }
+  }
+
   const plan = useMemo(() => {
-    const holdingsTotal = rows.reduce((s, r) => s + r.current.current_value, 0)
+    // 평가금액 합계·목표 금액·비중은 전부 기준통화로 계산한다.
+    // 통화가 섞인 상태에서 현지 금액끼리 더하면 (원화 80만 + 달러 1000) 숫자가 무의미해진다.
+    const usdKrw = fx?.usd_krw ?? 0
+    const holdingsTotal = rows.reduce((s, r) => s + r.current.current_value_base, 0)
     const parsed = Number(totalOverride.replace(/,/g, ''))
     const total = totalOverride.trim() !== '' && Number.isFinite(parsed) && parsed > 0 ? parsed : holdingsTotal
     const targetSum = rows.reduce((s, r) => s + r.current.target_weight_pct, 0)
 
     const orders = rows.map((r) => {
       const targetValue = (total * r.current.target_weight_pct) / 100
-      const adjust = targetValue - r.current.current_value
+      const adjust = targetValue - r.current.current_value_base
+      // 주문은 현지 통화로 넣고, 주수도 현지 종가로 나눠야 맞는다
+      const adjustNative = toNative(adjust, r.current.currency, baseCurrency, usdKrw)
       const close = r.current.last_close
-      const shares = close && close > 0 ? adjust / close : null
+      const shares = close && close > 0 ? adjustNative / close : null
       const material = total > 0 && Math.abs(adjust) / total > NOISE_THRESHOLD_PCT / 100
       return {
         row: r,
         targetValue,
         adjust,
+        adjustNative,
         shares,
         action: !material ? ('hold' as const) : adjust > 0 ? ('buy' as const) : ('sell' as const),
       }
     })
 
     return { holdingsTotal, total, targetSum, orders, cash: total - holdingsTotal }
-  }, [rows, totalOverride])
+  }, [rows, totalOverride, baseCurrency, fx])
+
+  const hasMixedCurrencies = useMemo(
+    () => new Set(rows.map((r) => r.current.currency)).size > 1,
+    [rows],
+  )
 
   const signalled = rows.filter((r) => r.current.rebalance_signal.active)
 
@@ -180,33 +256,92 @@ export function RebalancePanel() {
         <div>
           <h2>리밸런싱 · 주문 가이드</h2>
           <p className="hint">
-            목표 비중과 현재 비중의 차이를 금액과 주수로 환산합니다. 실제 매도 실행일은 종목별 리뷰 마감일이며,
-            비중조절 신호는 조기 참고 알림입니다.
+            목표 비중과 현재 비중의 차이를 금액과 주수로 환산합니다. 금액 열은 기준통화(
+            {CURRENCY_META[baseCurrency].label}) 환산 기준이고, 예상 주문 주수는 해당 종목을 실제로 거래하는
+            통화로 계산합니다. 실제 매도 실행일은 종목별 리뷰 마감일이며, 비중조절 신호는 조기 참고 알림입니다.
           </p>
         </div>
       </div>
 
       <ErrorNotice error={error} onDismiss={() => setError(null)} />
 
+      {fx?.is_estimate && hasMixedCurrencies && (
+        <div className="callout amber">
+          <span className="ico">⚠</span>
+          <div>
+            환율을 받아오지 못해 추정치({num(fx.usd_krw, 0)}원)로 계산하고 있습니다. 통화가 섞인
+            포트폴리오라 비중이 실제와 다를 수 있으니, 아래 "적용 환율"에서 직접 입력하거나 다시 조회해주세요.
+          </div>
+        </div>
+      )}
+
       <div className="kpi-grid">
         <div className="kpi">
           <div className="kpi-head">
             <span className="kpi-title">총 운용자산</span>
+            <span className="hint">{CURRENCY_META[baseCurrency].symbol} 기준</span>
           </div>
           <div className="field">
             <input
               type="text"
               inputMode="numeric"
-              placeholder={money(plan.holdingsTotal)}
+              placeholder={amount(plan.holdingsTotal, baseCurrency)}
               value={totalOverride}
               onChange={(e) => setTotalOverride(e.target.value)}
             />
           </div>
           <p className="kpi-foot">
-            보유 평가금액 합계 {money(plan.holdingsTotal)}
-            {plan.cash > 0.5 && ` · 미투자 현금 ${money(plan.cash)}`}
+            보유 평가금액 합계 {amount(plan.holdingsTotal, baseCurrency)}
+            {plan.cash > 0.5 && ` · 미투자 현금 ${amount(plan.cash, baseCurrency)}`}
             <br />
             현금까지 포함해 비중을 맞추려면 총액을 직접 입력하세요.
+          </p>
+        </div>
+
+        <div className="kpi">
+          <div className="kpi-head">
+            <span className="kpi-title">기준통화 · 적용 환율</span>
+          </div>
+          <div className="btn-group" style={{ marginBottom: 8 }}>
+            {(['KRW', 'USD'] as Currency[]).map((c) => (
+              <button
+                key={c}
+                className={`sm${baseCurrency === c ? ' primary' : ' ghost'}`}
+                onClick={() => void changeBaseCurrency(c)}
+                disabled={baseCurrency === c}
+              >
+                {CURRENCY_META[c].symbol} {c}
+              </button>
+            ))}
+          </div>
+          <div className="input-with-button">
+            <input
+              type="number"
+              step="any"
+              placeholder={fx ? num(fx.usd_krw, 2) : '자동'}
+              value={fxInput}
+              onChange={(e) => setFxInput(e.target.value)}
+            />
+            <span className="unit">원/$</span>
+            <button className="primary sm" onClick={() => void saveFxOverride()} disabled={fxBusy}>
+              적용
+            </button>
+            <button className="sm ghost" onClick={() => void refreshFx()} disabled={fxBusy}>
+              조회
+            </button>
+          </div>
+          <p className="kpi-foot">
+            {fx
+              ? `1달러 = ${num(fx.usd_krw, 2)}원 · ${
+                  fx.source === 'override'
+                    ? '직접 입력한 값'
+                    : fx.source === 'fallback'
+                      ? '조회 실패, 추정치'
+                      : '자동 조회값'
+                }`
+              : '환율 정보 없음'}
+            <br />
+            비워두고 적용하면 자동 조회값으로 돌아갑니다.
           </p>
         </div>
 
@@ -270,9 +405,9 @@ export function RebalancePanel() {
             <thead>
               <tr>
                 <th style={{ minWidth: 150 }}>구분 / 종목</th>
-                <th style={{ minWidth: 118 }}>현재 평가금액</th>
+                <th style={{ minWidth: 132 }}>현재 평가금액</th>
                 <th style={{ minWidth: 118 }}>목표 금액</th>
-                <th style={{ minWidth: 118 }}>조정 필요금액</th>
+                <th style={{ minWidth: 140 }}>조정 필요금액</th>
                 <th style={{ minWidth: 104 }}>
                   현재 비중
                   <br />
@@ -284,22 +419,38 @@ export function RebalancePanel() {
               </tr>
             </thead>
             <tbody>
-              {plan.orders.map(({ row, targetValue, adjust, shares, action }) => (
+              {plan.orders.map(({ row, targetValue, adjust, adjustNative, shares, action }) => {
+                const native = row.current.currency
+                const isForeign = native !== baseCurrency
+                return (
                 <tr key={row.ticker}>
                   <td>
                     <div className="ticker-cell">
                       {row.stock?.category && <span className="cat-tag">{row.stock.category}</span>}
                       <span className="ticker-name">{row.stock?.name ?? row.ticker}</span>
                       <span className="ticker-sub">
-                        {row.ticker} · {qty(row.current.quantity)}주
+                        {row.ticker} · {qty(row.current.quantity)}주 · {price(row.current.last_close, native)}
                       </span>
                     </div>
                   </td>
-                  <td className="num-cell">{money(row.current.current_value)}</td>
-                  <td className="num-cell">{money(targetValue)}</td>
+                  <td className="num-cell">
+                    <div className="metric">
+                      <span className="metric-value">{amount(row.current.current_value_base, baseCurrency)}</span>
+                      {isForeign && (
+                        <span className="metric-note">
+                          현지 {amount(row.current.current_value, native)}
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="num-cell">{amount(targetValue, baseCurrency)}</td>
                   <td className={`num-cell ${adjust > 0 ? 'up' : adjust < 0 ? 'down' : ''}`}>
-                    {adjust > 0 ? '+' : ''}
-                    {money(adjust)}
+                    <div className="metric">
+                      <span className="metric-value">{signedAmount(adjust, baseCurrency)}</span>
+                      {isForeign && action !== 'hold' && (
+                        <span className="metric-note">주문 {signedAmount(adjustNative, native)}</span>
+                      )}
+                    </div>
                   </td>
                   <td>
                     <div className="metric">
@@ -339,14 +490,19 @@ export function RebalancePanel() {
                     </div>
                   </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
             <tfoot>
               <tr>
-                <td>합계</td>
-                <td className="num-cell">{money(plan.holdingsTotal)}</td>
-                <td className="num-cell">{money(plan.orders.reduce((s, o) => s + o.targetValue, 0))}</td>
-                <td className="num-cell">{money(plan.orders.reduce((s, o) => s + o.adjust, 0))}</td>
+                <td>합계 ({CURRENCY_META[baseCurrency].symbol})</td>
+                <td className="num-cell">{amount(plan.holdingsTotal, baseCurrency)}</td>
+                <td className="num-cell">
+                  {amount(plan.orders.reduce((s, o) => s + o.targetValue, 0), baseCurrency)}
+                </td>
+                <td className="num-cell">
+                  {signedAmount(plan.orders.reduce((s, o) => s + o.adjust, 0), baseCurrency)}
+                </td>
                 <td colSpan={4} />
               </tr>
             </tfoot>

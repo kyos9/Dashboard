@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app import version
 from app.db import init_db
-from app.routers import buys, dashboard, history, rebalance, stocks
+from app.routers import buys, dashboard, history, rebalance, stocks, symbols
 from app.services import providers
 from app.services.scheduler import shutdown_scheduler, start_scheduler
 
@@ -35,13 +35,18 @@ app.include_router(dashboard.router)
 app.include_router(history.router)
 app.include_router(rebalance.router)
 app.include_router(buys.router)
+app.include_router(symbols.router)
 
 
 @app.get("/api/health")
 def health():
     """상태 + 실행 중인 버전. 화면 헤더가 이 값을 보여준다."""
+    overview = providers.provider_overview()
     return {
         "status": "ok",
         "version": version.version_string(),
-        "providers": providers.configured_order(),
+        # 국내/해외 제공자 순서가 다르므로 시장별로 내려준다.
+        # `providers`는 예전 화면과의 호환을 위해 미국 순서를 유지한다.
+        "providers": overview["US"],
+        "providers_by_market": overview,
     }

@@ -30,7 +30,19 @@ def _apply_additive_migrations() -> None:
     (nullable 컬럼 추가만 다루므로 기존 데이터는 그대로 보존된다.)
     """
     expected: dict[str, dict[str, str]] = {
-        "stocks": {"category": "VARCHAR"},
+        "stocks": {
+            "category": "VARCHAR",
+            # NOT NULL 컬럼이지만 기존 행을 채워야 하므로 DEFAULT를 붙여 추가한다.
+            # 실제 값은 아래 _backfill_stock_markets가 티커를 보고 다시 채운다.
+            "market": "VARCHAR DEFAULT 'US' NOT NULL",
+            "currency": "VARCHAR DEFAULT 'USD' NOT NULL",
+        },
+        "portfolio_settings": {
+            "base_currency": "VARCHAR DEFAULT 'KRW' NOT NULL",
+            "usd_krw_override": "FLOAT",
+            "usd_krw_rate": "FLOAT",
+            "usd_krw_updated_at": "DATETIME",
+        },
     }
     inspector = inspect(engine)
     existing_tables = set(inspector.get_table_names())
@@ -44,8 +56,34 @@ def _apply_additive_migrations() -> None:
                     conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl_type}"))
 
 
+def _backfill_stock_markets() -> None:
+    """기존에 등록된 종목의 시장/통화를 티커에서 다시 판별해 채운다.
+
+    마이그레이션으로 추가된 컬럼은 전부 'US'/'USD'로 시작하므로, 이미 한국 종목을
+    담고 있었다면 값이 틀린다. 티커가 곧 정답이라 매번 다시 계산해도 안전하다.
+    """
+    from app.markets import currency_of, market_of
+
+    inspector = inspect(engine)
+    if "stocks" not in set(inspector.get_table_names()):
+        return
+
+    with engine.begin() as conn:
+        rows = conn.execute(text("SELECT ticker, market, currency FROM stocks")).fetchall()
+        for ticker, market, currency in rows:
+            expected_market = market_of(ticker).value
+            expected_currency = currency_of(ticker).value
+            if market == expected_market and currency == expected_currency:
+                continue
+            conn.execute(
+                text("UPDATE stocks SET market = :m, currency = :c WHERE ticker = :t"),
+                {"m": expected_market, "c": expected_currency, "t": ticker},
+            )
+
+
 def init_db() -> None:
     from app import models  # noqa: F401  (ensure models are registered)
 
     _apply_additive_migrations()
     Base.metadata.create_all(bind=engine)
+    _backfill_stock_markets()

@@ -2,8 +2,15 @@ import { useEffect, useState } from 'react'
 import { useAppState } from '../AppState'
 import { api } from '../api/client'
 import { ErrorNotice } from '../components/ErrorNotice'
-import { money } from '../lib/display'
-import type { DcaPeriod, RebalancePeriod, Stock, StockCreateInput } from '../types'
+import { SymbolSearch } from '../components/SymbolSearch'
+import { CURRENCY_META, MARKET_LABEL, money } from '../lib/display'
+import type {
+  DcaPeriod,
+  RebalancePeriod,
+  Stock,
+  StockCreateInput,
+  SymbolMatch,
+} from '../types'
 
 const emptyForm: StockCreateInput = {
   ticker: '',
@@ -79,6 +86,10 @@ function StockRow({ stock, onSaved, onError }: { stock: Stock; onSaved: () => vo
       <td>
         <div className="ticker-cell">
           <span className="ticker-name mono">{stock.ticker}</span>
+          <span className="ticker-sub">
+            {MARKET_LABEL[stock.market]} · {CURRENCY_META[stock.currency].symbol}
+            {stock.currency}
+          </span>
           {!stock.active && <span className="badge badge-grey">비활성</span>}
         </div>
       </td>
@@ -96,6 +107,7 @@ function StockRow({ stock, onSaved, onError }: { stock: Stock; onSaved: () => vo
       </td>
       <td>
         <div className="input-with-button">
+          <span className="unit">{CURRENCY_META[stock.currency].symbol}</span>
           <input type="number" step="any" value={dcaAmount} onChange={(e) => setDcaAmount(e.target.value)} />
           <select value={dcaPeriod} onChange={(e) => setDcaPeriod(e.target.value as DcaPeriod)} style={{ width: 74 }}>
             <option value="monthly">월</option>
@@ -157,6 +169,7 @@ export function StockManager() {
   const [error, setError] = useState<unknown>(null)
   const [notice, setNotice] = useState<{ tone: 'green' | 'amber'; text: string; detail?: string } | null>(null)
   const [creating, setCreating] = useState(false)
+  const [picked, setPicked] = useState<SymbolMatch | null>(null)
 
   useEffect(() => {
     api
@@ -170,10 +183,9 @@ export function StockManager() {
     notifyDataChanged()
   }
 
-  const handleCreate = async () => {
-    const ticker = (form.ticker ?? '').trim().toUpperCase()
-    if (!ticker) {
-      setError('티커를 입력해주세요. (예: VOO)')
+  const createWith = async (query: string) => {
+    if (!query) {
+      setError('종목명이나 티커를 입력해주세요. (예: 삼성전자, VOO)')
       return
     }
     setCreating(true)
@@ -182,21 +194,28 @@ export function StockManager() {
     try {
       const result = await api.createStock({
         ...form,
-        ticker,
+        ticker: query,
         name: form.name?.trim() === '' ? undefined : form.name,
         category: form.category?.trim() === '' ? null : form.category,
       })
       setForm(emptyForm)
+      setPicked(null)
+
+      // 이름으로 등록했으면 어떤 티커로 해석됐는지 보여준다
+      const label = result.resolved_from
+        ? `${result.resolved_from} → ${result.stock.ticker}`
+        : result.stock.ticker
+
       setNotice(
         result.data_loaded
           ? {
               tone: 'green',
-              text: `${result.stock.ticker} 추가 완료 — 전체 시세를 내려받아 지표와 시그널을 계산했습니다.`,
+              text: `${label} 추가 완료 — 전체 시세를 내려받아 지표와 시그널을 계산했습니다.`,
             }
           : {
               tone: 'amber',
               text:
-                `${result.stock.ticker}은(는) 등록됐지만 시세를 받지 못했습니다. ` +
+                `${label}은(는) 등록됐지만 시세를 받지 못했습니다. ` +
                 (result.data_hint ?? '아래 "시세 갱신"으로 다시 시도해주세요.'),
               detail: result.data_error ?? undefined,
             },
@@ -209,7 +228,11 @@ export function StockManager() {
     }
   }
 
+  const handleCreate = () => void createWith(picked?.ticker ?? (form.ticker ?? '').trim())
+
   const targetSum = stocks.filter((s) => s.active).reduce((sum, s) => sum + s.target_weight_pct, 0)
+  // DCA 금액은 그 종목을 실제로 거래하는 통화 기준이므로, 고른 종목에 맞춰 단위를 보여준다
+  const newCurrencyMeta = CURRENCY_META[picked?.market === 'KR' ? 'KRW' : 'USD']
 
   return (
     <div>
@@ -223,7 +246,8 @@ export function StockManager() {
         <div>
           <h2>종목 관리</h2>
           <p className="hint">
-            티커를 추가하면 전체 히스토리를 내려받아 지표·시그널을 계산합니다. 구분(지수/알파/안전자산 등)은
+            종목을 추가하면 전체 히스토리를 내려받아 지표·시그널을 계산합니다. 국내주식은 종목명(삼성전자)이나
+            종목코드(005930)로, 해외주식은 티커(VOO)로 찾을 수 있습니다. 구분(지수/알파/안전자산 등)은
             자유 입력이며 대시보드 필터로 쓰입니다.
           </p>
         </div>
@@ -250,15 +274,13 @@ export function StockManager() {
           <h3>관심 종목 추가</h3>
         </div>
         <div className="form-grid">
-          <div className="field">
-            <label htmlFor="new-ticker">티커</label>
-            <input
-              id="new-ticker"
-              type="text"
-              placeholder="VOO"
-              value={form.ticker}
-              onChange={(e) => setForm({ ...form, ticker: e.target.value })}
-              onKeyDown={(e) => e.key === 'Enter' && void handleCreate()}
+          <div className="field field-wide">
+            <label htmlFor="new-ticker">종목 검색</label>
+            <SymbolSearch
+              selected={picked}
+              onSelect={setPicked}
+              onSubmitRaw={(typed) => void createWith(typed)}
+              disabled={creating}
             />
           </div>
           <div className="field">
@@ -283,7 +305,7 @@ export function StockManager() {
             />
           </div>
           <div className="field">
-            <label htmlFor="new-amount">DCA 금액</label>
+            <label htmlFor="new-amount">DCA 금액 ({newCurrencyMeta.symbol})</label>
             <input
               id="new-amount"
               type="number"
@@ -321,8 +343,10 @@ export function StockManager() {
           </div>
         </div>
         <p className="hint" style={{ marginTop: 10 }}>
-          DCA 금액 {money(form.dca_amount ?? 0)}을(를) {form.dca_period === 'monthly' ? '매월' : '매 분기'}{' '}
-          매수하는 것으로 기록합니다. 시세 조회에 실패해도 종목 등록은 유지되며 나중에 다시 갱신할 수 있습니다.
+          DCA 금액 {newCurrencyMeta.symbol}
+          {money(form.dca_amount ?? 0)}을(를) {form.dca_period === 'monthly' ? '매월' : '매 분기'} 매수하는 것으로
+          기록합니다. 금액은 해당 종목을 실제로 거래하는 통화({newCurrencyMeta.label}) 기준입니다. 시세 조회에
+          실패해도 종목 등록은 유지되며 나중에 다시 갱신할 수 있습니다.
         </p>
       </div>
 
@@ -337,7 +361,7 @@ export function StockManager() {
         {stocks.length === 0 ? (
           <div className="empty-state">
             <h3>등록된 종목이 없습니다</h3>
-            <p>위 입력창에 티커를 넣고 "종목 추가"를 눌러주세요.</p>
+            <p>위 검색창에 종목명(삼성전자)이나 티커(VOO)를 입력해 추가해주세요.</p>
           </div>
         ) : (
           <div className="table-scroll">

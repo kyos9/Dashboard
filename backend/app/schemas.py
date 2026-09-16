@@ -3,10 +3,29 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict
 
+from app.markets import Currency, Market
 from app.models import BuyStatus, BuyType, DcaPeriod, RebalancePeriod
 
 
+class SymbolMatchOut(BaseModel):
+    """종목 검색 결과 한 건.
+
+    `confident=False`면 시장(코스피/코스닥)이 확정되지 않은 추정이라는 뜻 —
+    화면에서 사용자가 직접 골라야 한다.
+    """
+
+    ticker: str
+    name: str
+    market: Market
+    board: Optional[str] = None
+    instrument: str = "STOCK"
+    source: str
+    confident: bool = True
+
+
 class StockCreate(BaseModel):
+    # 티커(`VOO`, `005930.KS`)뿐 아니라 종목명("삼성전자")이나 6자리 코드도 받는다.
+    # 티커가 아니면 서버가 해석하며, 해석 결과는 응답의 `resolved_from`으로 확인할 수 있다.
     ticker: str
     name: Optional[str] = None
     category: Optional[str] = None
@@ -36,6 +55,8 @@ class StockOut(BaseModel):
     ticker: str
     name: Optional[str]
     category: Optional[str]
+    market: Market = Market.US
+    currency: Currency = Currency.USD
     active: bool
     added_at: dt.datetime
     dca_amount: float
@@ -57,6 +78,8 @@ class StockCreateResult(BaseModel):
     data_loaded: bool
     data_error: Optional[str] = None  # 제공자별 기술적 원인
     data_hint: Optional[str] = None  # 사용자가 다음에 할 일
+    # 이름으로 등록했을 때 사용자가 입력한 원문 (예: "삼성전자" -> 005930.KS)
+    resolved_from: Optional[str] = None
 
 
 class LatestIndicators(BaseModel):
@@ -107,6 +130,8 @@ class DashboardCard(BaseModel):
     ticker: str
     name: Optional[str]
     category: Optional[str] = None
+    market: Market = Market.US
+    currency: Currency = Currency.USD
     data_stale: bool = False
     indicators: LatestIndicators
     knee_buy_v2: bool = False
@@ -144,26 +169,62 @@ class HoldingOut(BaseModel):
     updated_at: dt.datetime
 
 
+class FxOut(BaseModel):
+    """적용 중인 원/달러 환율과 그 출처.
+
+    `is_estimate=True`면 조회에도 실패하고 저장된 값도 없어 폴백 상수를 쓰는 중이라는 뜻 —
+    화면에서 추정치임을 반드시 알려야 한다.
+    """
+
+    usd_krw: float
+    source: str  # override | stored | fetched | fallback
+    updated_at: Optional[str] = None
+    is_estimate: bool = False
+
+
 class SettingsUpdate(BaseModel):
-    default_rebalance_band_pct: float
+    default_rebalance_band_pct: Optional[float] = None
+    base_currency: Optional[Currency] = None
+    # None으로 명시하면 수동 환율을 해제하고 자동 조회값으로 돌아간다
+    usd_krw_override: Optional[float] = None
 
 
 class SettingsOut(BaseModel):
     default_rebalance_band_pct: float
+    base_currency: Currency = Currency.KRW
+    usd_krw_override: Optional[float] = None
+    fx: FxOut
 
 
 class RebalanceRow(BaseModel):
     ticker: str
+    name: Optional[str] = None
+    currency: Currency = Currency.USD
     target_weight_pct: float
     actual_weight_pct: float
     excess_pct: float
     next_review_date: dt.date
     shoulder_signal_fired_in_period: bool
     rebalance_signal: RebalanceSignal
-    # 주문 가이드 계산용 — 보유수량 x 최신 종가
+    # 주문 가이드 계산용 — 보유수량 x 최신 종가 (해당 종목의 거래 통화 기준)
     quantity: float = 0.0
     last_close: Optional[float] = None
     current_value: float = 0.0
+    # 비중 계산에 쓰이는 기준통화 환산 평가금액
+    current_value_base: float = 0.0
+
+
+class RebalanceCurrentOut(BaseModel):
+    """리밸런싱 현황 전체.
+
+    통화가 섞인 포트폴리오에서는 "얼마짜리 포트폴리오인지"가 기준통화와 환율에 달려
+    있으므로, 행만 주지 않고 그 전제까지 함께 내려준다.
+    """
+
+    base_currency: Currency
+    fx: FxOut
+    total_value_base: float
+    rows: list[RebalanceRow]
 
 
 class RefreshResult(BaseModel):

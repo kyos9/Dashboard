@@ -1,11 +1,14 @@
 import type {
   DashboardCard,
+  FxInfo,
   Holding,
   HistoryResponse,
-  RebalanceRow,
+  RebalanceCurrent,
   RebalanceTarget,
   RefreshResult,
   Settings,
+  SettingsUpdate,
+  SymbolMatch,
   HealthInfo,
   Stock,
   StockCreateInput,
@@ -65,6 +68,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   getHealth: () => request<HealthInfo>('/health'),
 
+  /** 종목명/코드로 후보를 찾는다 — 사용자가 고른 뒤에 등록한다 */
+  searchSymbols: (q: string, limit = 8) =>
+    request<SymbolMatch[]>(`/symbols/search?q=${encodeURIComponent(q)}&limit=${limit}`),
+
   listStocks: () => request<Stock[]>('/stocks'),
   createStock: (payload: StockCreateInput) =>
     request<StockCreateResult>('/stocks', { method: 'POST', body: JSON.stringify(payload) }),
@@ -100,8 +107,9 @@ export const api = {
     }),
 
   getSettings: () => request<Settings>('/rebalance/settings'),
-  updateSettings: (payload: Settings) =>
+  updateSettings: (payload: SettingsUpdate) =>
     request<Settings>('/rebalance/settings', { method: 'PUT', body: JSON.stringify(payload) }),
+  refreshFx: () => request<FxInfo>('/rebalance/fx/refresh', { method: 'POST' }),
 
-  getRebalanceCurrent: () => request<RebalanceRow[]>('/rebalance/current'),
+  getRebalanceCurrent: () => request<RebalanceCurrent>('/rebalance/current'),
 }

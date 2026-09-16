@@ -9,6 +9,7 @@ import datetime as dt
 import pandas as pd
 import pytest
 
+from app.markets import Market
 from app.services import providers
 from app.services.providers.base import (
     EmptyData,
@@ -35,12 +36,19 @@ STOOQ_CSV = """Date,Open,High,Low,Close,Volume
         ("VOO", "voo.us"),
         ("voo", "voo.us"),
         ("  NVDA  ", "nvda.us"),
-        ("005930.KS", "005930.ks"),  # 접미사가 이미 있으면 그대로
+        ("BMW.DE", "bmw.de"),  # 접미사가 이미 있으면 그대로
         ("^SPX", "^spx"),  # 지수도 그대로
     ],
 )
 def test_to_stooq_symbol(ticker, expected):
     assert to_stooq_symbol(ticker) == expected
+
+
+def test_stooq_does_not_claim_korean_tickers():
+    provider = StooqProvider()
+    assert provider.supports("VOO") is True
+    assert provider.supports("005930.KS") is False
+    assert provider.supports("247540.KQ") is False
 
 
 # ── Stooq CSV 파싱 ───────────────────────────────────────────────────
@@ -203,6 +211,9 @@ class _FakeProvider:
         self._error = error
         self.calls = 0
 
+    def supports(self, ticker):
+        return True
+
     def fetch(self, ticker, period):
         self.calls += 1
         if self._error:
@@ -221,7 +232,7 @@ def test_falls_back_to_second_provider_when_first_is_blocked(monkeypatch):
     """야후가 막혀도 Stooq로 조회되면 앱은 정상 동작해야 한다."""
     blocked = _FakeProvider("yahoo", error=ProviderUnavailable("yahoo", "CONNECT tunnel failed, 403"))
     working = _FakeProvider("stooq", result=_frame())
-    monkeypatch.setattr(providers, "build_providers", lambda: [blocked, working])
+    monkeypatch.setattr(providers, "build_providers", lambda ticker: [blocked, working])
 
     df = providers.fetch_price_history("VOO", "6mo")
     assert len(df) == 1
@@ -231,7 +242,7 @@ def test_falls_back_to_second_provider_when_first_is_blocked(monkeypatch):
 def test_first_success_short_circuits(monkeypatch):
     first = _FakeProvider("yahoo", result=_frame())
     second = _FakeProvider("stooq", result=_frame())
-    monkeypatch.setattr(providers, "build_providers", lambda: [first, second])
+    monkeypatch.setattr(providers, "build_providers", lambda ticker: [first, second])
 
     providers.fetch_price_history("VOO", "6mo")
     assert second.calls == 0
@@ -242,7 +253,7 @@ def test_all_failures_report_every_provider_reason(monkeypatch):
     monkeypatch.setattr(
         providers,
         "build_providers",
-        lambda: [
+        lambda ticker: [
             _FakeProvider("yahoo", error=ProviderUnavailable("yahoo", "타임아웃")),
             _FakeProvider("stooq", error=ProviderUnavailable("stooq", "HTTP 503")),
         ],
@@ -261,7 +272,7 @@ def test_hint_points_at_ticker_typo_when_all_say_not_found(monkeypatch):
     monkeypatch.setattr(
         providers,
         "build_providers",
-        lambda: [
+        lambda ticker: [
             _FakeProvider("yahoo", error=TickerNotFound("yahoo", "없는 티커")),
             _FakeProvider("stooq", error=TickerNotFound("stooq", "없는 심볼")),
         ],
@@ -278,7 +289,7 @@ def test_provider_crash_does_not_block_next_provider(monkeypatch):
     """한 제공자 구현이 터져도 다음 제공자는 시도돼야 한다."""
     crashing = _FakeProvider("yahoo", error=RuntimeError("예상치 못한 버그"))
     working = _FakeProvider("stooq", result=_frame())
-    monkeypatch.setattr(providers, "build_providers", lambda: [crashing, working])
+    monkeypatch.setattr(providers, "build_providers", lambda ticker: [crashing, working])
 
     assert len(providers.fetch_price_history("VOO", "6mo")) == 1
 
@@ -287,9 +298,52 @@ def test_provider_crash_does_not_block_next_provider(monkeypatch):
 
 def test_provider_order_is_configurable(monkeypatch):
     monkeypatch.setenv("SIGNAL_DASHBOARD_PROVIDERS", "stooq,yahoo")
-    assert providers.configured_order() == ["stooq", "yahoo"]
+    assert providers.configured_order(Market.US) == ["stooq", "yahoo"]
 
 
 def test_unknown_provider_names_fall_back_to_default(monkeypatch):
     monkeypatch.setenv("SIGNAL_DASHBOARD_PROVIDERS", "bloomberg")
-    assert providers.configured_order() == providers.DEFAULT_ORDER
+    assert providers.configured_order(Market.US) == providers.DEFAULT_ORDER[Market.US]
+
+
+def test_market_specific_order_beats_common_setting(monkeypatch):
+    """국내/해외 제공자를 따로 지정할 수 있어야 한다."""
+    monkeypatch.setenv("SIGNAL_DASHBOARD_PROVIDERS", "stooq")
+    monkeypatch.setenv("SIGNAL_DASHBOARD_PROVIDERS_KR", "yahoo,naver")
+    assert providers.configured_order(Market.KR) == ["yahoo", "naver"]
+    assert providers.configured_order(Market.US) == ["stooq"]
+
+
+# ── 시장별 제공자 라우팅 ─────────────────────────────────────────────
+
+def test_korean_ticker_skips_stooq_entirely(monkeypatch):
+    """Stooq는 한국거래소를 다루지 않는다 — 시도조차 하지 않아야 한다.
+
+    시도하면 "그런 심볼 없음"이 돌아오는데, 그게 실패 사유로 올라가면 사용자가
+    종목코드 오타로 오해하게 된다.
+    """
+    monkeypatch.delenv("SIGNAL_DASHBOARD_PROVIDERS", raising=False)
+    monkeypatch.delenv("SIGNAL_DASHBOARD_PROVIDERS_KR", raising=False)
+    names = [p.name for p in providers.build_providers("005930.KS")]
+    assert "stooq" not in names
+    assert names == ["naver", "yahoo"]
+
+
+def test_us_ticker_skips_naver(monkeypatch):
+    monkeypatch.delenv("SIGNAL_DASHBOARD_PROVIDERS", raising=False)
+    monkeypatch.delenv("SIGNAL_DASHBOARD_PROVIDERS_US", raising=False)
+    names = [p.name for p in providers.build_providers("VOO")]
+    assert names == ["yahoo", "stooq"]
+
+
+def test_korean_ticker_hint_mentions_code_format(monkeypatch):
+    monkeypatch.setattr(
+        providers,
+        "build_providers",
+        lambda ticker: [_FakeProvider("naver", error=TickerNotFound("naver", "없는 종목코드"))],
+    )
+    with pytest.raises(providers.AllProvidersFailed) as excinfo:
+        providers.fetch_price_history("999999.KS", "6mo")
+    # 미국 티커 안내(VOO/QQQ)가 아니라 국내 종목 안내가 나와야 한다
+    assert "종목명" in excinfo.value.hint()
+    assert "VOO" not in excinfo.value.hint()

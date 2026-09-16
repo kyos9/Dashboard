@@ -70,7 +70,13 @@ for package in ("yfinance", "curl_cffi", "requests", "pandas"):
 
 # ── 2. DNS ───────────────────────────────────────────────────────────
 section("2. DNS 조회")
-for host in ("query1.finance.yahoo.com", "fc.yahoo.com", "stooq.com"):
+for host in (
+    "query1.finance.yahoo.com",
+    "fc.yahoo.com",
+    "stooq.com",
+    "api.finance.naver.com",  # 국내주식 시세
+    "kind.krx.co.kr",  # 국내 상장목록(종목명 검색)
+):
     try:
         ok(f"{host} → {socket.gethostbyname(host)}")
     except Exception as exc:
@@ -85,6 +91,8 @@ try:
     for url in (
         "https://query1.finance.yahoo.com/v8/finance/chart/AAPL?range=5d&interval=1d",
         "https://stooq.com/q/d/l/?s=voo.us&i=d",
+        "https://api.finance.naver.com/siseJson.naver"
+        "?symbol=005930&requestType=1&startTime=20260101&endTime=20260201&timeframe=day",
     ):
         try:
             r = requests.get(url, timeout=20, headers={"User-Agent": "Mozilla/5.0"})

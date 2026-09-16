@@ -3,10 +3,30 @@ export type RebalancePeriod = 'quarterly' | 'semiannual'
 export type BuyType = 'signal' | 'fallback'
 export type BuyStatus = 'recommended' | 'confirmed'
 
+/** 거래소 구분 — 통화와 거래일 캘린더가 여기서 갈린다 */
+export type Market = 'US' | 'KR'
+export type Currency = 'USD' | 'KRW'
+
+/** 종목 검색 결과 한 건 */
+export interface SymbolMatch {
+  ticker: string
+  name: string
+  market: Market
+  /** KOSPI / KOSDAQ / KONEX — 해외 종목은 null */
+  board: string | null
+  instrument: string
+  /** ticker | seed | cache | krx | yahoo | guess */
+  source: string
+  /** false면 시장이 확정되지 않은 추정 — 사용자가 직접 골라야 한다 */
+  confident: boolean
+}
+
 export interface Stock {
   ticker: string
   name: string | null
   category: string | null
+  market: Market
+  currency: Currency
   active: boolean
   added_at: string
   dca_amount: number
@@ -39,6 +59,8 @@ export interface StockCreateResult {
   data_error: string | null
   /** 사용자가 다음에 할 일 */
   data_hint: string | null
+  /** 이름으로 등록했을 때 사용자가 입력한 원문 (예: "삼성전자") */
+  resolved_from: string | null
 }
 
 export interface LatestIndicators {
@@ -84,6 +106,8 @@ export interface DashboardCard {
   ticker: string
   name: string | null
   category: string | null
+  market: Market
+  currency: Currency
   data_stale: boolean
   indicators: LatestIndicators
   knee_buy_v2: boolean
@@ -116,9 +140,26 @@ export interface Holding {
   updated_at: string
 }
 
+/** 적용 중인 원/달러 환율과 그 출처 */
+export interface FxInfo {
+  usd_krw: number
+  /** override(수동) | stored(저장된 조회값) | fetched(방금 조회) | fallback(추정) */
+  source: string
+  updated_at: string | null
+  /** true면 조회 실패로 폴백 상수를 쓰는 중 — 화면에 추정치임을 알려야 한다 */
+  is_estimate: boolean
+}
+
 export interface Settings {
   default_rebalance_band_pct: number
+  /** 비중 계산의 기준이 되는 통화 */
+  base_currency: Currency
+  /** 사용자가 직접 지정한 환율 (없으면 자동 조회값 사용) */
+  usd_krw_override: number | null
+  fx: FxInfo
 }
+
+export type SettingsUpdate = Partial<Omit<Settings, 'fx'>>
 
 export interface RebalanceTarget {
   ticker: string
@@ -130,6 +171,9 @@ export interface RebalanceTarget {
 
 export interface RebalanceRow {
   ticker: string
+  name: string | null
+  /** 이 종목을 실제로 사고파는 통화 */
+  currency: Currency
   target_weight_pct: number
   actual_weight_pct: number
   excess_pct: number
@@ -137,8 +181,19 @@ export interface RebalanceRow {
   shoulder_signal_fired_in_period: boolean
   rebalance_signal: RebalanceSignal
   quantity: number
+  /** 현지 통화 기준 */
   last_close: number | null
   current_value: number
+  /** 기준통화로 환산한 평가금액 — 비중은 이 값으로 계산된다 */
+  current_value_base: number
+}
+
+/** 리밸런싱 현황 전체. 통화가 섞이면 "전제"(기준통화·환율)까지 알아야 숫자를 읽을 수 있다 */
+export interface RebalanceCurrent {
+  base_currency: Currency
+  fx: FxInfo
+  total_value_base: number
+  rows: RebalanceRow[]
 }
 
 export interface RefreshResult {
@@ -153,5 +208,8 @@ export interface RefreshResult {
 export interface HealthInfo {
   status: string
   version: string
+  /** 해외 종목 제공자 순서 */
   providers: string[]
+  /** 시장별 제공자 순서 (국내는 네이버를 먼저 쓴다) */
+  providers_by_market: Record<Market, string[]>
 }

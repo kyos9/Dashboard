@@ -6,7 +6,8 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      '/api': 'http://localhost:8000',
+      // 백엔드 포트를 바꿔 띄웠다면 VITE_API_TARGET으로 가리킬 수 있다
+      '/api': process.env.VITE_API_TARGET ?? 'http://localhost:8000',
     },
   },
 })

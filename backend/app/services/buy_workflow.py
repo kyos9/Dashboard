@@ -11,6 +11,7 @@ import datetime as dt
 
 from sqlalchemy.orm import Session
 
+from app.markets import market_of_stock
 from app.models import BuyExecution, BuyStatus, BuyType, Holding, SignalDaily, Stock
 from app.services.trading_calendar import period_trading_bounds
 
@@ -31,7 +32,9 @@ def evaluate_buy_workflow(db: Session, stock: Stock) -> BuyExecution | None:
     if latest is None:
         return None
 
-    period_start, period_end = period_trading_bounds(latest, stock.dca_period.value)
+    period_start, period_end = period_trading_bounds(
+        latest, stock.dca_period.value, market_of_stock(stock)
+    )
     if period_start is None:
         return None
 
@@ -80,7 +83,9 @@ def get_current_period_buy(db: Session, stock: Stock) -> BuyExecution | None:
     latest = latest_signal_date(db, stock.ticker)
     if latest is None:
         return None
-    period_start, period_end = period_trading_bounds(latest, stock.dca_period.value)
+    period_start, period_end = period_trading_bounds(
+        latest, stock.dca_period.value, market_of_stock(stock)
+    )
     if period_start is None:
         return None
     return (

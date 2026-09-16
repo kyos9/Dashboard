@@ -8,8 +8,8 @@ import subprocess
 from functools import lru_cache
 from pathlib import Path
 
-# 수집 계층을 갈아엎은 버전. 기능이 바뀔 때마다 올린다.
-APP_VERSION = "0.3.0"
+# 국내주식(종목명 검색)과 통화 구분을 넣은 버전. 기능이 바뀔 때마다 올린다.
+APP_VERSION = "0.4.0"
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 

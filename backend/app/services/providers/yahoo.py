@@ -37,6 +37,10 @@ class YahooProvider:
         self.retries = retries
         self.retry_wait = retry_wait
 
+    def supports(self, ticker: str) -> bool:
+        """야후는 국내외를 모두 다룬다 (국내는 `005930.KS` 표기)."""
+        return True
+
     def fetch(self, ticker: str, period: str) -> pd.DataFrame:
         import yfinance as yf
 

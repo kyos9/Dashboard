@@ -1,4 +1,28 @@
-import type { DashboardCard, KneeConditions } from '../types'
+import type { Currency, DashboardCard, KneeConditions, Market } from '../types'
+
+/* ---------- 통화 ----------
+   원화와 달러는 자릿수 감각이 다르다. 79,600원을 "79,600.00"으로 쓰면 읽기 어렵고,
+   $458.92를 "$459"로 반올림하면 정보가 사라진다. 통화별로 소수 자릿수를 나눈다. */
+
+interface CurrencyMeta {
+  symbol: string
+  label: string
+  /** 가격 표시 소수 자릿수 */
+  priceDigits: number
+  /** 금액(평가금액/주문금액) 표시 소수 자릿수 */
+  amountDigits: number
+}
+
+export const CURRENCY_META: Record<Currency, CurrencyMeta> = {
+  KRW: { symbol: '₩', label: '원', priceDigits: 0, amountDigits: 0 },
+  USD: { symbol: '$', label: '달러', priceDigits: 2, amountDigits: 2 },
+}
+
+export const MARKET_LABEL: Record<Market, string> = { US: '미국', KR: '한국' }
+
+export function currencyMeta(currency: Currency | null | undefined): CurrencyMeta {
+  return CURRENCY_META[currency ?? 'USD'] ?? CURRENCY_META.USD
+}
 
 /* ---------- 숫자 포맷 ---------- */
 
@@ -12,10 +36,36 @@ export function signed(value: number | null | undefined, digits = 2, suffix = ''
   return `${value > 0 ? '+' : ''}${num(value, digits)}${suffix}`
 }
 
-/** 통화 금액 — 소수점 없이 천단위 구분 */
+/** 통화 금액 — 소수점 없이 천단위 구분 (통화 구분이 필요 없는 자리에서 쓴다) */
 export function money(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) return '—'
   return Math.round(value).toLocaleString('ko-KR')
+}
+
+/** 종목 가격 — 원화는 정수, 달러는 센트까지 */
+export function price(value: number | null | undefined, currency: Currency): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return '—'
+  const { symbol, priceDigits } = currencyMeta(currency)
+  return `${symbol}${value.toLocaleString('ko-KR', {
+    minimumFractionDigits: priceDigits,
+    maximumFractionDigits: priceDigits,
+  })}`
+}
+
+/** 평가금액·주문금액 — 통화 기호를 붙여 어느 돈인지 분명히 한다 */
+export function amount(value: number | null | undefined, currency: Currency): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return '—'
+  const { symbol, amountDigits } = currencyMeta(currency)
+  return `${symbol}${value.toLocaleString('ko-KR', {
+    minimumFractionDigits: amountDigits,
+    maximumFractionDigits: amountDigits,
+  })}`
+}
+
+/** 부호를 붙인 금액 — 조정 필요금액처럼 방향이 중요한 자리에 쓴다 */
+export function signedAmount(value: number | null | undefined, currency: Currency): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return '—'
+  return `${value > 0 ? '+' : value < 0 ? '−' : ''}${amount(Math.abs(value), currency)}`
 }
 
 /** 보유수량처럼 소수가 길어질 수 있는 값을 읽기 좋게 자른다 */

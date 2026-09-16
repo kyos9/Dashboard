@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models import IndicatorDaily, PriceDaily, SignalDaily, Stock
+from app.markets import currency_of_stock, market_of_stock
+from app.models import BuyExecution, IndicatorDaily, SignalDaily, Stock
 from app.schemas import (
     DashboardCard,
     KneeConditions,
@@ -12,7 +13,8 @@ from app.schemas import (
     PendingBuy,
     RebalanceSignal,
 )
-from app.services import buy_workflow, rebalance
+from app.services import queries, rebalance
+from app.services.trading_calendar import period_trading_bounds
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
@@ -60,44 +62,71 @@ def _knee_conditions(
     )
 
 
+def _current_period_buys(db: Session, stocks: list[Stock], latest_signal_dates: dict[str, dt.date]):
+    """종목별 "이번 기간" 매수 추천을 한 번의 쿼리로 모아온다.
+
+    기간 경계는 종목이 속한 시장의 거래일 캘린더로 계산한다 (한국/미국 휴장일이 다름).
+    """
+    wanted: dict[str, tuple[dt.date, dt.date]] = {}
+    for stock in stocks:
+        latest = latest_signal_dates.get(stock.ticker)
+        if latest is None:
+            continue
+        start, end = period_trading_bounds(
+            latest, stock.dca_period.value, market_of_stock(stock)
+        )
+        if start is not None:
+            wanted[stock.ticker] = (start, end)
+
+    if not wanted:
+        return {}
+
+    rows = db.query(BuyExecution).filter(BuyExecution.ticker.in_(list(wanted))).all()
+    return {
+        row.ticker: row
+        for row in rows
+        if wanted.get(row.ticker) == (row.period_start, row.period_end)
+    }
+
+
 @router.get("", response_model=list[DashboardCard])
 def get_dashboard(db: Session = Depends(get_db)):
     stocks = db.query(Stock).filter(Stock.active.is_(True)).order_by(Stock.ticker.asc()).all()
-    rebalance_rows = {row["ticker"]: row for row in rebalance.compute_rebalance_current(db)}
+    tickers = [stock.ticker for stock in stocks]
+
+    rebalance_rows = {
+        row["ticker"]: row for row in rebalance.compute_rebalance_current(db)["rows"]
+    }
+
+    # 종목마다 따로 조회하면 종목 수에 비례해 쿼리가 늘어난다. 테이블당 한 번만 읽는다.
+    # 등락률에 최근 2거래일, StdDev20 축소 판정에 5거래일 전 값이 필요하므로 6개까지 읽는다
+    # (signals.compute_signals의 shift(5)와 같은 기준).
+    prices_by_ticker = queries.recent_prices(db, tickers, limit=2)
+    indicators_by_ticker = queries.recent_indicators(db, tickers, limit=6)
+    signals_by_ticker = queries.recent_signals(db, tickers, limit=1)
+
+    latest_signal_dates = {
+        ticker: rows[0].date for ticker, rows in signals_by_ticker.items() if rows
+    }
+    buys_by_ticker = _current_period_buys(db, stocks, latest_signal_dates)
 
     cards = []
+    today = dt.date.today()
     for stock in stocks:
-        # 등락률 계산을 위해 최근 2거래일치를 함께 읽는다.
-        recent_prices = (
-            db.query(PriceDaily)
-            .filter_by(ticker=stock.ticker)
-            .order_by(PriceDaily.date.desc())
-            .limit(2)
-            .all()
-        )
+        recent_prices = prices_by_ticker.get(stock.ticker, [])
         price = recent_prices[0] if recent_prices else None
         prev_price = recent_prices[1] if len(recent_prices) > 1 else None
-        # StdDev20 축소 판정은 5거래일 전 값과 비교하므로 최근 6개를 함께 읽는다
-        # (signals.compute_signals의 shift(5)와 같은 기준).
-        recent_indicators = (
-            db.query(IndicatorDaily)
-            .filter_by(ticker=stock.ticker)
-            .order_by(IndicatorDaily.date.desc())
-            .limit(6)
-            .all()
-        )
+
+        recent_indicators = indicators_by_ticker.get(stock.ticker, [])
         indicator = recent_indicators[0] if recent_indicators else None
         indicator_5d_ago = recent_indicators[5] if len(recent_indicators) > 5 else None
-        signal = (
-            db.query(SignalDaily)
-            .filter_by(ticker=stock.ticker)
-            .order_by(SignalDaily.date.desc())
-            .first()
-        )
+
+        signal_rows = signals_by_ticker.get(stock.ticker, [])
+        signal = signal_rows[0] if signal_rows else None
 
         data_stale = True
         if price is not None:
-            data_stale = (dt.date.today() - price.date).days > STALE_AFTER_DAYS
+            data_stale = (today - price.date).days > STALE_AFTER_DAYS
 
         prev_close = prev_price.close if prev_price else None
         change_pct = None
@@ -124,7 +153,7 @@ def get_dashboard(db: Session = Depends(get_db)):
 
         knee_conditions = _knee_conditions(indicator, indicator_5d_ago)
 
-        current_buy = buy_workflow.get_current_period_buy(db, stock)
+        current_buy = buys_by_ticker.get(stock.ticker)
         pending_buy = (
             PendingBuy(
                 id=current_buy.id,
@@ -149,6 +178,8 @@ def get_dashboard(db: Session = Depends(get_db)):
                 ticker=stock.ticker,
                 name=stock.name,
                 category=stock.category,
+                market=market_of_stock(stock),
+                currency=currency_of_stock(stock),
                 data_stale=data_stale,
                 indicators=indicators,
                 knee_buy_v2=bool(signal.knee_buy_v2) if signal else False,

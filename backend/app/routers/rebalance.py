@@ -6,14 +6,16 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.models import Holding, PortfolioSettings, Stock
 from app.schemas import (
+    FxOut,
     HoldingOut,
     HoldingUpdate,
-    RebalanceRow,
+    RebalanceCurrentOut,
     RebalanceTargetOut,
     RebalanceTargetUpdate,
     SettingsOut,
     SettingsUpdate,
 )
+from app.services import fx as fx_service
 from app.services import rebalance as rebalance_service
 
 router = APIRouter(prefix="/api/rebalance", tags=["rebalance"])
@@ -86,6 +88,15 @@ def update_holding(ticker: str, payload: HoldingUpdate, db: Session = Depends(ge
     return HoldingOut(ticker=holding.ticker, quantity=holding.quantity, updated_at=holding.updated_at)
 
 
+def _settings_out(db: Session, settings: PortfolioSettings) -> SettingsOut:
+    return SettingsOut(
+        default_rebalance_band_pct=settings.default_rebalance_band_pct,
+        base_currency=fx_service.base_currency(db),
+        usd_krw_override=settings.usd_krw_override,
+        fx=FxOut(**fx_service.get_usd_krw(db).to_dict()),
+    )
+
+
 @router.get("/settings", response_model=SettingsOut)
 def get_settings(db: Session = Depends(get_db)):
     settings = db.query(PortfolioSettings).first()
@@ -94,7 +105,7 @@ def get_settings(db: Session = Depends(get_db)):
         db.add(settings)
         db.commit()
         db.refresh(settings)
-    return SettingsOut(default_rebalance_band_pct=settings.default_rebalance_band_pct)
+    return _settings_out(db, settings)
 
 
 @router.put("/settings", response_model=SettingsOut)
@@ -103,13 +114,29 @@ def update_settings(payload: SettingsUpdate, db: Session = Depends(get_db)):
     if settings is None:
         settings = PortfolioSettings(id=1)
         db.add(settings)
-    settings.default_rebalance_band_pct = payload.default_rebalance_band_pct
+
+    # 보낸 필드만 반영한다 — 밴드만 바꾸려다 기준통화가 초기화되면 안 되므로.
+    changes = payload.model_dump(exclude_unset=True)
+    if "default_rebalance_band_pct" in changes and changes["default_rebalance_band_pct"] is not None:
+        settings.default_rebalance_band_pct = changes["default_rebalance_band_pct"]
+    if "base_currency" in changes and changes["base_currency"] is not None:
+        settings.base_currency = changes["base_currency"].value
+    if "usd_krw_override" in changes:
+        # null을 명시하면 수동 환율 해제 (자동 조회값으로 복귀)
+        value = changes["usd_krw_override"]
+        settings.usd_krw_override = float(value) if value else None
+
     db.commit()
     db.refresh(settings)
-    return SettingsOut(default_rebalance_band_pct=settings.default_rebalance_band_pct)
+    return _settings_out(db, settings)
 
 
-@router.get("/current", response_model=list[RebalanceRow])
+@router.post("/fx/refresh", response_model=FxOut)
+def refresh_fx(db: Session = Depends(get_db)):
+    """원/달러 환율을 지금 다시 조회한다. 실패하면 기존 값을 유지한 채 그대로 돌려준다."""
+    return FxOut(**fx_service.refresh_usd_krw(db, force=True).to_dict())
+
+
+@router.get("/current", response_model=RebalanceCurrentOut)
 def get_current(db: Session = Depends(get_db)):
-    rows = rebalance_service.compute_rebalance_current(db)
-    return [RebalanceRow(**row) for row in rows]
+    return RebalanceCurrentOut(**rebalance_service.compute_rebalance_current(db))

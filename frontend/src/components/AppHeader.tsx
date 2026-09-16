@@ -64,7 +64,13 @@ export function AppHeader() {
               신호판
               <span className="badge badge-blue">무릎매수 v2</span>
               {health && (
-                <span className="badge badge-grey mono" title={`시세 제공자: ${health.providers.join(' → ')}`}>
+                <span
+                  className="badge badge-grey mono"
+                  title={
+                    `시세 제공자 — 해외: ${health.providers_by_market.US.join(' → ')}` +
+                    ` / 국내: ${health.providers_by_market.KR.join(' → ')}`
+                  }
+                >
                   v{health.version}
                 </span>
               )}

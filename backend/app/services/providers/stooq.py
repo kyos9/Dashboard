@@ -15,6 +15,7 @@ import logging
 
 import pandas as pd
 
+from app.markets import is_krx_ticker
 from app.services.providers.base import (
     EmptyData,
     ProviderUnavailable,
@@ -54,6 +55,10 @@ class StooqProvider:
 
     def __init__(self, timeout: int = 30):
         self.timeout = timeout
+
+    def supports(self, ticker: str) -> bool:
+        """Stooq는 한국거래소를 다루지 않는다 — 국내 종목은 시도하지 않는다."""
+        return not is_krx_ticker(ticker)
 
     def fetch(self, ticker: str, period: str) -> pd.DataFrame:
         import requests

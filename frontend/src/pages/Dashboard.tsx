@@ -4,12 +4,14 @@ import { useAppState } from '../AppState'
 import { api } from '../api/client'
 import { ErrorNotice } from '../components/ErrorNotice'
 import {
+  amount,
   CATEGORY_UNSET,
   categoryOf,
   KNEE_CONDITION_LABELS,
   kneeMetCount,
-  money,
+  MARKET_LABEL,
   num,
+  price,
   readAdx,
   readDi,
   readDisparity,
@@ -19,7 +21,7 @@ import {
   trafficLight,
   type Traffic,
 } from '../lib/display'
-import type { DashboardCard, KneeConditions, RebalanceRow } from '../types'
+import type { Currency, DashboardCard, KneeConditions, RebalanceRow } from '../types'
 
 /* 비중 스택 바에 쓰는 색 (최대 8종목까지 구분되고, 그 이상은 반복) */
 const SLICE_COLORS = ['#38bdf8', '#a855f7', '#22c55e', '#f0b429', '#f05252', '#2dd4bf', '#f472b6', '#818cf8']
@@ -69,12 +71,25 @@ function Metric({ value, tone, note }: { value: string; tone: string; note: stri
   )
 }
 
+/**
+ * 통화별 금액을 나란히 적는다 ("₩1,500,000 · $300").
+ *
+ * 환율로 합쳐서 한 숫자로 보여줄 수도 있지만, 실제로 주문할 금액은 통화별로 따로이므로
+ * 나눠서 보여주는 쪽이 바로 쓰인다.
+ */
+function formatAmountsByCurrency(amounts: Partial<Record<Currency, number>>): string {
+  const parts = (Object.entries(amounts) as [Currency, number][])
+    .filter(([, value]) => value > 0)
+    .map(([currency, value]) => amount(value, currency))
+  return parts.length > 0 ? parts.join(' · ') : '—'
+}
+
 function PriceCell({ card }: { card: DashboardCard }) {
   const change = card.indicators.change_pct
   const dir = change === null ? '' : change > 0 ? 'up' : change < 0 ? 'down' : ''
   return (
     <div className="metric">
-      <span className="metric-value">{num(card.indicators.close)}</span>
+      <span className="metric-value">{price(card.indicators.close, card.currency)}</span>
       <span className={`metric-note ${dir}`}>{change === null ? '전일 대비 —' : signed(change, 2, '%')}</span>
     </div>
   )
@@ -105,7 +120,7 @@ function BuyCell({
         )}
       </div>
       <span className="metric-note mono">
-        {buy.exec_date} · {money(buy.amount)}
+        {buy.exec_date} · {amount(buy.amount, card.currency)}
       </span>
       {buy.status === 'recommended' && (
         <button className="success sm" disabled={busyId === buy.id} onClick={() => onConfirm(buy.id)}>
@@ -120,6 +135,7 @@ export function Dashboard() {
   const { refreshKey, notifyDataChanged } = useAppState()
   const [cards, setCards] = useState<DashboardCard[]>([])
   const [weights, setWeights] = useState<RebalanceRow[]>([])
+  const [baseCurrency, setBaseCurrency] = useState<Currency>('KRW')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<unknown>(null)
   const [busyId, setBusyId] = useState<number | null>(null)
@@ -134,9 +150,10 @@ export function Dashboard() {
     setLoading(true)
     setError(null)
     Promise.all([api.getDashboard(), api.getRebalanceCurrent()])
-      .then(([c, w]) => {
+      .then(([c, rebalance]) => {
         setCards(c)
-        setWeights(w)
+        setWeights(rebalance.rows)
+        setBaseCurrency(rebalance.base_currency)
       })
       .catch(setError)
       .finally(() => setLoading(false))
@@ -165,7 +182,14 @@ export function Dashboard() {
       hot: lights.filter((l) => l.state === 'hot').length,
       stale: lights.filter((l) => l.state === 'stale').length,
       recommendedCount: recommended.length,
-      recommendedAmount: recommended.reduce((sum, b) => sum + b!.amount, 0),
+      // 통화가 섞이면 그냥 더할 수 없다 — 통화별로 나눠서 보여준다
+      recommendedAmounts: cards.reduce<Partial<Record<Currency, number>>>((acc, card) => {
+        const buy = card.current_period_buy
+        if (buy && buy.status === 'recommended') {
+          acc[card.currency] = (acc[card.currency] ?? 0) + buy.amount
+        }
+        return acc
+      }, {}),
       confirmedCount: buys.length - recommended.length,
       rebalanceCount: cards.filter((c) => c.rebalance_signal.active).length,
       sellReview: reasons.filter((r) => r.includes('매도')).length,
@@ -175,8 +199,9 @@ export function Dashboard() {
   }, [cards])
 
   const allocation = useMemo(() => {
-    const invested = weights.filter((w) => w.current_value > 0)
-    const total = invested.reduce((s, w) => s + w.current_value, 0)
+    // 평가금액은 반드시 기준통화 환산값으로 합산한다 (현지 통화끼리 더하면 비중이 틀어진다)
+    const invested = weights.filter((w) => w.current_value_base > 0)
+    const total = invested.reduce((s, w) => s + w.current_value_base, 0)
     const worst = weights.reduce<RebalanceRow | null>(
       (acc, w) => (acc === null || Math.abs(w.excess_pct) > Math.abs(acc.excess_pct) ? w : acc),
       null,
@@ -262,7 +287,8 @@ export function Dashboard() {
             <span className="hint">건 확인 대기</span>
           </div>
           <p className="kpi-foot">
-            추천 금액 합계 {money(summary.recommendedAmount)} · 확정 완료 {summary.confirmedCount}건
+            추천 금액 합계 {formatAmountsByCurrency(summary.recommendedAmounts)} · 확정 완료{' '}
+            {summary.confirmedCount}건
           </p>
         </div>
 
@@ -318,6 +344,7 @@ export function Dashboard() {
                 ))}
               </div>
               <p className="kpi-foot">
+                총 {amount(allocation.total, baseCurrency)} ·{' '}
                 {allocation.worst && Math.abs(allocation.worst.excess_pct) >= 0.05
                   ? `목표 대비 최대 이탈: ${allocation.worst.ticker} ${signed(allocation.worst.excess_pct, 1, '%p')}`
                   : '목표 비중과 거의 일치합니다.'}
@@ -459,7 +486,7 @@ function SignalMatrix({
                     {card.category && <span className="cat-tag">{card.category}</span>}
                     <span className="ticker-name">{card.name ?? card.ticker}</span>
                     <Link to={`/history?ticker=${card.ticker}`} className="ticker-sub">
-                      {card.ticker} · 차트 보기
+                      {card.ticker} · {MARKET_LABEL[card.market]} · 차트 보기
                     </Link>
                   </div>
                 </td>
@@ -538,11 +565,11 @@ function SignalCards({
                 {card.category && <span className="cat-tag">{card.category}</span>}
                 <span className="ticker-name">{card.name ?? card.ticker}</span>
                 <Link to={`/history?ticker=${card.ticker}`} className="ticker-sub">
-                  {card.ticker} · 차트 보기
+                  {card.ticker} · {MARKET_LABEL[card.market]} · 차트 보기
                 </Link>
               </div>
               <div className="stock-card-price">
-                <span className="big">{num(ind.close)}</span>
+                <span className="big">{price(ind.close, card.currency)}</span>
                 <span
                   className={`metric-note ${change === null ? '' : change > 0 ? 'up' : change < 0 ? 'down' : ''}`}
                 >
@@ -599,7 +626,7 @@ function SignalCards({
               <div className="stat-box">
                 <span className="k">MA20 / MA50</span>
                 <span className="v">
-                  {num(ind.ma20, 1)} / {num(ind.ma50, 1)}
+                  {price(ind.ma20, card.currency)} / {price(ind.ma50, card.currency)}
                 </span>
                 <span className="k">기준일 {ind.date ?? '—'}</span>
               </div>

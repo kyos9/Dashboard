@@ -189,10 +189,15 @@ def test_rebalance_current_includes_order_amounts(api):
     db.close()
     client.put("/api/rebalance/holdings/VOO", json={"quantity": 3})
 
-    row = client.get("/api/rebalance/current").json()[0]
+    body = client.get("/api/rebalance/current").json()
+    row = body["rows"][0]
     assert row["quantity"] == 3
     assert row["last_close"] == 50.0
     assert row["current_value"] == pytest.approx(150.0)
+    # 달러 종목이므로 기준통화(원) 환산액은 환율만큼 커진다
+    assert row["currency"] == "USD"
+    assert body["base_currency"] == "KRW"
+    assert row["current_value_base"] == pytest.approx(150.0 * body["fx"]["usd_krw"])
 
 
 def test_history_endpoint(api):
@@ -251,7 +256,7 @@ def test_rebalance_holdings_and_current(api):
 
     r2 = client.get("/api/rebalance/current")
     assert r2.status_code == 200
-    row = r2.json()[0]
+    row = r2.json()["rows"][0]
     assert row["actual_weight_pct"] == 100.0
     assert row["excess_pct"] == 50.0
 
@@ -293,5 +298,147 @@ def test_health_reports_version_and_providers(api):
     client, _ = api
     body = client.get("/api/health").json()
     assert body["status"] == "ok"
-    assert body["version"]  # 예: "0.3.0 (abc1234)"
+    assert body["version"]  # 예: "0.4.0 (abc1234)"
     assert body["providers"] == ["yahoo", "stooq"]
+    # 국내/해외 제공자 순서가 다르므로 시장별로도 내려줘야 한다
+    assert body["providers_by_market"]["KR"] == ["naver", "yahoo"]
+
+
+# ── 국내주식: 이름으로 등록 ──────────────────────────────────────────
+
+def test_symbol_search_finds_korean_stock_by_name(api):
+    client, _ = api
+    rows = client.get("/api/symbols/search", params={"q": "삼성전자"}).json()
+    assert rows[0]["ticker"] == "005930.KS"
+    assert rows[0]["market"] == "KR"
+    assert rows[0]["board"] == "KOSPI"
+
+
+def test_symbol_search_returns_candidates_for_partial_name(api):
+    client, _ = api
+    rows = client.get("/api/symbols/search", params={"q": "에코프로"}).json()
+    tickers = {row["ticker"] for row in rows}
+    assert "247540.KQ" in tickers  # 에코프로비엠
+    assert "086520.KQ" in tickers  # 에코프로
+
+
+def test_create_stock_by_korean_name(api):
+    """"삼성전자"로 등록하면 티커/시장/통화가 알아서 채워져야 한다."""
+    client, _ = api
+    body = client.post("/api/stocks", json={"ticker": "삼성전자", "target_weight_pct": 30}).json()
+
+    assert body["stock"]["ticker"] == "005930.KS"
+    assert body["stock"]["name"] == "삼성전자"
+    assert body["stock"]["market"] == "KR"
+    assert body["stock"]["currency"] == "KRW"
+    # 사용자가 무엇을 입력했는지 화면에서 확인할 수 있어야 한다
+    assert body["resolved_from"] == "삼성전자"
+
+
+def test_create_stock_by_six_digit_code(api):
+    client, _ = api
+    body = client.post("/api/stocks", json={"ticker": "005930"}).json()
+    assert body["stock"]["ticker"] == "005930.KS"
+
+
+def test_create_us_stock_reports_no_resolution(api):
+    """티커를 그대로 넣었으면 '해석했다'고 표시할 필요가 없다."""
+    client, _ = api
+    body = client.post("/api/stocks", json={"ticker": "voo"}).json()
+    assert body["stock"]["ticker"] == "VOO"
+    assert body["stock"]["currency"] == "USD"
+    assert body["resolved_from"] is None
+
+
+def test_create_with_unresolvable_name_returns_candidates(api):
+    """모르는 이름은 조용히 아무 종목이나 고르지 말고 400으로 알려야 한다."""
+    client, _ = api
+    r = client.post("/api/stocks", json={"ticker": "없는회사이름"})
+    assert r.status_code == 400
+    detail = r.json()["detail"]
+    assert "찾지 못했습니다" in detail["hint"]
+    assert "candidates" in detail
+
+
+def test_create_with_ambiguous_code_is_rejected(api):
+    """모르는 6자리 코드는 코스피/코스닥을 알 수 없으므로 임의로 고르면 안 된다."""
+    client, _ = api
+    r = client.post("/api/stocks", json={"ticker": "999999"})
+    assert r.status_code == 400
+    candidates = {c["ticker"] for c in r.json()["detail"]["candidates"]}
+    assert candidates == {"999999.KS", "999999.KQ"}
+
+
+# ── 통화 설정 ────────────────────────────────────────────────────────
+
+def test_settings_expose_base_currency_and_fx(api):
+    client, _ = api
+    body = client.get("/api/rebalance/settings").json()
+    assert body["base_currency"] == "KRW"
+    # 환율 출처가 드러나야 추정치인지 알 수 있다
+    assert body["fx"]["source"] == "fallback"
+    assert body["fx"]["is_estimate"] is True
+
+
+def test_update_settings_only_touches_sent_fields(api):
+    """밴드만 바꾸려다 기준통화가 초기화되면 안 된다."""
+    client, _ = api
+    client.put("/api/rebalance/settings", json={"base_currency": "USD", "usd_krw_override": 1300})
+
+    body = client.put("/api/rebalance/settings", json={"default_rebalance_band_pct": 8.0}).json()
+    assert body["default_rebalance_band_pct"] == 8.0
+    assert body["base_currency"] == "USD"
+    assert body["usd_krw_override"] == 1300.0
+    assert body["fx"]["source"] == "override"
+
+
+def test_clearing_fx_override_returns_to_auto(api):
+    client, _ = api
+    client.put("/api/rebalance/settings", json={"usd_krw_override": 1300})
+    body = client.put("/api/rebalance/settings", json={"usd_krw_override": None}).json()
+    assert body["usd_krw_override"] is None
+    assert body["fx"]["source"] == "fallback"
+
+
+def test_dashboard_reports_currency_per_stock(api):
+    client, SessionLocal = api
+    client.post("/api/stocks", json={"ticker": "삼성전자", "target_weight_pct": 50})
+    client.post("/api/stocks", json={"ticker": "VOO", "target_weight_pct": 50})
+
+    by_ticker = {card["ticker"]: card for card in client.get("/api/dashboard").json()}
+    assert by_ticker["005930.KS"]["currency"] == "KRW"
+    assert by_ticker["005930.KS"]["market"] == "KR"
+    assert by_ticker["VOO"]["currency"] == "USD"
+
+
+def test_dashboard_query_count_does_not_grow_with_stocks(api):
+    """종목이 늘어도 쿼리 수가 종목 수에 비례해 늘면 안 된다.
+
+    예전에는 종목마다 가격/지표/시그널/매수기록을 따로 읽어서 종목 수 x 6 정도가 나갔다.
+    """
+    from sqlalchemy import event
+
+    client, SessionLocal = api
+
+    def count_queries_for(tickers):
+        for ticker in tickers:
+            client.post("/api/stocks", json={"ticker": ticker})
+
+        engine = SessionLocal.kw["bind"]
+        counter = {"n": 0}
+
+        def before_execute(conn, cursor, statement, params, context, executemany):
+            counter["n"] += 1
+
+        event.listen(engine, "before_cursor_execute", before_execute)
+        try:
+            assert client.get("/api/dashboard").status_code == 200
+        finally:
+            event.remove(engine, "before_cursor_execute", before_execute)
+        return counter["n"]
+
+    with_two = count_queries_for(["VOO", "QQQ"])
+    with_six = count_queries_for(["NVDA", "AAPL", "삼성전자", "SK하이닉스"])
+
+    # 종목이 3배가 돼도 쿼리는 거의 그대로여야 한다
+    assert with_six <= with_two + 2, f"{with_two} -> {with_six} 쿼리 (종목당 추가 조회 발생)"
