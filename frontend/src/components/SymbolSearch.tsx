@@ -16,6 +16,13 @@ function describeMatch(match: SymbolMatch): string {
   return MARKET_LABEL[match.market] ?? match.market
 }
 
+/** 이 후보를 어디서 가져왔는지 — 내장 목록은 최신이 아닐 수 있으므로 구분해서 보여준다 */
+const SOURCE_LABEL: Record<string, string> = {
+  seed: '내장 목록',
+  krx: '거래소 목록',
+  yahoo: '야후 검색',
+}
+
 interface Props {
   /** 확정된 선택. null이면 아직 고르지 않은 상태 */
   selected: SymbolMatch | null
@@ -168,6 +175,7 @@ export function SymbolSearch({ selected, onSelect, onSubmitRaw, disabled }: Prop
                 <span className="symbol-option-meta mono">
                   {match.ticker} · {describeMatch(match)}
                   {match.instrument === 'ETF' && ' · ETF'}
+                  {SOURCE_LABEL[match.source] && ` · ${SOURCE_LABEL[match.source]}`}
                 </span>
                 {!match.confident && (
                   <span className="badge badge-amber">시장 확인 필요</span>
@@ -180,7 +188,8 @@ export function SymbolSearch({ selected, onSelect, onSubmitRaw, disabled }: Prop
       {searching && query.trim() && <p className="symbol-search-status">검색 중…</p>}
       {!searching && !open && query.trim().length > 1 && matches.length === 0 && (
         <p className="symbol-search-status">
-          후보가 없습니다. 티커를 알고 있다면 그대로 입력하고 추가를 눌러보세요.
+          후보가 없습니다. 신규 상장 종목이면 아래 "거래소 목록 갱신"을 눌러보시고, 티커를 알고
+          있다면 그대로 입력하고 추가를 눌러도 됩니다.
         </p>
       )}
     </div>

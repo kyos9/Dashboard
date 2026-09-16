@@ -71,6 +71,12 @@ export const api = {
   /** 종목명/코드로 후보를 찾는다 — 사용자가 고른 뒤에 등록한다 */
   searchSymbols: (q: string, limit = 8) =>
     request<SymbolMatch[]>(`/symbols/search?q=${encodeURIComponent(q)}&limit=${limit}`),
+  /** 한국거래소 상장목록을 다시 받아 캐시한다 (신규 상장·사명 변경 반영) */
+  refreshSymbolListing: () =>
+    request<{ ok: boolean; count: number; error?: string; hint?: string }>(
+      '/symbols/refresh-listing',
+      { method: 'POST' },
+    ),
 
   listStocks: () => request<Stock[]>('/stocks'),
   createStock: (payload: StockCreateInput) =>

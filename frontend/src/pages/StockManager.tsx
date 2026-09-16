@@ -170,6 +170,7 @@ export function StockManager() {
   const [notice, setNotice] = useState<{ tone: 'green' | 'amber'; text: string; detail?: string } | null>(null)
   const [creating, setCreating] = useState(false)
   const [picked, setPicked] = useState<SymbolMatch | null>(null)
+  const [listingBusy, setListingBusy] = useState(false)
 
   useEffect(() => {
     api
@@ -230,6 +231,23 @@ export function StockManager() {
 
   const handleCreate = () => void createWith(picked?.ticker ?? (form.ticker ?? '').trim())
 
+  const refreshListing = async () => {
+    setListingBusy(true)
+    setNotice(null)
+    try {
+      const result = await api.refreshSymbolListing()
+      setNotice(
+        result.ok
+          ? { tone: 'green', text: `한국거래소 상장목록 ${result.count.toLocaleString('ko-KR')}종목을 받았습니다. 신규 상장·사명 변경이 검색에 반영됩니다.` }
+          : { tone: 'amber', text: result.hint ?? '상장목록을 받지 못했습니다.', detail: result.error },
+      )
+    } catch (e) {
+      setError(e)
+    } finally {
+      setListingBusy(false)
+    }
+  }
+
   const targetSum = stocks.filter((s) => s.active).reduce((sum, s) => sum + s.target_weight_pct, 0)
   // DCA 금액은 그 종목을 실제로 거래하는 통화 기준이므로, 고른 종목에 맞춰 단위를 보여준다
   const newCurrencyMeta = CURRENCY_META[picked?.market === 'KR' ? 'KRW' : 'USD']
@@ -272,6 +290,13 @@ export function StockManager() {
       <div className="panel">
         <div className="section-head">
           <h3>관심 종목 추가</h3>
+          <button className="ghost sm" onClick={() => void refreshListing()} disabled={listingBusy}>
+            {listingBusy ? '받는 중…' : '거래소 목록 갱신'}
+          </button>
+          <span className="hint">
+            신규 상장이나 사명이 바뀐 종목이 검색되지 않을 때 누르세요. 주요 종목은 내장 목록으로
+            항상 검색됩니다.
+          </span>
         </div>
         <div className="form-grid">
           <div className="field field-wide">

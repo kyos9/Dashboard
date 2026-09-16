@@ -158,6 +158,44 @@ def test_refresh_krx_listing_upserts(db_session, monkeypatch):
     assert db_session.query(KrxListing).count() == 2
 
 
+def test_official_listing_wins_when_seed_code_disagrees(db_session):
+    """내장 목록의 종목코드가 낡거나 틀렸다면 한국거래소 목록이 이긴다.
+
+    둘 다 후보로 남기면 이름이 같은 항목이 둘 뜨고, 사용자가 엉뚱한 쪽을 고를 수 있다.
+    """
+    db_session.add(KrxListing(code="005930", name="삼성전자", board="KOSPI"))
+    db_session.add(KrxListing(code="111111", name="삼성전자", board="KOSPI"))
+    db_session.commit()
+
+    matches = symbols.search("삼성전자", db=db_session, allow_network=False)
+    # 내장 목록에서 온 중복 항목은 사라지고 거래소 목록의 둘만 남는다
+    assert all(m.source == "krx" for m in matches if m.name == "삼성전자")
+
+
+def test_tied_candidates_are_not_auto_selected(db_session):
+    """어느 쪽이 맞는지 서버가 모르면 고르지 않는다 — 화면에서 사람이 골라야 한다."""
+    db_session.add(KrxListing(code="005930", name="같은이름", board="KOSPI"))
+    db_session.add(KrxListing(code="111111", name="같은이름", board="KOSDAQ"))
+    db_session.commit()
+
+    matches = symbols.search("같은이름", db=db_session, allow_network=False)
+    assert len(matches) == 2
+    assert matches[0].score == matches[1].score
+    assert symbols.resolve("같은이름", db=db_session, allow_network=False) is None
+
+
+def test_unambiguous_name_still_resolves(db_session):
+    """동점 규칙이 평범한 검색까지 막으면 안 된다."""
+    assert symbols.resolve("삼성전자", db=db_session, allow_network=False).ticker == "005930.KS"
+    assert symbols.resolve("에코프로비엠", db=db_session, allow_network=False).ticker == "247540.KQ"
+
+
+def test_seed_entries_are_labelled_as_bundled():
+    """화면에서 "내장 목록 기준"임을 알릴 수 있어야 한다."""
+    match = symbols.resolve("삼성전자", allow_network=False)
+    assert match.source == "seed"
+
+
 def test_search_survives_broken_seed(monkeypatch):
     """시드 파일이 깨져도 앱이 죽지 않고 티커 입력은 계속 동작해야 한다."""
     monkeypatch.setattr(symbols, "load_seed", lambda: [])

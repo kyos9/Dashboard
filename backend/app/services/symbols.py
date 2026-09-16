@@ -139,8 +139,10 @@ def _score_entry(entry: dict, query: str, query_tight: str) -> float:
 
 
 def _local_entries(db: Session | None) -> list[dict]:
-    """시드 + DB 캐시를 합친 목록. 같은 코드는 DB 캐시(더 최신)를 쓴다."""
-    by_code: dict[str, dict] = {entry["code"]: entry for entry in load_seed()}
+    """시드 + DB 캐시를 합친 목록. 같은 코드는 DB 캐시(한국거래소 공식)를 쓴다."""
+    by_code: dict[str, dict] = {
+        entry["code"]: {**entry, "source": "seed"} for entry in load_seed()
+    }
 
     if db is not None:
         from app.models import KrxListing
@@ -158,12 +160,21 @@ def _local_entries(db: Session | None) -> list[dict]:
                     "board": row.board,
                     "instrument": row.instrument,
                     "aliases": aliases,
+                    "source": "krx",
                 }
         except Exception:
             # 캐시 테이블이 아직 없거나 읽기 실패해도 시드만으로 계속 동작해야 한다
             logger.exception("KRX 캐시 조회 실패 — 시드만 사용합니다")
 
-    return list(by_code.values())
+    # 같은 이름인데 코드가 다르면 한국거래소 목록만 남긴다.
+    # 내장 목록은 손으로 적은 데이터라 종목코드가 낡거나 틀릴 수 있는데, 그대로 두면
+    # 이름이 같은 후보가 둘 뜨고 사용자가 엉뚱한 쪽을 고를 수 있다.
+    official_names = {_tight(e["name"]) for e in by_code.values() if e["source"] == "krx"}
+    return [
+        entry
+        for entry in by_code.values()
+        if entry["source"] == "krx" or _tight(entry["name"]) not in official_names
+    ]
 
 
 def _search_local(db: Session | None, query: str, limit: int) -> list[SymbolMatch]:
@@ -179,8 +190,9 @@ def _search_local(db: Session | None, query: str, limit: int) -> list[SymbolMatc
 
     # 점수 같으면 이름이 짧은 쪽(= 더 정확히 맞는 쪽)을 먼저
     scored.sort(key=lambda pair: (-pair[0], len(pair[1]["name"])))
-    source = "cache" if db is not None else "seed"
-    return [_entry_to_match(entry, source, score) for score, entry in scored[:limit]]
+    return [
+        _entry_to_match(entry, entry.get("source", "seed"), score) for score, entry in scored[:limit]
+    ]
 
 
 def _as_ticker(db: Session | None, raw: str) -> SymbolMatch | None:
@@ -348,8 +360,17 @@ def _has_hangul(text: str) -> bool:
 def resolve(query: str, db: Session | None = None, allow_network: bool = True) -> SymbolMatch | None:
     """가장 잘 맞는 후보 하나. 확정할 수 없으면 None.
 
-    시장이 확정되지 않은 추정(`confident=False`)은 돌려주지 않는다 — 사용자가 화면에서
-    직접 고르도록 해야 엉뚱한 종목이 등록되지 않는다.
+    두 경우에 None을 돌려준다:
+      - 시장이 확정되지 않은 추정만 있을 때 (`confident=False`)
+      - 1등과 2등의 점수가 같을 때 — 어느 쪽이 맞는지 서버가 알 수 없다
+
+    어느 쪽이든 화면에서 사용자가 직접 고르게 해야 엉뚱한 종목이 등록되지 않는다.
     """
     candidates = [m for m in search(query, db=db, allow_network=allow_network, limit=5) if m.confident]
-    return candidates[0] if candidates else None
+    if not candidates:
+        return None
+    if len(candidates) > 1 and candidates[1].score == candidates[0].score:
+        logger.info("%r: 동점 후보가 여럿이라 자동 선택하지 않습니다 (%s)",
+                    query, [m.ticker for m in candidates[:3]])
+        return None
+    return candidates[0]
