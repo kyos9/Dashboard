@@ -79,22 +79,6 @@ def evaluate_buy_workflow(db: Session, stock: Stock) -> BuyExecution | None:
     return record
 
 
-def get_current_period_buy(db: Session, stock: Stock) -> BuyExecution | None:
-    latest = latest_signal_date(db, stock.ticker)
-    if latest is None:
-        return None
-    period_start, period_end = period_trading_bounds(
-        latest, stock.dca_period.value, market_of_stock(stock)
-    )
-    if period_start is None:
-        return None
-    return (
-        db.query(BuyExecution)
-        .filter_by(ticker=stock.ticker, period_start=period_start, period_end=period_end)
-        .first()
-    )
-
-
 def confirm_buy_execution(db: Session, buy_execution: BuyExecution, apply_to_holding: bool = True) -> BuyExecution:
     if buy_execution.status == BuyStatus.confirmed:
         return buy_execution

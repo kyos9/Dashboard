@@ -89,6 +89,62 @@ def test_stooq_is_used_when_yahoo_is_blocked(monkeypatch):
     assert fx.fetch_usd_krw() == 1372.0
 
 
+def test_returns_none_when_every_source_is_blocked(monkeypatch):
+    monkeypatch.setattr(fx, "_fetch_from_yahoo", lambda timeout: None)
+    monkeypatch.setattr(fx, "_fetch_from_stooq", lambda timeout: None)
+    assert fx.fetch_usd_krw() is None
+
+
+# ── 조회 구현 (네트워크는 가짜로) ────────────────────────────────────
+
+def test_yahoo_fetcher_reads_last_close(monkeypatch):
+    import pandas as pd
+    import yfinance
+
+    class _Ticker:
+        def __init__(self, symbol):
+            assert symbol == "KRW=X"
+
+        def history(self, **kwargs):
+            return pd.DataFrame({"Close": [1380.0, 1385.5]})
+
+    monkeypatch.setattr(yfinance, "Ticker", _Ticker)
+    assert fx._fetch_from_yahoo(10) == pytest.approx(1385.5)
+
+
+def test_yahoo_fetcher_survives_blocked_network(monkeypatch):
+    import yfinance
+
+    def blocked(symbol):
+        raise ConnectionError("CONNECT tunnel failed, 403")
+
+    monkeypatch.setattr(yfinance, "Ticker", blocked)
+    assert fx._fetch_from_yahoo(10) is None
+
+
+def test_stooq_fetcher_parses_csv(monkeypatch):
+    import requests
+
+    class _Response:
+        status_code = 200
+        text = "Date,Open,High,Low,Close,Volume\n2026-09-15,1379,1384,1377,1381.20,0\n"
+
+    monkeypatch.setattr(requests, "get", lambda *a, **k: _Response())
+    assert fx._fetch_from_stooq(10) == pytest.approx(1381.20)
+
+
+def test_stooq_fetcher_rejects_non_csv_response(monkeypatch):
+    """점검 페이지(HTML)를 환율로 읽어들이면 안 된다."""
+    import requests
+
+    class _Response:
+        status_code = 200
+        text = "<html>service unavailable</html>"
+
+    monkeypatch.setattr(requests, "get", lambda *a, **k: _Response())
+    assert fx._fetch_from_stooq(10) is None
+
+
 # ── 환산 ─────────────────────────────────────────────────────────────
 
 def test_convert_same_currency_is_identity():

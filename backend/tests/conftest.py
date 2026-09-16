@@ -2,6 +2,7 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+import app.models  # noqa: F401  (모든 테이블이 Base.metadata에 등록되도록)
 from app.db import Base
 
 

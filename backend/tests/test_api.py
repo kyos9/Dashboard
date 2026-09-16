@@ -322,6 +322,36 @@ def test_symbol_search_returns_candidates_for_partial_name(api):
     assert "086520.KQ" in tickers  # 에코프로
 
 
+def test_refresh_listing_reports_count(api, monkeypatch):
+    client, _ = api
+    monkeypatch.setattr(
+        "app.services.symbols.refresh_krx_listing", lambda db, timeout=30: 2841
+    )
+    body = client.post("/api/symbols/refresh-listing").json()
+    assert body == {"ok": True, "count": 2841}
+
+
+def test_refresh_listing_failure_still_allows_search(api, monkeypatch):
+    """목록 갱신이 실패해도 내장 목록으로 검색은 계속 되므로 500을 던지지 않는다."""
+    client, _ = api
+
+    def boom(db, timeout=30):
+        raise RuntimeError("kind.krx.co.kr 연결 실패")
+
+    monkeypatch.setattr("app.services.symbols.refresh_krx_listing", boom)
+
+    response = client.post("/api/symbols/refresh-listing")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is False
+    assert "연결 실패" in body["error"]
+    assert "내장 목록" in body["hint"]
+
+    # 갱신에 실패해도 주요 종목 검색은 그대로 동작해야 한다
+    rows = client.get("/api/symbols/search", params={"q": "삼성전자"}).json()
+    assert rows[0]["ticker"] == "005930.KS"
+
+
 def test_create_stock_by_korean_name(api):
     """"삼성전자"로 등록하면 티커/시장/통화가 알아서 채워져야 한다."""
     client, _ = api
