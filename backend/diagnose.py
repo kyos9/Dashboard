@@ -2,7 +2,8 @@
 
 사용법 (backend 폴더에서, 가상환경 활성화 상태로):
     python diagnose.py            # VOO로 검사
-    python diagnose.py QQQ        # 다른 티커로 검사
+    python diagnose.py QQQ        # 다른 해외 종목
+    python diagnose.py 005930.KS  # 국내 종목 (종목명 검색·환율까지 같이 검사)
 
 각 단계를 따로 검사하므로, 결과를 보면 원인이 네트워크 차단인지 / 백신·프록시의 TLS 간섭인지
 / 야후의 봇 차단인지 / 티커 오타인지 구분할 수 있다. 출력 전체를 그대로 복사해 공유하면 된다.
@@ -160,17 +161,40 @@ except Exception as exc:
     fail(f"yfinance 사용 불가 — {brief(exc)}")
 
 
-# ── 6. 앱이 실제로 쓰는 경로 (야후 → Stooq 폴백) ─────────────────────
-section(f"6. 앱의 수집 경로로 {TICKER} 조회 (야후 실패 시 Stooq로 대체)")
+
+
+# ── 6. 앱이 실제로 쓰는 경로 ─────────────────────────────────────────
+# 제공자 순서는 시장마다 다르다. 국내 종목은 네이버를 먼저 쓰므로, 여기서 티커의 시장을
+# 판정한 다음 그 시장의 순서로 시도해야 앱과 같은 경로를 재현할 수 있다.
+section(f"6. 앱의 수집 경로로 {TICKER} 조회")
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+app_modules = None
 try:
-    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from app.markets import Market, market_of
     from app.services import providers
 
-    print(f"  제공자 순서: {' → '.join(providers.configured_order())}")
-    for provider in providers.build_providers():
+    app_modules = True
+except Exception as exc:
+    fail(f"앱 모듈을 불러오지 못했습니다 — {brief(exc)}")
+    info("→ backend 폴더에서 실행했는지, 가상환경이 켜져 있는지 확인해주세요.")
+
+market = None
+if app_modules:
+    market = market_of(TICKER)
+    print(f"  시장 판정: {'국내' if market is Market.KR else '해외'} ({market.value})")
+
+    chain = providers.build_providers(TICKER)
+    print(f"  설정된 순서: {' → '.join(providers.configured_order(market))}")
+    print(f"  실제 시도 순서: {' → '.join(p.name for p in chain) if chain else '없음'}")
+    if not chain:
+        fail("이 티커를 다룰 수 있는 제공자가 없습니다 — 티커 형식을 확인해주세요.")
+
+    for provider in chain:
         try:
             df = provider.fetch(TICKER, "6mo")
-            ok(f"{provider.name}: {len(df)}행, 마지막 {df.index[-1]}, 종가 {df['close'].iloc[-1]:.2f}")
+            ok(f"{provider.name}: {len(df)}행, 마지막 {df.index[-1]}, 종가 {df['close'].iloc[-1]:,.2f}")
         except Exception as exc:
             fail(f"{provider.name}: {brief(exc, 400)}")
 
@@ -180,10 +204,66 @@ try:
         ok(f"{len(df)}행 확보 — 앱에서 정상 동작합니다.")
     except providers.AllProvidersFailed as exc:
         fail(str(exc)[:500])
-        info(f"→ {exc.hint()}")
-except Exception as exc:
-    fail(f"앱 모듈을 불러오지 못했습니다 — {brief(exc)}")
-    info("→ backend 폴더에서 실행했는지, 가상환경이 켜져 있는지 확인해주세요.")
+        # 앱의 안내는 "진단을 돌려보라"로 끝나는데, 지금이 바로 그 진단이라 빼고 보여준다
+        info("→ " + exc.hint().split("backend 폴더에서")[0].strip())
+    except Exception as exc:
+        fail(f"예상치 못한 오류 — {brief(exc, 400)}")
+
+
+# ── 7. 국내주식 전용 점검 ────────────────────────────────────────────
+# 시세가 들어와도 종목을 못 찾으면 등록 자체가 안 된다. 검색 경로는 시세와 별개로 막힐
+# 수 있으므로 (한국거래소 목록은 다른 서버다) 따로 확인한다.
+if app_modules and market is Market.KR:
+    section("7. 국내주식 전용 점검 (종목명 검색)")
+
+    from app.markets import krx_code
+    from app.services import symbols
+
+    code = krx_code(TICKER)
+
+    print("  7-1) 내장 목록에서 이 종목을 찾는지 (네트워크 없이)")
+    try:
+        found = [m for m in symbols.search(code, allow_network=False, limit=5) if m.ticker == TICKER]
+        if found:
+            ok(f"{found[0].name} ({found[0].ticker}) — 내장 목록에 있습니다")
+        else:
+            fail(f"{code}가 내장 목록에 없습니다 — 아래 7-2로 상장목록을 받아야 이름으로 검색됩니다")
+    except Exception as exc:
+        fail(brief(exc, 300))
+
+    print("\n  7-2) 한국거래소 상장목록 받기 (신규 상장·사명 변경 반영용)")
+    try:
+        from app.services import krx
+
+        listings = krx.fetch_all(timeout=30)
+        boards = {}
+        for item in listings:
+            boards[item["board"]] = boards.get(item["board"], 0) + 1
+        ok(f"{len(listings):,}종목 — {', '.join(f'{k} {v:,}' for k, v in sorted(boards.items()))}")
+        sample = next((i for i in listings if i["code"] == code), None)
+        if sample:
+            ok(f"{code} → {sample['name']} ({sample['board']})")
+    except Exception as exc:
+        fail(brief(exc, 300))
+        info("→ 실패해도 내장 목록(주요 종목)으로는 검색됩니다. 중소형주만 못 찾게 됩니다.")
+
+
+# ── 8. 원/달러 환율 ──────────────────────────────────────────────────
+# 원화와 달러 종목을 같이 담으면 비중 계산에 환율이 필요하다. 환율을 못 받으면
+# 화면이 추정치로 계산하므로, 여기서 실제로 받아지는지 확인한다.
+if app_modules:
+    section("8. 원/달러 환율 조회")
+    try:
+        from app.services import fx
+
+        rate = fx.fetch_usd_krw(timeout=15)
+        if rate is None:
+            fail(f"환율을 받지 못했습니다 — 화면은 추정치({fx.FALLBACK_USD_KRW:,.0f}원)로 계산합니다")
+            info("→ 리밸런싱 화면에서 환율을 직접 입력하면 정확한 비중으로 계산됩니다.")
+        else:
+            ok(f"1달러 = {rate:,.2f}원")
+    except Exception as exc:
+        fail(brief(exc, 300))
 
 
 print(f"\n{LINE}\n진단 완료 — 위 출력 전체를 복사해서 공유해주세요.\n{LINE}")
