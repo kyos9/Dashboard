@@ -41,12 +41,9 @@ app.include_router(symbols.router)
 @app.get("/api/health")
 def health():
     """상태 + 실행 중인 버전. 화면 헤더가 이 값을 보여준다."""
-    overview = providers.provider_overview()
     return {
         "status": "ok",
         "version": version.version_string(),
-        # 국내/해외 제공자 순서가 다르므로 시장별로 내려준다.
-        # `providers`는 예전 화면과의 호환을 위해 미국 순서를 유지한다.
-        "providers": overview["US"],
-        "providers_by_market": overview,
+        # 국내/해외 제공자 순서가 다르므로 시장별로 내려준다
+        "providers_by_market": providers.provider_overview(),
     }

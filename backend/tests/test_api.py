@@ -299,7 +299,7 @@ def test_health_reports_version_and_providers(api):
     body = client.get("/api/health").json()
     assert body["status"] == "ok"
     assert body["version"]  # 예: "0.4.0 (abc1234)"
-    assert body["providers"] == ["yahoo", "stooq"]
+    assert body["providers_by_market"]["US"] == ["yahoo", "stooq"]
     # 국내/해외 제공자 순서가 다르므로 시장별로도 내려줘야 한다
     assert body["providers_by_market"]["KR"] == ["naver", "yahoo"]
 

@@ -43,17 +43,6 @@ BOARD_SUFFIX: dict[Board, str] = {
 
 SUFFIX_BOARD: dict[str, Board] = {suffix: board for board, suffix in BOARD_SUFFIX.items()}
 
-BOARD_LABEL: dict[Board, str] = {
-    Board.KOSPI: "코스피",
-    Board.KOSDAQ: "코스닥",
-    Board.KONEX: "코넥스",
-}
-
-MARKET_LABEL: dict[Market, str] = {
-    Market.US: "미국",
-    Market.KR: "한국",
-}
-
 CURRENCY_BY_MARKET: dict[Market, Currency] = {
     Market.US: Currency.USD,
     Market.KR: Currency.KRW,
@@ -145,9 +134,3 @@ def currency_of_stock(stock) -> Currency:
     return currency_of(stock.ticker)
 
 
-def describe(ticker: str) -> str:
-    """"005930.KS (코스피)" 처럼 사람이 읽을 형태."""
-    board = board_of(ticker)
-    if board is not None:
-        return f"{ticker} ({BOARD_LABEL[board]})"
-    return ticker

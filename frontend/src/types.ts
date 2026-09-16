@@ -208,8 +208,6 @@ export interface RefreshResult {
 export interface HealthInfo {
   status: string
   version: string
-  /** 해외 종목 제공자 순서 */
-  providers: string[]
   /** 시장별 제공자 순서 (국내는 네이버를 먼저 쓴다) */
   providers_by_market: Record<Market, string[]>
 }

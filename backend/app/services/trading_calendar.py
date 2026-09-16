@@ -62,10 +62,6 @@ def trading_days(start: dt.date, end: dt.date, market: Market = Market.US) -> li
     return [ts.date() for ts in schedule.index]
 
 
-def is_trading_day(d: dt.date, market: Market = Market.US) -> bool:
-    return len(trading_days(d, d, market)) > 0
-
-
 def _month_range(year: int, month: int) -> tuple[dt.date, dt.date]:
     start = dt.date(year, month, 1)
     if month == 12:

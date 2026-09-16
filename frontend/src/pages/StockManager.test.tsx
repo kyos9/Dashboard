@@ -51,7 +51,6 @@ function mockApi(stocks: Stock[] = []) {
   vi.spyOn(api, 'getHealth').mockResolvedValue({
     status: 'ok',
     version: 'test',
-    providers: [],
     providers_by_market: { US: [], KR: [] },
   })
 }

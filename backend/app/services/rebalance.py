@@ -21,10 +21,6 @@ from app.services import fx, queries
 from app.services.trading_calendar import market_today, period_trading_bounds
 
 
-def get_latest_close(db: Session, ticker: str) -> float | None:
-    return queries.latest_closes(db, [ticker]).get(ticker)
-
-
 def get_default_band_pct(db: Session) -> float:
     settings = db.query(PortfolioSettings).first()
     return settings.default_rebalance_band_pct if settings else 5.0

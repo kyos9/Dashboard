@@ -139,18 +139,6 @@ class BuyExecution(Base):
     confirmed_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
 
 
-class RebalanceReview(Base):
-    __tablename__ = "rebalance_review"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    review_date: Mapped[dt.date] = mapped_column(Date, nullable=False)
-    ticker: Mapped[str] = mapped_column(String, ForeignKey("stocks.ticker"), nullable=False, index=True)
-    target_weight_pct: Mapped[float] = mapped_column(Float, nullable=False)
-    actual_weight_pct: Mapped[float] = mapped_column(Float, nullable=False)
-    excess_pct: Mapped[float] = mapped_column(Float, nullable=False)
-    shoulder_signal_fired_in_period: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-
-
 class Holding(Base):
     __tablename__ = "holding"
 
