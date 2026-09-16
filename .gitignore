@@ -18,3 +18,7 @@ dist/
 # Env files
 .env
 .env.local
+
+# 커버리지 측정 산출물
+.coverage
+htmlcov/
