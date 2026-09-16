@@ -181,6 +181,7 @@ def get_dashboard(db: Session = Depends(get_db)):
                 market=market_of_stock(stock),
                 currency=currency_of_stock(stock),
                 data_stale=data_stale,
+                price_source=price.source if price else None,
                 indicators=indicators,
                 knee_buy_v2=bool(signal.knee_buy_v2) if signal else False,
                 knee_conditions=knee_conditions,

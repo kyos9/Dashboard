@@ -132,6 +132,8 @@ def fetch_price_history(ticker: str, period: str = "max") -> pd.DataFrame:
     for provider in build_providers(ticker):
         try:
             df = provider.fetch(ticker, period)
+            # 어느 제공자가 준 값인지 호출부가 알 수 있게 (저장할 때 기록한다)
+            df.attrs["provider"] = provider.name
             if failures:
                 logger.info(
                     "%s: %s 제공자로 대체 조회 성공 (앞선 실패: %s)",

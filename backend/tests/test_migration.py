@@ -33,6 +33,17 @@ CREATE TABLE holding (
   quantity FLOAT NOT NULL,
   updated_at DATETIME NOT NULL
 );
+CREATE TABLE price_daily (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  ticker VARCHAR NOT NULL,
+  date DATE NOT NULL,
+  open FLOAT NOT NULL,
+  high FLOAT NOT NULL,
+  low FLOAT NOT NULL,
+  close FLOAT NOT NULL,
+  adj_close FLOAT,
+  volume FLOAT NOT NULL
+);
 """
 
 OLD_ROWS = """
@@ -42,6 +53,8 @@ INSERT INTO stocks VALUES
   ('247540.KQ','에코프로비엠',0,'2026-01-01 00:00:00',0,'monthly','quarterly',0,NULL,NULL);
 INSERT INTO portfolio_settings VALUES (1, 7.5);
 INSERT INTO holding VALUES ('VOO', 12.5, '2026-01-01 00:00:00'), ('005930.KS', 100, '2026-01-01 00:00:00');
+INSERT INTO price_daily (ticker, date, open, high, low, close, adj_close, volume) VALUES
+  ('VOO','2026-01-02',500,505,499,503,503,1000000);
 """
 
 
@@ -163,3 +176,16 @@ def test_fresh_database_starts_with_full_schema(tmp_path):
             assert {"market", "currency", "category"} <= columns
     finally:
         engine.dispose()
+
+
+def test_price_source_column_is_added_without_losing_rows(upgraded):
+    """시세 출처 컬럼이 없던 DB도 그대로 열려야 한다.
+
+    이미 받아둔 시세를 다시 내려받게 만들면 안 되므로, 기존 행은 보존하고 출처만
+    비워둔다 (어디서 왔는지 알 수 없는 게 사실이므로 지어내지 않는다).
+    """
+    row = upgraded.execute(
+        text("SELECT close, source FROM price_daily WHERE ticker='VOO'")
+    ).fetchone()
+    assert row.close == 503
+    assert row.source is None

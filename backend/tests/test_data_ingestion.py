@@ -156,3 +156,51 @@ def test_all_providers_blocked_reports_real_cause_and_hint(db_session, monkeypat
         assert "stooq" in message
         assert "no data returned" not in message  # 예전의 원인 없는 메시지
         assert "방화벽" in exc.hint
+
+
+def test_upsert_records_which_provider_supplied_the_prices(db_session):
+    """제공자마다 종가 기준이 다를 수 있으므로 어디서 온 값인지 남겨야 한다."""
+    db_session.add(Stock(ticker="005930.KS", target_weight_pct=0.0))
+    db_session.commit()
+
+    df = _fake_price_df(5)
+    df.attrs["provider"] = "naver"
+    data_ingestion.upsert_prices(db_session, "005930.KS", df)
+
+    sources = {row.source for row in db_session.query(PriceDaily).filter_by(ticker="005930.KS")}
+    assert sources == {"naver"}
+
+
+def test_upsert_warns_when_provider_changes(db_session, caplog):
+    """백필은 네이버, 갱신은 야후로 붙으면 한 시계열에 다른 기준이 섞인다.
+
+    조용히 섞이는 게 가장 나쁘다 — 나중에 지표가 튀어도 원인을 짚을 수 없다.
+    """
+    db_session.add(Stock(ticker="005930.KS", target_weight_pct=0.0))
+    db_session.commit()
+
+    first = _fake_price_df(5)
+    first.attrs["provider"] = "naver"
+    data_ingestion.upsert_prices(db_session, "005930.KS", first)
+
+    second = _fake_price_df(5, start="2024-02-01")
+    second.attrs["provider"] = "yahoo"
+    with caplog.at_level("WARNING"):
+        data_ingestion.upsert_prices(db_session, "005930.KS", second)
+
+    assert "시세 출처가 바뀌었습니다" in caplog.text
+
+
+def test_upsert_without_provider_keeps_existing_source(db_session):
+    """출처를 모르는 경로로 다시 저장해도 이미 아는 출처를 지우지 않는다."""
+    db_session.add(Stock(ticker="TST", target_weight_pct=0.0))
+    db_session.commit()
+
+    df = _fake_price_df(3)
+    df.attrs["provider"] = "yahoo"
+    data_ingestion.upsert_prices(db_session, "TST", df)
+
+    plain = _fake_price_df(3)  # attrs 없음
+    data_ingestion.upsert_prices(db_session, "TST", plain)
+
+    assert {row.source for row in db_session.query(PriceDaily).filter_by(ticker="TST")} == {"yahoo"}

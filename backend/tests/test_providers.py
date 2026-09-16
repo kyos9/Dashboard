@@ -237,6 +237,8 @@ def test_falls_back_to_second_provider_when_first_is_blocked(monkeypatch):
     df = providers.fetch_price_history("VOO", "6mo")
     assert len(df) == 1
     assert blocked.calls == 1 and working.calls == 1
+    # 폴백으로 받았다는 사실이 저장까지 따라가야 한다 — 나중에 기준이 섞였는지 알 수 있게
+    assert df.attrs["provider"] == "stooq"
 
 
 def test_first_success_short_circuits(monkeypatch):

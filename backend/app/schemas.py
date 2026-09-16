@@ -133,6 +133,8 @@ class DashboardCard(BaseModel):
     market: Market = Market.US
     currency: Currency = Currency.USD
     data_stale: bool = False
+    # 최신 종가를 어느 제공자가 줬는지. 값이 이상할 때 어디를 볼지 알려준다.
+    price_source: Optional[str] = None
     indicators: LatestIndicators
     knee_buy_v2: bool = False
     knee_conditions: KneeConditions = KneeConditions()

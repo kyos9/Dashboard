@@ -12,6 +12,7 @@ import {
   MARKET_LABEL,
   num,
   price,
+  providerLabel,
   readAdx,
   readDi,
   readDisparity,
@@ -628,7 +629,10 @@ function SignalCards({
                 <span className="v">
                   {price(ind.ma20, card.currency)} / {price(ind.ma50, card.currency)}
                 </span>
-                <span className="k">기준일 {ind.date ?? '—'}</span>
+                <span className="k">
+                  기준일 {ind.date ?? '—'}
+                  {providerLabel(card.price_source) && ` · ${providerLabel(card.price_source)} 시세`}
+                </span>
               </div>
             </div>
 

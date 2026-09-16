@@ -6,6 +6,7 @@ import {
   CATEGORY_UNSET,
   kneeMetCount,
   num,
+  providerLabel,
   price,
   readAdx,
   readDi,
@@ -107,6 +108,7 @@ describe('종합 신호등', () => {
       market: 'US',
       currency: 'USD',
       data_stale: false,
+      price_source: 'yahoo',
       indicators: {} as DashboardCard['indicators'],
       knee_buy_v2: false,
       knee_conditions: {} as KneeConditions,
@@ -162,5 +164,24 @@ describe('구분(카테고리)', () => {
     expect(categoryOf(null)).toBe(CATEGORY_UNSET)
     expect(categoryOf('   ')).toBe(CATEGORY_UNSET)
     expect(categoryOf(' 지수 ')).toBe('지수')
+  })
+})
+
+describe('시세 출처 표기', () => {
+  it('제공자 이름을 화면에서 읽을 수 있게 바꾼다', () => {
+    expect(providerLabel('naver')).toBe('네이버')
+    expect(providerLabel('yahoo')).toBe('야후')
+    expect(providerLabel('stooq')).toBe('Stooq')
+  })
+
+  it('출처를 모르는 예전 시세는 아무것도 붙이지 않는다', () => {
+    // 출처 기록 전에 받아둔 시세다. 모르는 걸 지어내면 잘못된 근거가 된다.
+    expect(providerLabel(null)).toBeNull()
+    expect(providerLabel(undefined)).toBeNull()
+    expect(providerLabel('')).toBeNull()
+  })
+
+  it('처음 보는 제공자는 이름 그대로 보여준다', () => {
+    expect(providerLabel('krx')).toBe('krx')
   })
 })

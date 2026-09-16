@@ -42,6 +42,18 @@ def fetch_price_history(ticker: str, period: str = "max") -> pd.DataFrame:
 
 def upsert_prices(db: Session, ticker: str, df: pd.DataFrame) -> int:
     existing = {row.date: row for row in db.query(PriceDaily).filter(PriceDaily.ticker == ticker).all()}
+    source = df.attrs.get("provider")
+
+    # 한 종목의 히스토리가 여러 제공자에서 왔다면 종가 기준이 다를 수 있다. 값이
+    # 이상해 보일 때 여기부터 의심할 수 있도록 남겨둔다.
+    previous = {row.source for row in existing.values() if row.source}
+    if source and previous and previous != {source}:
+        logger.warning(
+            "%s: 시세 출처가 바뀌었습니다 (기존 %s → %s). 제공자마다 종가 기준이 다르면 "
+            "이어붙인 지점에서 지표가 튈 수 있습니다.",
+            ticker, ", ".join(sorted(previous)), source,
+        )
+
     count = 0
     for date, row in df.iterrows():
         if pd.isna(row["close"]):
@@ -56,6 +68,7 @@ def upsert_prices(db: Session, ticker: str, df: pd.DataFrame) -> int:
         rec.close = float(row["close"])
         rec.adj_close = None if pd.isna(row["adj_close"]) else float(row["adj_close"])
         rec.volume = float(row["volume"])
+        rec.source = source or rec.source
         count += 1
     db.commit()
     return count

@@ -109,6 +109,8 @@ export interface DashboardCard {
   market: Market
   currency: Currency
   data_stale: boolean
+  /** 최신 종가를 준 제공자 (naver/yahoo/stooq). 이 값을 기록하기 전에 받은 시세는 null */
+  price_source: string | null
   indicators: LatestIndicators
   knee_buy_v2: boolean
   knee_conditions: KneeConditions

@@ -89,6 +89,11 @@ class PriceDaily(Base):
     close: Mapped[float] = mapped_column(Float, nullable=False)
     adj_close: Mapped[float | None] = mapped_column(Float, nullable=True)
     volume: Mapped[float] = mapped_column(Float, nullable=False)
+    # 이 행을 어느 제공자가 줬는지. 제공자마다 종가 기준이 다를 수 있어서, 한 종목의
+    # 히스토리에 여러 출처가 섞이면 이어붙인 지점에서 지표가 튄다. 기록해두지 않으면
+    # 값이 이상할 때 그게 원인인지 사후에 알아낼 방법이 없다.
+    # 이 컬럼이 생기기 전에 저장된 행은 None이다.
+    source: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class IndicatorDaily(Base):

@@ -31,6 +31,7 @@ function card(overrides: Partial<DashboardCard> & { ticker: string }): Dashboard
     market: 'US',
     currency: 'USD',
     data_stale: false,
+    price_source: 'yahoo',
     indicators: INDICATORS,
     knee_buy_v2: false,
     knee_conditions: {

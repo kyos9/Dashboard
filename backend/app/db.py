@@ -40,6 +40,10 @@ def _apply_additive_migrations(bind=None) -> None:
             "market": "VARCHAR DEFAULT 'US' NOT NULL",
             "currency": "VARCHAR DEFAULT 'USD' NOT NULL",
         },
+        "price_daily": {
+            # 이 컬럼이 생기기 전에 저장된 행은 출처를 알 수 없으므로 nullable로 둔다
+            "source": "VARCHAR",
+        },
         "portfolio_settings": {
             "base_currency": "VARCHAR DEFAULT 'KRW' NOT NULL",
             "usd_krw_override": "FLOAT",

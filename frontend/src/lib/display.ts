@@ -149,6 +149,18 @@ export interface Traffic {
   desc: string
 }
 
+/** 시세 제공자 이름 → 화면 표기. 값이 이상할 때 어디를 볼지 알려준다. */
+const PROVIDER_LABEL: Record<string, string> = {
+  naver: '네이버',
+  yahoo: '야후',
+  stooq: 'Stooq',
+}
+
+export function providerLabel(source: string | null | undefined): string | null {
+  if (!source) return null
+  return PROVIDER_LABEL[source] ?? source
+}
+
 export function trafficLight(card: DashboardCard): Traffic {
   if (card.data_stale) {
     return { state: 'stale', tone: 'grey', label: '데이터 갱신 필요', desc: '최근 시세가 없어 판정할 수 없습니다.' }
