@@ -5,12 +5,19 @@
 
 중요: 스펙의 백테스트는 investing.com 종가 기준이므로, 분할(split)은 반영하되 배당 재투자
 조정은 하지 않은 종가를 사용한다. Adj Close는 참고용으로만 저장하고 지표 계산에는 쓰지 않는다.
+
+저장은 "바뀐 행만" 쓴다. 지표는 과거 전 구간을 다시 계산하지만(중간에 값이 틀어지는 걸
+막기 위해서다), 어제까지의 결과는 어제와 똑같이 나온다. 그 수천 행을 매번 다시 쓰면
+갱신 한 번에 몇백 ms가 그냥 날아간다.
 """
 
 import datetime as dt
 import logging
+from concurrent.futures import ThreadPoolExecutor
+from typing import Sequence
 
 import pandas as pd
+from sqlalchemy import insert, select, update
 from sqlalchemy.orm import Session
 
 from app.models import IndicatorDaily, PriceDaily, SignalDaily
@@ -22,6 +29,19 @@ logger = logging.getLogger(__name__)
 
 # MA200/ADX 워밍업을 감안해 최소한 이만큼의 과거 거래일 데이터를 항상 유지한다.
 MIN_LOOKBACK_TRADING_DAYS = 260
+
+# 여러 종목의 시세를 동시에 받아올 때 쓸 최대 동시 요청 수.
+# 대부분이 네트워크 대기 시간이라 늘리면 그만큼 빨라지지만, 개인용 대시보드가
+# 거래소·포털에 한꺼번에 몰아칠 이유는 없어서 낮게 잡는다.
+MAX_FETCH_WORKERS = 4
+
+PRICE_COLUMNS = ("open", "high", "low", "close", "adj_close", "volume")
+INDICATOR_COLUMNS = (
+    "ma5", "ma20", "ma50", "ma200", "stddev20",
+    "vol_ma5", "vol_ma20", "vol_ratio", "roc5", "disparity",
+    "plus_di", "minus_di", "adx",
+)
+SIGNAL_COLUMNS = ("knee_buy_v2", "shoulder_sell_ref")
 
 
 class DataIngestionError(Exception):
@@ -42,6 +62,39 @@ def fetch_price_history(
         raise DataIngestionError(str(exc), hint=exc.hint()) from exc
 
 
+def fetch_many(
+    requests: Sequence[tuple[str, str | None]], period: str = "2y"
+) -> dict[str, pd.DataFrame | DataIngestionError]:
+    """여러 종목의 시세를 동시에 받아온다 -> {티커: 데이터 또는 실패 사유}.
+
+    한 종목씩 차례로 받으면 전체 시간이 "종목 수 x 왕복 시간"이 된다. 조회는 거의 전부
+    응답을 기다리는 시간이라, 동시에 보내면 그만큼 줄어든다.
+
+    조회만 스레드로 돌린다 — DB 세션은 스레드 간에 나눠 쓸 수 없으므로 저장은 부르는
+    쪽에서 한 줄로 이어서 한다. 한 종목이 실패해도 예외를 올리지 않고 그 자리에 담아
+    돌려주므로, 나머지 종목의 갱신이 중단되지 않는다.
+    """
+    if not requests:
+        return {}
+
+    results: dict[str, pd.DataFrame | DataIngestionError] = {}
+
+    def one(ticker: str, prefer: str | None):
+        try:
+            return fetch_price_history(ticker, period=period, prefer=prefer)
+        except DataIngestionError as exc:
+            return exc
+        except Exception as exc:  # 제공자 계층이 못 잡은 예외까지 포괄
+            logger.warning("failed to fetch price history for %s: %s", ticker, exc)
+            return DataIngestionError(f"{ticker}: {type(exc).__name__} — {exc}")
+
+    workers = min(MAX_FETCH_WORKERS, len(requests))
+    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="price-fetch") as pool:
+        for (ticker, _), outcome in zip(requests, pool.map(lambda r: one(*r), requests)):
+            results[ticker] = outcome
+    return results
+
+
 def stored_source(db: Session, ticker: str) -> str | None:
     """이 종목의 시세를 지금까지 준 제공자. 여럿이면(=이미 섞였으면) None."""
     rows = (
@@ -54,9 +107,44 @@ def stored_source(db: Session, ticker: str) -> str | None:
     return next(iter(sources)) if len(sources) == 1 else None
 
 
+def _clean(value) -> float | None:
+    """NaN은 None으로 — DB에는 "값 없음"으로 남겨야 지표 계산에서 다시 NaN이 된다."""
+    if value is None:
+        return None
+    number = float(value)
+    return None if number != number else number
+
+
+def _same(stored, computed) -> bool:
+    """이미 저장된 값과 방금 계산한 값이 같은가 (None·NaN까지 같은 것으로 본다)."""
+    if stored is None or computed is None:
+        return stored is None and computed is None
+    return stored == computed or (stored != stored and computed != computed)
+
+
+def _write(db: Session, model, inserts: list[dict], updates: list[dict]) -> None:
+    """바뀐 행만 한 번에 쓴다. 행마다 ORM 객체를 만들지 않아 수천 행에서 차이가 크다."""
+    if inserts:
+        db.execute(insert(model), inserts)
+    if updates:
+        db.execute(update(model), updates)
+    if inserts or updates:
+        db.commit()
+
+
+def _existing_by_date(db: Session, model, ticker: str, columns: Sequence[str]) -> dict:
+    """저장돼 있는 행을 날짜로 찾을 수 있게 (ORM 객체 대신 값만 읽는다)."""
+    rows = db.execute(
+        select(model.id, model.date, *(getattr(model, c) for c in columns)).where(
+            model.ticker == ticker
+        )
+    ).all()
+    return {row.date: row for row in rows}
+
+
 def upsert_prices(db: Session, ticker: str, df: pd.DataFrame) -> int:
-    existing = {row.date: row for row in db.query(PriceDaily).filter(PriceDaily.ticker == ticker).all()}
     source = df.attrs.get("provider")
+    existing = _existing_by_date(db, PriceDaily, ticker, (*PRICE_COLUMNS, "source"))
 
     # 한 종목의 히스토리가 여러 제공자에서 왔다면 종가 기준이 다를 수 있다. 값이
     # 이상해 보일 때 여기부터 의심할 수 있도록 남겨둔다.
@@ -68,46 +156,41 @@ def upsert_prices(db: Session, ticker: str, df: pd.DataFrame) -> int:
             ticker, ", ".join(sorted(previous)), source,
         )
 
-    count = 0
-    for date, row in df.iterrows():
-        if pd.isna(row["close"]):
+    inserts: list[dict] = []
+    updates: list[dict] = []
+    for row in df[list(PRICE_COLUMNS)].itertuples(index=True, name=None):
+        date, values = row[0], row[1:]
+        record = {col: _clean(value) for col, value in zip(PRICE_COLUMNS, values)}
+        if record["close"] is None:
             continue
-        rec = existing.get(date)
-        if rec is None:
-            rec = PriceDaily(ticker=ticker, date=date)
-            db.add(rec)
-        rec.open = float(row["open"])
-        rec.high = float(row["high"])
-        rec.low = float(row["low"])
-        rec.close = float(row["close"])
-        rec.adj_close = None if pd.isna(row["adj_close"]) else float(row["adj_close"])
-        rec.volume = float(row["volume"])
-        rec.source = source or rec.source
-        count += 1
-    db.commit()
-    return count
+
+        old = existing.get(date)
+        if old is None:
+            inserts.append({"ticker": ticker, "date": date, "source": source, **record})
+            continue
+
+        record["source"] = source or old.source
+        if any(not _same(getattr(old, col), record[col]) for col in (*PRICE_COLUMNS, "source")):
+            updates.append({"id": old.id, **record})
+
+    _write(db, PriceDaily, inserts, updates)
+    return len(inserts) + len(updates)
 
 
 def load_price_frame(db: Session, ticker: str) -> pd.DataFrame:
-    rows = (
-        db.query(PriceDaily)
-        .filter(PriceDaily.ticker == ticker)
+    rows = db.execute(
+        select(
+            PriceDaily.date, PriceDaily.open, PriceDaily.high,
+            PriceDaily.low, PriceDaily.close, PriceDaily.volume,
+        )
+        .where(PriceDaily.ticker == ticker)
         .order_by(PriceDaily.date.asc())
-        .all()
-    )
+    ).all()
     if not rows:
         return pd.DataFrame(columns=["open", "high", "low", "close", "volume"])
-    df = pd.DataFrame(
-        {
-            "date": [r.date for r in rows],
-            "open": [r.open for r in rows],
-            "high": [r.high for r in rows],
-            "low": [r.low for r in rows],
-            "close": [r.close for r in rows],
-            "volume": [r.volume for r in rows],
-        }
+    return pd.DataFrame(
+        rows, columns=["date", "open", "high", "low", "close", "volume"]
     ).set_index("date")
-    return df
 
 
 def recompute_indicators(db: Session, ticker: str) -> pd.DataFrame:
@@ -116,22 +199,20 @@ def recompute_indicators(db: Session, ticker: str) -> pd.DataFrame:
         return price_df
 
     indicator_df = compute_indicators(price_df)
+    existing = _existing_by_date(db, IndicatorDaily, ticker, INDICATOR_COLUMNS)
 
-    existing = {row.date: row for row in db.query(IndicatorDaily).filter(IndicatorDaily.ticker == ticker).all()}
-    cols = [
-        "ma5", "ma20", "ma50", "ma200", "stddev20",
-        "vol_ma5", "vol_ma20", "vol_ratio", "roc5", "disparity",
-        "plus_di", "minus_di", "adx",
-    ]
-    for date, row in indicator_df.iterrows():
-        rec = existing.get(date)
-        if rec is None:
-            rec = IndicatorDaily(ticker=ticker, date=date)
-            db.add(rec)
-        for col in cols:
-            val = row[col]
-            setattr(rec, col, None if pd.isna(val) else float(val))
-    db.commit()
+    inserts: list[dict] = []
+    updates: list[dict] = []
+    for row in indicator_df[list(INDICATOR_COLUMNS)].itertuples(index=True, name=None):
+        date, values = row[0], row[1:]
+        record = {col: _clean(value) for col, value in zip(INDICATOR_COLUMNS, values)}
+        old = existing.get(date)
+        if old is None:
+            inserts.append({"ticker": ticker, "date": date, **record})
+        elif any(not _same(getattr(old, col), record[col]) for col in INDICATOR_COLUMNS):
+            updates.append({"id": old.id, **record})
+
+    _write(db, IndicatorDaily, inserts, updates)
     return indicator_df
 
 
@@ -143,31 +224,45 @@ def recompute_signals(db: Session, ticker: str, indicator_df: pd.DataFrame | Non
         indicator_df = compute_indicators(price_df)
 
     signal_df = compute_signals(indicator_df)
+    existing = _existing_by_date(db, SignalDaily, ticker, SIGNAL_COLUMNS)
 
-    existing = {row.date: row for row in db.query(SignalDaily).filter(SignalDaily.ticker == ticker).all()}
-    for date, row in signal_df.iterrows():
-        rec = existing.get(date)
-        if rec is None:
-            rec = SignalDaily(ticker=ticker, date=date)
-            db.add(rec)
-        rec.knee_buy_v2 = bool(row["knee_buy_v2"])
-        rec.shoulder_sell_ref = bool(row["shoulder_sell_ref"])
-    db.commit()
+    inserts: list[dict] = []
+    updates: list[dict] = []
+    for row in signal_df[list(SIGNAL_COLUMNS)].itertuples(index=True, name=None):
+        date, values = row[0], row[1:]
+        record = {col: bool(value) for col, value in zip(SIGNAL_COLUMNS, values)}
+        old = existing.get(date)
+        if old is None:
+            inserts.append({"ticker": ticker, "date": date, **record})
+        elif any(bool(getattr(old, col)) != record[col] for col in SIGNAL_COLUMNS):
+            updates.append({"id": old.id, **record})
+
+    _write(db, SignalDaily, inserts, updates)
     return signal_df
 
 
-def refresh_ticker(db: Session, ticker: str, full_backfill: bool = False) -> dict:
-    """가격 데이터 갱신 + 지표/시그널 재계산. 실패 시 예외를 던지되 이전 데이터는 그대로 유지된다."""
-    period = "max" if full_backfill else "2y"
-    # 이 종목을 지금까지 받아온 곳을 먼저 시도한다 (섞이지 않게)
-    prefer = None if full_backfill else stored_source(db, ticker)
-    try:
-        price_df = fetch_price_history(ticker, period=period, prefer=prefer)
-    except DataIngestionError:
-        raise  # 원인과 안내(hint)가 이미 담겨 있으므로 그대로 올린다
-    except Exception as exc:  # 제공자 계층이 못 잡은 예외까지 포괄
-        logger.warning("failed to fetch price history for %s: %s", ticker, exc)
-        raise DataIngestionError(f"{ticker}: {type(exc).__name__} — {exc}") from exc
+def refresh_ticker(
+    db: Session,
+    ticker: str,
+    full_backfill: bool = False,
+    price_df: pd.DataFrame | None = None,
+) -> dict:
+    """가격 데이터 갱신 + 지표/시그널 재계산. 실패 시 예외를 던지되 이전 데이터는 그대로 유지된다.
+
+    `price_df`를 주면 조회를 건너뛴다 — 여러 종목을 동시에 받아온 뒤(`fetch_many`)
+    저장만 차례로 할 때 쓴다.
+    """
+    if price_df is None:
+        period = "max" if full_backfill else "2y"
+        # 이 종목을 지금까지 받아온 곳을 먼저 시도한다 (섞이지 않게)
+        prefer = None if full_backfill else stored_source(db, ticker)
+        try:
+            price_df = fetch_price_history(ticker, period=period, prefer=prefer)
+        except DataIngestionError:
+            raise  # 원인과 안내(hint)가 이미 담겨 있으므로 그대로 올린다
+        except Exception as exc:  # 제공자 계층이 못 잡은 예외까지 포괄
+            logger.warning("failed to fetch price history for %s: %s", ticker, exc)
+            raise DataIngestionError(f"{ticker}: {type(exc).__name__} — {exc}") from exc
 
     n_upserted = upsert_prices(db, ticker, price_df)
     indicator_df = recompute_indicators(db, ticker)

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ChartModal } from '../components/ChartModal'
-import { StockEditModal } from '../components/StockEditModal'
-import { isEdge, moveOne } from '../lib/reorder'
+import { NumberInput } from '../components/NumberInput'
+import { moveOne, moveTo } from '../lib/reorder'
 import { useAppState } from '../AppState'
 import { api } from '../api/client'
 import { ErrorNotice } from '../components/ErrorNotice'
@@ -10,8 +10,9 @@ import {
   amount,
   CATEGORY_UNSET,
   categoryOf,
-  KNEE_CONDITION_LABELS,
-  MARKET_LABEL,
+  conditionMark,
+  CONDITION_BY_METRIC,
+  CURRENCY_META,
   num,
   price,
   providerLabel,
@@ -21,16 +22,28 @@ import {
   readMa200,
   readVolume,
   signed,
+  stockLabel,
   trafficLight,
+  type MetricKey,
   type Traffic,
 } from '../lib/display'
-import type { Currency, DashboardCard, KneeConditions, RebalanceRow, Stock } from '../types'
+import type {
+  Currency,
+  DashboardCard,
+  DcaPeriod,
+  KneeConditions,
+  RebalancePeriod,
+  RebalanceRow,
+  Stock,
+  StockUpdateInput,
+} from '../types'
 
 /* 비중 스택 바에 쓰는 색 (최대 8종목까지 구분되고, 그 이상은 반복) */
 const SLICE_COLORS = ['#38bdf8', '#a855f7', '#22c55e', '#f0b429', '#f05252', '#2dd4bf', '#f472b6', '#818cf8']
 
 type QuickFilter = 'all' | 'knee' | 'rebalance'
-type ViewMode = 'table' | 'card'
+/** 표 / 카드 / 설정(편집) — 같은 목록을 다른 형태로 보는 것이라 한 자리에서 고른다 */
+type ViewMode = 'table' | 'card' | 'edit'
 
 function TrafficBadge({ traffic }: { traffic: Traffic }) {
   return (
@@ -44,78 +57,100 @@ function TrafficBadge({ traffic }: { traffic: Traffic }) {
   )
 }
 
-/** 무릎매수 네 조건 중 무엇이 충족됐는지 — 시그널이 안 뜬 이유를 바로 알 수 있게 한다 */
-function KneeConditionChips({ conditions }: { conditions: KneeConditions }) {
+/**
+ * 이 지표가 매수 조건을 만족하는지 — 지표 바로 아래에 붙인다.
+ *
+ * 조건 네 개를 종합 신호등 칸에 모아두면 "DI 약세"가 어느 숫자에서 나온 말인지
+ * 눈으로 이을 수 없다. 숫자 옆에 두면 25.7 / 30.5를 보면서 바로 읽힌다.
+ */
+function ConditionTag({ metric, conditions }: { metric: MetricKey; conditions: KneeConditions }) {
+  const condition = CONDITION_BY_METRIC[metric]
+  const met = conditions[condition.key]
+  const mark = conditionMark(met)
   return (
-    <div className="metric">
-      <div className="cond-row">
-        {KNEE_CONDITION_LABELS.map(({ key, label, detail }) => (
-          <span
-            key={key}
-            className={`cond${conditions[key] === true ? ' met' : ''}`}
-            title={`${detail} — ${conditions[key] === true ? '충족' : conditions[key] === false ? '미충족' : '판정 불가'}`}
-          >
-            {conditions[key] === true ? '✓' : conditions[key] === false ? '·' : '?'} {label}
-          </span>
-        ))}
-      </div>
-    </div>
+    <span
+      className={`cond${met === true ? ' met' : ''}`}
+      title={`${condition.detail} — ${mark.word}`}
+    >
+      {mark.sign} {condition.label}
+    </span>
   )
 }
 
-/** 순서 바꾸기 + 설정 열기. 보고 있는 자리에서 바로 손볼 수 있게 한다. */
-function RowControls({
+/** 끌어서 순서 바꾸기. 마우스를 못 쓰는 상황을 위해 위아래 화살표 키도 받는다. */
+function DragHandle({
   ticker,
-  atTop,
-  atBottom,
-  busy,
-  onMove,
-  onEdit,
+  label,
+  controls,
 }: {
   ticker: string
-  atTop: boolean
-  atBottom: boolean
-  busy: boolean
-  onMove: (ticker: string, direction: 'up' | 'down') => void
-  onEdit: (ticker: string) => void
+  label: string
+  controls: RowControlProps
 }) {
   return (
-    <div className="row-controls">
-      <button
-        className="icon-btn"
-        onClick={() => onMove(ticker, 'up')}
-        disabled={atTop || busy}
-        aria-label={`${ticker} 위로`}
-        title="위로"
-      >
-        ↑
-      </button>
-      <button
-        className="icon-btn"
-        onClick={() => onMove(ticker, 'down')}
-        disabled={atBottom || busy}
-        aria-label={`${ticker} 아래로`}
-        title="아래로"
-      >
-        ↓
-      </button>
-      <button
-        className="icon-btn"
-        onClick={() => onEdit(ticker)}
-        aria-label={`${ticker} 설정`}
-        title="설정 · 삭제"
-      >
-        ⚙
+    <span
+      className="drag-handle"
+      draggable={!controls.busy}
+      onDragStart={(event) => {
+        event.dataTransfer.effectAllowed = 'move'
+        // 일부 브라우저는 데이터가 없으면 끌기 자체를 시작하지 않는다
+        event.dataTransfer.setData('text/plain', ticker)
+        controls.onDragStart(ticker)
+      }}
+      onDragEnd={controls.onDragEnd}
+      role="button"
+      tabIndex={0}
+      aria-label={`${label} 순서 바꾸기`}
+      title="끌어서 순서 변경 (위/아래 화살표 키도 됩니다)"
+      onKeyDown={(event) => {
+        if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
+        event.preventDefault()
+        controls.onMove(ticker, event.key === 'ArrowUp' ? 'up' : 'down')
+      }}
+    >
+      ⠿
+    </span>
+  )
+}
+
+/**
+ * 종목 이름. 누르면 차트가 열린다.
+ *
+ * 국내는 종목명, 해외는 티커 하나만 적는다 — 티커·시장·"차트 보기"를 함께 적던 때는
+ * 한 칸이 세 줄이 되어 표 전체가 들쭉날쭉했다.
+ *
+ * 앞으로 AI 종목분석처럼 종목 하나에 붙는 기능이 생기면 이 줄(.stock-line) 옆에
+ * 버튼을 나란히 둔다.
+ */
+function StockName({ card, onChart }: { card: DashboardCard; onChart: (card: DashboardCard) => void }) {
+  return (
+    <div className="stock-line">
+      {card.category && <span className="cat-tag">{card.category}</span>}
+      <button className="stock-name" onClick={() => onChart(card)} title="차트 보기">
+        {stockLabel(card)}
       </button>
     </div>
   )
 }
 
-function Metric({ value, tone, note }: { value: string; tone: string; note: string }) {
+function Metric({
+  value,
+  tone,
+  note,
+  metric,
+  conditions,
+}: {
+  value: string
+  tone: string
+  note: string
+  metric?: MetricKey
+  conditions?: KneeConditions
+}) {
   return (
     <div className="metric">
       <span className={`metric-chip ${tone}`}>{value}</span>
       <span className="metric-note">{note}</span>
+      {metric && conditions && <ConditionTag metric={metric} conditions={conditions} />}
     </div>
   )
 }
@@ -180,6 +215,63 @@ function BuyCell({
   )
 }
 
+/* ---------- 설정(편집) 모드 ----------
+   고치려고 종목 관리 화면으로 건너가면 보던 순서·필터를 잃고 그 종목을 다시 찾아야 한다.
+   보고 있는 표를 그대로 입력칸으로 바꾸고, 다 고친 뒤 한 번에 저장한다. */
+
+interface Draft {
+  category: string
+  dca_amount: string
+  dca_period: DcaPeriod
+  rebalance_period: RebalancePeriod
+  target_weight_pct: string
+  rebalance_band_pct: string
+  review_date_override: string
+}
+
+function draftOf(stock: Stock): Draft {
+  return {
+    category: stock.category ?? '',
+    dca_amount: String(stock.dca_amount),
+    dca_period: stock.dca_period,
+    rebalance_period: stock.rebalance_period,
+    target_weight_pct: String(stock.target_weight_pct),
+    rebalance_band_pct: stock.rebalance_band_pct === null ? '' : String(stock.rebalance_band_pct),
+    review_date_override: stock.review_date_override ?? '',
+  }
+}
+
+function draftsFrom(stocks: Stock[]): Record<string, Draft> {
+  return Object.fromEntries(stocks.map((stock) => [stock.ticker, draftOf(stock)]))
+}
+
+function toUpdate(draft: Draft): StockUpdateInput {
+  return {
+    category: draft.category.trim() === '' ? null : draft.category.trim(),
+    dca_amount: Number(draft.dca_amount || 0),
+    dca_period: draft.dca_period,
+    rebalance_period: draft.rebalance_period,
+    target_weight_pct: Number(draft.target_weight_pct || 0),
+    rebalance_band_pct: draft.rebalance_band_pct === '' ? null : Number(draft.rebalance_band_pct),
+    review_date_override: draft.review_date_override === '' ? null : draft.review_date_override,
+  }
+}
+
+/** 실제로 바뀐 종목만 저장한다 — 손대지 않은 종목까지 PUT을 보낼 이유가 없다 */
+export function isDirty(stock: Stock, draft: Draft | undefined): boolean {
+  if (!draft) return false
+  const next = toUpdate(draft)
+  return (
+    next.category !== (stock.category ?? null) ||
+    next.dca_amount !== stock.dca_amount ||
+    next.dca_period !== stock.dca_period ||
+    next.rebalance_period !== stock.rebalance_period ||
+    next.target_weight_pct !== stock.target_weight_pct ||
+    next.rebalance_band_pct !== stock.rebalance_band_pct ||
+    next.review_date_override !== (stock.review_date_override ?? null)
+  )
+}
+
 export function Dashboard() {
   const { refreshKey, notifyDataChanged } = useAppState()
   const [cards, setCards] = useState<DashboardCard[]>([])
@@ -190,8 +282,13 @@ export function Dashboard() {
   const [busyId, setBusyId] = useState<number | null>(null)
   const [chartCard, setChartCard] = useState<DashboardCard | null>(null)
   const [stocks, setStocks] = useState<Stock[]>([])
-  const [editing, setEditing] = useState<Stock | null>(null)
   const [reordering, setReordering] = useState(false)
+  const [dragging, setDragging] = useState<string | null>(null)
+  const [dragOver, setDragOver] = useState<string | null>(null)
+
+  const [drafts, setDrafts] = useState<Record<string, Draft>>({})
+  const [saving, setSaving] = useState(false)
+  const [confirmingPurge, setConfirmingPurge] = useState<string | null>(null)
 
   const [category, setCategory] = useState<string>('전체')
   const [quick, setQuick] = useState<QuickFilter>('all')
@@ -208,25 +305,24 @@ export function Dashboard() {
         setWeights(rebalance.rows)
         setBaseCurrency(rebalance.base_currency)
         setStocks(stockList)
+        // 편집 중이던 값은 서버에서 다시 받은 값으로 맞춘다 (저장 직후에 온다)
+        setDrafts(draftsFrom(stockList))
+        setConfirmingPurge(null)
       })
       .catch(setError)
       .finally(() => setLoading(false))
   }, [refreshKey])
 
-  /**
-   * 순서를 한 칸 옮긴다. 필터가 걸려 있어도 "보이는 이웃"과 자리를 바꾸므로
-   * 누른 결과가 항상 눈에 보인다.
-   */
-  const handleMove = async (ticker: string, direction: 'up' | 'down') => {
+  const stockByTicker = useMemo(() => new Map(stocks.map((s) => [s.ticker, s])), [stocks])
+
+  /** 새 순서를 화면에 먼저 반영하고 저장한다. 실패하면 화면도 되돌린다. */
+  const applyOrder = async (next: string[]) => {
     const order = stocks.map((s) => s.ticker)
-    const next = moveOne(order, visible.map((c) => c.ticker), ticker, direction)
     if (next.join() === order.join()) return
 
-    // 서버 응답을 기다리는 동안에도 순서가 바로 바뀌어 보이게 한다
     const previousStocks = stocks
     const previousCards = cards
-    const byTicker = new Map(stocks.map((s) => [s.ticker, s]))
-    setStocks(next.map((t) => byTicker.get(t)!).filter(Boolean))
+    setStocks(next.map((t) => stockByTicker.get(t)!).filter(Boolean))
     setCards((previous) => [...previous].sort((a, b) => next.indexOf(a.ticker) - next.indexOf(b.ticker)))
 
     setReordering(true)
@@ -243,6 +339,23 @@ export function Dashboard() {
     }
   }
 
+  /**
+   * 키보드로 한 칸 옮긴다. 필터가 걸려 있어도 "보이는 이웃"과 자리를 바꾸므로
+   * 누른 결과가 항상 눈에 보인다.
+   */
+  const handleMove = (ticker: string, direction: 'up' | 'down') =>
+    void applyOrder(
+      moveOne(stocks.map((s) => s.ticker), visible.map((c) => c.ticker), ticker, direction),
+    )
+
+  const handleDrop = (target: string) => {
+    const item = dragging
+    setDragging(null)
+    setDragOver(null)
+    if (!item || item === target) return
+    void applyOrder(moveTo(stocks.map((s) => s.ticker), item, target))
+  }
+
   const handleConfirm = async (buyId: number) => {
     setBusyId(buyId)
     try {
@@ -252,6 +365,40 @@ export function Dashboard() {
       setError(e)
     } finally {
       setBusyId(null)
+    }
+  }
+
+  const dirtyTickers = useMemo(
+    () => stocks.filter((s) => isDirty(s, drafts[s.ticker])).map((s) => s.ticker),
+    [stocks, drafts],
+  )
+
+  const saveEdits = async () => {
+    if (dirtyTickers.length === 0) return
+    setSaving(true)
+    setError(null)
+    try {
+      // 고친 종목만, 한꺼번에 보낸다 (한 종목씩 기다리면 종목 수만큼 왕복이 쌓인다)
+      await Promise.all(dirtyTickers.map((t) => api.updateStock(t, toUpdate(drafts[t]))))
+      notifyDataChanged()
+    } catch (e) {
+      setError(e)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const removeStock = async (ticker: string, mode: 'hide' | 'purge') => {
+    setSaving(true)
+    setError(null)
+    try {
+      if (mode === 'hide') await api.deactivateStock(ticker)
+      else await api.purgeStock(ticker)
+      notifyDataChanged()
+    } catch (e) {
+      setError(e)
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -320,11 +467,16 @@ export function Dashboard() {
   const rowControls: RowControlProps = {
     tickers: visible.map((c) => c.ticker),
     busy: reordering,
-    onMove: (ticker, direction) => void handleMove(ticker, direction),
-    onEdit: (ticker) => {
-      const stock = stocks.find((s) => s.ticker === ticker)
-      if (stock) setEditing(stock)
+    dragging,
+    dragOver,
+    onMove: handleMove,
+    onDragStart: setDragging,
+    onDragEnd: () => {
+      setDragging(null)
+      setDragOver(null)
     },
+    onDragOverRow: (ticker) => setDragOver((current) => (current === ticker ? current : ticker)),
+    onDrop: handleDrop,
   }
 
   if (loading) return <p className="hint">불러오는 중…</p>
@@ -344,6 +496,13 @@ export function Dashboard() {
 
   return (
     <div>
+      {/* 구분 입력 추천값 — 편집 모드의 구분 칸에서 쓴다 */}
+      <datalist id="category-options">
+        {categories.map(([name]) => (
+          <option key={name} value={name === CATEGORY_UNSET ? '' : name} />
+        ))}
+      </datalist>
+
       <ErrorNotice error={error} onDismiss={() => setError(null)} />
 
       <div className="kpi-grid">
@@ -355,15 +514,15 @@ export function Dashboard() {
           <div className="kpi-counts">
             <span className="count-chip green">
               <span className="num">{summary.buy}</span>
-              <span className="lbl">무릎매수</span>
+              <span className="lbl">매수 시그널</span>
             </span>
             <span className="count-chip amber">
               <span className="num">{summary.watch}</span>
-              <span className="lbl">추세 관망</span>
+              <span className="lbl">관망</span>
             </span>
             <span className="count-chip red">
               <span className="num">{summary.hot}</span>
-              <span className="lbl">과열 주의</span>
+              <span className="lbl">매도 시그널</span>
             </span>
           </div>
           <p className="kpi-foot">
@@ -478,7 +637,7 @@ export function Dashboard() {
             모두 보기
           </button>
           <button className={`chip${quick === 'knee' ? ' active' : ''}`} onClick={() => setQuick('knee')}>
-            무릎매수 충족 {summary.buy}
+            매수 시그널 {summary.buy}
           </button>
           <button
             className={`chip${quick === 'rebalance' ? ' active' : ''}`}
@@ -494,6 +653,16 @@ export function Dashboard() {
           <button className={`chip${view === 'card' ? ' active' : ''}`} onClick={() => setView('card')}>
             카드 보기
           </button>
+          <button
+            className={`chip${view === 'edit' ? ' active' : ''}`}
+            onClick={() => {
+              setDrafts(draftsFrom(stocks))
+              setConfirmingPurge(null)
+              setView('edit')
+            }}
+          >
+            ⚙ 설정
+          </button>
         </div>
       </div>
 
@@ -502,6 +671,22 @@ export function Dashboard() {
           <h3>조건에 맞는 종목이 없습니다</h3>
           <p>필터를 바꾸거나 "모두 보기"를 선택해주세요.</p>
         </div>
+      ) : view === 'edit' ? (
+        <SettingsTable
+          cards={visible}
+          stockByTicker={stockByTicker}
+          drafts={drafts}
+          dirtyTickers={dirtyTickers}
+          busy={saving}
+          confirmingPurge={confirmingPurge}
+          controls={rowControls}
+          onChange={(ticker, draft) => setDrafts((prev) => ({ ...prev, [ticker]: draft }))}
+          onSave={() => void saveEdits()}
+          onReset={() => setDrafts(draftsFrom(stocks))}
+          onRemove={(ticker, mode) => void removeStock(ticker, mode)}
+          onConfirmPurge={setConfirmingPurge}
+          onDone={() => setView('table')}
+        />
       ) : view === 'table' ? (
         <SignalMatrix
           cards={visible}
@@ -520,28 +705,55 @@ export function Dashboard() {
         />
       )}
 
-      {editing && (
-        <StockEditModal
-          stock={editing}
-          onSaved={notifyDataChanged}
-          onClose={() => setEditing(null)}
-        />
-      )}
-
       {chartCard && (
         <ChartModal
           ticker={chartCard.ticker}
-          name={chartCard.name}
+          name={stockLabel(chartCard)}
           onClose={() => setChartCard(null)}
         />
       )}
 
       <p className="hint" style={{ marginTop: 14 }}>
-        무릎매수(v2) = -DI &gt; +DI · 이격도 &lt; 0 · (StdDev20 축소 또는 거래량비 &gt; 1.1) · ADX &gt; 20 —
-        네 조건을 모두 만족할 때. 어깨매도는 참고 신호이며 실제 매도 실행일은 리밸런싱 리뷰 마감일입니다.
+        매수 시그널 = -DI &gt; +DI · 이격도 &lt; 0 · (StdDev20 축소 또는 거래량비 &gt; 1.1) · ADX &gt; 20 —
+        네 조건을 모두 만족할 때. 각 조건은 해당 지표 칸에 ✓로 표시됩니다. 매도 시그널은 참고용이며 실제
+        매도 실행일은 리밸런싱 리뷰 마감일입니다.
       </p>
     </div>
   )
+}
+
+interface RowControlProps {
+  tickers: string[]
+  busy: boolean
+  dragging: string | null
+  dragOver: string | null
+  onMove: (ticker: string, direction: 'up' | 'down') => void
+  onDragStart: (ticker: string) => void
+  onDragEnd: () => void
+  onDragOverRow: (ticker: string) => void
+  onDrop: (ticker: string) => void
+}
+
+/** 끌어다 놓을 수 있는 행 — 표와 편집 표가 같은 동작을 쓴다 */
+function dragProps(ticker: string, controls: RowControlProps) {
+  return {
+    className:
+      controls.dragging === ticker
+        ? 'dragging'
+        : controls.dragOver === ticker && controls.dragging
+          ? 'drop-target'
+          : '',
+    onDragOver: (event: React.DragEvent) => {
+      if (!controls.dragging) return
+      event.preventDefault()
+      event.dataTransfer.dropEffect = 'move'
+      controls.onDragOverRow(ticker)
+    },
+    onDrop: (event: React.DragEvent) => {
+      event.preventDefault()
+      controls.onDrop(ticker)
+    },
+  }
 }
 
 function SignalMatrix({
@@ -559,43 +771,39 @@ function SignalMatrix({
 }) {
   return (
     <div className="table-scroll">
-      <table className="data-table" style={{ minWidth: 1280 }}>
+      <table className="data-table fixed" style={{ minWidth: 1226 }}>
         <thead>
           <tr>
-            <th style={{ minWidth: 150 }}>구분 / 종목</th>
-            <th style={{ minWidth: 104 }}>현재가</th>
-            <th style={{ minWidth: 104 }}>
+            <th style={{ width: 44 }} aria-label="순서" />
+            <th style={{ width: 154 }}>구분 / 종목</th>
+            <th style={{ width: 106 }}>현재가</th>
+            <th style={{ width: 122 }}>
               이격도
               <br />
               (MA20 대비)
             </th>
-            <th style={{ minWidth: 104 }}>
+            <th style={{ width: 112 }}>
               ADX
               <br />
               (추세 강도)
             </th>
-            <th style={{ minWidth: 118 }}>
+            <th style={{ width: 126 }}>
               DI 방향
               <br />
               (+DI / -DI)
             </th>
-            <th style={{ minWidth: 104 }}>
+            <th style={{ width: 126 }}>
               거래량비
               <br />
               (MA5/MA20)
             </th>
-            <th style={{ minWidth: 110 }}>
+            <th style={{ width: 110 }}>
               200일선
               <br />
               (장기 추세)
             </th>
-            <th style={{ minWidth: 218 }}>
-              종합 신호등
-              <br />
-              (무릎매수 조건)
-            </th>
-            <th style={{ minWidth: 172 }}>이번 기간 매수</th>
-            <th style={{ minWidth: 112 }}>순서 / 설정</th>
+            <th style={{ width: 154 }}>종합 신호등</th>
+            <th style={{ width: 172 }}>이번 기간 매수</th>
           </tr>
         </thead>
         <tbody>
@@ -608,34 +816,51 @@ function SignalMatrix({
             const ma200 = readMa200(ind.close, ind.ma200)
 
             return (
-              <tr key={card.ticker}>
+              <tr key={card.ticker} {...dragProps(card.ticker, controls)}>
                 <td>
-                  <div className="ticker-cell">
-                    {card.category && <span className="cat-tag">{card.category}</span>}
-                    <span className="ticker-name">{card.name ?? card.ticker}</span>
-                    <button className="ticker-sub link" onClick={() => onChart(card)}>
-                      {card.ticker} · {MARKET_LABEL[card.market]} · 차트 보기
-                    </button>
-                  </div>
+                  <DragHandle ticker={card.ticker} label={stockLabel(card)} controls={controls} />
+                </td>
+                <td>
+                  <StockName card={card} onChart={onChart} />
                 </td>
                 <td>
                   <PriceCell card={card} />
                 </td>
                 <td>
-                  <Metric value={signed(ind.disparity, 2, '%')} tone={disparity.tone} note={disparity.note} />
+                  <Metric
+                    value={signed(ind.disparity, 2, '%')}
+                    tone={disparity.tone}
+                    note={disparity.note}
+                    metric="disparity"
+                    conditions={card.knee_conditions}
+                  />
                 </td>
                 <td>
-                  <Metric value={num(ind.adx, 1)} tone={adx.tone} note={adx.note} />
+                  <Metric
+                    value={num(ind.adx, 1)}
+                    tone={adx.tone}
+                    note={adx.note}
+                    metric="adx"
+                    conditions={card.knee_conditions}
+                  />
                 </td>
                 <td>
                   <Metric
                     value={`${num(ind.plus_di, 1)} / ${num(ind.minus_di, 1)}`}
                     tone={di.tone}
                     note={di.note}
+                    metric="di"
+                    conditions={card.knee_conditions}
                   />
                 </td>
                 <td>
-                  <Metric value={`${num(ind.vol_ratio, 2)}x`} tone={vol.tone} note={vol.note} />
+                  <Metric
+                    value={`${num(ind.vol_ratio, 2)}x`}
+                    tone={vol.tone}
+                    note={vol.note}
+                    metric="volume"
+                    conditions={card.knee_conditions}
+                  />
                 </td>
                 <td>
                   <Metric value={signed(ma200.pct, 1, '%')} tone={ma200.tone} note={ma200.note} />
@@ -643,29 +868,24 @@ function SignalMatrix({
                 <td>
                   <div className="metric">
                     <TrafficBadge traffic={trafficLight(card)} />
-                    <KneeConditionChips conditions={card.knee_conditions} />
-                    <div className="badge-row">
-                      {card.shoulder_sell_ref && <span className="badge badge-amber">어깨매도(참고)</span>}
-                      {card.rebalance_signal.reasons.map((r) => (
-                        <span className="badge badge-purple" key={r}>
-                          {r}
-                        </span>
-                      ))}
-                    </div>
+                    {(card.rebalance_signal.reasons.length > 0 ||
+                      (card.knee_buy_v2 && card.shoulder_sell_ref)) && (
+                      <div className="badge-row">
+                        {/* 둘 다 뜨면 신호등은 매수를 보여준다 — 매도 쪽이 조용히 사라지지 않게 */}
+                        {card.knee_buy_v2 && card.shoulder_sell_ref && (
+                          <span className="badge badge-amber">매도 조건도 충족</span>
+                        )}
+                        {card.rebalance_signal.reasons.map((r) => (
+                          <span className="badge badge-purple" key={r}>
+                            {r}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </td>
                 <td>
                   <BuyCell card={card} busyId={busyId} onConfirm={onConfirm} />
-                </td>
-                <td>
-                  <RowControls
-                    ticker={card.ticker}
-                    atTop={isEdge(controls.tickers, card.ticker, 'up')}
-                    atBottom={isEdge(controls.tickers, card.ticker, 'down')}
-                    busy={controls.busy}
-                    onMove={controls.onMove}
-                    onEdit={controls.onEdit}
-                  />
                 </td>
               </tr>
             )
@@ -676,11 +896,229 @@ function SignalMatrix({
   )
 }
 
-interface RowControlProps {
-  tickers: string[]
+function SettingsTable({
+  cards,
+  stockByTicker,
+  drafts,
+  dirtyTickers,
+  busy,
+  confirmingPurge,
+  controls,
+  onChange,
+  onSave,
+  onReset,
+  onRemove,
+  onConfirmPurge,
+  onDone,
+}: {
+  cards: DashboardCard[]
+  stockByTicker: Map<string, Stock>
+  drafts: Record<string, Draft>
+  dirtyTickers: string[]
   busy: boolean
-  onMove: (ticker: string, direction: 'up' | 'down') => void
-  onEdit: (ticker: string) => void
+  confirmingPurge: string | null
+  controls: RowControlProps
+  onChange: (ticker: string, draft: Draft) => void
+  onSave: () => void
+  onReset: () => void
+  onRemove: (ticker: string, mode: 'hide' | 'purge') => void
+  onConfirmPurge: (ticker: string | null) => void
+  onDone: () => void
+}) {
+  return (
+    <>
+      <div className="edit-bar">
+        <span className="hint">
+          {dirtyTickers.length === 0
+            ? '고칠 값을 바로 입력하세요. 순서는 맨 앞 ⠿를 끌어서 바꿉니다.'
+            : `${dirtyTickers.length}개 종목이 바뀌었습니다 (${dirtyTickers.join(', ')})`}
+        </span>
+        <div className="btn-group tight">
+          <button className="primary sm" onClick={onSave} disabled={busy || dirtyTickers.length === 0}>
+            {busy ? '저장 중…' : '저장'}
+          </button>
+          <button className="sm" onClick={onReset} disabled={busy || dirtyTickers.length === 0}>
+            되돌리기
+          </button>
+          <button className="sm ghost" onClick={onDone} disabled={busy}>
+            설정 닫기
+          </button>
+        </div>
+      </div>
+
+      <div className="table-scroll">
+        <table className="data-table fixed" style={{ minWidth: 1204 }}>
+          <thead>
+            <tr>
+              <th style={{ width: 44 }} aria-label="순서" />
+              <th style={{ width: 150 }}>종목</th>
+              <th style={{ width: 112 }}>구분</th>
+              <th style={{ width: 166 }}>DCA 금액</th>
+              <th style={{ width: 84 }}>
+                DCA
+                <br />
+                주기
+              </th>
+              <th style={{ width: 112 }}>목표 비중</th>
+              <th style={{ width: 112 }}>
+                밴드 임계값
+                <br />
+                (비우면 기본값)
+              </th>
+              <th style={{ width: 92 }}>
+                리밸런싱
+                <br />
+                주기
+              </th>
+              <th style={{ width: 152 }}>
+                리뷰 마감일
+                <br />
+                직접 지정
+              </th>
+              <th style={{ width: 180 }}>정리</th>
+            </tr>
+          </thead>
+          <tbody>
+            {cards.map((card) => {
+              const stock = stockByTicker.get(card.ticker)
+              const draft = drafts[card.ticker]
+              if (!stock || !draft) return null
+              const meta = CURRENCY_META[stock.currency]
+              const label = stockLabel(card)
+              const set = (patch: Partial<Draft>) => onChange(card.ticker, { ...draft, ...patch })
+              const drag = dragProps(card.ticker, controls)
+
+              return (
+                <tr
+                  key={card.ticker}
+                  {...drag}
+                  className={`${drag.className} ${dirtyTickers.includes(card.ticker) ? 'dirty' : ''}`.trim()}
+                >
+                  <td>
+                    <DragHandle ticker={card.ticker} label={label} controls={controls} />
+                  </td>
+                  <td>
+                    <div className="stock-line">
+                      {card.category && <span className="cat-tag">{card.category}</span>}
+                      <span className="stock-name">{label}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <input
+                      type="text"
+                      list="category-options"
+                      value={draft.category}
+                      placeholder="예: 지수"
+                      aria-label={`${label} 구분`}
+                      onChange={(e) => set({ category: e.target.value })}
+                    />
+                  </td>
+                  <td>
+                    <div className="input-with-button tight">
+                      <span className="unit">{meta.symbol}</span>
+                      <NumberInput
+                        value={draft.dca_amount}
+                        onChange={(v) => set({ dca_amount: v })}
+                        allowDecimal={stock.currency !== 'KRW'}
+                        aria-label={`${label} DCA 금액`}
+                      />
+                    </div>
+                  </td>
+                  <td>
+                    <select
+                      value={draft.dca_period}
+                      aria-label={`${label} DCA 주기`}
+                      onChange={(e) => set({ dca_period: e.target.value as DcaPeriod })}
+                    >
+                      <option value="monthly">월</option>
+                      <option value="quarterly">분기</option>
+                    </select>
+                  </td>
+                  <td>
+                    <div className="input-with-button tight">
+                      <NumberInput
+                        value={draft.target_weight_pct}
+                        onChange={(v) => set({ target_weight_pct: v })}
+                        aria-label={`${label} 목표 비중`}
+                      />
+                      <span className="unit">%</span>
+                    </div>
+                  </td>
+                  <td>
+                    <div className="input-with-button tight">
+                      <NumberInput
+                        value={draft.rebalance_band_pct}
+                        onChange={(v) => set({ rebalance_band_pct: v })}
+                        placeholder="기본값"
+                        aria-label={`${label} 밴드 임계값`}
+                      />
+                      <span className="unit">%p</span>
+                    </div>
+                  </td>
+                  <td>
+                    <select
+                      value={draft.rebalance_period}
+                      aria-label={`${label} 리밸런싱 주기`}
+                      onChange={(e) => set({ rebalance_period: e.target.value as RebalancePeriod })}
+                    >
+                      <option value="quarterly">분기</option>
+                      <option value="semiannual">반기</option>
+                    </select>
+                  </td>
+                  <td>
+                    <input
+                      type="date"
+                      value={draft.review_date_override}
+                      aria-label={`${label} 리뷰 마감일`}
+                      onChange={(e) => set({ review_date_override: e.target.value })}
+                    />
+                  </td>
+                  <td>
+                    <div className="btn-group tight">
+                      <button className="sm ghost" disabled={busy} onClick={() => onRemove(card.ticker, 'hide')}>
+                        감추기
+                      </button>
+                      <button
+                        className="sm danger"
+                        disabled={busy}
+                        onClick={() => onConfirmPurge(card.ticker)}
+                      >
+                        완전 삭제
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {confirmingPurge && (
+        <div className="callout amber" role="alertdialog">
+          <span className="ico">⚠</span>
+          <div>
+            <strong>{confirmingPurge}</strong>의 시세·지표·매수 기록까지 전부 지웁니다. 되돌릴 수 없고, 다시
+            등록하면 히스토리를 처음부터 새로 받아야 합니다. 잠시 치워두려는 것이라면{' '}
+            <strong>감추기</strong>를 쓰세요.
+            <div className="btn-group" style={{ marginTop: 8 }}>
+              <button className="danger" disabled={busy} onClick={() => onRemove(confirmingPurge, 'purge')}>
+                {busy ? '지우는 중…' : '네, 완전히 지웁니다'}
+              </button>
+              <button disabled={busy} onClick={() => onConfirmPurge(null)}>
+                취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <p className="hint" style={{ marginTop: 12 }}>
+        <strong>감추기</strong>는 대시보드에서만 내리고 시세·기록은 그대로 둡니다 (종목 관리 화면에서 다시
+        켤 수 있습니다). 새 종목 추가와 시세 갱신은 <Link to="/stocks">종목 관리</Link>에서 합니다.
+      </p>
+    </>
+  )
 }
 
 function SignalCards({
@@ -706,16 +1144,24 @@ function SignalCards({
         const vol = readVolume(ind.vol_ratio)
         const ma200 = readMa200(ind.close, ind.ma200)
         const change = ind.change_pct
+        const drag = dragProps(card.ticker, controls)
 
         return (
-          <article key={card.ticker} className="stock-card">
+          <article
+            key={card.ticker}
+            className={`stock-card ${drag.className}`.trim()}
+            onDragOver={drag.onDragOver}
+            onDrop={drag.onDrop}
+          >
             <div className="stock-card-head">
               <div className="ticker-cell">
-                {card.category && <span className="cat-tag">{card.category}</span>}
-                <span className="ticker-name">{card.name ?? card.ticker}</span>
-                <button className="ticker-sub link" onClick={() => onChart(card)}>
-                  {card.ticker} · {MARKET_LABEL[card.market]} · 차트 보기
-                </button>
+                <div className="stock-line">
+                  <DragHandle ticker={card.ticker} label={stockLabel(card)} controls={controls} />
+                  {card.category && <span className="cat-tag">{card.category}</span>}
+                  <button className="stock-name" onClick={() => onChart(card)} title="차트 보기">
+                    {stockLabel(card)}
+                  </button>
+                </div>
               </div>
               <div className="stock-card-price">
                 <span className="big">{price(ind.close, card.currency)}</span>
@@ -729,11 +1175,11 @@ function SignalCards({
 
             <TrafficBadge traffic={trafficLight(card)} />
 
-            <KneeConditionChips conditions={card.knee_conditions} />
-
-            {(card.shoulder_sell_ref || card.rebalance_signal.active) && (
+            {(card.rebalance_signal.active || (card.knee_buy_v2 && card.shoulder_sell_ref)) && (
               <div className="badge-row">
-                {card.shoulder_sell_ref && <span className="badge badge-amber">어깨매도(참고)</span>}
+                {card.knee_buy_v2 && card.shoulder_sell_ref && (
+                  <span className="badge badge-amber">매도 조건도 충족</span>
+                )}
                 {card.rebalance_signal.reasons.map((r) => (
                   <span className="badge badge-purple" key={r}>
                     {r}
@@ -749,11 +1195,13 @@ function SignalCards({
                   {signed(ind.disparity, 2, '%')}
                 </span>
                 <span className="k">{disparity.note}</span>
+                <ConditionTag metric="disparity" conditions={card.knee_conditions} />
               </div>
               <div className="stat-box">
                 <span className="k">ADX 추세강도</span>
                 <span className="v">{num(ind.adx, 1)}</span>
                 <span className="k">{adx.note}</span>
+                <ConditionTag metric="adx" conditions={card.knee_conditions} />
               </div>
               <div className="stat-box">
                 <span className="k">+DI / -DI</span>
@@ -761,11 +1209,13 @@ function SignalCards({
                   {num(ind.plus_di, 1)} / {num(ind.minus_di, 1)}
                 </span>
                 <span className="k">{di.note}</span>
+                <ConditionTag metric="di" conditions={card.knee_conditions} />
               </div>
               <div className="stat-box">
                 <span className="k">거래량비</span>
                 <span className="v">{num(ind.vol_ratio, 2)}x</span>
                 <span className="k">{vol.note}</span>
+                <ConditionTag metric="volume" conditions={card.knee_conditions} />
               </div>
               <div className="stat-box">
                 <span className="k">200일선 대비</span>
@@ -786,14 +1236,6 @@ function SignalCards({
 
             <div className="card-actions">
               <BuyCell card={card} busyId={busyId} onConfirm={onConfirm} />
-              <RowControls
-                ticker={card.ticker}
-                atTop={isEdge(controls.tickers, card.ticker, 'up')}
-                atBottom={isEdge(controls.tickers, card.ticker, 'down')}
-                busy={controls.busy}
-                onMove={controls.onMove}
-                onEdit={controls.onEdit}
-              />
             </div>
           </article>
         )

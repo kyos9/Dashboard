@@ -4,7 +4,7 @@ import { api } from '../api/client'
 import { ErrorNotice } from '../components/ErrorNotice'
 import { NumberInput } from '../components/NumberInput'
 import { SymbolSearch } from '../components/SymbolSearch'
-import { CURRENCY_META, MARKET_LABEL, money } from '../lib/display'
+import { CURRENCY_META, MARKET_LABEL, money, stockLabel } from '../lib/display'
 import type {
   ListingStatus,
   DcaPeriod,
@@ -16,7 +16,6 @@ import type {
 
 const emptyForm: StockCreateInput = {
   ticker: '',
-  name: '',
   category: '',
   dca_amount: 0,
   dca_period: 'monthly',
@@ -28,7 +27,6 @@ const emptyForm: StockCreateInput = {
 const CATEGORY_SUGGESTIONS = ['지수', '알파', '안전자산']
 
 function StockRow({ stock, onSaved, onError }: { stock: Stock; onSaved: () => void; onError: (e: unknown) => void }) {
-  const [name, setName] = useState(stock.name ?? '')
   const [category, setCategory] = useState(stock.category ?? '')
   const [dcaAmount, setDcaAmount] = useState(String(stock.dca_amount))
   const [dcaPeriod, setDcaPeriod] = useState<DcaPeriod>(stock.dca_period)
@@ -43,7 +41,6 @@ function StockRow({ stock, onSaved, onError }: { stock: Stock; onSaved: () => vo
     setSaving(true)
     try {
       await api.updateStock(stock.ticker, {
-        name: name.trim() === '' ? undefined : name.trim(),
         category: category.trim() === '' ? null : category.trim(),
         dca_amount: Number(dcaAmount),
         dca_period: dcaPeriod,
@@ -87,16 +84,13 @@ function StockRow({ stock, onSaved, onError }: { stock: Stock; onSaved: () => vo
     <tr className={stock.active ? '' : 'inactive'}>
       <td>
         <div className="ticker-cell">
-          <span className="ticker-name mono">{stock.ticker}</span>
+          <span className="ticker-name">{stockLabel(stock)}</span>
           <span className="ticker-sub">
-            {MARKET_LABEL[stock.market]} · {CURRENCY_META[stock.currency].symbol}
+            {stock.ticker} · {MARKET_LABEL[stock.market]} · {CURRENCY_META[stock.currency].symbol}
             {stock.currency}
           </span>
           {!stock.active && <span className="badge badge-grey">비활성</span>}
         </div>
-      </td>
-      <td>
-        <input type="text" value={name} placeholder="표시 이름" onChange={(e) => setName(e.target.value)} />
       </td>
       <td>
         <input
@@ -226,7 +220,6 @@ export function StockManager() {
       const result = await api.createStock({
         ...form,
         ticker: query,
-        name: form.name?.trim() === '' ? undefined : form.name,
         category: form.category?.trim() === '' ? null : form.category,
       })
       setForm(emptyForm)
@@ -337,16 +330,6 @@ export function StockManager() {
             />
           </div>
           <div className="field">
-            <label htmlFor="new-name">표시 이름</label>
-            <input
-              id="new-name"
-              type="text"
-              placeholder="S&P 500 ETF"
-              value={form.name ?? ''}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-            />
-          </div>
-          <div className="field">
             <label htmlFor="new-category">구분</label>
             <input
               id="new-category"
@@ -415,11 +398,10 @@ export function StockManager() {
           </div>
         ) : (
           <div className="table-scroll">
-            <table className="data-table fixed" style={{ minWidth: 1386 }}>
+            <table className="data-table fixed" style={{ minWidth: 1310 }}>
               <thead>
                 <tr>
-                  <th style={{ width: 118 }}>티커</th>
-                  <th style={{ width: 132 }}>표시 이름</th>
+                  <th style={{ width: 174 }}>종목</th>
                   <th style={{ width: 108 }}>구분</th>
                   <th style={{ width: 228 }}>DCA 금액 / 주기</th>
                   <th style={{ width: 132 }}>목표 비중</th>

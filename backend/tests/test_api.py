@@ -1,5 +1,6 @@
 import datetime as dt
 
+import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -162,12 +163,18 @@ def test_refresh_all_reports_per_ticker_result(api, monkeypatch):
     client.post("/api/stocks", json={"ticker": "VOO", "target_weight_pct": 50})
     client.post("/api/stocks", json={"ticker": "ZZZZ", "target_weight_pct": 50})
 
-    def fake_refresh(db, stock, full_backfill=False):
+    def fake_refresh(db, stock, full_backfill=False, price_df=None):
         if stock.ticker == "ZZZZ":
             raise data_ingestion.DataIngestionError("no data returned for ZZZZ")
         return {"ticker": stock.ticker, "rows_upserted": 12, "as_of": "2026-01-01"}
 
     monkeypatch.setattr("app.services.pipeline.refresh_and_evaluate_stock", fake_refresh)
+    # 갱신은 전 종목을 한꺼번에 조회한 뒤 저장하므로, 조회 단계도 함께 가짜로 둔다
+    monkeypatch.setattr(
+        data_ingestion,
+        "fetch_many",
+        lambda requests, period="2y": {ticker: pd.DataFrame() for ticker, _ in requests},
+    )
 
     r = client.post("/api/stocks/refresh-all")
     assert r.status_code == 200

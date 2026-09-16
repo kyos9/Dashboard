@@ -31,9 +31,23 @@ export function moveOne(
   return next
 }
 
-/** 보이는 목록에서 맨 위/맨 아래인가 — 화살표를 흐리게 만들 때 쓴다 */
-export function isEdge(visible: string[], item: string, direction: 'up' | 'down'): boolean {
-  const seen = visible.indexOf(item)
-  if (seen === -1) return true
-  return direction === 'up' ? seen === 0 : seen === visible.length - 1
+/**
+ * 끌어다 놓은 자리로 옮긴다.
+ *
+ * 놓은 행이 있던 자리에 끼워 넣는다 — 아래로 끌었으면 그 행 뒤, 위로 끌었으면 그 행 앞이다.
+ * (아래로 끌 때 앞에 넣으면 손으로 놓은 위치보다 한 칸 위에 떨어져서, 매번 한 칸씩
+ * 어긋나는 것처럼 느껴진다.)
+ *
+ * 필터가 걸려 있어도 전체 순서에서 "놓은 행"의 자리를 그대로 쓰므로, 화면에 보이는
+ * 결과와 저장되는 순서가 어긋나지 않는다.
+ */
+export function moveTo(order: string[], item: string, target: string): string[] {
+  const from = order.indexOf(item)
+  const to = order.indexOf(target)
+  if (from === -1 || to === -1 || from === to) return order
+
+  const next = [...order]
+  next.splice(from, 1)
+  next.splice(next.indexOf(target) + (from < to ? 1 : 0), 0, item)
+  return next
 }

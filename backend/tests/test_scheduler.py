@@ -5,6 +5,8 @@
 없으면 한국 거래일 낮 내내 전날 종가가 걸려 있게 된다.
 """
 
+import pandas as pd
+
 from app.markets import Market
 from app.models import Stock
 from app.services import pipeline, scheduler
@@ -40,6 +42,15 @@ def test_start_is_idempotent():
         scheduler.shutdown_scheduler()
 
 
+def _stub_fetch(monkeypatch):
+    """시세 조회만 가짜로 — 갱신은 이제 전 종목을 한꺼번에 조회한 뒤 차례로 저장한다."""
+    monkeypatch.setattr(
+        pipeline.data_ingestion,
+        "fetch_many",
+        lambda requests, period="2y": {ticker: pd.DataFrame() for ticker, _ in requests},
+    )
+
+
 def test_korea_job_only_refreshes_korean_stocks(db_session, monkeypatch):
     db_session.add(Stock(ticker="005930.KS", target_weight_pct=50))
     db_session.add(Stock(ticker="VOO", target_weight_pct=50))
@@ -49,8 +60,10 @@ def test_korea_job_only_refreshes_korean_stocks(db_session, monkeypatch):
     monkeypatch.setattr(
         pipeline,
         "refresh_and_evaluate_stock",
-        lambda db, stock, full_backfill=False: refreshed.append(stock.ticker) or {"ticker": stock.ticker},
+        lambda db, stock, full_backfill=False, price_df=None: refreshed.append(stock.ticker)
+        or {"ticker": stock.ticker},
     )
+    _stub_fetch(monkeypatch)
     monkeypatch.setattr(pipeline.fx, "refresh_usd_krw", lambda db: None)
 
     pipeline.refresh_all_active_stocks(db_session, market=Market.KR)
@@ -69,8 +82,12 @@ def test_fx_failure_does_not_lose_price_results(db_session, monkeypatch):
     monkeypatch.setattr(
         pipeline,
         "refresh_and_evaluate_stock",
-        lambda db, stock, full_backfill=False: {"ticker": stock.ticker, "rows_upserted": 5},
+        lambda db, stock, full_backfill=False, price_df=None: {
+            "ticker": stock.ticker,
+            "rows_upserted": 5,
+        },
     )
+    _stub_fetch(monkeypatch)
 
     def boom(db):
         raise RuntimeError("환율 서버 연결 실패")
@@ -111,3 +128,37 @@ def test_listing_job_survives_blocked_network(monkeypatch, caplog):
         scheduler._listing_refresh_job()  # 예외가 새어 나오면 실패
 
     assert "내장 목록으로 검색됩니다" in caplog.text
+
+
+def test_one_failed_fetch_does_not_stop_the_rest(db_session, monkeypatch):
+    """한 종목의 시세 조회가 실패해도 나머지 종목은 갱신된다.
+
+    전 종목을 한꺼번에 조회하게 바뀌면서, 한 종목의 실패가 묶음 전체를 무너뜨리지
+    않는지가 새로 중요해졌다.
+    """
+    db_session.add(Stock(ticker="VOO", target_weight_pct=50))
+    db_session.add(Stock(ticker="ZZZZ", target_weight_pct=50))
+    db_session.commit()
+
+    monkeypatch.setattr(
+        pipeline.data_ingestion,
+        "fetch_many",
+        lambda requests, period="2y": {
+            ticker: (
+                pipeline.data_ingestion.DataIngestionError("no data", hint="티커를 확인해주세요")
+                if ticker == "ZZZZ"
+                else pd.DataFrame()
+            )
+            for ticker, _ in requests
+        },
+    )
+    monkeypatch.setattr(
+        pipeline,
+        "refresh_and_evaluate_stock",
+        lambda db, stock, full_backfill=False, price_df=None: {"ticker": stock.ticker},
+    )
+    monkeypatch.setattr(pipeline.fx, "refresh_usd_krw", lambda db: None)
+
+    results = {row["ticker"]: row for row in pipeline.refresh_all_active_stocks(db_session)}
+    assert results["VOO"] == {"ticker": "VOO"}
+    assert results["ZZZZ"]["hint"] == "티커를 확인해주세요"

@@ -62,7 +62,7 @@ export function AppHeader() {
           <div className="brand-text">
             <h1 className="brand-title">
               신호판
-              <span className="badge badge-blue">무릎매수 v2</span>
+              <span className="badge badge-blue">매수·매도 시그널</span>
               {health && (
                 <span
                   className="badge badge-grey mono"

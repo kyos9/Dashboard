@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -163,23 +163,44 @@ function renderDashboard() {
   )
 }
 
-/** 표에 보이는 순서대로의 티커 목록 */
-async function tickerOrder() {
+/** 표에 보이는 순서대로의 종목 이름 (국내는 종목명, 해외는 티커) */
+async function nameOrder() {
   const table = (await screen.findAllByRole('table'))[0]
   return within(table)
     .getAllByRole('row')
     .slice(1)
-    .map((tr) => tr.querySelector('.ticker-sub')?.textContent?.split(' ·')[0]?.trim())
+    .map((tr) => tr.querySelector('.stock-name')?.textContent?.trim())
     .filter(Boolean)
 }
 
-async function cardRow(ticker: string) {
+async function cardRow(label: string) {
   const table = (await screen.findAllByRole('table'))[0]
   const row = within(table)
     .getAllByRole('row')
-    .find((tr) => tr.textContent?.includes(ticker))
-  if (!row) throw new Error(`${ticker} 행이 없습니다`)
+    .find((tr) => tr.querySelector('.stock-name')?.textContent?.trim() === label)
+  if (!row) throw new Error(`${label} 행이 없습니다`)
   return row
+}
+
+/** jsdom에는 DataTransfer가 없다 — 끌어다 놓기에 필요한 만큼만 흉내 낸다 */
+function fakeDataTransfer() {
+  const store: Record<string, string> = {}
+  return {
+    effectAllowed: '',
+    dropEffect: '',
+    setData: (key: string, value: string) => {
+      store[key] = value
+    },
+    getData: (key: string) => store[key] ?? '',
+  }
+}
+
+/** 핸들을 잡아 다른 행 위에 놓는다 */
+function dragOnto(handle: HTMLElement, target: HTMLElement) {
+  const dataTransfer = fakeDataTransfer()
+  fireEvent.dragStart(handle, { dataTransfer })
+  fireEvent.dragOver(target, { dataTransfer })
+  fireEvent.drop(target, { dataTransfer })
 }
 
 beforeEach(() => {
@@ -193,26 +214,28 @@ describe('대시보드 · 통화 구분', () => {
     mockApi()
     renderDashboard()
 
-    const kr = await cardRow('005930.KS')
+    const kr = await cardRow('삼성전자')
     expect(within(kr).getByText('₩76,937')).toBeInTheDocument()
 
     const us = await cardRow('VOO')
     expect(within(us).getByText('$408.03')).toBeInTheDocument()
   })
 
-  it('종목마다 어느 시장인지 표시한다', async () => {
+  it('국내는 종목명, 해외는 티커로 적는다', async () => {
+    // 005930.KS는 사람이 읽고 무슨 회사인지 알 수 없고, 해외 종목은 티커가 곧 이름이다
     mockApi()
     renderDashboard()
 
-    expect(within(await cardRow('005930.KS')).getByText(/한국/)).toBeInTheDocument()
-    expect(within(await cardRow('VOO')).getByText(/미국/)).toBeInTheDocument()
+    expect(await nameOrder()).toEqual(['삼성전자', 'VOO'])
+    const kr = await cardRow('삼성전자')
+    expect(kr.textContent).not.toContain('005930.KS')
   })
 
   it('매수 추천 금액도 해당 종목의 통화로 보여준다', async () => {
     mockApi()
     renderDashboard()
 
-    expect(within(await cardRow('005930.KS')).getByText(/₩500,000/)).toBeInTheDocument()
+    expect(within(await cardRow('삼성전자')).getByText(/₩500,000/)).toBeInTheDocument()
     expect(within(await cardRow('VOO')).getByText(/\$300\.00/)).toBeInTheDocument()
   })
 
@@ -273,60 +296,183 @@ describe('대시보드 · 상태 표시', () => {
   })
 })
 
-describe('대시보드 · 종목 순서와 설정', () => {
-  it('순서를 바꾸면 화면이 바로 바뀌고 서버에 저장된다', async () => {
+describe('대시보드 · 조건 표시', () => {
+  it('조건은 그 조건이 나온 지표 칸에 붙는다', async () => {
+    // "DI 약세"가 어느 숫자에서 나온 말인지 눈으로 이어지게 하는 것이 요점이다
+    mockApi([
+      card({
+        ticker: 'VOO',
+        indicators: { ...INDICATORS, close: 100, plus_di: 24.6, minus_di: 28.3, adx: 9 },
+        knee_conditions: {
+          di_bearish: true,
+          disparity_negative: true,
+          volatility_or_volume: false,
+          adx_trending: false,
+        },
+      }),
+    ])
+    renderDashboard()
+
+    const row = await cardRow('VOO')
+    const cells = within(row).getAllByRole('cell')
+    // 순서 / 종목 / 현재가 / 이격도 / ADX / DI / 거래량비 / 200일선 / 신호등 / 매수
+    expect(cells[4].textContent).toContain('ADX > 20')
+    expect(cells[5].textContent).toContain('DI 약세')
+    expect(cells[6].textContent).toContain('변동성·거래량')
+    // 종합 신호등 칸에는 더 이상 조건을 늘어놓지 않는다
+    expect(cells[8].textContent).not.toContain('DI 약세')
+  })
+
+  it('충족과 미충족을 기호로 구분한다', async () => {
+    mockApi([
+      card({
+        ticker: 'VOO',
+        knee_conditions: {
+          di_bearish: true,
+          disparity_negative: false,
+          volatility_or_volume: null,
+          adx_trending: true,
+        },
+      }),
+    ])
+    renderDashboard()
+
+    const row = await cardRow('VOO')
+    expect(within(row).getByText('✓ DI 약세')).toBeInTheDocument()
+    expect(within(row).getByText('· 이격도 < 0')).toBeInTheDocument()
+    // 판정 불가는 미충족과 다르다 (데이터가 모자란 것이지 조건이 틀린 게 아니다)
+    expect(within(row).getByText('? 변동성·거래량')).toBeInTheDocument()
+  })
+})
+
+describe('대시보드 · 차트 열기', () => {
+  it('종목 이름을 누르면 차트가 뜬다', async () => {
+    mockApi()
+    const history = vi.spyOn(api, 'getHistory').mockResolvedValue({
+      ticker: '005930.KS',
+      prices: [],
+      markers: [],
+    })
+    const user = userEvent.setup()
+    renderDashboard()
+
+    await user.click(await screen.findByRole('button', { name: '삼성전자' }))
+
+    expect(await screen.findByRole('dialog', { name: /삼성전자 차트/ })).toBeInTheDocument()
+    await waitFor(() => expect(history).toHaveBeenCalledWith('005930.KS', '1y'))
+  })
+})
+
+describe('대시보드 · 종목 순서', () => {
+  it('끌어다 놓으면 그 자리로 옮겨지고 저장된다', async () => {
+    mockApi()
+    const save = vi.spyOn(api, 'updateStockOrder').mockResolvedValue([])
+    renderDashboard()
+
+    expect(await nameOrder()).toEqual(['삼성전자', 'VOO'])
+
+    const handle = screen.getByRole('button', { name: 'VOO 순서 바꾸기' })
+    dragOnto(handle, await cardRow('삼성전자'))
+
+    // 응답을 기다리지 않고 바로 바뀌어 보여야 한다
+    expect(await nameOrder()).toEqual(['VOO', '삼성전자'])
+    await waitFor(() => expect(save).toHaveBeenCalledWith(['VOO', '005930.KS']))
+  })
+
+  it('키보드 화살표로도 옮길 수 있다', async () => {
+    // 끌어다 놓기만 되면 키보드를 쓰는 사람은 순서를 바꿀 방법이 없다
     mockApi()
     const save = vi.spyOn(api, 'updateStockOrder').mockResolvedValue([])
     const user = userEvent.setup()
     renderDashboard()
 
-    await cardRow('VOO')
-    expect(await tickerOrder()).toEqual(['005930.KS', 'VOO'])
+    const handle = await screen.findByRole('button', { name: 'VOO 순서 바꾸기' })
+    handle.focus()
+    await user.keyboard('{ArrowUp}')
 
-    await user.click(screen.getByRole('button', { name: 'VOO 위로' }))
-
-    // 응답을 기다리지 않고 바로 바뀌어 보여야 한다
-    expect(await tickerOrder()).toEqual(['VOO', '005930.KS'])
+    expect(await nameOrder()).toEqual(['VOO', '삼성전자'])
     await waitFor(() => expect(save).toHaveBeenCalledWith(['VOO', '005930.KS']))
   })
 
-  it('맨 위/맨 아래에서는 화살표를 누를 수 없다', async () => {
+  it('맨 위에서 더 올려도 아무 일도 일어나지 않는다', async () => {
     mockApi()
-    renderDashboard()
-
-    expect(await screen.findByRole('button', { name: '005930.KS 위로' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'VOO 아래로' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: '005930.KS 아래로' })).toBeEnabled()
-  })
-
-  it('저장에 실패하면 이유를 보여준다', async () => {
-    mockApi()
-    vi.spyOn(api, 'updateStockOrder').mockRejectedValue(new Error('백엔드가 응답하지 않습니다'))
+    const save = vi.spyOn(api, 'updateStockOrder').mockResolvedValue([])
     const user = userEvent.setup()
     renderDashboard()
 
-    await cardRow('VOO')
-    await user.click(screen.getByRole('button', { name: 'VOO 위로' }))
+    const handle = await screen.findByRole('button', { name: '삼성전자 순서 바꾸기' })
+    handle.focus()
+    await user.keyboard('{ArrowUp}')
 
-    expect(await screen.findByText(/백엔드가 응답하지 않습니다/)).toBeInTheDocument()
+    expect(await nameOrder()).toEqual(['삼성전자', 'VOO'])
+    expect(save).not.toHaveBeenCalled()
   })
 
-  it('설정 버튼으로 그 자리에서 종목을 고칠 수 있다', async () => {
+  it('저장에 실패하면 순서를 되돌리고 이유를 보여준다', async () => {
+    mockApi()
+    vi.spyOn(api, 'updateStockOrder').mockRejectedValue(new Error('백엔드가 응답하지 않습니다'))
+    renderDashboard()
+
+    await cardRow('VOO')
+    dragOnto(screen.getByRole('button', { name: 'VOO 순서 바꾸기' }), await cardRow('삼성전자'))
+
+    expect(await screen.findByText(/백엔드가 응답하지 않습니다/)).toBeInTheDocument()
+    expect(await nameOrder()).toEqual(['삼성전자', 'VOO'])
+  })
+})
+
+describe('대시보드 · 설정 모드', () => {
+  async function openSettings(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(await screen.findByRole('button', { name: /설정/ }))
+  }
+
+  it('보던 표가 그 자리에서 입력칸으로 바뀐다', async () => {
+    mockApi()
+    const user = userEvent.setup()
+    renderDashboard()
+    await openSettings(user)
+
+    // 종목은 그대로 있고, 값만 고칠 수 있게 된다
+    expect(await nameOrder()).toEqual(['삼성전자', 'VOO'])
+    expect(screen.getByLabelText('삼성전자 목표 비중')).toBeInTheDocument()
+    expect(screen.getByLabelText('VOO DCA 금액')).toBeInTheDocument()
+  })
+
+  it('고친 종목만 저장한다', async () => {
     mockApi()
     const update = vi.spyOn(api, 'updateStock').mockResolvedValue({} as never)
     const user = userEvent.setup()
     renderDashboard()
+    await openSettings(user)
 
-    await user.click(await screen.findByRole('button', { name: '005930.KS 설정' }))
+    await user.type(screen.getByLabelText('삼성전자 목표 비중'), '35')
+    await user.click(screen.getByRole('button', { name: '저장' }))
 
-    const dialog = screen.getByRole('dialog', { name: /삼성전자 설정/ })
-    await user.clear(within(dialog).getByLabelText('목표 비중 (%)'))
-    await user.type(within(dialog).getByLabelText('목표 비중 (%)'), '35')
-    await user.click(within(dialog).getByRole('button', { name: '저장' }))
+    await waitFor(() => expect(update).toHaveBeenCalledTimes(1))
+    expect(update).toHaveBeenCalledWith('005930.KS', expect.objectContaining({ target_weight_pct: 35 }))
+  })
 
-    await waitFor(() =>
-      expect(update).toHaveBeenCalledWith('005930.KS', expect.objectContaining({ target_weight_pct: 35 })),
-    )
+  it('고친 값이 없으면 저장할 것도 없다', async () => {
+    mockApi()
+    const user = userEvent.setup()
+    renderDashboard()
+    await openSettings(user)
+
+    expect(screen.getByRole('button', { name: '저장' })).toBeDisabled()
+  })
+
+  it('되돌리기를 누르면 고치던 값이 원래대로 돌아간다', async () => {
+    mockApi()
+    const update = vi.spyOn(api, 'updateStock').mockResolvedValue({} as never)
+    const user = userEvent.setup()
+    renderDashboard()
+    await openSettings(user)
+
+    await user.type(screen.getByLabelText('VOO DCA 금액'), '300')
+    await user.click(screen.getByRole('button', { name: '되돌리기' }))
+
+    expect(screen.getByLabelText('VOO DCA 금액')).toHaveValue('0')
+    expect(update).not.toHaveBeenCalled()
   })
 
   it('완전 삭제는 한 번 더 확인을 받는다', async () => {
@@ -334,16 +480,29 @@ describe('대시보드 · 종목 순서와 설정', () => {
     const purge = vi.spyOn(api, 'purgeStock').mockResolvedValue(undefined)
     const user = userEvent.setup()
     renderDashboard()
+    await openSettings(user)
 
-    await user.click(await screen.findByRole('button', { name: 'VOO 설정' }))
-    const dialog = screen.getByRole('dialog', { name: /VOO 설정/ })
+    const row = await cardRow('VOO')
+    await user.click(within(row).getByRole('button', { name: '완전 삭제' }))
 
-    await user.click(within(dialog).getByRole('button', { name: '완전 삭제' }))
     // 아직 지우면 안 된다 — 되돌릴 수 없는 동작이다
     expect(purge).not.toHaveBeenCalled()
-    expect(within(dialog).getByText(/되돌릴 수 없고/)).toBeInTheDocument()
+    expect(screen.getByText(/되돌릴 수 없고/)).toBeInTheDocument()
 
-    await user.click(within(dialog).getByRole('button', { name: '네, 완전히 지웁니다' }))
+    await user.click(screen.getByRole('button', { name: '네, 완전히 지웁니다' }))
     await waitFor(() => expect(purge).toHaveBeenCalledWith('VOO'))
+  })
+
+  it('감추기는 확인 없이 바로 내린다 (되돌릴 수 있는 동작이다)', async () => {
+    mockApi()
+    const hide = vi.spyOn(api, 'deactivateStock').mockResolvedValue({} as never)
+    const user = userEvent.setup()
+    renderDashboard()
+    await openSettings(user)
+
+    const row = await cardRow('VOO')
+    await user.click(within(row).getByRole('button', { name: '감추기' }))
+
+    await waitFor(() => expect(hide).toHaveBeenCalledWith('VOO'))
   })
 })

@@ -1,6 +1,7 @@
 import datetime as dt
 
 import numpy as np
+import pytest
 import pandas as pd
 
 from app.models import IndicatorDaily, PriceDaily, Stock
@@ -259,3 +260,101 @@ def test_mixed_history_has_no_single_preference(db_session):
         data_ingestion.upsert_prices(db_session, "005930.KS", df)
 
     assert data_ingestion.stored_source(db_session, "005930.KS") is None
+
+
+def test_unchanged_rows_are_not_written_again(db_session, monkeypatch):
+    """두 번째 갱신에서 값이 그대로면 아무것도 다시 쓰지 않아야 한다.
+
+    지표는 매번 전 구간을 다시 계산한다(중간이 틀어지는 걸 막기 위해서다). 그 결과를
+    통째로 다시 저장하면 10년치 종목 하나에 수백 ms가 든다 — 어제와 똑같은 값인데도.
+    """
+    db_session.add(Stock(ticker="TST", target_weight_pct=0.0))
+    db_session.commit()
+
+    df = _fake_price_df(300)
+    data_ingestion.upsert_prices(db_session, "TST", df)
+    indicator_df = data_ingestion.recompute_indicators(db_session, "TST")
+    data_ingestion.recompute_signals(db_session, "TST", indicator_df)
+
+    written = []
+    original = data_ingestion._write
+
+    def spy(db, model, inserts, updates):
+        written.append((model.__name__, len(inserts), len(updates)))
+        original(db, model, inserts, updates)
+
+    monkeypatch.setattr(data_ingestion, "_write", spy)
+
+    assert data_ingestion.upsert_prices(db_session, "TST", df) == 0
+    again = data_ingestion.recompute_indicators(db_session, "TST")
+    data_ingestion.recompute_signals(db_session, "TST", again)
+
+    assert written == [("PriceDaily", 0, 0), ("IndicatorDaily", 0, 0), ("SignalDaily", 0, 0)]
+
+    # 값도 그대로여야 한다 (안 쓴 게 아니라 못 쓴 것이면 곤란하다)
+    latest = (
+        db_session.query(IndicatorDaily)
+        .filter_by(ticker="TST")
+        .order_by(IndicatorDaily.date.desc())
+        .first()
+    )
+    assert latest.ma20 == pytest.approx(indicator_df["ma20"].iloc[-1])
+
+
+def test_changed_row_is_updated_in_place(db_session):
+    """값이 바뀐 행만 갱신된다 — 나머지 행은 건드리지 않는다."""
+    db_session.add(Stock(ticker="TST", target_weight_pct=0.0))
+    db_session.commit()
+
+    df = _fake_price_df(10)
+    data_ingestion.upsert_prices(db_session, "TST", df)
+
+    fixed = df.copy()
+    fixed.iloc[3, fixed.columns.get_loc("close")] = 999.0
+    assert data_ingestion.upsert_prices(db_session, "TST", fixed) == 1
+
+    rows = (
+        db_session.query(PriceDaily)
+        .filter_by(ticker="TST")
+        .order_by(PriceDaily.date.asc())
+        .all()
+    )
+    assert len(rows) == 10
+    assert rows[3].close == 999.0
+    assert rows[4].close == pytest.approx(df["close"].iloc[4])
+
+
+def test_fetch_many_returns_result_per_ticker(monkeypatch):
+    """여러 종목을 동시에 받아도 결과는 종목별로 제자리에 담긴다."""
+    calls = []
+
+    def fake_fetch(ticker, period="2y", prefer=None):
+        calls.append((ticker, period, prefer))
+        if ticker == "BAD":
+            raise data_ingestion.DataIngestionError("no data", hint="나중에 다시")
+        return _fake_price_df(5)
+
+    monkeypatch.setattr(data_ingestion, "fetch_price_history", fake_fetch)
+
+    out = data_ingestion.fetch_many([("VOO", "yahoo"), ("BAD", None), ("005930.KS", "naver")])
+
+    assert set(out) == {"VOO", "BAD", "005930.KS"}
+    assert isinstance(out["VOO"], pd.DataFrame)
+    # 한 종목이 실패해도 예외로 번지지 않고 그 자리에만 담긴다
+    assert isinstance(out["BAD"], data_ingestion.DataIngestionError)
+    assert out["BAD"].hint == "나중에 다시"
+    # 지금까지 받아온 제공자를 그대로 넘겨야 출처가 섞이지 않는다
+    assert ("005930.KS", "2y", "naver") in calls
+
+
+def test_fetch_many_does_not_raise_on_unexpected_error(monkeypatch):
+    """제공자 계층이 못 잡은 예외도 그 종목의 실패로만 남아야 한다."""
+
+    def boom(ticker, period="2y", prefer=None):
+        raise ValueError("예상 못 한 오류")
+
+    monkeypatch.setattr(data_ingestion, "fetch_price_history", boom)
+
+    out = data_ingestion.fetch_many([("VOO", None)])
+    assert isinstance(out["VOO"], data_ingestion.DataIngestionError)
+    assert "ValueError" in str(out["VOO"])

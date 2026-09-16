@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isEdge, moveOne } from './reorder'
+import { moveOne, moveTo } from './reorder'
 
 const ALL = ['A', 'B', 'C', 'D']
 
@@ -45,15 +45,26 @@ describe('필터가 걸려 있을 때', () => {
   })
 })
 
-describe('끝 판정', () => {
-  it('보이는 목록 기준으로 판단한다', () => {
-    expect(isEdge(['A', 'C'], 'A', 'up')).toBe(true)
-    expect(isEdge(['A', 'C'], 'A', 'down')).toBe(false)
-    expect(isEdge(['A', 'C'], 'C', 'down')).toBe(true)
+describe('끌어다 놓기', () => {
+  it('아래로 끌면 놓은 행 뒤에 들어간다', () => {
+    expect(moveTo(ALL, 'A', 'C')).toEqual(['B', 'C', 'A', 'D'])
   })
 
-  it('목록에 없으면 움직일 수 없는 것으로 본다', () => {
-    expect(isEdge(['A'], 'Z', 'up')).toBe(true)
-    expect(isEdge(['A'], 'Z', 'down')).toBe(true)
+  it('위로 끌면 놓은 행 앞에 들어간다', () => {
+    expect(moveTo(ALL, 'D', 'B')).toEqual(['A', 'D', 'B', 'C'])
+  })
+
+  it('제자리에 놓으면 그대로', () => {
+    expect(moveTo(ALL, 'B', 'B')).toEqual(ALL)
+  })
+
+  it('목록에 없는 항목은 무시한다', () => {
+    expect(moveTo(ALL, 'Z', 'B')).toEqual(ALL)
+    expect(moveTo(ALL, 'B', 'Z')).toEqual(ALL)
+  })
+
+  it('맨 끝으로 끌 수 있다', () => {
+    expect(moveTo(ALL, 'A', 'D')).toEqual(['B', 'C', 'D', 'A'])
+    expect(moveTo(ALL, 'D', 'A')).toEqual(['D', 'A', 'B', 'C'])
   })
 })

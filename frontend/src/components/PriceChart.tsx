@@ -18,16 +18,16 @@ export const MARKER_COLOR: Record<string, string> = {
   shoulder_ref: '#f0b429',
 }
 const MARKER_LABEL: Record<string, string> = {
-  buy_signal: '무릎매수(시그널)',
-  buy_fallback: '무릎매수(폴백)',
-  shoulder_ref: '어깨매도(참고)',
+  buy_signal: '매수 시그널',
+  buy_fallback: '정기 매수',
+  shoulder_ref: '매도 시그널',
 }
 
 /** 같은 흐름으로 볼 최대 간격(일). 주말/공휴일을 건너뛰어도 연속으로 인정하도록 넉넉히 잡는다. */
 const STREAK_GAP_DAYS = 4
 
 /**
- * 어깨매도(참고)는 며칠씩 연달아 뜨기 때문에 그대로 찍으면 라벨이 서로 겹쳐 읽을 수 없다.
+ * 매도 시그널은 며칠씩 연달아 뜨기 때문에 그대로 찍으면 라벨이 서로 겹쳐 읽을 수 없다.
  * 연속 발동 구간을 하나로 묶어 시작일에만 표시하고, 며칠짜리였는지를 라벨에 적는다.
  */
 export function collapseStreaks<T extends { date: string }>(items: T[]): { head: T; length: number }[] {
@@ -87,7 +87,7 @@ interface Props {
 }
 
 /**
- * 로그 스케일 종가 차트 + 매수/어깨매도 마커.
+ * 로그 스케일 종가 차트 + 매수/매도 시그널 마커.
  *
  * 차트를 붙일 DOM을 `useRef`가 아니라 **콜백 ref + state**로 받는다. ref는 값이
  * 채워져도 다시 렌더되지 않아서, 컨테이너가 나중에 나타나는 화면(종목을 불러오는
@@ -138,7 +138,7 @@ export function PriceChart({ history, height = 440 }: Props) {
       history.prices.map((p) => ({ time: p.date as Time, value: p.close })),
     )
 
-    // 매수는 기간당 한 번뿐이라 그대로 찍고, 어깨매도는 연속 구간을 묶어 겹침을 없앤다.
+    // 매수는 기간당 한 번뿐이라 그대로 찍고, 매도 시그널은 연속 구간을 묶어 겹침을 없앤다.
     const buyMarkers: SeriesMarker<Time>[] = history.markers
       .filter((m) => m.kind !== 'shoulder_ref')
       .map((m) => ({
@@ -156,7 +156,7 @@ export function PriceChart({ history, height = 440 }: Props) {
       position: 'aboveBar',
       color: MARKER_COLOR.shoulder_ref,
       shape: 'circle',
-      text: length > 1 ? `어깨매도 ${length}일` : '어깨매도',
+      text: length > 1 ? `매도 시그널 ${length}일` : '매도 시그널',
     }))
 
     const markers = [...buyMarkers, ...shoulderMarkers].sort((a, b) =>
@@ -199,15 +199,15 @@ export function ChartLegend({
     <div className="legend-row">
       <span>
         <i className="legend-dot" style={{ background: MARKER_COLOR.buy_signal }} aria-hidden="true" />
-        무릎매수(시그널) {counts.buy_signal}건
+        매수 시그널 {counts.buy_signal}건
       </span>
       <span>
         <i className="legend-dot" style={{ background: MARKER_COLOR.buy_fallback }} aria-hidden="true" />
-        무릎매수(폴백) {counts.buy_fallback}건
+        정기 매수 {counts.buy_fallback}건
       </span>
       <span>
         <i className="legend-dot" style={{ background: MARKER_COLOR.shoulder_ref }} aria-hidden="true" />
-        어깨매도(참고) {counts.shoulderStreaks}구간 · {counts.shoulderDays}일
+        매도 시그널 {counts.shoulderStreaks}구간 · {counts.shoulderDays}일
       </span>
       <span className="hint">
         {loading

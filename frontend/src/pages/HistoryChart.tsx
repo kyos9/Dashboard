@@ -60,7 +60,7 @@ export function HistoryChart() {
         <div>
           <h2>히스토리 차트</h2>
           <p className="hint">
-            로그 스케일 종가 차트에 매수 실행일과 어깨매도(참고) 발동일을 표시합니다.
+            로그 스케일 종가 차트에 매수 실행일과 매도 시그널 발동일을 표시합니다.
           </p>
         </div>
       </div>

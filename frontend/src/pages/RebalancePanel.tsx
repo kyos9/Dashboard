@@ -454,7 +454,7 @@ export function RebalancePanel() {
                         </span>
                       ))}
                       {row.current.shoulder_signal_fired_in_period && (
-                        <span className="badge badge-amber">기간 내 어깨매도 발동</span>
+                        <span className="badge badge-amber">기간 내 매도 시그널</span>
                       )}
                       {!row.current.rebalance_signal.active &&
                         !row.current.shoulder_signal_fired_in_period && (
