@@ -3,6 +3,7 @@ import { useAppState } from '../AppState'
 import { api } from '../api/client'
 import { ErrorNotice } from '../components/ErrorNotice'
 import { amount, CURRENCY_META, num, price, qty, signed, signedAmount } from '../lib/display'
+import { buildOrderPlan, NOISE_THRESHOLD_PCT } from '../lib/orderPlan'
 import type {
   Currency,
   FxInfo,
@@ -12,22 +13,6 @@ import type {
   Settings,
   Stock,
 } from '../types'
-
-/** 조정 필요금액이 총자산의 이 비율 미만이면 주문하지 않고 "유지"로 본다 (거래비용 대비 실익 없음) */
-const NOISE_THRESHOLD_PCT = 0.5
-
-/**
- * 기준통화 금액을 그 종목을 실제로 거래하는 통화로 되돌린다.
- *
- * 비중과 목표 금액은 기준통화로 계산해야 맞지만, 주문은 현지 통화로 넣는다.
- * 주수를 구할 때도 현지 종가로 나눠야 하므로 이 환산이 필요하다.
- */
-function toNative(valueBase: number, currency: Currency, base: Currency, usdKrw: number): number {
-  if (currency === base || !usdKrw) return valueBase
-  if (base === 'KRW' && currency === 'USD') return valueBase / usdKrw
-  if (base === 'USD' && currency === 'KRW') return valueBase * usdKrw
-  return valueBase
-}
 
 interface Row {
   ticker: string
@@ -202,35 +187,19 @@ export function RebalancePanel() {
     }
   }
 
-  const plan = useMemo(() => {
-    // 평가금액 합계·목표 금액·비중은 전부 기준통화로 계산한다.
-    // 통화가 섞인 상태에서 현지 금액끼리 더하면 (원화 80만 + 달러 1000) 숫자가 무의미해진다.
-    const usdKrw = fx?.usd_krw ?? 0
-    const holdingsTotal = rows.reduce((s, r) => s + r.current.current_value_base, 0)
-    const parsed = Number(totalOverride.replace(/,/g, ''))
-    const total = totalOverride.trim() !== '' && Number.isFinite(parsed) && parsed > 0 ? parsed : holdingsTotal
-    const targetSum = rows.reduce((s, r) => s + r.current.target_weight_pct, 0)
+  const plan = useMemo(
+    () =>
+      buildOrderPlan(
+        rows.map((r) => r.current),
+        baseCurrency,
+        fx?.usd_krw ?? 0,
+        totalOverride,
+      ),
+    [rows, totalOverride, baseCurrency, fx],
+  )
 
-    const orders = rows.map((r) => {
-      const targetValue = (total * r.current.target_weight_pct) / 100
-      const adjust = targetValue - r.current.current_value_base
-      // 주문은 현지 통화로 넣고, 주수도 현지 종가로 나눠야 맞는다
-      const adjustNative = toNative(adjust, r.current.currency, baseCurrency, usdKrw)
-      const close = r.current.last_close
-      const shares = close && close > 0 ? adjustNative / close : null
-      const material = total > 0 && Math.abs(adjust) / total > NOISE_THRESHOLD_PCT / 100
-      return {
-        row: r,
-        targetValue,
-        adjust,
-        adjustNative,
-        shares,
-        action: !material ? ('hold' as const) : adjust > 0 ? ('buy' as const) : ('sell' as const),
-      }
-    })
-
-    return { holdingsTotal, total, targetSum, orders, cash: total - holdingsTotal }
-  }, [rows, totalOverride, baseCurrency, fx])
+  /** 주문 계획은 티커만 들고 있으므로, 화면에 필요한 나머지 정보를 여기서 붙인다 */
+  const rowByTicker = useMemo(() => new Map(rows.map((r) => [r.ticker, r])), [rows])
 
   const hasMixedCurrencies = useMemo(
     () => new Set(rows.map((r) => r.current.currency)).size > 1,
@@ -419,8 +388,9 @@ export function RebalancePanel() {
               </tr>
             </thead>
             <tbody>
-              {plan.orders.map(({ row, targetValue, adjust, adjustNative, shares, action }) => {
-                const native = row.current.currency
+              {plan.orders.map(({ ticker, currency: native, targetValue, adjust, adjustNative, shares, action }) => {
+                const row = rowByTicker.get(ticker)
+                if (!row) return null
                 const isForeign = native !== baseCurrency
                 return (
                 <tr key={row.ticker}>

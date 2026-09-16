@@ -42,7 +42,7 @@ const STREAK_GAP_DAYS = 4
  * 어깨매도(참고)는 며칠씩 연달아 뜨기 때문에 그대로 찍으면 라벨이 서로 겹쳐 읽을 수 없다.
  * 연속 발동 구간을 하나로 묶어 시작일에만 표시하고, 며칠짜리였는지를 라벨에 적는다.
  */
-function collapseStreaks<T extends { date: string }>(items: T[]): { head: T; length: number }[] {
+export function collapseStreaks<T extends { date: string }>(items: T[]): { head: T; length: number }[] {
   const sorted = [...items].sort((a, b) => a.date.localeCompare(b.date))
   const groups: { head: T; length: number; tail: string }[] = []
   const asDays = (d: string) => new Date(`${d}T00:00:00Z`).getTime() / 86_400_000

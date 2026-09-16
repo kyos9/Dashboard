@@ -149,10 +149,17 @@ HTTPS → curl_cffi → yfinance → 앱 수집 경로 순으로 나눠 검사�
 ## 테스트
 
 ```bash
-cd backend
-source .venv/bin/activate
-pytest
+# 백엔드
+cd backend && source .venv/bin/activate && pytest
+
+# 프런트엔드
+cd frontend && npm test
 ```
+
+커버리지를 함께 보려면 `pytest --cov=app` / `npm run test:coverage`.
+두 테스트 모두 실제 네트워크를 쓰지 않습니다 — 백엔드는 conftest가 바깥 요청을 막고,
+프런트엔드는 API 호출을 가짜로 대체합니다. 네트워크 상태에 따라 결과가 흔들리지
+않아야 하고, 시세 서버가 막힌 환경에서도 그대로 돌아가야 하기 때문입니다.
 
 지표(MA/StdDev/ROC/이격도/Wilder DMI-ADX), 시그널 조건식, 매수 워크플로우, 리밸런싱/비중조절
 신호, API 라우터까지 단위·통합 테스트로 커버되어 있습니다. yfinance 실제 호출은 네트워크가
@@ -168,7 +175,19 @@ pytest
 
 `tests/test_symbols.py`는 종목명 해석을, `tests/test_fx.py`는 환율 적용 순서를,
 `tests/test_rebalance.py`는 통화가 섞였을 때 비중이 기준통화로 환산돼 계산되는지를 확인합니다.
-`tests/test_markets.py`는 내장 종목 목록의 형식(6자리 코드·중복 없음)까지 검사합니다.
+`tests/test_markets.py`는 내장 종목 목록의 형식(6자리 코드·중복 없음)까지 검사하고,
+`tests/test_migration.py`는 **기존 DB 파일이 데이터 손실 없이 새 스키마로 올라오는지**를
+옛 스키마를 직접 만들어 확인합니다.
+
+프런트엔드(`npm test`)는 계산과 표기를 나눠 검증합니다.
+
+- `src/lib/orderPlan.test.ts` — 주문 계획의 통화 환산. 비중·목표 금액은 기준통화로,
+  주문 금액과 주수는 현지 통화로 나오는지 (여기가 틀리면 주문 주수가 환율만큼 어긋납니다)
+- `src/lib/display.test.ts` — 통화별 표기(원화 정수 / 달러 센트), 지표 해석, 신호등 판정
+- `src/pages/*.test.tsx` — 화면에 실제로 원화·달러가 맞게 찍히는지, 합계가 통화를
+  섞어 더하지 않는지
+- `src/components/SymbolSearch.test.tsx` — 종목명 검색·후보 선택·키보드 조작
+- `src/api/client.test.ts` — 백엔드 오류의 안내(hint)와 기술적 원인(detail) 분리
 
 ## 알려진 제약
 
