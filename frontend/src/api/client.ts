@@ -11,6 +11,7 @@ import type {
   ListingStatus,
   SymbolMatch,
   HealthInfo,
+  LogsResponse,
   Stock,
   StockCreateInput,
   StockCreateResult,
@@ -129,4 +130,9 @@ export const api = {
   refreshFx: () => request<FxInfo>('/rebalance/fx/refresh', { method: 'POST' }),
 
   getRebalanceCurrent: () => request<RebalanceCurrent>('/rebalance/current'),
+
+  getLogs: (level: 'warning' | 'all' = 'warning') =>
+    request<LogsResponse>(`/logs?level=${level}`),
+  /** 로그 파일 원본 주소. fetch가 아니라 브라우저가 직접 받게 둔다 */
+  logsDownloadUrl: () => `${BASE}/logs/download`,
 }

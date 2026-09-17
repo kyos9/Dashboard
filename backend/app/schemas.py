@@ -271,3 +271,20 @@ class RebalanceTargetUpdate(BaseModel):
     rebalance_band_pct: Optional[float] = None
     rebalance_period: Optional[RebalancePeriod] = None
     review_date_override: Optional[dt.date] = None
+
+
+class LogEntry(BaseModel):
+    time: str
+    level: str
+    logger: str
+    message: str
+
+
+class LogsOut(BaseModel):
+    available: bool  # 파일이 있고 읽혔는지
+    path: str
+    size_bytes: int
+    modified_at: Optional[dt.datetime]
+    level: str  # 걸러낸 기준 (warning | all)
+    entries: list[LogEntry]  # 최신이 앞
+    counts: dict[str, int]  # 읽어들인 구간의 레벨별 건수

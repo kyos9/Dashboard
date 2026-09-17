@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { useAppState } from '../AppState'
 import { api } from '../api/client'
+import { DiagnosticsModal } from './DiagnosticsModal'
 import type { HealthInfo } from '../types'
 
 type Theme = 'dark' | 'light'
@@ -29,6 +30,7 @@ export function AppHeader() {
   const { refreshAll, refreshing, lastSync, refreshError } = useAppState()
   const [theme, setTheme] = useState<Theme>(readStoredTheme)
   const [health, setHealth] = useState<HealthInfo | null>(null)
+  const [showDiagnostics, setShowDiagnostics] = useState(false)
 
   // 실행 중인 백엔드 버전을 헤더에 띄운다 — 업데이트 후 서버를 다시 켰는지 한눈에 확인하려고.
   useEffect(() => {
@@ -90,6 +92,13 @@ export function AppHeader() {
           </button>
           <button
             className="ghost"
+            onClick={() => setShowDiagnostics(true)}
+            title="서버가 남긴 경고·오류 보기"
+          >
+            진단
+          </button>
+          <button
+            className="ghost"
             onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
             aria-label={theme === 'dark' ? '밝은 테마로 전환' : '어두운 테마로 전환'}
             title={theme === 'dark' ? '밝은 테마로 전환' : '어두운 테마로 전환'}
@@ -118,6 +127,8 @@ export function AppHeader() {
           </NavLink>
         ))}
       </nav>
+
+      {showDiagnostics && <DiagnosticsModal onClose={() => setShowDiagnostics(false)} />}
     </>
   )
 }

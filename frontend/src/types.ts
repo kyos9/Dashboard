@@ -235,3 +235,20 @@ export interface HealthInfo {
   /** 시장별 제공자 순서 (국내는 네이버를 먼저 쓴다) */
   providers_by_market: Record<Market, string[]>
 }
+
+export interface LogEntry {
+  time: string
+  level: string
+  logger: string
+  message: string
+}
+
+export interface LogsResponse {
+  available: boolean
+  path: string
+  size_bytes: number
+  modified_at: string | null
+  level: 'warning' | 'all'
+  entries: LogEntry[]
+  counts: Record<string, number>
+}

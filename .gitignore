@@ -19,6 +19,9 @@ dist/
 .env
 .env.local
 
+# 실행 중 쌓이는 로그 (진단 화면이 읽는 파일)
+backend/logs/
+
 # 커버리지 측정 산출물
 .coverage
 htmlcov/
