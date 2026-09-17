@@ -306,3 +306,20 @@ def test_catch_up_does_nothing_when_prices_are_current(db_session, monkeypatch):
         lambda db, market=None: (_ for _ in ()).throw(AssertionError("갱신하면 안 된다")),
     )
     assert pipeline.refresh_stale_markets(db_session) == {}
+
+
+def test_a_second_process_does_not_start_a_second_scheduler(monkeypatch):
+    """자물쇠를 못 잡으면 조용히 안 띄운다 (leader.py).
+
+    이게 없으면 워커를 늘리는 순간 같은 시각에 같은 종목을 여러 번 받아온다.
+    """
+
+    class Taken:
+        def acquire(self):
+            return False
+
+        def release(self):
+            pass
+
+    monkeypatch.setattr(scheduler, "_lock", Taken())
+    assert scheduler.start_scheduler() is None

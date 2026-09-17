@@ -24,11 +24,15 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 from app.db import SessionLocal
 from app.markets import Market
+from app.services.leader import SchedulerLock
 from app.services.pipeline import refresh_all_active_stocks
 
 logger = logging.getLogger(__name__)
 
 _scheduler: BackgroundScheduler | None = None
+
+# 여럿이 떠도 스케줄러는 하나만 돈다 (leader.py 참고)
+_lock = SchedulerLock()
 
 
 def _refresh(market: Market | None, label: str) -> None:
@@ -115,10 +119,14 @@ def _soon(seconds: int) -> dt.datetime:
 MISFIRE_GRACE_SECONDS = 3600
 
 
-def start_scheduler() -> BackgroundScheduler:
+def start_scheduler() -> BackgroundScheduler | None:
+    """스케줄러를 띄운다. **다른 프로세스가 이미 맡고 있으면 띄우지 않고 None.**"""
     global _scheduler
     if _scheduler is not None:
         return _scheduler
+    if not _lock.acquire():
+        logger.info("다른 프로세스가 스케줄러를 맡고 있어 여기서는 띄우지 않습니다")
+        return None
     scheduler = BackgroundScheduler(timezone="UTC")
     scheduler.add_job(
         _daily_refresh_job, "cron", hour=22, minute=30, id="daily_refresh",
@@ -159,3 +167,4 @@ def shutdown_scheduler() -> None:
     if _scheduler is not None:
         _scheduler.shutdown(wait=False)
         _scheduler = None
+    _lock.release()

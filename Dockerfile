@@ -59,6 +59,7 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
     CMD curl --fail --silent http://127.0.0.1:8000/api/health || exit 1
 
-# 워커를 여럿 띄우지 않는다. 스케줄러가 앱 안에서 돌기 때문에 워커마다 하나씩 생겨
-# 같은 갱신이 여러 번 나간다. (분리는 ROADMAP 5단계)
+# 워커는 하나로 둔다. 스케줄러가 앱 안에서 돌기 때문에 워커마다 하나씩 생긴다.
+# (Postgres를 쓰면 app/services/leader.py 의 자물쇠가 실제로 막아주지만, 그건
+#  실수를 받아내는 장치이고 기본 구성은 하나로 둔다.)
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
