@@ -107,15 +107,9 @@ def fetch_usd_krw(timeout: int = 15) -> float | None:
 
 
 def _settings(db: Session):
-    from app.models import PortfolioSettings
+    from app.services.settings import get_settings
 
-    settings = db.query(PortfolioSettings).first()
-    if settings is None:
-        settings = PortfolioSettings(id=1)
-        db.add(settings)
-        db.commit()
-        db.refresh(settings)
-    return settings
+    return get_settings(db)
 
 
 def get_usd_krw(db: Session) -> FxRate:

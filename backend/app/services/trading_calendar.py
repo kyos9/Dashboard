@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import threading
 import warnings
 from functools import lru_cache
 from zoneinfo import ZoneInfo
@@ -31,8 +32,25 @@ _TIMEZONES: dict[Market, ZoneInfo] = {
 }
 
 
+# 캘린더를 만드는 일은 한 번에 하나씩만.
+#
+# `lru_cache`는 저장소만 스레드 안전하지, **함수 본문이 동시에 실행되는 것은 막지
+# 않는다.** 캐시가 비어 있을 때 여러 스레드가 같이 들어가면 pandas_market_calendars
+# 안쪽의 공유 상태를 동시에 건드려 반쯤 만들어진 캘린더가 나온다
+# (`'XKRX' object has no attribute '_holidays'`,
+#  `Length of values (288) does not match length of index (245)`).
+#
+# 하필 **화면을 처음 열 때** 터진다. 대시보드는 열리면서 여러 API를 동시에 부르고,
+# 그때가 정확히 캐시가 비어 있는 순간이기 때문이다. 새로고침하면 캐시가 차 있어서
+# 멀쩡해지므로 "가끔 그러네" 하고 넘어가기 쉬운 종류의 고장이다.
+#
+# 캐시가 찬 뒤에는 사전 조회 한 번이라 잠금 비용이 사실상 없다.
+# (재진입 가능한 잠금인 이유: _schedule이 잠근 채로 _calendar를 부른다.)
+_BUILD_LOCK = threading.RLock()
+
+
 @lru_cache(maxsize=4)
-def _calendar(market: Market):
+def _build_calendar(market: Market):
     # XKRX는 점심 휴장(break_start/break_end)이 폐지됐다는 경고를 내는데,
     # 우리는 일봉만 쓰므로 장중 시간표와 무관하다.
     with warnings.catch_warnings():
@@ -40,11 +58,21 @@ def _calendar(market: Market):
         return mcal.get_calendar(_CALENDAR_NAMES[market])
 
 
+def _calendar(market: Market):
+    with _BUILD_LOCK:
+        return _build_calendar(market)
+
+
 @lru_cache(maxsize=256)
-def _schedule(market: Market, start: dt.date, end: dt.date):
+def _build_schedule(market: Market, start: dt.date, end: dt.date):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
         return _calendar(market).schedule(start_date=start, end_date=end)
+
+
+def _schedule(market: Market, start: dt.date, end: dt.date):
+    with _BUILD_LOCK:
+        return _build_schedule(market, start, end)
 
 
 def market_today(market: Market = Market.US) -> dt.date:

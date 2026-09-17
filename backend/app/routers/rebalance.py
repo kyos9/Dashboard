@@ -17,6 +17,7 @@ from app.schemas import (
 )
 from app.services import fx as fx_service
 from app.services import rebalance as rebalance_service
+from app.services import settings as settings_service
 
 router = APIRouter(prefix="/api/rebalance", tags=["rebalance"])
 
@@ -99,21 +100,12 @@ def _settings_out(db: Session, settings: PortfolioSettings) -> SettingsOut:
 
 @router.get("/settings", response_model=SettingsOut)
 def get_settings(db: Session = Depends(get_db)):
-    settings = db.query(PortfolioSettings).first()
-    if settings is None:
-        settings = PortfolioSettings(id=1, default_rebalance_band_pct=5.0)
-        db.add(settings)
-        db.commit()
-        db.refresh(settings)
-    return _settings_out(db, settings)
+    return _settings_out(db, settings_service.get_settings(db))
 
 
 @router.put("/settings", response_model=SettingsOut)
 def update_settings(payload: SettingsUpdate, db: Session = Depends(get_db)):
-    settings = db.query(PortfolioSettings).first()
-    if settings is None:
-        settings = PortfolioSettings(id=1)
-        db.add(settings)
+    settings = settings_service.get_settings(db)
 
     # 보낸 필드만 반영한다 — 밴드만 바꾸려다 기준통화가 초기화되면 안 되므로.
     changes = payload.model_dump(exclude_unset=True)
