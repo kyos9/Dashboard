@@ -1573,7 +1573,10 @@ table.data-table tr.dirty:hover td {
   font-weight: 600;
   color: var(--text-faint);
   font-family: var(--font-mono);
-  white-space: nowrap;
+  /* 줄바꿈을 막으면 좁은 칸에서 조건이 잘린다 ("... 또는 >1." 처럼).
+     조건은 읽으라고 있는 글이므로 잘리느니 두 줄로 흐르게 둔다. */
+  white-space: normal;
+  word-break: keep-all;
 }
 
 /* 차트 아래 저장 구간 안내 */
