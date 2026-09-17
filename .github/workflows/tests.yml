@@ -18,8 +18,38 @@ concurrency:
 
 jobs:
   backend:
-    name: 백엔드 (pytest)
+    # 같은 테스트를 두 DB에서 돌린다.
+    #
+    # 내 PC는 SQLite, 서버는 Postgres다. SQLite는 타입에 느슨하고 외래키를 아예
+    # 검사하지 않아서, Postgres가 거절할 것을 조용히 받아준다. 한쪽만 돌리면 그 차이를
+    # **서버에서 처음** 알게 된다 — 가장 늦고 가장 나쁜 자리다.
+    #
+    # 특히 `0001_initial.py`가 Postgres에 실제로 적용되는지, 모델이 Postgres가 보는
+    # 스키마와 같은지(드리프트 검사)는 여기서만 확인된다.
+    name: 백엔드 (${{ matrix.db }})
     runs-on: ubuntu-latest
+    strategy:
+      # 한쪽이 깨져도 다른 쪽 결과는 끝까지 본다 — 어느 DB만의 문제인지가 중요하다.
+      fail-fast: false
+      matrix:
+        db: [SQLite, Postgres]
+
+    # 서비스는 조건부로 띄울 수 없어서 SQLite 쪽에서도 함께 뜬다 (몇 초 더 걸릴 뿐이다).
+    # 이미지는 docker-compose.yml과 같은 버전을 쓴다 — 17로 배포할 거면 17에서 검사한다.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: signal
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - uses: actions/checkout@v4
 
@@ -27,16 +57,23 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-          cache-dependency-path: backend/requirements.txt
+          cache-dependency-path: backend/requirements*.txt
 
       - name: 패키지 설치
-        run: pip install -r requirements.txt
+        # requirements-postgres.txt도 여기서 같이 설치해 본다 — 서버에서 쓸 파일이
+        # 실제로 설치되는지 확인하는 유일한 자리다.
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-postgres.txt
         working-directory: backend
 
       - name: 테스트
         # 네트워크는 conftest가 막아두므로 시세 서버가 막힌 곳에서도 그대로 돈다.
+        # TEST_DATABASE_URL이 비어 있으면 메모리 SQLite로 돈다 (tests/dbsetup.py).
         run: pytest -q
         working-directory: backend
+        env:
+          TEST_DATABASE_URL: ${{ matrix.db == 'Postgres' && 'postgresql+psycopg://postgres:ci@localhost:5432/signal' || '' }}
 
   frontend:
     name: 프런트엔드 (build + vitest)

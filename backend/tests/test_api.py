@@ -3,7 +3,6 @@ import datetime as dt
 import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -11,6 +10,7 @@ import app.main as main_module
 from app.db import Base, get_db
 from app.models import IndicatorDaily, PriceDaily, SignalDaily, Stock
 from app.services import data_ingestion
+from tests import dbsetup
 
 
 @pytest.fixture()
@@ -21,11 +21,9 @@ def api(monkeypatch):
         "app.routers.stocks.refresh_and_evaluate_stock", lambda db, stock, full_backfill=False: {}
     )
 
-    engine = create_engine(
-        "sqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
+    # 메모리 SQLite는 연결마다 DB가 따로 생기므로 StaticPool로 하나를 붙들어야 한다
+    # (Postgres로 돌 때는 서버가 하나라 해당 없다).
+    engine = dbsetup.make_engine(poolclass=StaticPool)
     Base.metadata.create_all(bind=engine)
     TestingSessionLocal = sessionmaker(bind=engine)
 
@@ -40,6 +38,7 @@ def api(monkeypatch):
     with TestClient(main_module.app) as client:
         yield client, TestingSessionLocal
     main_module.app.dependency_overrides.clear()
+    dbsetup.dispose(engine)
 
 
 def test_health(api):
@@ -524,6 +523,11 @@ def test_staleness_is_judged_against_the_stocks_own_market(api, monkeypatch):
     with Session() as session:
         session.add(Stock(ticker="005930.KS", name="삼성전자", target_weight_pct=50))
         session.add(Stock(ticker="VOO", name="S&P500", target_weight_pct=50))
+        # 종목을 **먼저** 커밋한다. 한 번에 flush하면 SQLAlchemy가 테이블 이름순으로
+        # 넣어서 price_daily가 stocks보다 먼저 나간다 (둘 사이에 ORM relationship이
+        # 없어 의존 관계를 모른다). SQLite는 외래키를 검사하지 않아 그냥 통과하지만
+        # Postgres는 거절한다.
+        session.commit()
         for ticker, date in (("005930.KS", korea_today), ("VOO", us_today)):
             session.add(
                 PriceDaily(

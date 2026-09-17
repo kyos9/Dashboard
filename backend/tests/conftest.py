@@ -1,9 +1,9 @@
 import pytest
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 import app.models  # noqa: F401  (모든 테이블이 Base.metadata에 등록되도록)
 from app.db import Base
+from tests import dbsetup
 
 
 @pytest.fixture(autouse=True)
@@ -40,7 +40,8 @@ def block_network(monkeypatch):
 
 @pytest.fixture()
 def db_session():
-    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+    """빈 DB에 붙은 세션. 어느 DB인지는 `tests/dbsetup.py`가 정한다."""
+    engine = dbsetup.make_engine()
     Base.metadata.create_all(bind=engine)
     Session = sessionmaker(bind=engine)
     session = Session()
@@ -48,3 +49,4 @@ def db_session():
         yield session
     finally:
         session.close()
+        dbsetup.dispose(engine)

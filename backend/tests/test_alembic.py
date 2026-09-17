@@ -20,23 +20,35 @@ import app.models  # noqa: F401  (모든 테이블이 Base.metadata에 등록되
 from app import migrate
 from app.db import Base
 
+from tests import dbsetup
 from tests.test_migration import OLD_ROWS, OLD_SCHEMA
 
 
 @pytest.fixture()
 def fresh(tmp_path):
-    """비어 있는 DB를 마이그레이션으로 만들어 준다."""
-    engine = create_engine(f"sqlite:///{tmp_path / 'new.db'}")
+    """비어 있는 DB를 마이그레이션으로 만들어 준다.
+
+    **Postgres에서도 돈다** (`TEST_DATABASE_URL`). 여기가 이 파일에서 가장 중요한
+    자리다 — `0001_initial.py`가 서버에서 쓸 DB에 실제로 적용되는지, 그리고 모델이
+    그 DB가 보는 스키마와 같은지를 확인하는 곳이기 때문이다. SQLite만 돌리면 둘 다
+    서버에서 처음 알게 된다.
+    """
+    engine = dbsetup.make_engine(f"sqlite:///{tmp_path / 'new.db'}")
     migrate.upgrade_to_head(engine)
     try:
         yield engine
     finally:
-        engine.dispose()
+        dbsetup.dispose(engine)
 
 
 @pytest.fixture()
 def adopted(tmp_path):
-    """Alembic을 모르는 옛 DB 파일을 이어받게 한 뒤 돌려준다."""
+    """Alembic을 모르는 옛 DB 파일을 이어받게 한 뒤 돌려준다.
+
+    이쪽은 Postgres로 돌리지 않는다 — 일부러다. 이어받아야 하는 "옛 파일"은 언제나
+    사용자 PC의 SQLite 파일이다. Postgres는 이 앱에서 서버용으로 새로 만드는 DB라
+    Alembic 이전 상태가 존재할 수 없다.
+    """
     path = tmp_path / "old.db"
     con = sqlite3.connect(path)
     con.executescript(OLD_SCHEMA)

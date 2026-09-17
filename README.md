@@ -350,8 +350,20 @@ cd frontend && npm test
 
 | 워크플로 | 언제 | 무엇을 |
 | --- | --- | --- |
-| `tests.yml` | 푸시할 때마다 | 백엔드 `pytest` · 프런트 `npm run build`(타입 검사 포함) + `npm test` |
+| `tests.yml` | 푸시할 때마다 | 백엔드 `pytest`를 **SQLite와 Postgres 양쪽**에서 · 프런트 `npm run build`(타입 검사 포함) + `npm test` |
 | `docker.yml` | Dockerfile·의존성이 바뀔 때만 | 이미지 빌드 + `docker compose config` 검사 |
+
+**DB를 둘 다 돌리는 이유.** 내 PC는 SQLite, 서버는 Postgres입니다. SQLite는 타입에
+느슨하고 **외래키를 아예 검사하지 않아서** Postgres가 거절할 것을 조용히 받아줍니다.
+한쪽만 돌리면 그 차이를 서버에서 처음 만나게 됩니다. 특히 마이그레이션(`0001_initial.py`)이
+Postgres에 실제로 적용되는지, 모델이 Postgres가 보는 스키마와 같은지는 여기서만 확인됩니다.
+
+로컬에서 Postgres로 돌려보려면 `TEST_DATABASE_URL`을 주면 됩니다
+(`tests/dbsetup.py`가 이 값 하나로 전체 테스트의 DB를 바꿉니다).
+
+```bash
+TEST_DATABASE_URL=postgresql+psycopg://postgres:pw@localhost:5432/signal pytest -q
+```
 
 Docker 빌드를 매번 돌리지 않는 이유는 무겁기 때문이고(파이썬 패키지 설치 + 화면 빌드),
 앱 소스만 바뀌는 경우는 `tests.yml`이 잡습니다. 필요하면 Actions 탭에서 손으로 돌릴 수
