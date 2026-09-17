@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { useAppState } from '../AppState'
 import { api } from '../api/client'
+import { useAuth } from './AuthGate'
 import { DiagnosticsModal } from './DiagnosticsModal'
 import type { HealthInfo } from '../types'
 
@@ -28,6 +29,7 @@ const TABS = [
 
 export function AppHeader() {
   const { refreshAll, refreshing, lastSync, refreshError } = useAppState()
+  const { locked, logout } = useAuth()
   const [theme, setTheme] = useState<Theme>(readStoredTheme)
   const [health, setHealth] = useState<HealthInfo | null>(null)
   const [showDiagnostics, setShowDiagnostics] = useState(false)
@@ -65,12 +67,14 @@ export function AppHeader() {
             <h1 className="brand-title">
               신호판
               <span className="badge badge-blue">매수·매도 시그널</span>
-              {health && (
+              {health?.version && (
                 <span
                   className="badge badge-grey mono"
                   title={
-                    `시세 제공자 — 해외: ${health.providers_by_market.US.join(' → ')}` +
-                    ` / 국내: ${health.providers_by_market.KR.join(' → ')}`
+                    health.providers_by_market
+                      ? `시세 제공자 — 해외: ${health.providers_by_market.US.join(' → ')}` +
+                        ` / 국내: ${health.providers_by_market.KR.join(' → ')}`
+                      : undefined
                   }
                 >
                   v{health.version}
@@ -97,6 +101,12 @@ export function AppHeader() {
           >
             진단
           </button>
+          {/* 잠긴 서버에서만 나온다 — 개인 PC에서는 나갈 문이 애초에 없다 */}
+          {locked && (
+            <button className="ghost" onClick={() => void logout()} title="로그아웃">
+              나가기
+            </button>
+          )}
           <button
             className="ghost"
             onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}

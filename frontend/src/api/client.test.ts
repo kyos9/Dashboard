@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { api, ApiError } from './client'
+import { api, ApiError, UNAUTHORIZED_EVENT } from './client'
 
 interface FakeResponse {
   ok?: boolean
@@ -90,5 +90,29 @@ describe('요청 경로', () => {
   it('204 응답은 본문을 파싱하지 않는다', async () => {
     mockFetch({ status: 204, text: '' })
     await expect(api.refreshStock('VOO')).resolves.toBeUndefined()
+  })
+})
+
+describe('세션이 끊겼을 때', () => {
+  it('401이 오면 로그인 화면이 들을 수 있게 알린다', async () => {
+    mockFetch({ status: 401, text: JSON.stringify({ detail: { hint: '로그인이 필요합니다.' } }) })
+    const heard = vi.fn()
+    window.addEventListener(UNAUTHORIZED_EVENT, heard)
+
+    await expect(api.getDashboard()).rejects.toBeInstanceOf(ApiError)
+    expect(heard).toHaveBeenCalled()
+
+    window.removeEventListener(UNAUTHORIZED_EVENT, heard)
+  })
+
+  it('로그인 실패의 401은 알리지 않는다 — 로그인 화면이 직접 다룬다', async () => {
+    mockFetch({ status: 401, text: JSON.stringify({ detail: { hint: '비밀번호가 틀렸습니다.' } }) })
+    const heard = vi.fn()
+    window.addEventListener(UNAUTHORIZED_EVENT, heard)
+
+    await expect(api.login('틀린값')).rejects.toBeInstanceOf(ApiError)
+    expect(heard).not.toHaveBeenCalled()
+
+    window.removeEventListener(UNAUTHORIZED_EVENT, heard)
   })
 })

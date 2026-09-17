@@ -35,6 +35,9 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql+psycopg://signal:${POSTGRES_PASSWORD:?.env 파일에 POSTGRES_PASSWORD 를 정해주세요}@db:5432/signal
+      # 화면을 여는 비밀번호. 여기도 기본값을 주지 않는다 — 공개된 주소에 기본
+      # 비밀번호로 올라가는 것이 이 잠금을 만든 이유 자체를 없앤다.
+      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:?.env 파일에 DASHBOARD_PASSWORD 를 정해주세요}
     depends_on:
       db:
         condition: service_healthy

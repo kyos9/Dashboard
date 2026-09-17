@@ -11,8 +11,6 @@ from sqlalchemy.exc import IntegrityError
 from app.models import PortfolioSettings
 from app.services.settings import SINGLETON_ID, get_settings
 
-from tests.test_api import api  # noqa: F401  (빈 DB로 앱을 띄우는 픽스처)
-
 
 def test_creates_the_row_when_there_is_none(db_session):
     settings = get_settings(db_session)

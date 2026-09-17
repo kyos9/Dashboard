@@ -229,11 +229,20 @@ export interface RefreshResult {
 }
 
 /** 백엔드가 알려주는 실행 중인 버전 — 업데이트가 반영됐는지 확인용 */
+export interface AuthStatus {
+  /** 서버가 비밀번호로 잠겨 있는지. 개인 PC에서는 false */
+  locked: boolean
+  /** 지금 들어와 있는지 (잠겨 있지 않으면 항상 true) */
+  authenticated: boolean
+}
+
 export interface HealthInfo {
   status: string
-  version: string
-  /** 시장별 제공자 순서 (국내는 네이버를 먼저 쓴다) */
-  providers_by_market: Record<Market, string[]>
+  locked?: boolean
+  /** 잠긴 상태에서 로그인 전이면 내려오지 않는다 */
+  version?: string
+  /** 시장별 제공자 순서 (국내는 네이버를 먼저 쓴다). 로그인 전이면 없다 */
+  providers_by_market?: Record<Market, string[]>
 }
 
 export interface LogEntry {

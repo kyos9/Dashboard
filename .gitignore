@@ -25,6 +25,9 @@ backend/logs/
 # DB 백업 (복구용 — 저장소에 올릴 것이 아니다)
 backend/backups/
 
+# 로그인 세션 서명 키 (서버마다 다르고, 새어나가면 남이 쪽지를 위조한다)
+session.key
+
 # 커버리지 측정 산출물
 .coverage
 htmlcov/

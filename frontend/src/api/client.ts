@@ -1,4 +1,5 @@
 import type {
+  AuthStatus,
   DashboardCard,
   FxInfo,
   Holding,
@@ -19,6 +20,13 @@ import type {
 } from '../types'
 
 const BASE = '/api'
+
+/**
+ * 열쇠가 풀렸다는 신호 — 세션이 만료됐거나 서버에서 잠금이 켜졌다.
+ * 로그인 화면(AuthGate)이 이걸 듣고 다시 뜬다. 화면마다 401을 따로 처리하면
+ * 어느 한 곳을 빠뜨렸을 때 "아무것도 안 나오는데 이유를 모르는" 상태가 된다.
+ */
+export const UNAUTHORIZED_EVENT = 'signalboard:unauthorized'
 
 /**
  * API 오류. 백엔드는 실패 사유를 `hint`(사용자가 할 일)와 `message`(기술적 원인)로 나눠
@@ -61,6 +69,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
+    // 로그인 자체가 실패한 401은 로그인 화면이 직접 다루므로 신호를 보내지 않는다
+    if (res.status === 401 && !path.startsWith('/auth/')) {
+      window.dispatchEvent(new Event(UNAUTHORIZED_EVENT))
+    }
     throw parseError(res.status, res.statusText, body)
   }
   if (res.status === 204) return undefined as T
@@ -69,6 +81,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   getHealth: () => request<HealthInfo>('/health'),
+
+  /** 잠겨 있는지 · 들어와 있는지. 화면이 제일 먼저 묻는다 */
+  getAuthStatus: () => request<AuthStatus>('/auth/status'),
+  login: (password: string) =>
+    request<AuthStatus>('/auth/login', { method: 'POST', body: JSON.stringify({ password }) }),
+  logout: () => request<AuthStatus>('/auth/logout', { method: 'POST' }),
 
   /** 종목명/코드로 후보를 찾는다 — 사용자가 고른 뒤에 등록한다 */
   searchSymbols: (q: string, limit = 8) =>

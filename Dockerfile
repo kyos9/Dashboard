@@ -30,7 +30,8 @@ ENV PYTHONUNBUFFERED=1 \
 # 이미지 안에 두면 다시 올릴 때마다 통째로 사라진다.
 ENV SIGNAL_DASHBOARD_DB=/data/signal_dashboard.db \
     SIGNAL_DASHBOARD_LOG_DIR=/data/logs \
-    SIGNAL_DASHBOARD_BACKUP_DIR=/data/backups
+    SIGNAL_DASHBOARD_BACKUP_DIR=/data/backups \
+    SIGNAL_DASHBOARD_SECRET_FILE=/data/session.key
 
 # postgresql-client: 백업의 pg_dump. curl: 아래 HEALTHCHECK.
 RUN apt-get update \

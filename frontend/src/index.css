@@ -1693,3 +1693,45 @@ table.data-table tr.dirty:hover td {
     flex-wrap: wrap;
   }
 }
+
+/* ---------- 로그인 화면 (서버에 올렸을 때만 뜬다) ---------- */
+
+.login-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.login-panel {
+  width: 100%;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.login-brand span {
+  font-size: 26px;
+}
+
+.login-brand h1 {
+  margin: 0;
+  font-size: 20px;
+  letter-spacing: -0.01em;
+}
+
+.login-panel .hint {
+  margin: 0;
+}
+
+.login-panel button {
+  width: 100%;
+}
