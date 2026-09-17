@@ -90,6 +90,25 @@ def _backfill_stock_markets(bind=None) -> None:
             )
 
 
+def _rename_buy_status(bind=None) -> None:
+    """예전 DB에 저장된 buy_execution.status = 'recommended'를 'scheduled'로 바꾼다.
+
+    이름만 바뀐 것이고 뜻은 그대로다 — "아직 매수완료 확인을 안 한 건". 이 앱은 종목을
+    고르지도 사라고 권하지도 않는데 '추천'이라는 말이 동작보다 앞서 나가 있었다.
+
+    쓰던 DB 파일을 그대로 열 수 있어야 하므로 여기서 값을 바꿔준다. 이미 바뀐 DB에서는
+    아무 행도 걸리지 않으므로 여러 번 실행해도 안전하다.
+    """
+    bind = bind or engine
+    inspector = inspect(bind)
+    if "buy_execution" not in set(inspector.get_table_names()):
+        return
+    with bind.begin() as conn:
+        conn.execute(
+            text("UPDATE buy_execution SET status = 'scheduled' WHERE status = 'recommended'")
+        )
+
+
 def init_db(bind=None) -> None:
     from app import models  # noqa: F401  (ensure models are registered)
 
@@ -97,3 +116,4 @@ def init_db(bind=None) -> None:
     _apply_additive_migrations(bind)
     Base.metadata.create_all(bind=bind)
     _backfill_stock_markets(bind)
+    _rename_buy_status(bind)

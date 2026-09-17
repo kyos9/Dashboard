@@ -1,7 +1,7 @@
 export type DcaPeriod = 'monthly' | 'quarterly'
 export type RebalancePeriod = 'quarterly' | 'semiannual'
 export type BuyType = 'signal' | 'fallback'
-export type BuyStatus = 'recommended' | 'confirmed'
+export type BuyStatus = 'scheduled' | 'confirmed'
 
 /** 거래소 구분 — 통화와 거래일 캘린더가 여기서 갈린다 */
 export type Market = 'US' | 'KR'

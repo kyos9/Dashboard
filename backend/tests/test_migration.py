@@ -33,6 +33,17 @@ CREATE TABLE holding (
   quantity FLOAT NOT NULL,
   updated_at DATETIME NOT NULL
 );
+CREATE TABLE buy_execution (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  ticker VARCHAR NOT NULL,
+  period_start DATE NOT NULL,
+  period_end DATE NOT NULL,
+  exec_date DATE NOT NULL,
+  type VARCHAR NOT NULL,
+  amount FLOAT NOT NULL,
+  status VARCHAR NOT NULL,
+  confirmed_at DATETIME
+);
 CREATE TABLE price_daily (
   id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
   ticker VARCHAR NOT NULL,
@@ -55,6 +66,9 @@ INSERT INTO portfolio_settings VALUES (1, 7.5);
 INSERT INTO holding VALUES ('VOO', 12.5, '2026-01-01 00:00:00'), ('005930.KS', 100, '2026-01-01 00:00:00');
 INSERT INTO price_daily (ticker, date, open, high, low, close, adj_close, volume) VALUES
   ('VOO','2026-01-02',500,505,499,503,503,1000000);
+INSERT INTO buy_execution (ticker, period_start, period_end, exec_date, type, amount, status, confirmed_at) VALUES
+  ('VOO','2026-01-01','2026-01-31','2026-01-12','signal',300,'recommended',NULL),
+  ('005930.KS','2025-12-01','2025-12-31','2025-12-30','fallback',500000,'confirmed','2025-12-31 00:00:00');
 """
 
 
@@ -189,3 +203,21 @@ def test_price_source_column_is_added_without_losing_rows(upgraded):
     ).fetchone()
     assert row.close == 503
     assert row.source is None
+
+
+def test_old_recommended_status_becomes_scheduled(upgraded):
+    """'추천'이라는 이름을 걷어냈어도 쓰던 기록은 그대로 남아야 한다.
+
+    뜻이 바뀐 게 아니라 이름만 바뀌었다 — 여전히 "아직 매수완료 확인을 안 한 건"이다.
+    확정된 건은 건드리지 않는다.
+    """
+    rows = upgraded.execute(
+        text("SELECT ticker, status, amount FROM buy_execution ORDER BY ticker")
+    ).fetchall()
+
+    assert rows == [
+        ("005930.KS", "confirmed", 500000.0),
+        ("VOO", "scheduled", 300.0),
+    ]
+    # 옛 이름이 남아 있으면 화면에서 버튼이 안 뜬다
+    assert "recommended" not in {status for _, status, _ in rows}

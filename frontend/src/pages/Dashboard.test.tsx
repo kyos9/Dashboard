@@ -83,7 +83,7 @@ const CARDS: DashboardCard[] = [
     current_period_buy: {
       id: 1,
       type: 'signal',
-      status: 'recommended',
+      status: 'scheduled',
       exec_date: '2026-09-16',
       amount: 500_000,
     },
@@ -95,7 +95,7 @@ const CARDS: DashboardCard[] = [
     current_period_buy: {
       id: 2,
       type: 'signal',
-      status: 'recommended',
+      status: 'scheduled',
       exec_date: '2026-09-16',
       amount: 300,
     },
@@ -231,7 +231,7 @@ describe('대시보드 · 통화 구분', () => {
     expect(kr.textContent).not.toContain('005930.KS')
   })
 
-  it('매수 추천 금액도 해당 종목의 통화로 보여준다', async () => {
+  it('매수 예정 금액도 해당 종목의 통화로 보여준다', async () => {
     mockApi()
     renderDashboard()
 
@@ -239,12 +239,12 @@ describe('대시보드 · 통화 구분', () => {
     expect(within(await cardRow('VOO')).getByText(/\$300\.00/)).toBeInTheDocument()
   })
 
-  it('추천 금액 합계는 통화를 섞어 더하지 않고 나눠서 보여준다', async () => {
+  it('예정 금액 합계는 통화를 섞어 더하지 않고 나눠서 보여준다', async () => {
     mockApi()
     renderDashboard()
 
     // 500,000 + 300 = 500,300 처럼 더해버리면 안 된다
-    const foot = await screen.findByText(/추천 금액 합계/)
+    const foot = await screen.findByText(/예정 금액 합계/)
     expect(foot.textContent).toContain('₩500,000')
     expect(foot.textContent).toContain('$300.00')
     expect(foot.textContent).not.toContain('500,300')

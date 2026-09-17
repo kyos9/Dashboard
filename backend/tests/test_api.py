@@ -284,7 +284,7 @@ def test_confirm_buy_execution(api):
         exec_date=today,
         type=BuyType.signal,
         amount=500.0,
-        status=BuyStatus.recommended,
+        status=BuyStatus.scheduled,
     )
     db.add(buy)
     db.commit()

@@ -1,10 +1,14 @@
 """무릎매수 실행 워크플로우 (SIGNAL_APP_SPEC.md 5장).
 
-기간(월/분기, 공통 거래일 캘린더 기준) 내 첫 무릎매수(v2) 발동일 → "추천(시그널)" 기록.
-기간 마지막 거래일까지 미발동 → 마지막 날 "추천(폴백)" 기록.
-기록은 어디까지나 "추천"이며, 사용자가 대시보드에서 확인해야 "확정(confirmed)"으로 전환된다
+기간(월/분기, 공통 거래일 캘린더 기준) 내 첫 무릎매수(v2) 발동일 → "예정(시그널)" 기록.
+기간 마지막 거래일까지 미발동 → 마지막 날 "예정(폴백)" 기록.
+
+여기서 하는 일은 **권하는 게 아니라 잡아두는 것**이다. 종목도 금액도 주기도 사용자가
+정해둔 값이고, 이 코드는 그 조건이 맞아떨어진 날을 기록할 뿐이다. 실제로 샀는지는
+사용자가 대시보드에서 확인해야 "확정(confirmed)"으로 바뀐다.
+
 (신규 종목은 추가 시점 이후 열린 기간부터만 추적 — 과거 기간 소급 없음, 이 함수는 항상
-"가장 최근 시그널 날짜"만 평가하므로 자연히 그렇게 동작한다).
+"가장 최근 시그널 날짜"만 평가하므로 자연히 그렇게 동작한다.)
 """
 
 import datetime as dt
@@ -27,7 +31,7 @@ def latest_signal_date(db: Session, ticker: str) -> dt.date | None:
 
 
 def evaluate_buy_workflow(db: Session, stock: Stock) -> BuyExecution | None:
-    """현재 열려있는 기간에 대해 매수 추천을 판정/기록한다. 이미 기록이 있으면 아무 것도 하지 않는다."""
+    """현재 열려있는 기간에 대해 매수 예정일을 판정/기록한다. 이미 기록이 있으면 아무 것도 하지 않는다."""
     latest = latest_signal_date(db, stock.ticker)
     if latest is None:
         return None
@@ -59,7 +63,7 @@ def evaluate_buy_workflow(db: Session, stock: Stock) -> BuyExecution | None:
             exec_date=latest,
             type=BuyType.signal,
             amount=stock.dca_amount,
-            status=BuyStatus.recommended,
+            status=BuyStatus.scheduled,
         )
     elif latest >= period_end:
         record = BuyExecution(
@@ -69,7 +73,7 @@ def evaluate_buy_workflow(db: Session, stock: Stock) -> BuyExecution | None:
             exec_date=latest,
             type=BuyType.fallback,
             amount=stock.dca_amount,
-            status=BuyStatus.recommended,
+            status=BuyStatus.scheduled,
         )
 
     if record is not None:

@@ -34,7 +34,10 @@ class BuyType(str, enum.Enum):
 
 
 class BuyStatus(str, enum.Enum):
-    recommended = "recommended"
+    # 이 앱은 종목을 고르지도, 사라고 권하지도 않는다. 사용자가 정해둔 금액·주기와
+    # 사용자가 정한 조건이 맞아떨어진 날을 잡아둘 뿐이라 "예정(scheduled)"이라 부른다.
+    # (예전 이름은 recommended였다 — db._rename_buy_status가 옛 DB 값을 바꿔준다.)
+    scheduled = "scheduled"
     confirmed = "confirmed"
 
 
@@ -144,7 +147,7 @@ class BuyExecution(Base):
     exec_date: Mapped[dt.date] = mapped_column(Date, nullable=False)
     type: Mapped[BuyType] = mapped_column(Enum(BuyType), nullable=False)
     amount: Mapped[float] = mapped_column(Float, nullable=False)
-    status: Mapped[BuyStatus] = mapped_column(Enum(BuyStatus), default=BuyStatus.recommended, nullable=False)
+    status: Mapped[BuyStatus] = mapped_column(Enum(BuyStatus), default=BuyStatus.scheduled, nullable=False)
     confirmed_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
 
 

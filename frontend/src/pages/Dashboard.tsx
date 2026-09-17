@@ -229,7 +229,7 @@ function BuyCell({
   onConfirm: (id: number) => void
 }) {
   const buy = card.current_period_buy
-  if (!buy) return <span className="hint">이번 기간 추천 없음</span>
+  if (!buy) return <span className="hint">이번 기간 해당일 없음</span>
 
   return (
     <div className="metric">
@@ -242,11 +242,11 @@ function BuyCell({
         </span>
         {buy.status === 'confirmed' && <span className="badge badge-grey">확정됨</span>}
       </div>
-      {buy.status === 'recommended' && (
+      {buy.status === 'scheduled' && (
         <button
           className="success sm"
           disabled={busyId === buy.id}
-          title={`${buy.exec_date} 추천 — 누르면 매수 확정으로 기록합니다`}
+          title={`${buy.exec_date}이 조건에 맞는 날입니다 — 실제로 샀다면 눌러서 기록하세요`}
           onClick={() => onConfirm(buy.id)}
         >
           {busyId === buy.id ? '처리 중…' : '매수완료 확인'}
@@ -446,23 +446,23 @@ export function Dashboard() {
   const summary = useMemo(() => {
     const lights = cards.map(trafficLight)
     const buys = cards.map((c) => c.current_period_buy).filter((b) => b !== null)
-    const recommended = buys.filter((b) => b!.status === 'recommended')
+    const scheduled = buys.filter((b) => b!.status === 'scheduled')
     const reasons = cards.flatMap((c) => (c.rebalance_signal.active ? c.rebalance_signal.reasons : []))
     return {
       buy: lights.filter((l) => l.state === 'buy').length,
       watch: lights.filter((l) => l.state === 'watch').length,
       hot: lights.filter((l) => l.state === 'hot').length,
       stale: lights.filter((l) => l.state === 'stale').length,
-      recommendedCount: recommended.length,
+      scheduledCount: scheduled.length,
       // 통화가 섞이면 그냥 더할 수 없다 — 통화별로 나눠서 보여준다
-      recommendedAmounts: cards.reduce<Partial<Record<Currency, number>>>((acc, card) => {
+      scheduledAmounts: cards.reduce<Partial<Record<Currency, number>>>((acc, card) => {
         const buy = card.current_period_buy
-        if (buy && buy.status === 'recommended') {
+        if (buy && buy.status === 'scheduled') {
           acc[card.currency] = (acc[card.currency] ?? 0) + buy.amount
         }
         return acc
       }, {}),
-      confirmedCount: buys.length - recommended.length,
+      confirmedCount: buys.length - scheduled.length,
       rebalanceCount: cards.filter((c) => c.rebalance_signal.active).length,
       sellReview: reasons.filter((r) => r.includes('매도')).length,
       buyReview: reasons.filter((r) => r.includes('매수')).length,
@@ -578,11 +578,11 @@ export function Dashboard() {
             <span className="kpi-title">이번 기간 매수</span>
           </div>
           <div className="kpi-figure">
-            <span className="big">{summary.recommendedCount}</span>
+            <span className="big">{summary.scheduledCount}</span>
             <span className="hint">건 확인 대기</span>
           </div>
           <p className="kpi-foot">
-            추천 금액 합계 {formatAmountsByCurrency(summary.recommendedAmounts)} · 확정 완료{' '}
+            예정 금액 합계 {formatAmountsByCurrency(summary.scheduledAmounts)} · 확정 완료{' '}
             {summary.confirmedCount}건
           </p>
         </div>

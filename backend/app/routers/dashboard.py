@@ -63,7 +63,7 @@ def _knee_conditions(
 
 
 def _current_period_buys(db: Session, stocks: list[Stock], latest_signal_dates: dict[str, dt.date]):
-    """종목별 "이번 기간" 매수 추천을 한 번의 쿼리로 모아온다.
+    """종목별 "이번 기간" 매수 예정을 한 번의 쿼리로 모아온다.
 
     기간 경계는 종목이 속한 시장의 거래일 캘린더로 계산한다 (한국/미국 휴장일이 다름).
     """

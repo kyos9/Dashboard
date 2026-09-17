@@ -25,7 +25,7 @@ def test_signal_buy_recorded_mid_period(db_session):
     record = buy_workflow.evaluate_buy_workflow(db_session, stock)
     assert record is not None
     assert record.type == BuyType.signal
-    assert record.status == BuyStatus.recommended
+    assert record.status == BuyStatus.scheduled
     assert record.period_start == period_start
     assert record.period_end == period_end
 
@@ -41,7 +41,7 @@ def test_fallback_buy_recorded_on_last_trading_day_without_signal(db_session):
     record = buy_workflow.evaluate_buy_workflow(db_session, stock)
     assert record is not None
     assert record.type == BuyType.fallback
-    assert record.status == BuyStatus.recommended
+    assert record.status == BuyStatus.scheduled
 
 
 def test_no_record_when_no_signal_and_not_last_day(db_session):
@@ -74,7 +74,7 @@ def test_no_duplicate_record_for_same_period(db_session):
             exec_date=period_start,
             type=BuyType.signal,
             amount=100.0,
-            status=BuyStatus.recommended,
+            status=BuyStatus.scheduled,
         )
     )
     db_session.add(SignalDaily(ticker=stock.ticker, date=period_end, knee_buy_v2=True, shoulder_sell_ref=False))
@@ -98,7 +98,7 @@ def test_confirm_buy_execution_updates_holding(db_session):
         exec_date=exec_date,
         type=BuyType.signal,
         amount=1000.0,
-        status=BuyStatus.recommended,
+        status=BuyStatus.scheduled,
     )
     db_session.add(buy)
     db_session.commit()
@@ -125,7 +125,7 @@ def test_confirm_buy_execution_without_holding_update(db_session):
         exec_date=exec_date,
         type=BuyType.fallback,
         amount=500.0,
-        status=BuyStatus.recommended,
+        status=BuyStatus.scheduled,
     )
     db_session.add(buy)
     db_session.commit()
