@@ -1,0 +1,7 @@
+# 서버에서 Postgres를 쓸 때만 필요하다.
+#
+# 개인 PC는 SQLite 파일 하나로 돌아가므로 requirements.txt에 넣지 않는다 —
+# 쓰지도 않을 드라이버를 설치하다 실패하면 setup.bat이 거기서 멈춘다.
+# Docker 이미지는 이 파일까지 설치한다.
+
+psycopg[binary]==3.3.5

@@ -22,6 +22,9 @@ dist/
 # 실행 중 쌓이는 로그 (진단 화면이 읽는 파일)
 backend/logs/
 
+# DB 백업 (복구용 — 저장소에 올릴 것이 아니다)
+backend/backups/
+
 # 커버리지 측정 산출물
 .coverage
 htmlcov/

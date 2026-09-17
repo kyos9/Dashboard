@@ -12,8 +12,13 @@
 
 ## 구조
 
-- `backend/` — FastAPI + SQLite. 지표 계산, 시그널 판정, 매수 워크플로우, 리밸런싱/비중조절 신호, yfinance 데이터 수집.
+- `backend/` — FastAPI + SQLAlchemy. 지표 계산, 시그널 판정, 매수 워크플로우, 리밸런싱/비중조절 신호, yfinance 데이터 수집.
+  빌드된 화면도 여기서 함께 내보냅니다(`app/web.py`) — 띄울 프로세스가 하나뿐입니다.
+- `backend/migrations/` — Alembic 리비전. 스키마가 바뀌는 길은 여기 하나입니다.
 - `frontend/` — Vite + React + TypeScript. 대시보드/히스토리 차트/리밸런싱/종목 관리 4개 화면.
+- `Dockerfile` / `docker-compose.yml` — 서버에 올릴 때. 개인 PC에는 필요 없습니다.
+
+DB는 개인 PC에서 SQLite 파일 하나, 서버에서 Postgres입니다. 코드는 같고 `DATABASE_URL`만 다릅니다.
 
 ## 화면 구성
 
@@ -122,8 +127,9 @@ KODEX 200 → 069500.KS (코스피, ETF)
 - **`update.bat`** — 최신 코드 받기 + 패키지 갱신 + **화면 다시 빌드**를 한 번에 (더블클릭)
 - **`diagnose.bat`** — 시세를 못 받을 때 **어디서 막히는지** 진단 (`diagnose.bat TSM`처럼 티커 지정 가능. 국내 티커를 주면 종목명 검색·환율까지 같이 검사합니다)
 - **`verify.bat`** — 시세가 들어온 뒤 **받은 값을 믿어도 되는지** 검증 (액면분할 반영, 제공자 간 종가 일치, ETF·우선주·코스닥)
+- **`backup.bat`** — 지금 당장 DB를 한 벌 떠둡니다 (평소에는 자동으로 뜹니다 — 아래 "백업" 참고)
 
-> 화면 왼쪽 위에 실행 중인 버전(`v0.7.0 (커밋)`)이 표시됩니다. 업데이트 후에도 값이 그대로면
+> 화면 왼쪽 위에 실행 중인 버전(`v0.8.0 (커밋)`)이 표시됩니다. 업데이트 후에도 값이 그대로면
 > 서버를 다시 켜지 않은 것이니, `stop.bat` 뒤에 `start-all.bat`을 다시 실행하세요.
 
 ### 백엔드 (수동 실행 / macOS·Linux)
@@ -142,6 +148,28 @@ uvicorn app.main:app --reload --port 8000
 이후) 활성 종목 전체를 자동 갱신하는 스케줄러가 함께 시작됩니다. 스케줄러 없이 띄우려면
 `SIGNAL_DASHBOARD_DISABLE_SCHEDULER=1` 환경변수를 설정하세요.
 
+**DB 위치는 `DATABASE_URL` 하나로 정합니다.** 아무것도 주지 않으면 위의 SQLite 파일입니다.
+
+| | |
+| --- | --- |
+| `DATABASE_URL=postgresql+psycopg://user:pw@host/db` | 서버 (Postgres) |
+| `DATABASE_URL=sqlite:////경로/signal_dashboard.db` | 파일 위치만 옮길 때 |
+| `SIGNAL_DASHBOARD_DB=/경로/파일.db` | 예전부터 쓰던 방식. 그대로 동작합니다 |
+
+호스팅이 나눠주는 `postgres://...` 주소도 그대로 붙여넣으면 됩니다 (내부에서 psycopg 드라이버로
+바꿔 씁니다).
+
+**스키마 변경은 Alembic이 관리합니다.** 앱이 뜨면서 스스로 최신까지 올리고, 실제로 바꿀 게
+있을 때만 **바꾸기 직전에 백업을 한 벌 떠둡니다.** Alembic을 도입하기 전에 쓰던 DB 파일도
+그대로 열립니다 — 데이터를 유지한 채 이어받은 뒤 `0001` 리비전으로 표시하고 거기서부터
+이어갑니다. 모델을 고치면 리비전을 만들어야 하고, 안 만들면
+`tests/test_alembic.py::test_models_and_migrations_do_not_drift`가 잡아냅니다.
+
+```bash
+cd backend
+alembic revision --autogenerate -m "설명"   # 생성된 내용을 꼭 눈으로 확인하고 커밋
+```
+
 ### 프런트엔드
 
 ```bash
@@ -153,6 +181,50 @@ npm run dev
 **화면 코드를 고치면서 바로 확인할 때만** 필요합니다. `http://localhost:5173`에서 접속하며,
 `/api/*` 요청은 `vite.config.ts`의 프록시 설정을 통해 백엔드(`http://localhost:8000`)로
 전달됩니다. 평소 사용에는 필요 없습니다 — 백엔드가 빌드된 화면을 직접 내보냅니다.
+
+## 백업 — 되돌릴 자리
+
+데이터가 사라지면 복구할 방법이 없습니다. 그래서 백업은 켜두는 옵션이 아니라 기본 동작입니다.
+
+| 언제 | 무엇이 |
+| --- | --- |
+| 앱을 켤 때 | 최근 12시간 안에 뜬 게 없으면 한 벌 (PC는 정해진 시각에 켜져 있다는 보장이 없으므로) |
+| 매일 UTC 23:30 | 그날 시세 갱신(22:30)이 끝난 뒤 |
+| **스키마를 바꾸기 직전** | 마이그레이션이 잘못 돌면 되돌릴 자리가 여기뿐입니다 |
+| `backup.bat` (또는 `python -m app.services.backup`) | 직접 무언가를 크게 바꾸기 전에 |
+
+`backend/backups/`에 최대 7벌 보관하고 오래된 것부터 지웁니다
+(`SIGNAL_DASHBOARD_BACKUP_DIR`, `SIGNAL_DASHBOARD_BACKUP_KEEP`로 바꿀 수 있습니다).
+
+**복구는 파일을 제자리에 갖다 놓는 것입니다.** `stop.bat`으로 끈 뒤
+`backend/backups/signalboard-….db`를 `backend/signal_dashboard.db`로 덮어쓰면 끝입니다.
+압축하지 않는 이유가 이것입니다 — 급할 때 도구를 찾아 헤매야 하는 백업은 없는 것과 비슷합니다.
+(Postgres는 `pg_dump` 결과인 `.sql` 텍스트로 뜹니다.)
+
+돌고 있는 파일을 그냥 복사하지 않고 sqlite의 백업 API를 씁니다. 쓰는 중에 복사하면
+중간이 찢어진, 열리지 않는 파일이 나올 수 있기 때문입니다.
+
+## 서버에 올리기 — Docker
+
+개인 PC에서는 필요 없습니다. `start-all.bat`이 더 간단하고 SQLite 파일 하나로 충분합니다.
+**여러 사람이 쓰는 서버**를 염두에 둔 구성입니다.
+
+```bash
+cp .env.example .env       # POSTGRES_PASSWORD를 직접 채웁니다
+docker compose up -d
+```
+
+이후 업데이트는 `git pull && docker compose up -d --build`. 마이그레이션은 앱이 뜨면서
+스스로 돌리고, 그 직전에 백업을 한 벌 떠둡니다.
+
+- 이미지는 화면(node)과 서버(python)를 각각 빌드해 한 덩어리로 만듭니다. 저장소와 같은
+  폴더 구조(`/srv/backend`, `/srv/frontend/dist`)를 유지합니다.
+- 남아야 하는 것(로그·백업, SQLite로 쓸 경우 DB)은 전부 `/data` 볼륨 아래입니다.
+  이미지 안에 두면 다시 올릴 때 사라집니다.
+- 포트는 `127.0.0.1:8000`에만 엽니다. 바깥에는 HTTPS를 끊어주는 웹서버를 앞에 두세요
+  (ROADMAP 5단계). `0.0.0.0`으로 열면 암호화 없이 그대로 노출됩니다.
+- 워커는 하나입니다. 스케줄러가 앱 안에서 돌기 때문에 워커를 늘리면 같은 갱신이 여러 번
+  나갑니다 (분리도 ROADMAP 5단계).
 
 ## 종목 추가 흐름
 
@@ -282,7 +354,11 @@ cd frontend && npm test
 `tests/test_rebalance.py`는 통화가 섞였을 때 비중이 기준통화로 환산돼 계산되는지를 확인합니다.
 `tests/test_markets.py`는 내장 종목 목록의 형식(6자리 코드·중복 없음)까지 검사하고,
 `tests/test_migration.py`는 **기존 DB 파일이 데이터 손실 없이 새 스키마로 올라오는지**를
-옛 스키마를 직접 만들어 확인합니다.
+옛 스키마를 직접 만들어 확인하고, `tests/test_alembic.py`는 그 파일이 다시 만들어지지 않고
+*이어받아지는지*와 **모델과 마이그레이션이 벌어지지 않았는지**를 봅니다. 후자가 없으면
+모델에 컬럼을 추가하고 리비전을 잊었을 때 내 PC에서는 멀쩡하고 서버에서만 터집니다.
+`tests/test_backup.py`는 뜬 백업을 실제로 열어 내용이 들어 있는지까지 확인합니다 —
+백업은 뜨는 것보다 복구되는 것이 중요합니다.
 
 프런트엔드(`npm test`)는 계산과 표기를 나눠 검증합니다.
 

@@ -8,9 +8,10 @@ import subprocess
 from functools import lru_cache
 from pathlib import Path
 
-# 프로세스를 하나로 합치고(백엔드가 화면까지 내보냄) 로그·진단을 넣은 버전.
+# 배포 토대를 갖춘 버전 — Alembic으로 스키마를 관리하고, DATABASE_URL로 Postgres까지
+# 받고, 백업이 자동으로 뜨고, Docker로 어디서든 같은 모양으로 뜬다.
 # 기능이 바뀔 때마다 올린다.
-APP_VERSION = "0.7.0"
+APP_VERSION = "0.8.0"
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 

@@ -1,6 +1,8 @@
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
 sqlalchemy==2.0.53
+# 스키마 변경 이력. 쓰던 DB를 지우지 않고 올리려면 필요하다 (app/migrate.py)
+alembic==1.20.0
 pydantic==2.13.5
 yfinance==1.7.0
 # Stooq 대체 조회용 (yfinance의 전이 의존성이기도 하지만 직접 쓰므로 명시한다)

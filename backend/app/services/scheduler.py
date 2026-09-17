@@ -8,6 +8,10 @@
 
 한국 종목을 미국 일정에만 맡기면, 한국 거래일 낮 내내 전날 종가가 걸려 있게 된다.
 
+백업도 여기서 돈다. 서버는 늘 켜져 있으니 정해진 시각에 돌면 되지만, 개인 PC는
+**켜져 있을 때만** 스케줄러가 산다. 그래서 켠 직후에도 한 번 보되, 최근 것이 있으면
+넘어간다 (안 그러면 앱을 여닫을 때마다 쌓여 보관분이 반나절치가 된다).
+
 여기에 더해 한국거래소 상장목록도 주기적으로 받아둔다. 내장 목록은 주요 종목
 위주라 중소형주가 이름으로 검색되지 않는데, 사용자가 "거래소 목록 갱신" 버튼의
 존재를 알아야만 해결되는 상태였다.
@@ -42,6 +46,18 @@ def _daily_refresh_job() -> None:
 
 def _korea_refresh_job() -> None:
     _refresh(Market.KR, "korea")
+
+
+def _backup_job() -> None:
+    from app.services.backup import run_backup
+
+    run_backup()
+
+
+def _startup_backup_job() -> None:
+    from app.services.backup import run_backup_if_stale
+
+    run_backup_if_stale()
 
 
 def _listing_refresh_job() -> None:
@@ -79,6 +95,15 @@ def start_scheduler() -> BackgroundScheduler:
     # 이후에는 주 1회 (일요일 UTC 20:00 = 월요일 KST 05:00, 개장 전)
     scheduler.add_job(
         _listing_refresh_job, "cron", day_of_week="sun", hour=20, minute=0, id="listing_refresh"
+    )
+    # 백업: 미국 갱신(22:30)이 끝난 뒤. 그날 받은 시세까지 들어간다.
+    scheduler.add_job(_backup_job, "cron", hour=23, minute=30, id="backup")
+    # 켠 직후 한 번 — 다만 최근 백업이 있으면 건너뛴다. 시작을 붙잡지 않도록 뒤로 미룬다.
+    scheduler.add_job(
+        _startup_backup_job,
+        "date",
+        run_date=dt.datetime.now() + dt.timedelta(seconds=60),
+        id="backup_startup",
     )
     scheduler.start()
     _scheduler = scheduler

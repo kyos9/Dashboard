@@ -3,6 +3,9 @@
 한국과 미국은 마감 시각이 다르므로 갱신 job도 나뉜다. 국내 job이 시장 필터 없이 돌면
 미국 종목까지 한국 마감 시각에 갱신해 의미 없는 호출이 나가고, 반대로 국내 job이 아예
 없으면 한국 거래일 낮 내내 전날 종가가 걸려 있게 된다.
+
+백업 job도 여기 붙어 있다. 실제로 무엇을 뜨는지는 test_backup.py가 보고, 여기서는
+**배선**만 본다 — 갱신 뒤에 도는지, 개인 PC를 위한 시작 시 job이 있는지.
 """
 
 import pandas as pd
@@ -21,6 +24,8 @@ def test_jobs_cover_both_market_closes():
             "korea_refresh",
             "listing_refresh",
             "listing_refresh_startup",
+            "backup",
+            "backup_startup",
         }
 
         # 미국: UTC 22:30 (마감 후), 한국: UTC 07:30 = KST 16:30 (마감 후)
@@ -37,7 +42,7 @@ def test_start_is_idempotent():
     first = scheduler.start_scheduler()
     try:
         assert scheduler.start_scheduler() is first
-        assert len(first.get_jobs()) == 4
+        assert len(first.get_jobs()) == 6
     finally:
         scheduler.shutdown_scheduler()
 
@@ -113,6 +118,45 @@ def test_listing_cache_is_filled_on_startup():
         assert "day_of_week='sun'" in str(jobs["listing_refresh"].trigger)
     finally:
         scheduler.shutdown_scheduler()
+
+
+def test_backup_runs_after_the_day_is_refreshed():
+    """백업이 갱신보다 먼저 돌면 그날 받은 시세가 빠진 걸 백업하게 된다."""
+    sched = scheduler.start_scheduler()
+    try:
+        jobs = {job.id: job for job in sched.get_jobs()}
+        daily = str(jobs["daily_refresh"].trigger)
+        backup_job = str(jobs["backup"].trigger)
+        assert "hour='22'" in daily
+        assert "hour='23'" in backup_job and "minute='30'" in backup_job
+    finally:
+        scheduler.shutdown_scheduler()
+
+
+def test_backup_also_runs_when_the_pc_is_turned_on():
+    """개인 PC는 정해진 시각에 켜져 있으리라는 보장이 없다.
+
+    다만 켤 때마다 뜨면 보관분이 반나절치가 되므로, 실제로 뜰지는
+    `run_backup_if_stale`이 판단한다 (test_backup.py).
+    """
+    sched = scheduler.start_scheduler()
+    try:
+        jobs = {job.id: job for job in sched.get_jobs()}
+        assert "date" in str(type(jobs["backup_startup"].trigger)).lower()
+    finally:
+        scheduler.shutdown_scheduler()
+
+
+def test_backup_failure_does_not_kill_the_scheduler(monkeypatch, caplog):
+    """백업이 실패했다고 다음날 시세 갱신까지 멈추면 안 된다."""
+    from app.services import backup
+
+    monkeypatch.setattr(backup, "create_backup", lambda *a, **k: (_ for _ in ()).throw(OSError("디스크 꽉 참")))
+
+    with caplog.at_level("ERROR"):
+        scheduler._backup_job()  # 예외가 새어 나오면 실패
+
+    assert "백업에 실패" in caplog.text
 
 
 def test_listing_job_survives_blocked_network(monkeypatch, caplog):

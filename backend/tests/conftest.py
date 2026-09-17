@@ -7,6 +7,18 @@ from app.db import Base
 
 
 @pytest.fixture(autouse=True)
+def isolated_backup_dir(tmp_path, monkeypatch):
+    """마이그레이션 경로를 타는 테스트가 실제 backups/ 폴더를 더럽히지 않게.
+
+    끄는 게 아니라 **옮기는 것**이 중요하다. 백업을 꺼두고 테스트하면 정작 백업이
+    안 되는 상태를 못 잡는다.
+    """
+    from app.services import backup
+
+    monkeypatch.setattr(backup, "BACKUP_DIR", tmp_path / "backups")
+
+
+@pytest.fixture(autouse=True)
 def block_network(monkeypatch):
     """테스트가 실수로 바깥 네트워크를 쓰지 못하게 막는다.
 
