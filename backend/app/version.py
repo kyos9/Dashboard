@@ -10,8 +10,9 @@ from pathlib import Path
 
 # 배포 토대를 갖춘 버전 — Alembic으로 스키마를 관리하고, DATABASE_URL로 Postgres까지
 # 받고, 백업이 자동으로 뜨고, Docker로 어디서든 같은 모양으로 뜬다.
+# 0.8.1: PC가 꺼져 있던 동안을 제대로 다루게 고쳤다 (중간점검에서 찾은 셋).
 # 기능이 바뀔 때마다 올린다.
-APP_VERSION = "0.8.0"
+APP_VERSION = "0.8.1"
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 

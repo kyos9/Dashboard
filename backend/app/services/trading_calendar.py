@@ -75,12 +75,37 @@ def _schedule(market: Market, start: dt.date, end: dt.date):
         return _build_schedule(market, start, end)
 
 
+def market_date(moment: dt.datetime, market: Market = Market.US) -> dt.date:
+    """어떤 시각을 그 시장 현지 날짜로 바꾼다.
+
+    시간대가 없는 값은 UTC로 본다 — DB의 시각 컬럼은 전부 `utcnow()`로 들어간다.
+    """
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=dt.timezone.utc)
+    return moment.astimezone(_TIMEZONES[market]).date()
+
+
 def market_today(market: Market = Market.US) -> dt.date:
     """해당 시장 현지 기준 '오늘'.
 
     서버가 어느 시간대에 있든 기간/리뷰 판정이 시장 기준으로 일관되게 동작해야 한다.
     """
-    return dt.datetime.now(_TIMEZONES[market]).date()
+    return market_date(dt.datetime.now(dt.timezone.utc), market)
+
+
+# 연휴가 아무리 길어도 이 안에는 거래일이 있다 (한국 설·추석 + 주말이 가장 길다).
+_LOOKBACK_FOR_LAST_TRADING_DAY = dt.timedelta(days=14)
+
+
+def last_closed_trading_day(market: Market = Market.US, today: dt.date | None = None) -> dt.date | None:
+    """**오늘을 뺀** 마지막 거래일.
+
+    "시세가 최신인가"를 판단할 때 쓴다. 오늘을 넣으면 안 된다 — 장이 아직 안 끝났을 수
+    있고, 그러면 개장 중에는 언제나 "낡았다"고 나와 갱신을 계속 부르게 된다.
+    """
+    today = today or market_today(market)
+    days = trading_days(today - _LOOKBACK_FOR_LAST_TRADING_DAY, today - dt.timedelta(days=1), market)
+    return days[-1] if days else None
 
 
 def trading_days(start: dt.date, end: dt.date, market: Market = Market.US) -> list[dt.date]:

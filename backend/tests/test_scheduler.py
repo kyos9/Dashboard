@@ -24,6 +24,7 @@ def test_jobs_cover_both_market_closes():
             "korea_refresh",
             "listing_refresh",
             "listing_refresh_startup",
+            "refresh_startup",
             "backup",
             "backup_startup",
         }
@@ -42,7 +43,7 @@ def test_start_is_idempotent():
     first = scheduler.start_scheduler()
     try:
         assert scheduler.start_scheduler() is first
-        assert len(first.get_jobs()) == 6
+        assert len(first.get_jobs()) == 7
     finally:
         scheduler.shutdown_scheduler()
 
@@ -206,3 +207,102 @@ def test_one_failed_fetch_does_not_stop_the_rest(db_session, monkeypatch):
     results = {row["ticker"]: row for row in pipeline.refresh_all_active_stocks(db_session)}
     assert results["VOO"] == {"ticker": "VOO"}
     assert results["ZZZZ"]["hint"] == "티커를 확인해주세요"
+
+
+def test_startup_jobs_are_scheduled_in_seconds_not_hours():
+    """켤 때 도는 job들이 **정말로** 곧 도는지.
+
+    스케줄러는 UTC로 도는데 시간대 없는 `datetime.now()`를 주면 APScheduler가 그 값을
+    UTC로 읽는다. 한국(UTC+9)에서는 "15초 뒤"가 9시간 뒤가 되어, 앱을 그만큼 켜두지
+    않으면 켤 때 하는 일이 하나도 돌지 않는다. 실제로 그 상태였다.
+    """
+    import datetime as dt
+
+    # 핵심은 이것 하나다. 시간대가 붙어 있지 않으면 APScheduler가 로컬 시각을 UTC로
+    # 읽는다. (이 검사는 테스트를 돌리는 PC의 시간대와 무관하게 성립해야 하므로
+    # `_soon` 자체를 본다 — CI는 UTC라 job의 예정 시각만 보면 버그가 숨는다.)
+    soon = scheduler._soon(15)
+    assert soon.tzinfo is not None, "_soon()이 시간대 없는 값을 돌려준다"
+    assert 0 < (soon - dt.datetime.now(dt.timezone.utc)).total_seconds() < 60
+
+    sched = scheduler.start_scheduler()
+    try:
+        now = dt.datetime.now(dt.timezone.utc)
+        jobs = {job.id: job for job in sched.get_jobs()}
+        for job_id in ("listing_refresh_startup", "refresh_startup", "backup_startup"):
+            delay = (jobs[job_id].trigger.run_date - now).total_seconds()
+            assert 0 < delay < 300, f"{job_id}: {delay:.0f}초 뒤에 돈다"
+    finally:
+        scheduler.shutdown_scheduler()
+
+
+def test_prices_are_caught_up_when_the_pc_is_turned_on():
+    """cron은 놓친 실행을 되돌려주지 않는다. 개인 PC는 갱신 시각 대부분에 꺼져 있다.
+
+    백업에는 이 장치가 있었는데(backup_startup) 시세에는 없었다. 그래서 며칠 꺼뒀다
+    켜면 시세가 그대로였고, 그 사이 기간의 매수 판정도 일어나지 않았다.
+    """
+    sched = scheduler.start_scheduler()
+    try:
+        jobs = {job.id: job for job in sched.get_jobs()}
+        assert "refresh_startup" in jobs
+        assert "date" in str(type(jobs["refresh_startup"].trigger)).lower()
+    finally:
+        scheduler.shutdown_scheduler()
+
+
+def test_catch_up_only_refreshes_markets_that_fell_behind(db_session, monkeypatch):
+    """미국만 밀렸으면 미국만 받아온다 — 멀쩡한 시장까지 다시 받을 이유가 없다."""
+    import datetime as dt
+
+    from app.models import PriceDaily
+
+    db_session.add(Stock(ticker="VOO", target_weight_pct=50))
+    db_session.add(Stock(ticker="005930.KS", target_weight_pct=50))
+    db_session.commit()
+
+    us_last = pipeline.last_closed_trading_day(Market.US)
+    kr_last = pipeline.last_closed_trading_day(Market.KR)
+
+    # 한국은 최신, 미국은 한 달 뒤처져 있다
+    db_session.add(PriceDaily(ticker="005930.KS", date=kr_last, open=1, high=1, low=1, close=1, volume=1))
+    db_session.add(
+        PriceDaily(
+            ticker="VOO", date=us_last - dt.timedelta(days=30),
+            open=1, high=1, low=1, close=1, volume=1,
+        )
+    )
+    db_session.commit()
+
+    assert pipeline.stale_markets(db_session) == [Market.US]
+
+    refreshed = []
+    monkeypatch.setattr(
+        pipeline, "refresh_all_active_stocks",
+        lambda db, market=None: refreshed.append(market) or [],
+    )
+    pipeline.refresh_stale_markets(db_session)
+    assert refreshed == [Market.US]
+
+
+def test_catch_up_does_nothing_when_prices_are_current(db_session, monkeypatch):
+    """켤 때마다 다시 받아오면 그것대로 못 쓴다."""
+    from app.models import PriceDaily
+
+    db_session.add(Stock(ticker="VOO", target_weight_pct=100))
+    db_session.commit()
+    db_session.add(
+        PriceDaily(
+            ticker="VOO", date=pipeline.last_closed_trading_day(Market.US),
+            open=1, high=1, low=1, close=1, volume=1,
+        )
+    )
+    db_session.commit()
+
+    assert pipeline.stale_markets(db_session) == []
+
+    monkeypatch.setattr(
+        pipeline, "refresh_all_active_stocks",
+        lambda db, market=None: (_ for _ in ()).throw(AssertionError("갱신하면 안 된다")),
+    )
+    assert pipeline.refresh_stale_markets(db_session) == {}

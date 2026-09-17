@@ -6,11 +6,13 @@
 import logging
 
 import pandas as pd
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.markets import Market
-from app.models import Stock
+from app.models import PriceDaily, Stock
 from app.services import buy_workflow, data_ingestion, fx
+from app.services.trading_calendar import last_closed_trading_day
 
 logger = logging.getLogger(__name__)
 
@@ -66,4 +68,47 @@ def refresh_all_active_stocks(db: Session, market: Market | None = None) -> list
         # 환율 갱신 실패가 시세 갱신 결과를 덮어써선 안 된다 (직전 환율이 그대로 쓰인다)
         logger.warning("환율 갱신 실패 — 기존 환율을 계속 사용합니다", exc_info=True)
 
+    return results
+
+
+def stale_markets(db: Session) -> list[Market]:
+    """활성 종목의 최신 시세가 마지막 거래일보다 뒤처진 시장.
+
+    시장별로 본다 — 한국은 최신인데 미국만 밀려 있을 수 있고, 그때 전 종목을 다시
+    받아올 이유는 없다.
+    """
+    rows = (
+        db.query(Stock.market, func.max(PriceDaily.date))
+        .select_from(Stock)
+        .outerjoin(PriceDaily, PriceDaily.ticker == Stock.ticker)
+        .filter(Stock.active.is_(True))
+        .group_by(Stock.market)
+        .all()
+    )
+
+    stale: list[Market] = []
+    for market_value, latest in rows:
+        try:
+            market = Market(market_value)
+        except ValueError:
+            logger.warning("모르는 시장 값이라 건너뜁니다: %s", market_value)
+            continue
+        expected = last_closed_trading_day(market)
+        if expected is None:
+            continue
+        if latest is None or latest < expected:
+            stale.append(market)
+    return stale
+
+
+def refresh_stale_markets(db: Session) -> dict[str, list[dict]]:
+    """뒤처진 시장만 갱신한다. 켤 때 놓친 갱신을 따라잡는 용도.
+
+    스케줄러의 cron은 **놓친 실행을 되돌려주지 않는다.** 서버는 늘 켜져 있으니 상관없지만
+    개인 PC는 갱신 시각 대부분에 꺼져 있다. 그대로 두면 켜도 시세가 며칠 전 그대로다.
+    """
+    results: dict[str, list[dict]] = {}
+    for market in stale_markets(db):
+        logger.info("%s 시세가 마지막 거래일보다 뒤처져 있어 따라잡습니다", market.value)
+        results[market.value] = refresh_all_active_stocks(db, market=market)
     return results

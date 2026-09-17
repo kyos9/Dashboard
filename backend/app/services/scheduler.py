@@ -8,9 +8,9 @@
 
 한국 종목을 미국 일정에만 맡기면, 한국 거래일 낮 내내 전날 종가가 걸려 있게 된다.
 
-백업도 여기서 돈다. 서버는 늘 켜져 있으니 정해진 시각에 돌면 되지만, 개인 PC는
-**켜져 있을 때만** 스케줄러가 산다. 그래서 켠 직후에도 한 번 보되, 최근 것이 있으면
-넘어간다 (안 그러면 앱을 여닫을 때마다 쌓여 보관분이 반나절치가 된다).
+**cron은 놓친 실행을 되돌려주지 않는다.** 서버는 늘 켜져 있으니 상관없지만, 개인 PC는
+위 시각 대부분에 꺼져 있다. 그래서 시세·백업 둘 다 **켠 직후에 한 번 더 보되, 이미
+최신이면 넘어간다.** 앱을 여닫을 때마다 다시 받아오면 그것대로 못 쓴다.
 
 여기에 더해 한국거래소 상장목록도 주기적으로 받아둔다. 내장 목록은 주요 종목
 위주라 중소형주가 이름으로 검색되지 않는데, 사용자가 "거래소 목록 갱신" 버튼의
@@ -48,6 +48,28 @@ def _korea_refresh_job() -> None:
     _refresh(Market.KR, "korea")
 
 
+def _startup_refresh_job() -> None:
+    """켠 직후 한 번 — 꺼져 있는 동안 지나간 갱신을 따라잡는다.
+
+    이게 없으면 시세만 낡는 게 아니다. 매수 워크플로우는 시그널 기록을 보고 판정하므로,
+    받아오지 않은 날은 판정 자체가 일어나지 않는다.
+    """
+    from app.services import pipeline
+
+    db = SessionLocal()
+    try:
+        results = pipeline.refresh_stale_markets(db)
+        if results:
+            logger.info("따라잡기 갱신: %s", results)
+        else:
+            logger.debug("시세가 이미 최신입니다")
+    except Exception:
+        # 네트워크가 막혀 있을 수 있다. 앱은 계속 뜬다 — 화면의 "새로고침"이 남아 있다.
+        logger.warning("따라잡기 갱신에 실패했습니다", exc_info=True)
+    finally:
+        db.close()
+
+
 def _backup_job() -> None:
     from app.services.backup import run_backup
 
@@ -78,32 +100,54 @@ def _listing_refresh_job() -> None:
         db.close()
 
 
+def _soon(seconds: int) -> dt.datetime:
+    """지금부터 `seconds`초 뒤 — **시간대를 붙여서** 돌려준다.
+
+    스케줄러는 UTC로 돈다. 여기에 시간대 없는 `datetime.now()`를 주면 APScheduler가
+    그 값을 UTC로 읽는다. 한국(UTC+9)에서는 "15초 뒤"가 **9시간 뒤**가 되고, 앱을
+    그만큼 켜두지 않으면 영영 돌지 않는다. 켤 때 하는 일들이 전부 여기 달려 있다.
+    """
+    return dt.datetime.now(dt.timezone.utc) + dt.timedelta(seconds=seconds)
+
+
+# 자다 깬 노트북처럼 예정 시각이 잠깐 지나버린 경우까지는 그대로 실행한다.
+# (그보다 오래 꺼져 있었던 경우는 위의 "켠 직후" 작업들이 맡는다.)
+MISFIRE_GRACE_SECONDS = 3600
+
+
 def start_scheduler() -> BackgroundScheduler:
     global _scheduler
     if _scheduler is not None:
         return _scheduler
     scheduler = BackgroundScheduler(timezone="UTC")
-    scheduler.add_job(_daily_refresh_job, "cron", hour=22, minute=30, id="daily_refresh")
-    scheduler.add_job(_korea_refresh_job, "cron", hour=7, minute=30, id="korea_refresh")
+    scheduler.add_job(
+        _daily_refresh_job, "cron", hour=22, minute=30, id="daily_refresh",
+        misfire_grace_time=MISFIRE_GRACE_SECONDS,
+    )
+    scheduler.add_job(
+        _korea_refresh_job, "cron", hour=7, minute=30, id="korea_refresh",
+        misfire_grace_time=MISFIRE_GRACE_SECONDS,
+    )
     # 켜고 나서 잠깐 뒤에 한 번 — 시작을 붙잡지 않으면서 첫 실행에 목록을 채운다
     scheduler.add_job(
-        _listing_refresh_job,
-        "date",
-        run_date=dt.datetime.now() + dt.timedelta(seconds=15),
-        id="listing_refresh_startup",
+        _listing_refresh_job, "date", run_date=_soon(15), id="listing_refresh_startup",
+    )
+    # 꺼져 있는 동안 지나간 갱신 따라잡기. 목록 갱신 뒤에 둔다 — 둘 다 네트워크를 쓴다.
+    scheduler.add_job(
+        _startup_refresh_job, "date", run_date=_soon(30), id="refresh_startup",
     )
     # 이후에는 주 1회 (일요일 UTC 20:00 = 월요일 KST 05:00, 개장 전)
     scheduler.add_job(
         _listing_refresh_job, "cron", day_of_week="sun", hour=20, minute=0, id="listing_refresh"
     )
     # 백업: 미국 갱신(22:30)이 끝난 뒤. 그날 받은 시세까지 들어간다.
-    scheduler.add_job(_backup_job, "cron", hour=23, minute=30, id="backup")
+    scheduler.add_job(
+        _backup_job, "cron", hour=23, minute=30, id="backup",
+        misfire_grace_time=MISFIRE_GRACE_SECONDS,
+    )
     # 켠 직후 한 번 — 다만 최근 백업이 있으면 건너뛴다. 시작을 붙잡지 않도록 뒤로 미룬다.
     scheduler.add_job(
-        _startup_backup_job,
-        "date",
-        run_date=dt.datetime.now() + dt.timedelta(seconds=60),
-        id="backup_startup",
+        _startup_backup_job, "date", run_date=_soon(60), id="backup_startup",
     )
     scheduler.start()
     _scheduler = scheduler

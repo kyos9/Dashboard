@@ -7,8 +7,8 @@
 정해둔 값이고, 이 코드는 그 조건이 맞아떨어진 날을 기록할 뿐이다. 실제로 샀는지는
 사용자가 대시보드에서 확인해야 "확정(confirmed)"으로 바뀐다.
 
-(신규 종목은 추가 시점 이후 열린 기간부터만 추적 — 과거 기간 소급 없음, 이 함수는 항상
-"가장 최근 시그널 날짜"만 평가하므로 자연히 그렇게 동작한다.)
+신규 종목은 **등록한 날부터** 추적한다. 등록 전 날짜까지 거슬러 올라가 매수를 잡아내면,
+그때는 알 수도 없었고 실제로 사지도 않은 거래가 "예정"으로 올라온다.
 """
 
 import datetime as dt
@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.markets import market_of_stock
 from app.models import BuyExecution, BuyStatus, BuyType, Holding, SignalDaily, Stock
-from app.services.trading_calendar import period_trading_bounds
+from app.services.trading_calendar import market_date, period_trading_bounds
 
 
 def latest_signal_date(db: Session, ticker: str) -> dt.date | None:
@@ -28,6 +28,35 @@ def latest_signal_date(db: Session, ticker: str) -> dt.date | None:
         .first()
     )
     return row.date if row else None
+
+
+def first_knee_date(db: Session, ticker: str, start: dt.date, end: dt.date) -> dt.date | None:
+    """[start, end] 안에서 무릎매수(v2)가 **처음** 뜬 날.
+
+    마지막 날 하나만 보면 안 된다. 갱신은 매일 돈다는 보장이 없고(PC는 꺼진다),
+    하루라도 밀리면 그 사이에 뜬 시그널이 영영 기록되지 않는다.
+    """
+    if start > end:
+        return None
+    row = (
+        db.query(SignalDaily.date)
+        .filter(
+            SignalDaily.ticker == ticker,
+            SignalDaily.date >= start,
+            SignalDaily.date <= end,
+            SignalDaily.knee_buy_v2.is_(True),
+        )
+        .order_by(SignalDaily.date.asc())
+        .first()
+    )
+    return row[0] if row else None
+
+
+def tracking_start(stock: Stock) -> dt.date:
+    """이 종목을 추적하기 시작한 날 (시장 현지 기준)."""
+    if stock.added_at is None:
+        return dt.date.min
+    return market_date(stock.added_at, market_of_stock(stock))
 
 
 def evaluate_buy_workflow(db: Session, stock: Stock) -> BuyExecution | None:
@@ -50,17 +79,18 @@ def evaluate_buy_workflow(db: Session, stock: Stock) -> BuyExecution | None:
     if existing is not None:
         return None
 
-    today_signal = (
-        db.query(SignalDaily).filter_by(ticker=stock.ticker, date=latest).first()
+    # 기간이 열린 날과 종목을 등록한 날 중 늦은 쪽부터 본다
+    signal_date = first_knee_date(
+        db, stock.ticker, max(period_start, tracking_start(stock)), min(latest, period_end)
     )
 
     record = None
-    if today_signal is not None and today_signal.knee_buy_v2:
+    if signal_date is not None:
         record = BuyExecution(
             ticker=stock.ticker,
             period_start=period_start,
             period_end=period_end,
-            exec_date=latest,
+            exec_date=signal_date,
             type=BuyType.signal,
             amount=stock.dca_amount,
             status=BuyStatus.scheduled,
