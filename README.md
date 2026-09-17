@@ -17,7 +17,9 @@
   빌드된 화면도 여기서 함께 내보냅니다(`app/web.py`) — 띄울 프로세스가 하나뿐입니다.
 - `backend/migrations/` — Alembic 리비전. 스키마가 바뀌는 길은 여기 하나입니다.
 - `frontend/` — Vite + React + TypeScript. 대시보드/히스토리 차트/리밸런싱/종목 관리 4개 화면.
-- `Dockerfile` / `docker-compose.yml` — 서버에 올릴 때. 개인 PC에는 필요 없습니다.
+- `Dockerfile` / `docker-compose.yml` / `Caddyfile` — 서버에 올릴 때. 개인 PC에는 필요 없습니다.
+- [`DEPLOY.md`](DEPLOY.md) — **서버에 올리는 절차.** 오라클 인스턴스 만들기부터
+  도메인·HTTPS·첫 배포까지, 막히는 자리(방화벽 두 겹)를 포함해 순서대로.
 - [`SIGNAL_APP_SPEC.md`](SIGNAL_APP_SPEC.md) — **시그널이 무엇인지.** 지표 공식, 조건식,
   경계값, 매수·리밸런싱 규칙. 조건식을 바꾸려면 여기부터 고칩니다.
 
@@ -220,11 +222,20 @@ npm run dev
 ## 서버에 올리기 — Docker
 
 개인 PC에서는 필요 없습니다. `start-all.bat`이 더 간단하고 SQLite 파일 하나로 충분합니다.
-**여러 사람이 쓰는 서버**를 염두에 둔 구성입니다.
+폰에서도 열고 싶거나, PC를 꺼둔 동안에도 갱신되게 하려는 경우입니다.
+
+> **처음 올리는 거라면 [`DEPLOY.md`](DEPLOY.md)를 따라가세요** — 오라클 인스턴스
+> 만들기부터 도메인·HTTPS까지 순서대로 적혀 있습니다. 아래는 구성 자체에 대한 설명입니다.
 
 ```bash
 cp .env.example .env       # POSTGRES_PASSWORD·DASHBOARD_PASSWORD를 직접 채웁니다
 docker compose up -d
+```
+
+도메인을 붙여 바깥에 공개할 때는 HTTPS를 끊어주는 웹서버를 같이 띄웁니다:
+
+```bash
+docker compose --profile https up -d    # .env 에 DOMAIN 이 채워져 있어야 합니다
 ```
 
 이후 업데이트는 `git pull && docker compose up -d --build`. 마이그레이션은 앱이 뜨면서
@@ -234,8 +245,9 @@ docker compose up -d
   폴더 구조(`/srv/backend`, `/srv/frontend/dist`)를 유지합니다.
 - 남아야 하는 것(로그·백업, SQLite로 쓸 경우 DB)은 전부 `/data` 볼륨 아래입니다.
   이미지 안에 두면 다시 올릴 때 사라집니다.
-- 포트는 `127.0.0.1:8000`에만 엽니다. 바깥에는 HTTPS를 끊어주는 웹서버를 앞에 두세요
-  (ROADMAP 5단계). `0.0.0.0`으로 열면 암호화 없이 그대로 노출됩니다.
+- 앱 포트는 `127.0.0.1:8000`에만 엽니다. 바깥은 Caddy(`--profile https`)가 맡아
+  인증서를 알아서 받고 갱신합니다. 앱을 `0.0.0.0`으로 열면 HTTPS를 건너뛰고 평문으로
+  노출됩니다 — 비밀번호가 그대로 오갑니다.
 - 워커는 하나입니다. 스케줄러가 앱 안에서 돌기 때문입니다. 실수로 늘리더라도
   **Postgres를 쓰면 스케줄러는 하나만 돕니다** — 어드바이저리 락으로 한 프로세스만
   맡고, 나머지는 조용히 안 띄웁니다(`app/services/leader.py`). 락은 연결이 끊기면
