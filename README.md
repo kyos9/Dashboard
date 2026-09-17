@@ -333,6 +333,18 @@ cd backend && source .venv/bin/activate && pytest
 cd frontend && npm test
 ```
 
+**푸시하면 GitHub이 알아서 돌립니다** (`.github/workflows/`). 커밋 옆에 ✓ / ✗ 가 붙고,
+실패하면 메일이 옵니다. PC에는 아무것도 설치되지 않습니다.
+
+| 워크플로 | 언제 | 무엇을 |
+| --- | --- | --- |
+| `tests.yml` | 푸시할 때마다 | 백엔드 `pytest` · 프런트 `npm run build`(타입 검사 포함) + `npm test` |
+| `docker.yml` | Dockerfile·의존성이 바뀔 때만 | 이미지 빌드 + `docker compose config` 검사 |
+
+Docker 빌드를 매번 돌리지 않는 이유는 무겁기 때문이고(파이썬 패키지 설치 + 화면 빌드),
+앱 소스만 바뀌는 경우는 `tests.yml`이 잡습니다. 필요하면 Actions 탭에서 손으로 돌릴 수
+있습니다(`workflow_dispatch`).
+
 커버리지를 함께 보려면 `pytest --cov=app` / `npm run test:coverage`.
 두 테스트 모두 실제 네트워크를 쓰지 않습니다 — 백엔드는 conftest가 바깥 요청을 막고,
 프런트엔드는 API 호출을 가짜로 대체합니다. 네트워크 상태에 따라 결과가 흔들리지
