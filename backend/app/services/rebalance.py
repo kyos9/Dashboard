@@ -83,7 +83,7 @@ def shoulder_fired_in_current_period(db: Session, stock: Stock, today: dt.date) 
 def compute_positions(
     db: Session,
     stocks: list[Stock],
-    rate: fx.FxRate | None = None,
+    rate: fx.FxRates | None = None,
     base: Currency | None = None,
 ) -> dict[str, dict]:
     """종목별 보유수량/최신 종가/평가금액을 한 번에 계산한다.
@@ -92,7 +92,7 @@ def compute_positions(
     비중 계산에는 반드시 `value_base`를 써야 한다.
     """
     if rate is None:
-        rate = fx.get_usd_krw(db)
+        rate = fx.get_rates(db)
     if base is None:
         base = fx.base_currency(db)
 
@@ -145,7 +145,7 @@ def compute_rebalance_current(db: Session, today: dt.date | None = None) -> dict
     """리밸런싱 현황 전체. 기준통화·환율과 종목별 행을 함께 돌려준다."""
     stocks = db.query(Stock).filter(Stock.active.is_(True)).order_by(*stock_order()).all()
 
-    rate = fx.get_usd_krw(db)
+    rate = fx.get_rates(db)
     base = fx.base_currency(db)
     default_band = get_default_band_pct(db)
 

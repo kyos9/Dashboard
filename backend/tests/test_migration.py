@@ -133,11 +133,10 @@ def test_market_and_currency_are_backfilled_from_ticker(upgraded):
 def test_new_currency_settings_get_defaults(upgraded):
     conn = upgraded
     row = conn.execute(
-        text(
-            "SELECT base_currency, usd_krw_override, usd_krw_rate FROM portfolio_settings"
-        )
+        text("SELECT base_currency, fx_overrides FROM portfolio_settings")
     ).fetchone()
-    assert row == ("KRW", None, None)
+    # 기준통화는 원, 직접 입력한 환율은 없음 (자동 조회값을 쓴다)
+    assert row == ("KRW", None)
 
 
 def test_new_tables_are_created(upgraded):

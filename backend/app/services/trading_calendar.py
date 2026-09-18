@@ -1,12 +1,13 @@
-"""시장별 거래일 캘린더 (미국 NYSE / 한국 XKRX).
+"""시장별 거래일 캘린더 (미국 NYSE / 한국 XKRX / 일본 JPX).
 
 종목마다 데이터 결측일이 달라 기간(월/분기/반기) 경계가 어긋나는 것을 방지하기 위해,
 매수 워크플로우/리밸런싱 판정은 개별 종목의 가격 데이터가 아니라 이 모듈의 거래일
 캘린더를 기준으로 한다.
 
-시장을 구분하는 이유: 한국과 미국은 휴장일이 다르다. 분기 마지막 거래일도 다르므로
-(예: 12월 31일 한국 휴장, 미국 개장) 국내 종목에 NYSE 캘린더를 쓰면 리뷰 마감일과
-폴백 매수일이 실제 거래일이 아닌 날로 잡힌다.
+시장을 구분하는 이유: 나라마다 휴장일이 다르다. 분기 마지막 거래일도 다르므로
+(예: 12월 31일 한국·일본 휴장, 미국 개장) 국내 종목에 NYSE 캘린더를 쓰면 리뷰 마감일과
+폴백 매수일이 실제 거래일이 아닌 날로 잡힌다. 일본은 골든위크·오봉처럼 한국에도
+미국에도 없는 연휴가 있어 더 그렇다.
 """
 
 from __future__ import annotations
@@ -24,11 +25,15 @@ from app.markets import Market
 _CALENDAR_NAMES: dict[Market, str] = {
     Market.US: "NYSE",
     Market.KR: "XKRX",
+    Market.JP: "JPX",
 }
 
 _TIMEZONES: dict[Market, ZoneInfo] = {
     Market.US: ZoneInfo("America/New_York"),
     Market.KR: ZoneInfo("Asia/Seoul"),
+    # 일본도 UTC+9라 한국과 날짜가 같지만, 그렇다고 같은 값을 쓰면 안 된다 —
+    # "지금은 UTC+9"가 아니라 "이 시장의 현지 시각"이 필요하다.
+    Market.JP: ZoneInfo("Asia/Tokyo"),
 }
 
 
@@ -49,7 +54,7 @@ _TIMEZONES: dict[Market, ZoneInfo] = {
 _BUILD_LOCK = threading.RLock()
 
 
-@lru_cache(maxsize=4)
+@lru_cache(maxsize=8)
 def _build_calendar(market: Market):
     # XKRX는 점심 휴장(break_start/break_end)이 폐지됐다는 경고를 내는데,
     # 우리는 일봉만 쓰므로 장중 시간표와 무관하다.

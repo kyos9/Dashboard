@@ -188,30 +188,39 @@ class HoldingOut(BaseModel):
     updated_at: dt.datetime
 
 
-class FxOut(BaseModel):
-    """적용 중인 원/달러 환율과 그 출처.
+class QuoteOut(BaseModel):
+    """한 통화의 원화 환산값과 그 출처."""
 
-    `is_estimate=True`면 조회에도 실패하고 저장된 값도 없어 폴백 상수를 쓰는 중이라는 뜻 —
-    화면에서 추정치임을 반드시 알려야 한다.
-    """
-
-    usd_krw: float
+    currency: Currency
+    krw_rate: float
     source: str  # override | stored | fetched | fallback
     updated_at: Optional[str] = None
+    is_estimate: bool = False
+
+
+class FxOut(BaseModel):
+    """적용 중인 환율 묶음.
+
+    `is_estimate=True`면 어느 통화든 조회에 실패하고 저장된 값도 없어 폴백 상수를 쓰는
+    중이라는 뜻 — 화면에서 추정치임을 반드시 알려야 한다.
+    """
+
+    rates: dict[str, QuoteOut] = {}
     is_estimate: bool = False
 
 
 class SettingsUpdate(BaseModel):
     default_rebalance_band_pct: Optional[float] = None
     base_currency: Optional[Currency] = None
-    # None으로 명시하면 수동 환율을 해제하고 자동 조회값으로 돌아간다
-    usd_krw_override: Optional[float] = None
+    # 통화코드 -> 직접 입력한 환율. 값에 null을 주면 그 통화만 자동 조회로 돌아간다
+    # (`{"USD": 1380, "JPY": null}`). 보내지 않은 통화는 건드리지 않는다.
+    fx_overrides: Optional[dict[str, Optional[float]]] = None
 
 
 class SettingsOut(BaseModel):
     default_rebalance_band_pct: float
     base_currency: Currency = Currency.KRW
-    usd_krw_override: Optional[float] = None
+    fx_overrides: dict[str, float] = {}
     fx: FxOut
 
 

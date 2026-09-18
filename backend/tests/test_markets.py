@@ -13,10 +13,12 @@ from app.markets import (
     currency_of,
     currency_of_stock,
     is_krx_ticker,
+    is_tse_ticker,
     krx_code,
     market_of,
     market_of_stock,
     parse_krx_ticker,
+    parse_tse_ticker,
 )
 from app.services.symbols import SEED_PATH
 
@@ -31,11 +33,26 @@ from app.services.symbols import SEED_PATH
         ("005930.KS", Market.KR, Currency.KRW),
         ("247540.KQ", Market.KR, Currency.KRW),
         ("005930.ks", Market.KR, Currency.KRW),  # 소문자 접미사도 한국 종목
+        ("7203.T", Market.JP, Currency.JPY),  # 도요타
+        ("7203.t", Market.JP, Currency.JPY),
+        ("130A.T", Market.JP, Currency.JPY),  # 2024년부터 나온 영문 섞인 코드
     ],
 )
 def test_market_and_currency_from_ticker(ticker, market, currency):
     assert market_of(ticker) == market
     assert currency_of(ticker) == currency
+
+
+def test_tse_helpers():
+    assert parse_tse_ticker("7203.T") == "7203"
+    assert parse_tse_ticker("130a.t") == "130A"
+    assert is_tse_ticker("7203.T") is True
+
+    # 미국 티커에 우연히 걸리면 안 된다 — 세 글자 이하이거나 접미사가 다르다
+    assert parse_tse_ticker("T") is None
+    assert parse_tse_ticker("AT.T") is None
+    assert parse_tse_ticker("005930.KS") is None
+    assert is_tse_ticker("VOO") is False
 
 
 def test_parse_krx_ticker():

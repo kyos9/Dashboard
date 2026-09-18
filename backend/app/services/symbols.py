@@ -35,6 +35,7 @@ from app.markets import (
     market_of,
     normalize_ticker,
     parse_krx_ticker,
+    parse_tse_ticker,
 )
 
 logger = logging.getLogger(__name__)
@@ -233,6 +234,21 @@ def _as_ticker(db: Session | None, raw: str) -> SymbolMatch | None:
 
     if KRX_CODE_RE.match(ticker):
         return None  # 6자리 코드만으로는 코스피/코스닥을 모른다 — 아래에서 후보로 처리
+
+    # 도쿄 종목(`7203.T`)은 숫자로 시작해서 아래 미국 티커 규칙에 걸리지 않는다.
+    # 여기서 잡지 않으면 **티커를 정확히 넣어도** 야후 검색까지 내려가고,
+    # 네트워크가 막힌 환경에서는 등록 자체가 실패한다.
+    tse_code = parse_tse_ticker(ticker)
+    if tse_code is not None:
+        return SymbolMatch(
+            ticker=f"{tse_code}.T",
+            # 일본은 우리가 들고 있는 상장목록이 없다. 이름은 야후 검색으로 들어왔을 때만
+            # 채워지므로, 직접 입력한 경우에는 티커를 그대로 이름 자리에 둔다.
+            name=f"{tse_code}.T",
+            market=Market.JP,
+            source="ticker",
+            score=SCORE_CODE_EXACT,
+        )
 
     if US_TICKER_RE.match(ticker):
         return SymbolMatch(

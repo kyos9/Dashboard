@@ -26,7 +26,7 @@ function row(overrides: Partial<RebalanceRow> & { ticker: string }): RebalanceRo
 // 삼성전자 800,000원 + VOO 1,000달러(환율 1300 → 1,300,000원)
 const CURRENT: RebalanceCurrent = {
   base_currency: 'KRW',
-  fx: { usd_krw: 1300, source: 'stored', updated_at: null, is_estimate: false },
+  fx: { rates: { USD: { currency: 'USD', krw_rate: 1300, source: 'stored', updated_at: null, is_estimate: false } }, is_estimate: false },
   total_value_base: 2_100_000,
   rows: [
     row({
@@ -56,7 +56,7 @@ const CURRENT: RebalanceCurrent = {
 const SETTINGS: Settings = {
   default_rebalance_band_pct: 5,
   base_currency: 'KRW',
-  usd_krw_override: null,
+  fx_overrides: {},
   fx: CURRENT.fx,
 }
 
@@ -69,7 +69,7 @@ function mockApi(current: RebalanceCurrent = CURRENT, settings: Settings = SETTI
   vi.spyOn(api, 'getHealth').mockResolvedValue({
     status: 'ok',
     version: 'test',
-    providers_by_market: { US: [], KR: [] },
+    providers_by_market: { US: [], KR: [], JP: [] },
   })
 }
 
@@ -138,7 +138,18 @@ describe('리밸런싱 · 통화 표기', () => {
   it('환율이 추정치면 통화가 섞였을 때 경고한다', async () => {
     mockApi({
       ...CURRENT,
-      fx: { usd_krw: 1350, source: 'fallback', updated_at: null, is_estimate: true },
+      fx: {
+        rates: {
+          USD: {
+            currency: 'USD',
+            krw_rate: 1350,
+            source: 'fallback',
+            updated_at: null,
+            is_estimate: true,
+          },
+        },
+        is_estimate: true,
+      },
     })
     renderPanel()
 
@@ -148,13 +159,50 @@ describe('리밸런싱 · 통화 표기', () => {
   it('한 통화만 쓰면 환율 경고를 띄우지 않는다', async () => {
     mockApi({
       ...CURRENT,
-      fx: { usd_krw: 1350, source: 'fallback', updated_at: null, is_estimate: true },
+      fx: {
+        rates: {
+          USD: {
+            currency: 'USD',
+            krw_rate: 1350,
+            source: 'fallback',
+            updated_at: null,
+            is_estimate: true,
+          },
+        },
+        is_estimate: true,
+      },
       rows: [CURRENT.rows[0]], // 원화 종목만
     })
     renderPanel()
 
     await screen.findByText('합계 (₩)')
     expect(screen.queryByText(/환율을 받아오지 못해 추정치/)).not.toBeInTheDocument()
+  })
+
+  it('일본 종목이 있으면 엔 환율 칸이 생긴다', async () => {
+    mockApi({
+      ...CURRENT,
+      fx: {
+        rates: {
+          USD: { currency: 'USD', krw_rate: 1300, source: 'stored', updated_at: null, is_estimate: false },
+          JPY: { currency: 'JPY', krw_rate: 9.3, source: 'stored', updated_at: null, is_estimate: false },
+        },
+        is_estimate: false,
+      },
+      rows: [...CURRENT.rows, row({ ticker: '7203.T', name: '도요타', currency: 'JPY' })],
+    })
+    renderPanel()
+
+    expect(await screen.findByLabelText('원/엔 환율 직접 입력')).toBeInTheDocument()
+    expect(screen.getByText(/1엔 = 9.30원/)).toBeInTheDocument()
+  })
+
+  it('일본 종목이 없으면 엔 칸은 뜨지 않는다 — 쓰지 않는 환율은 안 보여준다', async () => {
+    mockApi()
+    renderPanel()
+
+    expect(await screen.findByLabelText('원/달러 환율 직접 입력')).toBeInTheDocument()
+    expect(screen.queryByLabelText('원/엔 환율 직접 입력')).not.toBeInTheDocument()
   })
 
   it('종목이 없으면 안내를 보여준다', async () => {

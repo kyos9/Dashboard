@@ -4,8 +4,8 @@ export type BuyType = 'signal' | 'fallback'
 export type BuyStatus = 'scheduled' | 'confirmed'
 
 /** 거래소 구분 — 통화와 거래일 캘린더가 여기서 갈린다 */
-export type Market = 'US' | 'KR'
-export type Currency = 'USD' | 'KRW'
+export type Market = 'US' | 'KR' | 'JP'
+export type Currency = 'USD' | 'KRW' | 'JPY'
 
 /** 지금 무엇으로 종목이 검색되고 있는지 */
 export interface ListingStatus {
@@ -165,12 +165,21 @@ export interface Holding {
 }
 
 /** 적용 중인 원/달러 환율과 그 출처 */
-export interface FxInfo {
-  usd_krw: number
-  /** override(수동) | stored(저장된 조회값) | fetched(방금 조회) | fallback(추정) */
+/** 한 통화의 원화 환산값과 그 출처 */
+export interface FxQuote {
+  currency: Currency
+  /** 1단위 = 몇 원 */
+  krw_rate: number
+  /** override(직접 입력) | stored(저장된 조회값) | fetched | fallback(추정치) */
   source: string
   updated_at: string | null
-  /** true면 조회 실패로 폴백 상수를 쓰는 중 — 화면에 추정치임을 알려야 한다 */
+  is_estimate: boolean
+}
+
+/** 적용 중인 환율 묶음. 통화코드 -> 환율 */
+export interface FxInfo {
+  rates: Partial<Record<Currency, FxQuote>>
+  /** 하나라도 추정치면 참 — 화면에 알려야 한다 */
   is_estimate: boolean
 }
 
@@ -179,7 +188,8 @@ export interface Settings {
   /** 비중 계산의 기준이 되는 통화 */
   base_currency: Currency
   /** 사용자가 직접 지정한 환율 (없으면 자동 조회값 사용) */
-  usd_krw_override: number | null
+  /** 통화코드 -> 직접 입력한 환율 (없는 통화는 자동 조회값을 쓴다) */
+  fx_overrides: Partial<Record<Currency, number>>
   fx: FxInfo
 }
 

@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db import get_db
+from app.markets import Currency
 from app.models import Holding, PortfolioSettings, Stock, stock_order
 from app.schemas import (
     FxOut,
@@ -93,8 +94,8 @@ def _settings_out(db: Session, settings: PortfolioSettings) -> SettingsOut:
     return SettingsOut(
         default_rebalance_band_pct=settings.default_rebalance_band_pct,
         base_currency=fx_service.base_currency(db),
-        usd_krw_override=settings.usd_krw_override,
-        fx=FxOut(**fx_service.get_usd_krw(db).to_dict()),
+        fx_overrides=settings.fx_overrides or {},
+        fx=FxOut(**fx_service.get_rates(db).to_dict()),
     )
 
 
@@ -113,10 +114,20 @@ def update_settings(payload: SettingsUpdate, db: Session = Depends(get_db)):
         settings.default_rebalance_band_pct = changes["default_rebalance_band_pct"]
     if "base_currency" in changes and changes["base_currency"] is not None:
         settings.base_currency = changes["base_currency"].value
-    if "usd_krw_override" in changes:
-        # null을 명시하면 수동 환율 해제 (자동 조회값으로 복귀)
-        value = changes["usd_krw_override"]
-        settings.usd_krw_override = float(value) if value else None
+    if "fx_overrides" in changes and changes["fx_overrides"] is not None:
+        # 보낸 통화만 반영한다. 값이 null이면 그 통화만 자동 조회로 복귀.
+        for code, value in changes["fx_overrides"].items():
+            try:
+                currency = Currency(str(code).upper())
+            except ValueError:
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "hint": f"{code} 는 다루지 않는 통화입니다.",
+                        "message": f"unknown currency: {code}",
+                    },
+                )
+            fx_service.set_override(db, currency, float(value) if value else None)
 
     db.commit()
     db.refresh(settings)
@@ -125,8 +136,8 @@ def update_settings(payload: SettingsUpdate, db: Session = Depends(get_db)):
 
 @router.post("/fx/refresh", response_model=FxOut)
 def refresh_fx(db: Session = Depends(get_db)):
-    """원/달러 환율을 지금 다시 조회한다. 실패하면 기존 값을 유지한 채 그대로 돌려준다."""
-    return FxOut(**fx_service.refresh_usd_krw(db, force=True).to_dict())
+    """환율을 지금 다시 조회한다. 실패한 통화는 기존 값을 유지한 채 그대로 돌려준다."""
+    return FxOut(**fx_service.refresh_rates(db, force=True).to_dict())
 
 
 @router.get("/current", response_model=RebalanceCurrentOut)

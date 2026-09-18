@@ -37,7 +37,7 @@ PWA도 명세대로 하면 된다. **항목 수는 많지만 헤매는 시간은
 | 지표 (`indicator_daily`) | 보유수량 (`holding`) |
 | 시그널 (`signal_daily`) | 매수 기록 (`buy_execution`) |
 | 상장목록 (`krx_listing`) | 목표비중·밴드·리뷰 마감일 |
-| 환율 **시세** (`usd_krw_rate`) | 기준통화·직접 입력 환율 (`base_currency`, `usd_krw_override`) |
+| 환율 **시세** (`fx_rate`) | 기준통화·직접 입력 환율 (`base_currency`, `fx_overrides`) |
 | 매크로 지표, 재무 지표 *(예정)* | AI 키 *(→ 브라우저 보관, 서버에 두지 않는다)* |
 
 **왜 중요한가.** 삼성전자 시세는 사용자가 100명이어도 하루 한 번만 받으면 된다.

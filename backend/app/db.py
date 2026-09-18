@@ -92,6 +92,20 @@ def get_db():
 # ---------------------------------------------------------------------------
 
 
+# 0001 리비전이 아는 테이블 전부. **여기에 새 테이블을 더하지 않는다** —
+# 0002 이후에 생기는 테이블은 각자의 리비전이 만든다.
+TABLES_AT_0001 = (
+    "krx_listing",
+    "portfolio_settings",
+    "stocks",
+    "buy_execution",
+    "holding",
+    "indicator_daily",
+    "price_daily",
+    "signal_daily",
+)
+
+
 def _apply_additive_migrations(bind) -> None:
     """옛 DB 파일에 나중에 추가된 컬럼을 채워 넣는다.
 
@@ -182,7 +196,14 @@ def adopt_pre_alembic_database(bind=None) -> None:
     _apply_additive_migrations(bind)
     # 옛 파일에는 아예 없던 테이블(krx_listing 등)이 있다. 0001은 도장만 찍고 넘어갈
     # 참이라 여기서 만들어두지 않으면 영영 안 만들어진다.
-    Base.metadata.create_all(bind=bind)
+    #
+    # **0001이 아는 테이블만 만든다.** 모델 전체를 만들면 그 뒤 리비전이 만들 테이블까지
+    # 미리 생겨서, 이어지는 업그레이드가 "이미 있다"에서 멈춘다. 이 경로가 하는 일은
+    # 어디까지나 "옛 파일을 0001까지 데려오기"다.
+    Base.metadata.create_all(
+        bind=bind,
+        tables=[Base.metadata.tables[name] for name in TABLES_AT_0001 if name in Base.metadata.tables],
+    )
     _backfill_stock_markets(bind)
     _rename_buy_status(bind)
 

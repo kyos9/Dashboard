@@ -28,6 +28,9 @@ logger = logging.getLogger(__name__)
 DEFAULT_ORDER: dict[Market, list[str]] = {
     Market.US: ["yahoo", "stooq"],
     Market.KR: ["naver", "yahoo"],
+    # 일본은 네이버가 다루지 않는다. Stooq는 도쿄 종목을 `7203.jp`로 갖고 있어
+    # 대체 경로로 남겨두지만, 먼저 쓰는 것은 야후다.
+    Market.JP: ["yahoo", "stooq"],
 }
 
 _FACTORIES = {
@@ -40,6 +43,7 @@ _FACTORIES = {
 _ENV_BY_MARKET: dict[Market, str] = {
     Market.US: "SIGNAL_DASHBOARD_PROVIDERS_US",
     Market.KR: "SIGNAL_DASHBOARD_PROVIDERS_KR",
+    Market.JP: "SIGNAL_DASHBOARD_PROVIDERS_JP",
 }
 _ENV_COMMON = "SIGNAL_DASHBOARD_PROVIDERS"
 

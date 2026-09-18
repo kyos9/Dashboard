@@ -63,7 +63,7 @@ def refresh_all_active_stocks(db: Session, market: Market | None = None) -> list
             results.append({"ticker": stock.ticker, "error": str(exc), "hint": exc.hint})
 
     try:
-        fx.refresh_usd_krw(db)
+        fx.refresh_rates(db)
     except Exception:
         # 환율 갱신 실패가 시세 갱신 결과를 덮어써선 안 된다 (직전 환율이 그대로 쓰인다)
         logger.warning("환율 갱신 실패 — 기존 환율을 계속 사용합니다", exc_info=True)

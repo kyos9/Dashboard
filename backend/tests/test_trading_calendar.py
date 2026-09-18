@@ -23,6 +23,24 @@ def test_korea_and_us_close_on_different_days():
     assert kr_end == dt.date(2025, 12, 30)
 
 
+def test_japan_has_holidays_the_others_do_not():
+    """일본은 골든위크(5월 초)에 며칠씩 쉰다 — 한국·미국 캘린더로는 알 수 없다.
+
+    이 날들을 거래일로 잡으면 그 주에 폴백 매수일이 장이 안 서는 날로 잡힌다.
+    """
+    kids_day = dt.date(2026, 5, 5)  # 어린이날(こどもの日) — 일본 공휴일
+    assert kids_day not in trading_days(kids_day, kids_day, Market.JP)
+    assert kids_day in trading_days(kids_day, kids_day, Market.US)
+
+
+def test_japan_quarter_end_can_differ_from_the_others():
+    _, jp_end = period_trading_bounds(dt.date(2025, 12, 15), "quarterly", Market.JP)
+    _, us_end = period_trading_bounds(dt.date(2025, 12, 15), "quarterly", Market.US)
+    # 도쿄는 12월 31일이 휴장이다 (미국은 개장)
+    assert us_end == dt.date(2025, 12, 31)
+    assert jp_end < us_end
+
+
 def test_weekends_are_not_trading_days():
     days = trading_days(dt.date(2026, 9, 1), dt.date(2026, 9, 30), Market.KR)
     assert all(day.weekday() < 5 for day in days)

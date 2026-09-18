@@ -4,6 +4,7 @@
     python diagnose.py            # VOO로 검사
     python diagnose.py QQQ        # 다른 해외 종목
     python diagnose.py 005930.KS  # 국내 종목 (종목명 검색·환율까지 같이 검사)
+    python diagnose.py 7203.T     # 일본 종목 (도요타)
 
 각 단계를 따로 검사하므로, 결과를 보면 원인이 네트워크 차단인지 / 백신·프록시의 TLS 간섭인지
 / 야후의 봇 차단인지 / 티커 오타인지 구분할 수 있다. 출력 전체를 그대로 복사해 공유하면 된다.
@@ -172,7 +173,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 app_modules = None
 try:
-    from app.markets import Market, market_of
+    from app.markets import MARKET_LABEL, Market, market_of
     from app.services import providers
 
     app_modules = True
@@ -183,7 +184,7 @@ except Exception as exc:
 market = None
 if app_modules:
     market = market_of(TICKER)
-    print(f"  시장 판정: {'국내' if market is Market.KR else '해외'} ({market.value})")
+    print(f"  시장 판정: {MARKET_LABEL.get(market, '해외')} ({market.value})")
 
     chain = providers.build_providers(TICKER)
     print(f"  설정된 순서: {' → '.join(providers.configured_order(market))}")

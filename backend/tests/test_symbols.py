@@ -225,3 +225,20 @@ def test_etf_brand_words_still_show_candidates():
         assert symbols.resolve(brand, allow_network=False) is None
         candidates = symbols.search(brand, allow_network=False, limit=3)
         assert all(c.market is Market.KR for c in candidates)
+
+
+def test_a_tokyo_ticker_resolves_without_the_network():
+    """일본 티커를 정확히 넣었는데 네트워크가 막혀 등록이 안 되면 안 된다.
+
+    `7203.T`는 숫자로 시작해서 미국 티커 규칙에 걸리지 않는다. 여기서 안 잡으면
+    야후 검색까지 내려가고, 회사망이나 비행기 안에서는 그대로 실패한다.
+    """
+    matches = symbols.search("7203.T", allow_network=False)
+    assert [m.ticker for m in matches] == ["7203.T"]
+    assert matches[0].market is Market.JP
+    assert matches[0].source == "ticker"
+
+
+def test_a_tokyo_ticker_is_normalized():
+    matches = symbols.search("130a.t", allow_network=False)
+    assert matches[0].ticker == "130A.T"

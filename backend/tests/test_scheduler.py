@@ -22,6 +22,7 @@ def test_jobs_cover_both_market_closes():
         assert set(jobs) == {
             "daily_refresh",
             "korea_refresh",
+            "japan_refresh",
             "listing_refresh",
             "listing_refresh_startup",
             "refresh_startup",
@@ -34,6 +35,10 @@ def test_jobs_cover_both_market_closes():
         korea = str(jobs["korea_refresh"].trigger)
         assert "hour='22'" in daily and "minute='30'" in daily
         assert "hour='7'" in korea and "minute='30'" in korea
+
+        # 도쿄는 15:00 JST 마감 — 한국(15:30 KST)보다 30분 이르다
+        japan = str(jobs["japan_refresh"].trigger)
+        assert "hour='7'" in japan and "minute='0'" in japan
     finally:
         scheduler.shutdown_scheduler()
 
@@ -43,7 +48,7 @@ def test_start_is_idempotent():
     first = scheduler.start_scheduler()
     try:
         assert scheduler.start_scheduler() is first
-        assert len(first.get_jobs()) == 7
+        assert len(first.get_jobs()) == 8
     finally:
         scheduler.shutdown_scheduler()
 
@@ -70,7 +75,7 @@ def test_korea_job_only_refreshes_korean_stocks(db_session, monkeypatch):
         or {"ticker": stock.ticker},
     )
     _stub_fetch(monkeypatch)
-    monkeypatch.setattr(pipeline.fx, "refresh_usd_krw", lambda db: None)
+    monkeypatch.setattr(pipeline.fx, "refresh_rates", lambda db: None)
 
     pipeline.refresh_all_active_stocks(db_session, market=Market.KR)
     assert refreshed == ["005930.KS"]
@@ -98,7 +103,7 @@ def test_fx_failure_does_not_lose_price_results(db_session, monkeypatch):
     def boom(db):
         raise RuntimeError("환율 서버 연결 실패")
 
-    monkeypatch.setattr(pipeline.fx, "refresh_usd_krw", boom)
+    monkeypatch.setattr(pipeline.fx, "refresh_rates", boom)
 
     results = pipeline.refresh_all_active_stocks(db_session)
     assert results == [{"ticker": "VOO", "rows_upserted": 5}]
@@ -202,7 +207,7 @@ def test_one_failed_fetch_does_not_stop_the_rest(db_session, monkeypatch):
         "refresh_and_evaluate_stock",
         lambda db, stock, full_backfill=False, price_df=None: {"ticker": stock.ticker},
     )
-    monkeypatch.setattr(pipeline.fx, "refresh_usd_krw", lambda db: None)
+    monkeypatch.setattr(pipeline.fx, "refresh_rates", lambda db: None)
 
     results = {row["ticker"]: row for row in pipeline.refresh_all_active_stocks(db_session)}
     assert results["VOO"] == {"ticker": "VOO"}

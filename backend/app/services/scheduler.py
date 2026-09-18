@@ -5,8 +5,10 @@
 - 미국(+전체): UTC 22:30. EST(UTC-5)에서는 마감 후 1.5시간, EDT(UTC-4)에서는 2.5시간
   뒤라 연중 항상 마감 이후다(한국시간 기준 다음날 새벽).
 - 한국: UTC 07:30 = KST 16:30. 코스피/코스닥 마감(15:30 KST) 직후다.
+- 일본: UTC 07:00 = JST 16:00. 도쿄 마감(15:00 JST) 직후다.
 
-한국 종목을 미국 일정에만 맡기면, 한국 거래일 낮 내내 전날 종가가 걸려 있게 된다.
+한국·일본 종목을 미국 일정에만 맡기면, 그 나라 거래일 낮 내내 전날 종가가 걸려 있게
+된다. 일본은 한국과 같은 UTC+9지만 마감이 30분 이르다.
 
 **cron은 놓친 실행을 되돌려주지 않는다.** 서버는 늘 켜져 있으니 상관없지만, 개인 PC는
 위 시각 대부분에 꺼져 있다. 그래서 시세·백업 둘 다 **켠 직후에 한 번 더 보되, 이미
@@ -50,6 +52,10 @@ def _daily_refresh_job() -> None:
 
 def _korea_refresh_job() -> None:
     _refresh(Market.KR, "korea")
+
+
+def _japan_refresh_job() -> None:
+    _refresh(Market.JP, "japan")
 
 
 def _startup_refresh_job() -> None:
@@ -134,6 +140,10 @@ def start_scheduler() -> BackgroundScheduler | None:
     )
     scheduler.add_job(
         _korea_refresh_job, "cron", hour=7, minute=30, id="korea_refresh",
+        misfire_grace_time=MISFIRE_GRACE_SECONDS,
+    )
+    scheduler.add_job(
+        _japan_refresh_job, "cron", hour=7, minute=0, id="japan_refresh",
         misfire_grace_time=MISFIRE_GRACE_SECONDS,
     )
     # 켜고 나서 잠깐 뒤에 한 번 — 시작을 붙잡지 않으면서 첫 실행에 목록을 채운다

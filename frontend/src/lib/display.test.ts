@@ -14,6 +14,7 @@ import {
   readVolume,
   signed,
   signedAmount,
+  stockLabel,
   trafficLight,
 } from './display'
 
@@ -44,9 +45,28 @@ describe('통화 표기', () => {
     expect(signedAmount(0, 'KRW')).toBe('₩0')
   })
 
+  it('엔은 소수점 없이 적는다 (1주 2,850엔)', () => {
+    expect(price(2850, 'JPY')).toBe('¥2,850')
+  })
+
   it('알 수 없는 통화는 달러 표기로 처리한다 (화면이 깨지지 않게)', () => {
-    // @ts-expect-error 백엔드가 새 통화를 보내는 상황을 가정
-    expect(price(100, 'JPY')).toBe('$100.00')
+    // @ts-expect-error 백엔드가 아직 모르는 통화를 보내는 상황을 가정
+    expect(price(100, 'EUR')).toBe('$100.00')
+  })
+})
+
+describe('종목 이름', () => {
+  it('미국주식은 티커를 쓴다 (티커가 곧 이름이다)', () => {
+    expect(stockLabel({ ticker: 'VOO', name: 'Vanguard S&P 500 ETF', market: 'US' })).toBe('VOO')
+  })
+
+  it('한국·일본주식은 종목명을 쓴다 — 코드만 봐선 무슨 회사인지 모른다', () => {
+    expect(stockLabel({ ticker: '005930.KS', name: '삼성전자', market: 'KR' })).toBe('삼성전자')
+    expect(stockLabel({ ticker: '7203.T', name: '도요타자동차', market: 'JP' })).toBe('도요타자동차')
+  })
+
+  it('이름이 비어 있으면 티커로 떨어진다', () => {
+    expect(stockLabel({ ticker: '7203.T', name: '', market: 'JP' })).toBe('7203.T')
   })
 })
 

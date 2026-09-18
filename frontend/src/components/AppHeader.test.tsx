@@ -15,7 +15,7 @@ function mockHealth() {
   vi.spyOn(api, 'getHealth').mockResolvedValue({
     status: 'ok',
     version: '0.4.0 (abc1234)',
-    providers_by_market: { US: ['yahoo', 'stooq'], KR: ['naver', 'yahoo'] },
+    providers_by_market: { US: ['yahoo', 'stooq'], KR: ['naver', 'yahoo'], JP: ['yahoo', 'stooq'] },
   })
 }
 

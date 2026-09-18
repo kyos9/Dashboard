@@ -45,7 +45,12 @@ def to_stooq_symbol(ticker: str) -> str:
     없으면 미국 상장으로 보고 `.us`를 붙인다 (VOO -> voo.us).
     """
     symbol = ticker.strip().lower()
-    if symbol.startswith("^") or "." in symbol:
+    if symbol.startswith("^"):
+        return symbol
+    # 도쿄 종목은 야후가 `.T`, Stooq는 `.jp`로 부른다. 그대로 넘기면 "없는 심볼"이 된다.
+    if symbol.endswith(".t"):
+        return f"{symbol[:-2]}.jp"
+    if "." in symbol:
         return symbol
     return f"{symbol}.us"
 

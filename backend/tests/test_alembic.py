@@ -169,6 +169,43 @@ def test_startup_survives_a_korean_windows_locale(tmp_path, monkeypatch):
         engine.dispose()
 
 
+def test_a_hand_entered_rate_survives_the_move_to_per_currency():
+    """직접 넣은 환율은 다시 만들 수 없는 값이라 반드시 따라와야 한다 (0002).
+
+    조회해온 시세는 잃어버려도 다시 받아오면 되지만, "내가 환전한 환율"은 사용자만
+    아는 값이다. 옮기다 흘리면 비중이 조용히 달라진다.
+    """
+    import json
+
+    from alembic import command
+
+    engine = create_engine("sqlite://")  # 메모리
+    with engine.begin() as conn:
+        command.upgrade(migrate._config(conn), "0001")
+        conn.execute(
+            text(
+                "INSERT INTO portfolio_settings"
+                " (id, default_rebalance_band_pct, base_currency,"
+                "  usd_krw_override, usd_krw_rate, usd_krw_updated_at)"
+                " VALUES (1, 5.0, 'KRW', 1380.5, 1375.0, '2026-09-01 00:00:00')"
+            )
+        )
+
+    migrate.upgrade_to_head(engine)
+
+    with engine.connect() as conn:
+        raw = conn.execute(text("SELECT fx_overrides FROM portfolio_settings")).scalar()
+        stored = conn.execute(
+            text("SELECT krw_rate FROM fx_rate WHERE currency = 'USD'")
+        ).scalar()
+    engine.dispose()
+
+    overrides = json.loads(raw) if isinstance(raw, str) else raw
+    assert overrides == {"USD": 1380.5}
+    # 조회해뒀던 값도 새 자리로 옮겨온다 (다음 갱신까지 그대로 쓸 수 있게)
+    assert stored == 1375.0
+
+
 def test_the_app_builds_its_migration_config_without_a_file():
     """설정을 코드에서 만든다 — 파일을 읽는 순간 위 문제가 돌아온다."""
     assert migrate._config(None).config_file_name is None

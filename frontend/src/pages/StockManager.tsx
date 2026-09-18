@@ -4,7 +4,7 @@ import { api } from '../api/client'
 import { ErrorNotice } from '../components/ErrorNotice'
 import { NumberInput } from '../components/NumberInput'
 import { SymbolSearch } from '../components/SymbolSearch'
-import { CURRENCY_META, MARKET_LABEL, money, stockLabel } from '../lib/display'
+import { CURRENCY_BY_MARKET, CURRENCY_META, MARKET_LABEL, money, stockLabel } from '../lib/display'
 import type {
   ListingStatus,
   DcaPeriod,
@@ -107,7 +107,7 @@ function StockRow({ stock, onSaved, onError }: { stock: Stock; onSaved: () => vo
           <NumberInput
             value={dcaAmount}
             onChange={setDcaAmount}
-            allowDecimal={stock.currency !== 'KRW'}
+            allowDecimal={stock.currency === 'USD'}
             aria-label={`${stock.ticker} DCA 금액`}
           />
           <select value={dcaPeriod} onChange={(e) => setDcaPeriod(e.target.value as DcaPeriod)}>
@@ -274,7 +274,7 @@ export function StockManager() {
 
   const targetSum = stocks.filter((s) => s.active).reduce((sum, s) => sum + s.target_weight_pct, 0)
   // DCA 금액은 그 종목을 실제로 거래하는 통화 기준이므로, 고른 종목에 맞춰 단위를 보여준다
-  const newCurrencyMeta = CURRENCY_META[picked?.market === 'KR' ? 'KRW' : 'USD']
+  const newCurrencyMeta = CURRENCY_META[CURRENCY_BY_MARKET[picked?.market ?? 'US']]
 
   return (
     <div>
@@ -346,7 +346,8 @@ export function StockManager() {
               id="new-amount"
               value={String(form.dca_amount ?? 0)}
               onChange={(v) => setForm({ ...form, dca_amount: Number(v) })}
-              allowDecimal={picked?.market !== 'KR'}
+              // 원·엔은 소수점이 의미가 없다 (1주 단위 금액이 크다)
+              allowDecimal={picked?.market === 'US'}
             />
           </div>
           <div className="field">

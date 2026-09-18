@@ -126,7 +126,7 @@ def test_mixed_currency_weights_are_converted_to_base(db_session):
     삼성전자 800,000원 + VOO 1,000달러(= 1,300,000원, 환율 1300) = 2,100,000원.
     환산을 빠뜨리면 800,000 대 1,000이 되어 삼성전자가 99.9%로 잡힌다.
     """
-    db_session.add(PortfolioSettings(id=1, base_currency="KRW", usd_krw_override=1300.0))
+    db_session.add(PortfolioSettings(id=1, base_currency="KRW", fx_overrides={"USD": 1300.0}))
     db_session.commit()
 
     kr = _make_stock(db_session, "005930.KS", target_weight_pct=40.0)
@@ -140,9 +140,47 @@ def test_mixed_currency_weights_are_converted_to_base(db_session):
     assert weights["005930.KS"] + weights["VOO"] == pytest.approx(100.0)
 
 
+def test_three_currencies_add_up_to_a_hundred_percent(db_session):
+    """원·달러·엔이 섞여도 비중 합은 100%여야 한다.
+
+    엔은 자릿수가 원과 가까워(1엔 ≈ 9원) 환산을 빠뜨려도 값이 그럴듯해 보인다.
+    달러처럼 1300배 어긋나지 않으니 **틀린 줄 모르고 쓰게 되는 쪽**이라 더 위험하다.
+    """
+    db_session.add(
+        PortfolioSettings(id=1, base_currency="KRW", fx_overrides={"USD": 1300.0, "JPY": 9.0})
+    )
+    db_session.commit()
+
+    kr = _make_stock(db_session, "005930.KS", target_weight_pct=40.0)
+    us = _make_stock(db_session, "VOO", target_weight_pct=30.0)
+    jp = _make_stock(db_session, "7203.T", target_weight_pct=30.0)
+    _set_price_and_holding(db_session, "005930.KS", close=80_000.0, quantity=10)  # 800,000원
+    _set_price_and_holding(db_session, "VOO", close=500.0, quantity=2)  # 1,300,000원
+    _set_price_and_holding(db_session, "7203.T", close=3_000.0, quantity=100)  # 2,700,000원
+
+    weights = rebalance.compute_actual_weights(db_session, [kr, us, jp])
+    total = 800_000 + 1_300_000 + 2_700_000
+    assert weights["7203.T"] == pytest.approx(2_700_000 / total * 100)
+    assert sum(weights.values()) == pytest.approx(100.0)
+
+
+def test_japanese_rows_keep_yen_amounts(db_session):
+    """주문은 엔으로 내므로 평가금액은 엔 그대로도 있어야 한다."""
+    db_session.add(PortfolioSettings(id=1, base_currency="KRW", fx_overrides={"JPY": 9.0}))
+    db_session.commit()
+    _make_stock(db_session, "7203.T", target_weight_pct=100.0)
+    _set_price_and_holding(db_session, "7203.T", close=3_000.0, quantity=100)
+
+    result = rebalance.compute_rebalance_current(db_session)
+    row = result["rows"][0]
+    assert row["currency"] == "JPY"
+    assert row["current_value"] == pytest.approx(300_000.0)  # 엔 그대로
+    assert row["current_value_base"] == pytest.approx(2_700_000.0)  # 원화 환산
+
+
 def test_rows_keep_native_currency_amounts_alongside_converted(db_session):
     """주문은 현지 통화로 내야 하므로 평가금액은 양쪽 다 필요하다."""
-    db_session.add(PortfolioSettings(id=1, base_currency="KRW", usd_krw_override=1300.0))
+    db_session.add(PortfolioSettings(id=1, base_currency="KRW", fx_overrides={"USD": 1300.0}))
     db_session.commit()
     _make_stock(db_session, "VOO", target_weight_pct=100.0)
     _set_price_and_holding(db_session, "VOO", close=500.0, quantity=2)
@@ -153,11 +191,11 @@ def test_rows_keep_native_currency_amounts_alongside_converted(db_session):
     assert row["current_value"] == pytest.approx(1_000.0)  # 달러 그대로
     assert row["current_value_base"] == pytest.approx(1_300_000.0)  # 원화 환산
     assert result["base_currency"] == "KRW"
-    assert result["fx"]["source"] == "override"
+    assert result["fx"]["rates"]["USD"]["source"] == "override"
 
 
 def test_base_currency_usd_converts_the_other_way(db_session):
-    db_session.add(PortfolioSettings(id=1, base_currency="USD", usd_krw_override=1300.0))
+    db_session.add(PortfolioSettings(id=1, base_currency="USD", fx_overrides={"USD": 1300.0}))
     db_session.commit()
     _make_stock(db_session, "005930.KS", target_weight_pct=100.0)
     _set_price_and_holding(db_session, "005930.KS", close=65_000.0, quantity=2)  # 130,000원

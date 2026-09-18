@@ -16,19 +16,23 @@ interface CurrencyMeta {
 export const CURRENCY_META: Record<Currency, CurrencyMeta> = {
   KRW: { symbol: '₩', label: '원', priceDigits: 0, amountDigits: 0 },
   USD: { symbol: '$', label: '달러', priceDigits: 2, amountDigits: 2 },
+  // 엔도 소수점이 의미 없다 (1주 2,850엔) — 원과 같은 이유로 0자리
+  JPY: { symbol: '¥', label: '엔', priceDigits: 0, amountDigits: 0 },
 }
 
-export const MARKET_LABEL: Record<Market, string> = { US: '미국', KR: '한국' }
+export const MARKET_LABEL: Record<Market, string> = { US: '미국', KR: '한국', JP: '일본' }
+
+export const CURRENCY_BY_MARKET: Record<Market, Currency> = { US: 'USD', KR: 'KRW', JP: 'JPY' }
 
 /**
  * 표에 적을 종목 이름.
  *
- * 국내주식은 종목명(삼성전자), 해외주식은 티커(VOO)를 쓴다. `005930.KS`는 사람이 읽고
- * 무슨 회사인지 알 수 없고, 반대로 해외 종목은 티커가 곧 이름이라 "Vanguard S&P 500 ETF"를
- * 길게 적어봐야 칸만 넓어진다. 이름이 비어 있으면 티커로 떨어진다.
+ * 미국주식만 티커(VOO)를 쓰고 나머지는 종목명을 쓴다. 미국은 티커가 곧 이름이라
+ * "Vanguard S&P 500 ETF"를 길게 적어봐야 칸만 넓어지는 반면, `005930.KS`나 `7203.T`는
+ * 사람이 읽고 무슨 회사인지 알 수 없다. 이름이 비어 있으면 티커로 떨어진다.
  */
 export function stockLabel(stock: { ticker: string; name?: string | null; market: Market }): string {
-  if (stock.market !== 'KR') return stock.ticker
+  if (stock.market === 'US') return stock.ticker
   const name = (stock.name ?? '').trim()
   return name === '' ? stock.ticker : name
 }

@@ -4,7 +4,7 @@ import { api } from '../api/client'
 import { ErrorNotice } from '../components/ErrorNotice'
 import { NumberInput } from '../components/NumberInput'
 import { amount, CURRENCY_META, num, price, qty, signed, signedAmount } from '../lib/display'
-import { buildOrderPlan, NOISE_THRESHOLD_PCT } from '../lib/orderPlan'
+import { buildOrderPlan, krwRatesOf, NOISE_THRESHOLD_PCT } from '../lib/orderPlan'
 import type {
   Currency,
   FxInfo,
@@ -103,7 +103,8 @@ export function RebalancePanel() {
 
   const [baseCurrency, setBaseCurrency] = useState<Currency>('KRW')
   const [fx, setFx] = useState<FxInfo | null>(null)
-  const [fxInput, setFxInput] = useState('')
+  /** 통화별로 직접 입력한 환율 (빈 문자열이면 자동 조회값을 쓴다) */
+  const [fxInputs, setFxInputs] = useState<Partial<Record<Currency, string>>>({})
   const [fxBusy, setFxBusy] = useState(false)
 
   /** 사용자가 직접 넣은 총 운용자산. 비워두면 보유 평가금액 합계를 쓴다 (현금 비중까지 반영하고 싶을 때 입력). */
@@ -135,7 +136,11 @@ export function RebalancePanel() {
         setFx(current.fx)
         setSettings(s)
         setBandInput(String(s.default_rebalance_band_pct))
-        setFxInput(s.usd_krw_override === null ? '' : String(s.usd_krw_override))
+        setFxInputs(
+          Object.fromEntries(
+            Object.entries(s.fx_overrides ?? {}).map(([code, rate]) => [code, String(rate)]),
+          ),
+        )
       })
       .catch(setError)
       .finally(() => setLoading(false))
@@ -166,11 +171,14 @@ export function RebalancePanel() {
     }
   }
 
-  const saveFxOverride = async () => {
+  const saveFxOverride = async (currency: Currency) => {
     setFxBusy(true)
     try {
-      const trimmed = fxInput.trim()
-      await api.updateSettings({ usd_krw_override: trimmed === '' ? null : Number(trimmed) })
+      const trimmed = (fxInputs[currency] ?? '').trim()
+      // 보낸 통화만 바뀐다 — 엔을 고치다 달러 설정이 날아가면 안 된다
+      await api.updateSettings({
+        fx_overrides: { [currency]: trimmed === '' ? null : Number(trimmed) },
+      })
       handleSaved()
     } catch (e) {
       setError(e)
@@ -196,7 +204,7 @@ export function RebalancePanel() {
       buildOrderPlan(
         rows.map((r) => r.current),
         baseCurrency,
-        fx?.usd_krw ?? 0,
+        krwRatesOf(fx),
         totalOverride,
       ),
     [rows, totalOverride, baseCurrency, fx],
@@ -209,6 +217,15 @@ export function RebalancePanel() {
     () => new Set(rows.map((r) => r.current.currency)).size > 1,
     [rows],
   )
+
+  /** 환율이 실제로 필요한 통화만 보여준다 — 일본 종목이 없으면 엔 칸도 뜨지 않는다 */
+  const fxCurrencies = useMemo(() => {
+    const held = new Set(rows.map((r) => r.current.currency))
+    return (['USD', 'JPY'] as Currency[]).filter((c) => c !== baseCurrency && held.has(c))
+  }, [rows, baseCurrency])
+
+  /** 지금 추정치를 쓰고 있는 통화 — 경고에 어느 환율이 문제인지 적는다 */
+  const estimatedCurrencies = fxCurrencies.filter((c) => fx?.rates?.[c]?.is_estimate)
 
   const signalled = rows.filter((r) => r.current.rebalance_signal.active)
 
@@ -242,7 +259,8 @@ export function RebalancePanel() {
         <div className="callout amber">
           <span className="ico">⚠</span>
           <div>
-            환율을 받아오지 못해 추정치({num(fx.usd_krw, 0)}원)로 계산하고 있습니다. 통화가 섞인
+            환율을 받아오지 못해 추정치로 계산하고 있습니다
+            {estimatedCurrencies.length > 0 && ` (${estimatedCurrencies.join(', ')})`}. 통화가 섞인
             포트폴리오라 비중이 실제와 다를 수 있으니, 아래 "적용 환율"에서 직접 입력하거나 다시 조회해주세요.
           </div>
         </div>
@@ -276,7 +294,7 @@ export function RebalancePanel() {
             <span className="kpi-title">기준통화 · 적용 환율</span>
           </div>
           <div className="btn-group" style={{ marginBottom: 8 }}>
-            {(['KRW', 'USD'] as Currency[]).map((c) => (
+            {(['KRW', 'USD', 'JPY'] as Currency[]).map((c) => (
               <button
                 key={c}
                 className={`sm${baseCurrency === c ? ' primary' : ' ghost'}`}
@@ -287,34 +305,57 @@ export function RebalancePanel() {
               </button>
             ))}
           </div>
-          <div className="input-with-button">
-            <NumberInput
-              placeholder={fx ? num(fx.usd_krw, 2) : '자동'}
-              value={fxInput}
-              onChange={setFxInput}
-              aria-label="원/달러 환율 직접 입력"
-            />
-            <span className="unit">원/$</span>
-            <button className="primary sm" onClick={() => void saveFxOverride()} disabled={fxBusy}>
-              적용
-            </button>
-            <button className="sm ghost" onClick={() => void refreshFx()} disabled={fxBusy}>
-              조회
-            </button>
-          </div>
-          <p className="kpi-foot">
-            {fx
-              ? `1달러 = ${num(fx.usd_krw, 2)}원 · ${
-                  fx.source === 'override'
-                    ? '직접 입력한 값'
-                    : fx.source === 'fallback'
-                      ? '조회 실패, 추정치'
-                      : '자동 조회값'
-                }`
-              : '환율 정보 없음'}
-            <br />
-            비워두고 적용하면 자동 조회값으로 돌아갑니다.
-          </p>
+          {fxCurrencies.length === 0 ? (
+            <p className="kpi-foot">
+              환산할 외화 종목이 없습니다.
+              <br />
+              해외 종목을 담으면 그 통화의 환율 칸이 여기 생깁니다.
+            </p>
+          ) : (
+            <>
+              {fxCurrencies.map((c) => {
+                const quote = fx?.rates?.[c]
+                const meta = CURRENCY_META[c]
+                return (
+                  <div key={c}>
+                    <div className="input-with-button">
+                      <NumberInput
+                        placeholder={quote ? num(quote.krw_rate, 2) : '자동'}
+                        value={fxInputs[c] ?? ''}
+                        onChange={(v) => setFxInputs((prev) => ({ ...prev, [c]: v }))}
+                        aria-label={`원/${meta.label} 환율 직접 입력`}
+                      />
+                      <span className="unit">원/{meta.symbol}</span>
+                      <button
+                        className="primary sm"
+                        onClick={() => void saveFxOverride(c)}
+                        disabled={fxBusy}
+                      >
+                        적용
+                      </button>
+                    </div>
+                    <p className="kpi-foot">
+                      {quote
+                        ? `1${meta.label} = ${num(quote.krw_rate, 2)}원 · ${
+                            quote.source === 'override'
+                              ? '직접 입력한 값'
+                              : quote.source === 'fallback'
+                                ? '조회 실패, 추정치'
+                                : '자동 조회값'
+                          }`
+                        : '환율 정보 없음'}
+                    </p>
+                  </div>
+                )
+              })}
+              <div className="btn-group tight">
+                <button className="sm ghost" onClick={() => void refreshFx()} disabled={fxBusy}>
+                  전체 조회
+                </button>
+              </div>
+              <p className="kpi-foot">비워두고 적용하면 자동 조회값으로 돌아갑니다.</p>
+            </>
+          )}
         </div>
 
         <div className="kpi">

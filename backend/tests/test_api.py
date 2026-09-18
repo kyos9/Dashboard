@@ -169,7 +169,7 @@ def test_rebalance_current_includes_order_amounts(api):
     # 달러 종목이므로 기준통화(원) 환산액은 환율만큼 커진다
     assert row["currency"] == "USD"
     assert body["base_currency"] == "KRW"
-    assert row["current_value_base"] == pytest.approx(150.0 * body["fx"]["usd_krw"])
+    assert row["current_value_base"] == pytest.approx(150.0 * body["fx"]["rates"]["USD"]["krw_rate"])
 
 
 def test_history_endpoint(api):
@@ -398,28 +398,31 @@ def test_settings_expose_base_currency_and_fx(api):
     body = client.get("/api/rebalance/settings").json()
     assert body["base_currency"] == "KRW"
     # 환율 출처가 드러나야 추정치인지 알 수 있다
-    assert body["fx"]["source"] == "fallback"
+    assert body["fx"]["rates"]["USD"]["source"] == "fallback"
     assert body["fx"]["is_estimate"] is True
 
 
 def test_update_settings_only_touches_sent_fields(api):
     """밴드만 바꾸려다 기준통화가 초기화되면 안 된다."""
     client, _ = api
-    client.put("/api/rebalance/settings", json={"base_currency": "USD", "usd_krw_override": 1300})
+    client.put(
+        "/api/rebalance/settings",
+        json={"base_currency": "USD", "fx_overrides": {"USD": 1300}},
+    )
 
     body = client.put("/api/rebalance/settings", json={"default_rebalance_band_pct": 8.0}).json()
     assert body["default_rebalance_band_pct"] == 8.0
     assert body["base_currency"] == "USD"
-    assert body["usd_krw_override"] == 1300.0
-    assert body["fx"]["source"] == "override"
+    assert body["fx_overrides"]["USD"] == 1300.0
+    assert body["fx"]["rates"]["USD"]["source"] == "override"
 
 
 def test_clearing_fx_override_returns_to_auto(api):
     client, _ = api
-    client.put("/api/rebalance/settings", json={"usd_krw_override": 1300})
-    body = client.put("/api/rebalance/settings", json={"usd_krw_override": None}).json()
-    assert body["usd_krw_override"] is None
-    assert body["fx"]["source"] == "fallback"
+    client.put("/api/rebalance/settings", json={"fx_overrides": {"USD": 1300}})
+    body = client.put("/api/rebalance/settings", json={"fx_overrides": {"USD": None}}).json()
+    assert body["fx_overrides"] == {}
+    assert body["fx"]["rates"]["USD"]["source"] == "fallback"
 
 
 def test_dashboard_reports_currency_per_stock(api):

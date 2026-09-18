@@ -21,20 +21,37 @@ function row(overrides: Partial<RebalanceRow> & { ticker: string; currency: Curr
 
 describe('toNative', () => {
   it('같은 통화면 그대로 둔다', () => {
-    expect(toNative(1000, 'KRW', 'KRW', 1300)).toBe(1000)
-    expect(toNative(1000, 'USD', 'USD', 1300)).toBe(1000)
+    expect(toNative(1000, 'KRW', 'KRW', { USD: 1300 })).toBe(1000)
+    expect(toNative(1000, 'USD', 'USD', { USD: 1300 })).toBe(1000)
   })
 
   it('원화 기준에서 달러 종목 주문액을 달러로 되돌린다', () => {
-    expect(toNative(1_300_000, 'USD', 'KRW', 1300)).toBeCloseTo(1000)
+    expect(toNative(1_300_000, 'USD', 'KRW', { USD: 1300 })).toBeCloseTo(1000)
   })
 
   it('달러 기준에서 원화 종목 주문액을 원화로 되돌린다', () => {
-    expect(toNative(100, 'KRW', 'USD', 1300)).toBeCloseTo(130_000)
+    expect(toNative(100, 'KRW', 'USD', { USD: 1300 })).toBeCloseTo(130_000)
   })
 
   it('환율을 모르면 환산하지 않는다 (0으로 나누지 않기 위해)', () => {
-    expect(toNative(1000, 'USD', 'KRW', 0)).toBe(1000)
+    expect(toNative(1000, 'USD', 'KRW', { USD: 0 })).toBe(1000)
+  })
+})
+
+describe('세 통화가 섞였을 때', () => {
+  it('엔화 종목 주문액을 엔으로 되돌린다', () => {
+    // 1엔 = 9원이므로 90,000원짜리 주문은 10,000엔이다
+    expect(toNative(90_000, 'JPY', 'KRW', { USD: 1300, JPY: 9 })).toBeCloseTo(10_000)
+  })
+
+  it('달러 기준일 때 엔 종목도 환산된다 (원을 거쳐서)', () => {
+    // 100달러 = 130,000원 = 13,000엔 (환율 1300, 10)
+    expect(toNative(100, 'JPY', 'USD', { USD: 1300, JPY: 10 })).toBeCloseTo(13_000)
+  })
+
+  it('그 통화의 환율만 없으면 그 종목만 환산하지 않는다', () => {
+    expect(toNative(90_000, 'JPY', 'KRW', { USD: 1300 })).toBe(90_000)
+    expect(toNative(1_300_000, 'USD', 'KRW', { USD: 1300 })).toBeCloseTo(1000)
   })
 })
 
@@ -79,20 +96,20 @@ describe('buildOrderPlan', () => {
   ]
 
   it('평가금액 합계를 기준통화로 더한다', () => {
-    const plan = buildOrderPlan(mixed, 'KRW', 1300)
+    const plan = buildOrderPlan(mixed, 'KRW', { USD: 1300 })
     // 현지 통화끼리 더했다면 800,000 + 1,000 = 801,000이 나왔을 것이다
     expect(plan.holdingsTotal).toBe(2_100_000)
   })
 
   it('목표 금액을 기준통화로 배분한다', () => {
-    const plan = buildOrderPlan(mixed, 'KRW', 1300)
+    const plan = buildOrderPlan(mixed, 'KRW', { USD: 1300 })
     const [ks, voo] = plan.orders
     expect(ks.targetValue).toBeCloseTo(840_000) // 210만 x 40%
     expect(voo.targetValue).toBeCloseTo(1_260_000) // 210만 x 60%
   })
 
   it('주문 금액은 실제로 거래하는 통화로 환산한다', () => {
-    const plan = buildOrderPlan(mixed, 'KRW', 1300)
+    const plan = buildOrderPlan(mixed, 'KRW', { USD: 1300 })
     const voo = plan.orders.find((o) => o.ticker === 'VOO')!
 
     expect(voo.adjust).toBeCloseTo(-40_000) // 기준통화(원)
@@ -100,7 +117,7 @@ describe('buildOrderPlan', () => {
   })
 
   it('예상 주문 주수는 현지 종가로 나눈다', () => {
-    const plan = buildOrderPlan(mixed, 'KRW', 1300)
+    const plan = buildOrderPlan(mixed, 'KRW', { USD: 1300 })
     const voo = plan.orders.find((o) => o.ticker === 'VOO')!
     const ks = plan.orders.find((o) => o.ticker === '005930.KS')!
 
@@ -110,11 +127,11 @@ describe('buildOrderPlan', () => {
   })
 
   it('기준통화를 바꿔도 비중과 주문 주수는 같다', () => {
-    const inKrw = buildOrderPlan(mixed, 'KRW', 1300)
+    const inKrw = buildOrderPlan(mixed, 'KRW', { USD: 1300 })
     const inUsd = buildOrderPlan(
       mixed.map((r) => ({ ...r, current_value_base: r.current_value_base / 1300 })),
       'USD',
-      1300,
+      { USD: 1300 },
     )
 
     for (const ticker of ['005930.KS', 'VOO']) {
@@ -129,7 +146,7 @@ describe('buildOrderPlan', () => {
     const plan = buildOrderPlan(
       [row({ ticker: 'NEW', currency: 'USD', target_weight_pct: 100, last_close: null })],
       'KRW',
-      1300,
+      { USD: 1300 },
     )
     expect(plan.orders[0].shares).toBeNull()
   })
@@ -148,22 +165,22 @@ describe('buildOrderPlan', () => {
         }),
       ],
       'KRW',
-      1300,
+      { USD: 1300 },
       String(total),
     )
     expect(plan.orders[0].action).toBe('hold')
   })
 
   it('밴드를 넘으면 방향에 맞는 액션을 준다', () => {
-    const plan = buildOrderPlan(mixed, 'KRW', 1300, '4200000') // 총자산을 두 배로 잡으면 전부 매수
+    const plan = buildOrderPlan(mixed, 'KRW', { USD: 1300 }, '4200000') // 총자산을 두 배로 잡으면 전부 매수
     expect(plan.orders.every((o) => o.action === 'buy')).toBe(true)
 
-    const shrunk = buildOrderPlan(mixed, 'KRW', 1300, '1000000')
+    const shrunk = buildOrderPlan(mixed, 'KRW', { USD: 1300 }, '1000000')
     expect(shrunk.orders.every((o) => o.action === 'sell')).toBe(true)
   })
 
   it('총 운용자산을 직접 넣으면 미투자 현금이 잡힌다', () => {
-    const plan = buildOrderPlan(mixed, 'KRW', 1300, '3,000,000')
+    const plan = buildOrderPlan(mixed, 'KRW', { USD: 1300 }, '3,000,000')
     expect(plan.total).toBe(3_000_000)
     expect(plan.cash).toBe(900_000)
   })
@@ -172,7 +189,7 @@ describe('buildOrderPlan', () => {
     const plan = buildOrderPlan(
       [row({ ticker: 'A', currency: 'KRW', target_weight_pct: 100, last_close: 1000 })],
       'KRW',
-      1300,
+      { USD: 1300 },
     )
     expect(plan.total).toBe(0)
     expect(plan.orders[0].action).toBe('hold')
@@ -180,11 +197,11 @@ describe('buildOrderPlan', () => {
   })
 
   it('목표 비중 합계를 그대로 돌려준다 (100%가 아닌 걸 화면에서 경고하기 위해)', () => {
-    expect(buildOrderPlan(mixed, 'KRW', 1300).targetSum).toBe(100)
+    expect(buildOrderPlan(mixed, 'KRW', { USD: 1300 }).targetSum).toBe(100)
   })
 
   it('종목이 없으면 빈 계획', () => {
-    const plan = buildOrderPlan([], 'KRW', 1300)
+    const plan = buildOrderPlan([], 'KRW', { USD: 1300 })
     expect(plan).toMatchObject({ holdingsTotal: 0, total: 0, targetSum: 0, orders: [] })
   })
 })

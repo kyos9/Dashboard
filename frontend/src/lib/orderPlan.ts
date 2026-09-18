@@ -1,4 +1,20 @@
-import type { Currency, RebalanceRow } from '../types'
+import type { Currency, FxInfo, RebalanceRow } from '../types'
+
+/** 통화코드 -> "1단위 = 몇 원". 원은 언제나 1이라 표에 넣지 않는다. */
+export type KrwRates = Partial<Record<Currency, number>>
+
+export function krwRate(currency: Currency, krwPer: KrwRates): number {
+  return currency === 'KRW' ? 1 : (krwPer[currency] ?? 0)
+}
+
+/** 서버가 내려준 환율 묶음에서 계산에 쓸 표만 뽑는다. */
+export function krwRatesOf(fx: FxInfo | null | undefined): KrwRates {
+  const out: KrwRates = {}
+  for (const [code, quote] of Object.entries(fx?.rates ?? {})) {
+    if (quote) out[code as Currency] = quote.krw_rate
+  }
+  return out
+}
 
 /** 조정 필요금액이 총자산의 이 비율 미만이면 주문하지 않고 "유지"로 본다 (거래비용 대비 실익 없음) */
 export const NOISE_THRESHOLD_PCT = 0.5
@@ -40,12 +56,16 @@ export function toNative(
   valueBase: number,
   currency: Currency,
   base: Currency,
-  usdKrw: number,
+  krwPer: KrwRates,
 ): number {
-  if (currency === base || !usdKrw) return valueBase
-  if (base === 'KRW' && currency === 'USD') return valueBase / usdKrw
-  if (base === 'USD' && currency === 'KRW') return valueBase * usdKrw
-  return valueBase
+  if (currency === base) return valueBase
+  // 백엔드와 같은 방식 — 원을 거쳐 환산한다. 통화가 셋이 되면 짝마다 분기하는 방식은
+  // 유지할 수 없다 (엔↔달러까지 생긴다).
+  const from = krwRate(base, krwPer)
+  const to = krwRate(currency, krwPer)
+  // 환율을 모르면 환산하지 않고 그대로 둔다 (0으로 나누면 화면이 NaN으로 덮인다)
+  if (!from || !to) return valueBase
+  return (valueBase * from) / to
 }
 
 /**
@@ -68,7 +88,7 @@ export function parseTotalOverride(input: string): number | null {
 export function buildOrderPlan(
   rows: RebalanceRow[],
   baseCurrency: Currency,
-  usdKrw: number,
+  krwPer: KrwRates,
   totalOverride = '',
 ): OrderPlan {
   const holdingsTotal = rows.reduce((sum, row) => sum + row.current_value_base, 0)
@@ -78,7 +98,7 @@ export function buildOrderPlan(
   const orders = rows.map((row): OrderLine => {
     const targetValue = (total * row.target_weight_pct) / 100
     const adjust = targetValue - row.current_value_base
-    const adjustNative = toNative(adjust, row.currency, baseCurrency, usdKrw)
+    const adjustNative = toNative(adjust, row.currency, baseCurrency, krwPer)
     const close = row.last_close
     const shares = close && close > 0 ? adjustNative / close : null
     const material = total > 0 && Math.abs(adjust) / total > NOISE_THRESHOLD_PCT / 100

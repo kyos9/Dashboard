@@ -59,7 +59,7 @@ function mockApi(stocks: Stock[] = [], listing: Partial<ListingStatus> = {}) {
   vi.spyOn(api, 'getHealth').mockResolvedValue({
     status: 'ok',
     version: 'test',
-    providers_by_market: { US: [], KR: [] },
+    providers_by_market: { US: [], KR: [], JP: [] },
   })
 }
 

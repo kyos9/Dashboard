@@ -104,7 +104,7 @@ const CARDS: DashboardCard[] = [
 
 const REBALANCE: RebalanceCurrent = {
   base_currency: 'KRW',
-  fx: { usd_krw: 1300, source: 'stored', updated_at: null, is_estimate: false },
+  fx: { rates: { USD: { currency: 'USD', krw_rate: 1300, source: 'stored', updated_at: null, is_estimate: false } }, is_estimate: false },
   total_value_base: 2_100_000,
   rows: [
     weightRow({
@@ -149,7 +149,7 @@ function mockApi(cards = CARDS, rebalance = REBALANCE) {
   vi.spyOn(api, 'getHealth').mockResolvedValue({
     status: 'ok',
     version: 'test',
-    providers_by_market: { US: [], KR: [] },
+    providers_by_market: { US: [], KR: [], JP: [] },
   })
 }
 

@@ -1,7 +1,7 @@
 """거래소·통화 구분.
 
-티커 접미사로 어느 시장 종목인지 판별한다. 한국 종목은 야후 파이낸스 표기를 따라
-`005930.KS`(코스피) / `247540.KQ`(코스닥) 형태를 쓴다.
+티커 접미사로 어느 시장 종목인지 판별한다. 야후 파이낸스 표기를 따른다 —
+한국은 `005930.KS`(코스피) / `247540.KQ`(코스닥), 일본은 `7203.T`(도쿄).
 
 통화를 구분하는 이유: 원화 종목과 달러 종목을 한 포트폴리오에 담으면 평가금액을
 그냥 더할 수 없다. 비중 계산은 반드시 기준통화로 환산한 뒤 해야 한다
@@ -20,11 +20,13 @@ import re
 class Market(str, enum.Enum):
     US = "US"
     KR = "KR"
+    JP = "JP"
 
 
 class Currency(str, enum.Enum):
     USD = "USD"
     KRW = "KRW"
+    JPY = "JPY"
 
 
 class Board(str, enum.Enum):
@@ -43,9 +45,17 @@ BOARD_SUFFIX: dict[Board, str] = {
 
 SUFFIX_BOARD: dict[str, Board] = {suffix: board for board, suffix in BOARD_SUFFIX.items()}
 
+# 사람에게 보여줄 이름 (진단 스크립트·로그)
+MARKET_LABEL: dict[Market, str] = {
+    Market.US: "미국",
+    Market.KR: "국내",
+    Market.JP: "일본",
+}
+
 CURRENCY_BY_MARKET: dict[Market, Currency] = {
     Market.US: Currency.USD,
     Market.KR: Currency.KRW,
+    Market.JP: Currency.JPY,
 }
 
 # 화면 표기용 메타. `decimals`는 가격/금액을 몇 자리까지 보여줄지 —
@@ -53,11 +63,17 @@ CURRENCY_BY_MARKET: dict[Market, Currency] = {
 CURRENCY_META: dict[Currency, dict] = {
     Currency.USD: {"symbol": "$", "code": "USD", "label": "미국 달러", "decimals": 2},
     Currency.KRW: {"symbol": "₩", "code": "KRW", "label": "원", "decimals": 0},
+    # 엔도 소수점이 의미 없다 (1주 2,850엔). 원과 같은 이유로 0자리.
+    Currency.JPY: {"symbol": "¥", "code": "JPY", "label": "일본 엔", "decimals": 0},
 }
 
 # 6자리 숫자 = 한국 종목코드 (접미사 없이 입력됐을 때는 시장을 모른다)
 KRX_CODE_RE = re.compile(r"^\d{6}$")
 KRX_TICKER_RE = re.compile(r"^(\d{6})\.(K[SQN])$", re.IGNORECASE)
+
+# 도쿄증권거래소. 예전에는 네 자리 숫자뿐이었지만(`7203`=도요타), 2024년부터 마지막
+# 자리에 영문이 붙는 코드도 나온다(`130A`). 그래서 마지막 한 자리만 열어둔다.
+TSE_TICKER_RE = re.compile(r"^(\d{3}[0-9A-Z])\.T$", re.IGNORECASE)
 
 
 def normalize_ticker(raw: str) -> str:
@@ -87,18 +103,33 @@ def krx_code(ticker: str) -> str | None:
     return parsed[0] if parsed else None
 
 
+def parse_tse_ticker(ticker: str) -> str | None:
+    """`7203.T` -> "7203". 일본 티커가 아니면 None."""
+    match = TSE_TICKER_RE.match(ticker.strip())
+    return match.group(1).upper() if match else None
+
+
+def is_tse_ticker(ticker: str) -> bool:
+    return parse_tse_ticker(ticker) is not None
+
+
 def board_of(ticker: str) -> Board | None:
     parsed = parse_krx_ticker(ticker)
     return parsed[1] if parsed else None
 
 
 def market_of(ticker: str) -> Market:
-    """티커가 속한 시장. 한국 접미사가 아니면 미국으로 본다.
+    """티커가 속한 시장. 아는 접미사가 없으면 미국으로 본다.
 
-    (일본 `.T`, 홍콩 `.HK` 등은 아직 지원하지 않는다 — 추가하려면 여기와
-    `CURRENCY_BY_MARKET`, 그리고 거래일 캘린더만 늘리면 된다.)
+    (홍콩 `.HK` 등을 더 붙이려면 여기와 `CURRENCY_BY_MARKET`, `CURRENCY_META`,
+    거래일 캘린더(`services/trading_calendar.py`), 제공자 순서
+    (`services/providers/__init__.py`)를 늘리면 된다. 일본을 그렇게 붙였다.)
     """
-    return Market.KR if is_krx_ticker(ticker) else Market.US
+    if is_krx_ticker(ticker):
+        return Market.KR
+    if is_tse_ticker(ticker):
+        return Market.JP
+    return Market.US
 
 
 def currency_of(ticker: str) -> Currency:

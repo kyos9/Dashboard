@@ -2,6 +2,7 @@ import datetime as dt
 import enum
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     Date,
     DateTime,
@@ -168,11 +169,35 @@ class PortfolioSettings(Base):
     # 통화가 섞인 포트폴리오의 비중을 계산할 기준통화. 평가금액은 모두 이 통화로 환산한 뒤
     # 합산한다 (환산 없이 더하면 비중이 완전히 틀어진다).
     base_currency: Mapped[str] = mapped_column(String, default=Currency.KRW.value, nullable=False)
-    # 사용자가 직접 지정한 환율. 있으면 자동 조회값보다 우선한다.
-    usd_krw_override: Mapped[float | None] = mapped_column(Float, nullable=True)
-    # 마지막으로 조회에 성공한 환율과 그 시각
-    usd_krw_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
-    usd_krw_updated_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
+
+    # 사용자가 직접 지정한 환율. 통화코드 -> 원화 환율 (`{"USD": 1380, "JPY": 9.3}`).
+    # 있으면 자동 조회값보다 우선한다.
+    #
+    # **조회해온 시세(FxRate 테이블)와 여기를 나눠 둔 이유**: 시세는 누구에게나 같은
+    # 공용 값이고 다시 받아오면 되지만, "내가 환전한 환율로 계산하겠다"는 사용자별
+    # 선택이다. 사용자를 나누는 날(ROADMAP 4단계) 이 열만 따라가면 된다.
+    fx_overrides: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+
+class FxRate(Base):
+    """통화별 "1단위 = 몇 원". **공용 데이터다.**
+
+    사용자가 백 명이어도 어제 달러 환율은 하나다. 그리고 잃어버려도 다시 받아오면
+    되는 값이라, 사용자를 나눌 때 옮겨야 할 것이 없다 (ROADMAP 1절의 두 번째 질문).
+
+    원을 축으로 두는 이유: 통화가 셋만 돼도 짝은 여섯이 된다. 전부 저장하는 대신
+    "각 통화의 원화 환산값" 하나씩만 두고, 엔→달러 같은 것은 원을 거쳐 계산한다.
+    """
+
+    __tablename__ = "fx_rate"
+
+    currency: Mapped[str] = mapped_column(String, primary_key=True)
+    krw_rate: Mapped[float] = mapped_column(Float, nullable=False)
+    # 어디서 온 값인지 — fetched(조회 성공) 뿐이지만, 나중에 출처가 늘 수 있다
+    source: Mapped[str] = mapped_column(String, default="fetched", nullable=False)
+    updated_at: Mapped[dt.datetime] = mapped_column(
+        DateTime, default=dt.datetime.utcnow, nullable=False
+    )
 
 
 class KrxListing(Base):
