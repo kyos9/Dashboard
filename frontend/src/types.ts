@@ -63,7 +63,11 @@ export interface StockCreateInput {
   review_date_override?: string | null
 }
 
-export type StockUpdateInput = Partial<Omit<StockCreateInput, 'ticker'>> & { active?: boolean }
+export type StockUpdateInput = Partial<Omit<StockCreateInput, 'ticker' | 'name'>> & {
+  active?: boolean
+  /** 화면에 보여줄 이름. null이면 지우고 티커로 되돌린다 */
+  name?: string | null
+}
 
 /** 종목 등록 결과 — 최초 시세 백필이 실제로 됐는지까지 알려준다 */
 export interface StockCreateResult {

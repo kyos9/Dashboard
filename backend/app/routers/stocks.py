@@ -148,7 +148,15 @@ def update_stock(ticker: str, payload: StockUpdate, db: Session = Depends(get_db
     if stock is None:
         raise HTTPException(status_code=404, detail="stock not found")
 
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    changes = payload.model_dump(exclude_unset=True)
+    if "name" in changes:
+        # 화면에 보여줄 이름은 사용자가 고쳐 쓸 수 있다 — 야후가 주는 이름은
+        # 일본·미국 종목에서 영문이라, 한글로 부르고 싶으면 여기서 바꾼다.
+        # 비우면 이름을 지운 것으로 보고 티커로 되돌아간다.
+        cleaned = (changes["name"] or "").strip()
+        changes["name"] = cleaned or None
+
+    for field, value in changes.items():
         setattr(stock, field, value)
     db.commit()
     db.refresh(stock)

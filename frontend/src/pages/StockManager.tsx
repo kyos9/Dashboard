@@ -27,6 +27,7 @@ const emptyForm: StockCreateInput = {
 const CATEGORY_SUGGESTIONS = ['지수', '알파', '안전자산']
 
 function StockRow({ stock, onSaved, onError }: { stock: Stock; onSaved: () => void; onError: (e: unknown) => void }) {
+  const [name, setName] = useState(stock.name ?? '')
   const [category, setCategory] = useState(stock.category ?? '')
   const [dcaAmount, setDcaAmount] = useState(String(stock.dca_amount))
   const [dcaPeriod, setDcaPeriod] = useState<DcaPeriod>(stock.dca_period)
@@ -41,6 +42,7 @@ function StockRow({ stock, onSaved, onError }: { stock: Stock; onSaved: () => vo
     setSaving(true)
     try {
       await api.updateStock(stock.ticker, {
+        name: name.trim() === '' ? null : name.trim(),
         category: category.trim() === '' ? null : category.trim(),
         dca_amount: Number(dcaAmount),
         dca_period: dcaPeriod,
@@ -84,7 +86,19 @@ function StockRow({ stock, onSaved, onError }: { stock: Stock; onSaved: () => vo
     <tr className={stock.active ? '' : 'inactive'}>
       <td>
         <div className="ticker-cell">
-          <span className="ticker-name">{stockLabel(stock)}</span>
+          {stock.market === 'US' ? (
+            // 미국 종목은 티커가 곧 이름이라 고칠 것이 없다
+            <span className="ticker-name">{stockLabel(stock)}</span>
+          ) : (
+            <input
+              type="text"
+              className="name-input"
+              value={name}
+              placeholder={stock.ticker}
+              onChange={(e) => setName(e.target.value)}
+              aria-label={`${stock.ticker} 표시 이름`}
+            />
+          )}
           <span className="ticker-sub">
             {stock.ticker} · {MARKET_LABEL[stock.market]} · {CURRENCY_META[stock.currency].symbol}
             {stock.currency}

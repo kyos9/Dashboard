@@ -178,6 +178,40 @@ describe('등록된 종목 목록', () => {
     expect(screen.getByText(/미국 · \$USD/)).toBeInTheDocument()
   })
 
+  it('일본 종목 이름을 한글로 고쳐 저장할 수 있다', async () => {
+    // 야후는 일본 종목 이름을 영문으로 준다 ("Tokio Marine Holdings").
+    const update = vi.spyOn(api, 'updateStock').mockResolvedValue(
+      stock({ ticker: '8766.T', name: '도쿄해상홀딩스', market: 'JP', currency: 'JPY' }),
+    )
+    mockApi([
+      stock({
+        ticker: '8766.T',
+        name: 'Tokio Marine Holdings, Inc.',
+        market: 'JP',
+        currency: 'JPY',
+      }),
+    ])
+    renderManager()
+
+    const input = await screen.findByLabelText('8766.T 표시 이름')
+    await userEvent.clear(input)
+    await userEvent.type(input, '도쿄해상홀딩스')
+    await userEvent.click(screen.getByRole('button', { name: '저장' }))
+
+    expect(update).toHaveBeenCalledWith(
+      '8766.T',
+      expect.objectContaining({ name: '도쿄해상홀딩스' }),
+    )
+  })
+
+  it('미국 종목은 이름 칸이 없다 — 티커가 곧 이름이다', async () => {
+    mockApi([stock({ ticker: 'VOO' })])
+    renderManager()
+
+    await screen.findByText(/미국 · \$USD/)
+    expect(screen.queryByLabelText('VOO 표시 이름')).not.toBeInTheDocument()
+  })
+
   it('활성 종목의 목표 비중 합계를 알려준다', async () => {
     mockApi([
       stock({ ticker: 'VOO', target_weight_pct: 60 }),

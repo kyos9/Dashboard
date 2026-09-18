@@ -660,3 +660,26 @@ def test_refresh_accepts_full_backfill(api, monkeypatch):
     client.post("/api/stocks/VOO/refresh")
     client.post("/api/stocks/VOO/refresh?full=true")
     assert seen == [False, True]
+
+
+def test_display_name_can_be_changed(api):
+    """야후가 주는 이름은 영문이다 — 한글로 부르고 싶으면 고칠 수 있어야 한다."""
+    client, _ = api
+    client.post("/api/stocks", json={"ticker": "8766.T", "dca_amount": 0, "target_weight_pct": 0})
+
+    updated = client.put("/api/stocks/8766.T", json={"name": " 도쿄해상홀딩스 "}).json()
+    assert updated["name"] == "도쿄해상홀딩스"  # 앞뒤 공백은 떼고 저장한다
+
+    # 다시 읽어도 그대로 (대시보드·차트가 이 이름을 쓴다)
+    listed = {s["ticker"]: s for s in client.get("/api/stocks").json()}
+    assert listed["8766.T"]["name"] == "도쿄해상홀딩스"
+
+
+def test_clearing_the_display_name_falls_back_to_the_ticker(api):
+    client, _ = api
+    client.post("/api/stocks", json={"ticker": "8766.T", "dca_amount": 0, "target_weight_pct": 0})
+    client.put("/api/stocks/8766.T", json={"name": "도쿄해상홀딩스"})
+
+    cleared = client.put("/api/stocks/8766.T", json={"name": "   "}).json()
+    # 빈 이름을 그대로 저장하면 화면에 빈칸이 뜬다. None으로 두면 티커가 나온다.
+    assert cleared["name"] is None
