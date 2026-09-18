@@ -242,3 +242,40 @@ def test_a_tokyo_ticker_resolves_without_the_network():
 def test_a_tokyo_ticker_is_normalized():
     matches = symbols.search("130a.t", allow_network=False)
     assert matches[0].ticker == "130A.T"
+
+
+def test_a_seeded_tokyo_ticker_comes_back_with_a_korean_name():
+    """야후가 주는 이름은 영문이다. 내장 목록에 있으면 한글로 붙여준다."""
+    match = symbols.search("8766.T", allow_network=False)[0]
+    assert match.ticker == "8766.T"
+    assert match.name == "도쿄해상홀딩스"
+
+
+def test_a_tokyo_stock_can_be_found_by_its_korean_name():
+    matches = symbols.search("도쿄해상", allow_network=False)
+    assert matches[0].ticker == "8766.T"
+    assert matches[0].market is Market.JP
+
+
+def test_a_tokyo_stock_can_be_found_by_a_four_digit_code():
+    """증권사 화면에서 보던 네 자리 코드를 그대로 쳐도 찾아야 한다."""
+    matches = symbols.search("7203", allow_network=False)
+    assert matches[0].ticker == "7203.T"
+    assert matches[0].name == "도요타자동차"
+
+
+def test_an_english_alias_also_finds_it_offline():
+    matches = symbols.search("toyota", allow_network=False)
+    assert matches[0].ticker == "7203.T"
+
+
+def test_a_tokyo_ticker_not_in_the_seed_still_registers():
+    """내장 목록은 주요 종목뿐이다 — 없는 종목도 티커로는 들어와야 한다."""
+    matches = symbols.search("9999.T", allow_network=False)
+    assert [m.ticker for m in matches] == ["9999.T"]
+    assert matches[0].name == "9999.T"  # 이름은 모르므로 티커를 그대로 둔다
+
+
+def test_korean_stocks_are_not_displaced_by_the_japanese_seed():
+    matches = symbols.search("삼성전자", allow_network=False)
+    assert matches[0].ticker == "005930.KS"

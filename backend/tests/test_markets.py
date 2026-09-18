@@ -20,7 +20,7 @@ from app.markets import (
     parse_krx_ticker,
     parse_tse_ticker,
 )
-from app.services.symbols import SEED_PATH
+from app.services.symbols import JP_SEED_PATH, SEED_PATH
 
 
 @pytest.mark.parametrize(
@@ -115,3 +115,38 @@ def test_seed_names_are_unique_per_board():
         key = (entry["name"].strip().lower(), entry["board"])
         assert key not in seen, f"이름 중복: {entry['name']}"
         seen.add(key)
+
+
+def test_japanese_seed_entries_are_well_formed():
+    """손으로 적은 목록이라 형식만이라도 자동으로 지킨다.
+
+    종목코드가 틀리면 **엉뚱한 회사의 시세**를 받아온다 — 실패보다 나쁘다. 코드 형식과
+    중복은 여기서 막고, 코드-회사 짝이 맞는지는 사람이 확인할 수밖에 없다.
+    """
+    entries = json.loads(JP_SEED_PATH.read_text(encoding="utf-8"))
+    assert len(entries) > 50
+
+    codes = set()
+    names = set()
+    for entry in entries:
+        code = entry["code"]
+        # 도쿄 종목코드: 네 자리, 마지막 한 자리는 영문일 수 있다 (2024년부터)
+        assert parse_tse_ticker(f"{code}.T") == code, f"잘못된 종목코드: {entry}"
+        assert code not in codes, f"종목코드 중복: {code}"
+        codes.add(code)
+
+        name = entry["name"].strip()
+        assert name, f"이름이 비었다: {entry}"
+        assert name not in names, f"이름 중복: {name}"
+        names.add(name)
+
+        aliases = entry.get("aliases", [])
+        assert isinstance(aliases, list)
+        assert all(isinstance(a, str) and a.strip() for a in aliases), f"별칭이 이상하다: {entry}"
+
+
+def test_japanese_seed_does_not_collide_with_korean_codes():
+    """일본 코드는 네 자리, 한국은 여섯 자리라 섞일 수 없다."""
+    jp = {e["code"] for e in json.loads(JP_SEED_PATH.read_text(encoding="utf-8"))}
+    kr = {e["code"] for e in json.loads(SEED_PATH.read_text(encoding="utf-8"))}
+    assert jp & kr == set()

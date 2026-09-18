@@ -41,11 +41,17 @@ from app.markets import (
 logger = logging.getLogger(__name__)
 
 SEED_PATH = Path(__file__).resolve().parent.parent / "data" / "krx_seed.json"
+JP_SEED_PATH = Path(__file__).resolve().parent.parent / "data" / "jp_seed.json"
 
 # 내장 목록을 손으로 정리한 시점. 이후의 신규 상장·사명 변경은 들어 있지 않으므로
 # 화면에 그대로 보여준다 — 목록이 언제 기준인지 모르면 "검색이 안 된다"의 원인을
 # 사용자가 짐작할 수 없다.
 SEED_AS_OF = "2026-09"
+
+# 일본 내장 목록의 기준 시점. 한국거래소처럼 받아올 공식 목록이 없어서 **손으로 적은**
+# 목록이고, 그래서 갱신되지 않는다. 여기 없는 종목은 티커(`7203.T`)로 등록하면 되고,
+# 이름이 마음에 안 들면 종목 관리 화면에서 그 자리에서 고칠 수 있다.
+JP_SEED_AS_OF = "2026-09"
 
 # 미국식 티커 모양 (VOO, BRK-B, ^GSPC). 한글이 섞이면 당연히 해당 없음.
 US_TICKER_RE = re.compile(r"^\^?[A-Za-z][A-Za-z0-9.\-]{0,9}$")
@@ -116,7 +122,41 @@ def load_seed() -> list[dict]:
         return []
 
 
+@lru_cache(maxsize=1)
+def load_jp_seed() -> list[dict]:
+    """번들된 일본 주요 종목 목록 (한글 이름).
+
+    야후는 일본 종목 이름을 영문으로 준다. 한국거래소 목록 같은 공식 소스가 일본에는
+    없으므로, 자주 보는 종목만 한글 이름으로 적어 함께 넣어둔다.
+    """
+    try:
+        with JP_SEED_PATH.open(encoding="utf-8") as fp:
+            return json.load(fp)
+    except Exception:
+        logger.exception("일본 시드 파일을 읽지 못했습니다: %s", JP_SEED_PATH)
+        return []
+
+
+def jp_seed_name(code: str) -> str | None:
+    """도쿄 종목코드에 붙은 한글 이름. 목록에 없으면 None."""
+    for entry in load_jp_seed():
+        if entry["code"] == code:
+            return entry["name"]
+    return None
+
+
 def _entry_to_match(entry: dict, source: str, score: float) -> SymbolMatch:
+    if entry.get("market") == Market.JP.value:
+        return SymbolMatch(
+            ticker=f"{entry['code']}.T",
+            name=entry["name"],
+            market=Market.JP,
+            instrument=entry.get("instrument") or "STOCK",
+            source=source,
+            confident=True,
+            score=score,
+        )
+
     board = Board(entry["board"])
     return SymbolMatch(
         ticker=build_krx_ticker(entry["code"], board),
@@ -187,11 +227,18 @@ def _local_entries(db: Session | None) -> list[dict]:
     # 내장 목록은 손으로 적은 데이터라 종목코드가 낡거나 틀릴 수 있는데, 그대로 두면
     # 이름이 같은 후보가 둘 뜨고 사용자가 엉뚱한 쪽을 고를 수 있다.
     official_names = {_tight(e["name"]) for e in by_code.values() if e["source"] == "krx"}
-    return [
+    entries = [
         entry
         for entry in by_code.values()
         if entry["source"] == "krx" or _tight(entry["name"]) not in official_names
     ]
+
+    # 일본은 받아올 공식 목록이 없어 합칠 것도 없다 — 시드를 그대로 붙인다.
+    # (위 걸러내기는 한국 종목끼리의 문제이므로 여기 적용하지 않는다.)
+    entries.extend(
+        {**entry, "market": Market.JP.value, "source": "seed-jp"} for entry in load_jp_seed()
+    )
+    return entries
 
 
 def _search_local(db: Session | None, query: str, limit: int) -> list[SymbolMatch]:
@@ -242,9 +289,9 @@ def _as_ticker(db: Session | None, raw: str) -> SymbolMatch | None:
     if tse_code is not None:
         return SymbolMatch(
             ticker=f"{tse_code}.T",
-            # 일본은 우리가 들고 있는 상장목록이 없다. 이름은 야후 검색으로 들어왔을 때만
-            # 채워지므로, 직접 입력한 경우에는 티커를 그대로 이름 자리에 둔다.
-            name=f"{tse_code}.T",
+            # 내장 목록에 있으면 한글 이름을 붙인다. 없으면 티커를 그대로 둔다 —
+            # 야후가 주는 영문 이름은 검색으로 들어왔을 때만 채워진다.
+            name=jp_seed_name(tse_code) or f"{tse_code}.T",
             market=Market.JP,
             source="ticker",
             score=SCORE_CODE_EXACT,

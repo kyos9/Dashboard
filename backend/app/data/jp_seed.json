@@ -1,0 +1,984 @@
+[
+  {
+    "code": "7203",
+    "name": "도요타자동차",
+    "aliases": [
+      "toyota motor",
+      "toyota",
+      "도요타"
+    ]
+  },
+  {
+    "code": "6758",
+    "name": "소니그룹",
+    "aliases": [
+      "sony group",
+      "sony",
+      "소니"
+    ]
+  },
+  {
+    "code": "8306",
+    "name": "미쓰비시UFJ파이낸셜그룹",
+    "aliases": [
+      "mitsubishi ufj financial group",
+      "mufg",
+      "미쓰비시UFJ금융그룹",
+      "미쓰비시UFJ"
+    ]
+  },
+  {
+    "code": "6861",
+    "name": "키엔스",
+    "aliases": [
+      "keyence",
+      "키엔스"
+    ]
+  },
+  {
+    "code": "9984",
+    "name": "소프트뱅크그룹",
+    "aliases": [
+      "softbank group",
+      "softbank",
+      "소프트뱅크"
+    ]
+  },
+  {
+    "code": "8035",
+    "name": "도쿄일렉트론",
+    "aliases": [
+      "tokyo electron",
+      "tel",
+      "도쿄일렉트론"
+    ]
+  },
+  {
+    "code": "4063",
+    "name": "신에츠화학공업",
+    "aliases": [
+      "shin-etsu chemical",
+      "shin etsu",
+      "신에쓰화학",
+      "신에츠화학"
+    ]
+  },
+  {
+    "code": "9983",
+    "name": "패스트리테일링",
+    "aliases": [
+      "fast retailing",
+      "uniqlo",
+      "유니클로"
+    ]
+  },
+  {
+    "code": "6501",
+    "name": "히타치제작소",
+    "aliases": [
+      "hitachi",
+      "히타치"
+    ]
+  },
+  {
+    "code": "8058",
+    "name": "미쓰비시상사",
+    "aliases": [
+      "mitsubishi corporation",
+      "mitsubishi corp",
+      "미쓰비시상사"
+    ]
+  },
+  {
+    "code": "7974",
+    "name": "닌텐도",
+    "aliases": [
+      "nintendo",
+      "닌텐도"
+    ]
+  },
+  {
+    "code": "9432",
+    "name": "일본전신전화",
+    "aliases": [
+      "nippon telegraph and telephone",
+      "ntt",
+      "NTT"
+    ]
+  },
+  {
+    "code": "9433",
+    "name": "KDDI",
+    "aliases": [
+      "kddi",
+      "케이디디아이"
+    ]
+  },
+  {
+    "code": "7267",
+    "name": "혼다",
+    "aliases": [
+      "honda motor",
+      "honda",
+      "혼다기연공업"
+    ]
+  },
+  {
+    "code": "6981",
+    "name": "무라타제작소",
+    "aliases": [
+      "murata manufacturing",
+      "murata",
+      "무라타"
+    ]
+  },
+  {
+    "code": "4568",
+    "name": "다이이찌산쿄",
+    "aliases": [
+      "daiichi sankyo",
+      "다이이치산쿄",
+      "제일삼공"
+    ]
+  },
+  {
+    "code": "4502",
+    "name": "다케다약품공업",
+    "aliases": [
+      "takeda pharmaceutical",
+      "takeda",
+      "다케다"
+    ]
+  },
+  {
+    "code": "8316",
+    "name": "스미토모미쓰이파이낸셜그룹",
+    "aliases": [
+      "sumitomo mitsui financial group",
+      "smfg",
+      "미쓰이스미토모파이낸셜그룹",
+      "SMBC"
+    ]
+  },
+  {
+    "code": "8411",
+    "name": "미즈호파이낸셜그룹",
+    "aliases": [
+      "mizuho financial group",
+      "mizuho",
+      "미즈호"
+    ]
+  },
+  {
+    "code": "8766",
+    "name": "도쿄해상홀딩스",
+    "aliases": [
+      "tokio marine holdings",
+      "tokio marine",
+      "도쿄마린홀딩스",
+      "도쿄해상"
+    ]
+  },
+  {
+    "code": "8750",
+    "name": "다이이치생명홀딩스",
+    "aliases": [
+      "dai-ichi life holdings",
+      "dai ichi life",
+      "다이이치생명"
+    ]
+  },
+  {
+    "code": "8630",
+    "name": "SOMPO홀딩스",
+    "aliases": [
+      "sompo holdings",
+      "sompo",
+      "손포홀딩스"
+    ]
+  },
+  {
+    "code": "8725",
+    "name": "MS&AD인슈어런스그룹홀딩스",
+    "aliases": [
+      "ms&ad insurance group",
+      "msad",
+      "MS&AD"
+    ]
+  },
+  {
+    "code": "8591",
+    "name": "오릭스",
+    "aliases": [
+      "orix",
+      "오릭스"
+    ]
+  },
+  {
+    "code": "8604",
+    "name": "노무라홀딩스",
+    "aliases": [
+      "nomura holdings",
+      "nomura",
+      "노무라"
+    ]
+  },
+  {
+    "code": "8697",
+    "name": "일본거래소그룹",
+    "aliases": [
+      "japan exchange group",
+      "jpx",
+      "JPX"
+    ]
+  },
+  {
+    "code": "6178",
+    "name": "일본우정",
+    "aliases": [
+      "japan post holdings",
+      "japan post",
+      "일본우정그룹"
+    ]
+  },
+  {
+    "code": "6902",
+    "name": "덴소",
+    "aliases": [
+      "denso",
+      "덴소"
+    ]
+  },
+  {
+    "code": "6367",
+    "name": "다이킨공업",
+    "aliases": [
+      "daikin industries",
+      "daikin",
+      "다이킨"
+    ]
+  },
+  {
+    "code": "6098",
+    "name": "리크루트홀딩스",
+    "aliases": [
+      "recruit holdings",
+      "recruit",
+      "리크루트"
+    ]
+  },
+  {
+    "code": "6594",
+    "name": "니덱",
+    "aliases": [
+      "nidec",
+      "일본전산",
+      "니덱"
+    ]
+  },
+  {
+    "code": "6954",
+    "name": "화낙",
+    "aliases": [
+      "fanuc",
+      "파낙",
+      "화낙"
+    ]
+  },
+  {
+    "code": "6273",
+    "name": "SMC",
+    "aliases": [
+      "smc corporation",
+      "SMC"
+    ]
+  },
+  {
+    "code": "6146",
+    "name": "디스코",
+    "aliases": [
+      "disco",
+      "디스코"
+    ]
+  },
+  {
+    "code": "6857",
+    "name": "어드반테스트",
+    "aliases": [
+      "advantest",
+      "어드밴테스트"
+    ]
+  },
+  {
+    "code": "6920",
+    "name": "레이저테크",
+    "aliases": [
+      "lasertec",
+      "레이저텍"
+    ]
+  },
+  {
+    "code": "6723",
+    "name": "르네사스일렉트로닉스",
+    "aliases": [
+      "renesas electronics",
+      "renesas",
+      "르네사스"
+    ]
+  },
+  {
+    "code": "7735",
+    "name": "스크린홀딩스",
+    "aliases": [
+      "screen holdings",
+      "screen",
+      "스크린"
+    ]
+  },
+  {
+    "code": "6762",
+    "name": "TDK",
+    "aliases": [
+      "tdk",
+      "티디케이"
+    ]
+  },
+  {
+    "code": "6971",
+    "name": "교세라",
+    "aliases": [
+      "kyocera",
+      "교세라"
+    ]
+  },
+  {
+    "code": "6645",
+    "name": "오므론",
+    "aliases": [
+      "omron",
+      "오므론"
+    ]
+  },
+  {
+    "code": "6506",
+    "name": "야스카와전기",
+    "aliases": [
+      "yaskawa electric",
+      "yaskawa",
+      "야스카와"
+    ]
+  },
+  {
+    "code": "6479",
+    "name": "미네베아미쓰미",
+    "aliases": [
+      "minebeamitsumi",
+      "minebea",
+      "미네베아"
+    ]
+  },
+  {
+    "code": "6702",
+    "name": "후지쯔",
+    "aliases": [
+      "fujitsu",
+      "후지쓰"
+    ]
+  },
+  {
+    "code": "6752",
+    "name": "파나소닉홀딩스",
+    "aliases": [
+      "panasonic holdings",
+      "panasonic",
+      "파나소닉"
+    ]
+  },
+  {
+    "code": "6503",
+    "name": "미쓰비시전기",
+    "aliases": [
+      "mitsubishi electric",
+      "미쓰비시일렉트릭"
+    ]
+  },
+  {
+    "code": "7751",
+    "name": "캐논",
+    "aliases": [
+      "canon",
+      "캐논"
+    ]
+  },
+  {
+    "code": "7741",
+    "name": "HOYA",
+    "aliases": [
+      "hoya",
+      "호야"
+    ]
+  },
+  {
+    "code": "7011",
+    "name": "미쓰비시중공업",
+    "aliases": [
+      "mitsubishi heavy industries",
+      "mhi",
+      "미쓰비시중공"
+    ]
+  },
+  {
+    "code": "7012",
+    "name": "가와사키중공업",
+    "aliases": [
+      "kawasaki heavy industries",
+      "kawasaki heavy",
+      "가와사키중공"
+    ]
+  },
+  {
+    "code": "7013",
+    "name": "IHI",
+    "aliases": [
+      "ihi",
+      "아이에이치아이"
+    ]
+  },
+  {
+    "code": "6301",
+    "name": "코마쓰",
+    "aliases": [
+      "komatsu",
+      "고마쓰",
+      "코마츠"
+    ]
+  },
+  {
+    "code": "6326",
+    "name": "구보타",
+    "aliases": [
+      "kubota",
+      "쿠보타"
+    ]
+  },
+  {
+    "code": "7269",
+    "name": "스즈키",
+    "aliases": [
+      "suzuki motor",
+      "suzuki",
+      "스즈키자동차"
+    ]
+  },
+  {
+    "code": "7270",
+    "name": "SUBARU",
+    "aliases": [
+      "subaru",
+      "스바루"
+    ]
+  },
+  {
+    "code": "7201",
+    "name": "닛산자동차",
+    "aliases": [
+      "nissan motor",
+      "nissan",
+      "닛산"
+    ]
+  },
+  {
+    "code": "7261",
+    "name": "마쓰다",
+    "aliases": [
+      "mazda motor",
+      "mazda",
+      "마즈다"
+    ]
+  },
+  {
+    "code": "5108",
+    "name": "브리지스톤",
+    "aliases": [
+      "bridgestone",
+      "브리지스톤"
+    ]
+  },
+  {
+    "code": "5401",
+    "name": "일본제철",
+    "aliases": [
+      "nippon steel",
+      "신일본제철",
+      "일본제철"
+    ]
+  },
+  {
+    "code": "5802",
+    "name": "스미토모전기공업",
+    "aliases": [
+      "sumitomo electric industries",
+      "sumitomo electric",
+      "스미토모전기"
+    ]
+  },
+  {
+    "code": "3402",
+    "name": "도레이",
+    "aliases": [
+      "toray industries",
+      "toray",
+      "도레이"
+    ]
+  },
+  {
+    "code": "3407",
+    "name": "아사히카세이",
+    "aliases": [
+      "asahi kasei",
+      "아사히카세이"
+    ]
+  },
+  {
+    "code": "4188",
+    "name": "미쓰비시케미칼그룹",
+    "aliases": [
+      "mitsubishi chemical group",
+      "mitsubishi chemical",
+      "미쓰비시화학"
+    ]
+  },
+  {
+    "code": "4005",
+    "name": "스미토모화학",
+    "aliases": [
+      "sumitomo chemical",
+      "스미토모화학"
+    ]
+  },
+  {
+    "code": "4901",
+    "name": "후지필름홀딩스",
+    "aliases": [
+      "fujifilm holdings",
+      "fujifilm",
+      "후지필름"
+    ]
+  },
+  {
+    "code": "4452",
+    "name": "카오",
+    "aliases": [
+      "kao corporation",
+      "kao",
+      "카오"
+    ]
+  },
+  {
+    "code": "4911",
+    "name": "시세이도",
+    "aliases": [
+      "shiseido",
+      "시세이도"
+    ]
+  },
+  {
+    "code": "4519",
+    "name": "주가이제약",
+    "aliases": [
+      "chugai pharmaceutical",
+      "chugai",
+      "추가이제약"
+    ]
+  },
+  {
+    "code": "4523",
+    "name": "에자이",
+    "aliases": [
+      "eisai",
+      "에자이"
+    ]
+  },
+  {
+    "code": "4528",
+    "name": "오노약품공업",
+    "aliases": [
+      "ono pharmaceutical",
+      "ono",
+      "오노약품"
+    ]
+  },
+  {
+    "code": "4507",
+    "name": "시오노기제약",
+    "aliases": [
+      "shionogi",
+      "시오노기"
+    ]
+  },
+  {
+    "code": "4543",
+    "name": "테루모",
+    "aliases": [
+      "terumo",
+      "테루모"
+    ]
+  },
+  {
+    "code": "2914",
+    "name": "일본담배산업",
+    "aliases": [
+      "japan tobacco",
+      "jt",
+      "JT"
+    ]
+  },
+  {
+    "code": "2802",
+    "name": "아지노모토",
+    "aliases": [
+      "ajinomoto",
+      "아지노모토"
+    ]
+  },
+  {
+    "code": "2801",
+    "name": "기코망",
+    "aliases": [
+      "kikkoman",
+      "깃코만"
+    ]
+  },
+  {
+    "code": "2502",
+    "name": "아사히그룹홀딩스",
+    "aliases": [
+      "asahi group holdings",
+      "asahi",
+      "아사히맥주"
+    ]
+  },
+  {
+    "code": "2503",
+    "name": "기린홀딩스",
+    "aliases": [
+      "kirin holdings",
+      "kirin",
+      "기린"
+    ]
+  },
+  {
+    "code": "2267",
+    "name": "야쿠르트혼샤",
+    "aliases": [
+      "yakult honsha",
+      "yakult",
+      "야쿠르트"
+    ]
+  },
+  {
+    "code": "2269",
+    "name": "메이지홀딩스",
+    "aliases": [
+      "meiji holdings",
+      "meiji",
+      "메이지"
+    ]
+  },
+  {
+    "code": "3382",
+    "name": "세븐앤드아이홀딩스",
+    "aliases": [
+      "seven & i holdings",
+      "seven and i",
+      "세븐아이홀딩스",
+      "세븐일레븐"
+    ]
+  },
+  {
+    "code": "9843",
+    "name": "니토리홀딩스",
+    "aliases": [
+      "nitori holdings",
+      "nitori",
+      "니토리"
+    ]
+  },
+  {
+    "code": "7453",
+    "name": "료힌케이카쿠",
+    "aliases": [
+      "ryohin keikaku",
+      "muji",
+      "무인양품"
+    ]
+  },
+  {
+    "code": "7550",
+    "name": "젠쇼홀딩스",
+    "aliases": [
+      "zensho holdings",
+      "zensho",
+      "젠쇼"
+    ]
+  },
+  {
+    "code": "4661",
+    "name": "오리엔탈랜드",
+    "aliases": [
+      "oriental land",
+      "도쿄디즈니랜드",
+      "오리엔탈랜드"
+    ]
+  },
+  {
+    "code": "9735",
+    "name": "세콤",
+    "aliases": [
+      "secom",
+      "세콤"
+    ]
+  },
+  {
+    "code": "4324",
+    "name": "덴츠그룹",
+    "aliases": [
+      "dentsu group",
+      "dentsu",
+      "덴쓰"
+    ]
+  },
+  {
+    "code": "4755",
+    "name": "라쿠텐그룹",
+    "aliases": [
+      "rakuten group",
+      "rakuten",
+      "라쿠텐"
+    ]
+  },
+  {
+    "code": "4385",
+    "name": "메루카리",
+    "aliases": [
+      "mercari",
+      "메르카리"
+    ]
+  },
+  {
+    "code": "4751",
+    "name": "사이버에이전트",
+    "aliases": [
+      "cyberagent",
+      "사이버에이전트"
+    ]
+  },
+  {
+    "code": "2413",
+    "name": "엠쓰리",
+    "aliases": [
+      "m3",
+      "엠3"
+    ]
+  },
+  {
+    "code": "4704",
+    "name": "트렌드마이크로",
+    "aliases": [
+      "trend micro",
+      "트렌드마이크로"
+    ]
+  },
+  {
+    "code": "9613",
+    "name": "NTT데이터그룹",
+    "aliases": [
+      "ntt data group",
+      "ntt data",
+      "NTT데이터"
+    ]
+  },
+  {
+    "code": "3659",
+    "name": "넥슨",
+    "aliases": [
+      "nexon",
+      "넥슨"
+    ]
+  },
+  {
+    "code": "9766",
+    "name": "코나미그룹",
+    "aliases": [
+      "konami group",
+      "konami",
+      "코나미"
+    ]
+  },
+  {
+    "code": "7832",
+    "name": "반다이남코홀딩스",
+    "aliases": [
+      "bandai namco holdings",
+      "bandai namco",
+      "반다이남코"
+    ]
+  },
+  {
+    "code": "9020",
+    "name": "동일본여객철도",
+    "aliases": [
+      "east japan railway",
+      "jr east",
+      "JR동일본"
+    ]
+  },
+  {
+    "code": "9022",
+    "name": "도카이여객철도",
+    "aliases": [
+      "central japan railway",
+      "jr central",
+      "JR도카이"
+    ]
+  },
+  {
+    "code": "9101",
+    "name": "일본우선",
+    "aliases": [
+      "nippon yusen",
+      "nyk line",
+      "NYK"
+    ]
+  },
+  {
+    "code": "9104",
+    "name": "상선미쓰이",
+    "aliases": [
+      "mitsui osk lines",
+      "mol",
+      "미쓰이OSK라인"
+    ]
+  },
+  {
+    "code": "9107",
+    "name": "가와사키기선",
+    "aliases": [
+      "kawasaki kisen kaisha",
+      "k line",
+      "K라인"
+    ]
+  },
+  {
+    "code": "1605",
+    "name": "INPEX",
+    "aliases": [
+      "inpex",
+      "인펙스",
+      "국제석유개발제석"
+    ]
+  },
+  {
+    "code": "5020",
+    "name": "ENEOS홀딩스",
+    "aliases": [
+      "eneos holdings",
+      "eneos",
+      "에네오스"
+    ]
+  },
+  {
+    "code": "9531",
+    "name": "도쿄가스",
+    "aliases": [
+      "tokyo gas",
+      "도쿄가스"
+    ]
+  },
+  {
+    "code": "9501",
+    "name": "도쿄전력홀딩스",
+    "aliases": [
+      "tokyo electric power",
+      "tepco",
+      "도쿄전력"
+    ]
+  },
+  {
+    "code": "9503",
+    "name": "간사이전력",
+    "aliases": [
+      "kansai electric power",
+      "kepco japan",
+      "간사이전력"
+    ]
+  },
+  {
+    "code": "8801",
+    "name": "미쓰이부동산",
+    "aliases": [
+      "mitsui fudosan",
+      "미쓰이후도산"
+    ]
+  },
+  {
+    "code": "8802",
+    "name": "미쓰비시지쇼",
+    "aliases": [
+      "mitsubishi estate",
+      "미쓰비시부동산"
+    ]
+  },
+  {
+    "code": "1925",
+    "name": "다이와하우스공업",
+    "aliases": [
+      "daiwa house industry",
+      "daiwa house",
+      "다이와하우스"
+    ]
+  },
+  {
+    "code": "1928",
+    "name": "세키스이하우스",
+    "aliases": [
+      "sekisui house",
+      "세키스이하우스"
+    ]
+  },
+  {
+    "code": "8001",
+    "name": "이토추상사",
+    "aliases": [
+      "itochu corporation",
+      "itochu",
+      "이토추"
+    ]
+  },
+  {
+    "code": "8031",
+    "name": "미쓰이물산",
+    "aliases": [
+      "mitsui & co",
+      "mitsui",
+      "미쓰이물산"
+    ]
+  },
+  {
+    "code": "8053",
+    "name": "스미토모상사",
+    "aliases": [
+      "sumitomo corporation",
+      "sumitomo corp",
+      "스미토모상사"
+    ]
+  },
+  {
+    "code": "8002",
+    "name": "마루베니",
+    "aliases": [
+      "marubeni",
+      "마루베니"
+    ]
+  }
+]
