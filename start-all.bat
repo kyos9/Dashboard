@@ -13,6 +13,10 @@ rem
 rem  로그는 이제 화면에 흘리지 않고 backend\logs\app.log에 쌓인다. 화면 오른쪽 위
 rem  [진단]에서 경고·오류만 골라 볼 수 있고, 파일째 내려받을 수도 있다.
 rem
+rem  주소는 언제나 http://localhost:8000 이다. 브라우저는 알아서 열리지만, 탭을 닫았거나
+rem  나중에 다시 들어가고 싶을 때를 위해 같은 폴더에 "신호판 열기.url" 을 두었다 —
+rem  더블클릭하면 바로 그 주소로 간다 (서버가 떠 있어야 열린다).
+rem
 rem  끄려면 stop.bat.
 rem ============================================================================
 
@@ -30,6 +34,7 @@ rem 이미 떠 있으면 두 번 띄우지 않는다 — 브라우저만 연다
 netstat -ano | findstr /r /c:":8000 .*LISTENING" >nul 2>&1
 if not errorlevel 1 (
     echo 신호판이 이미 실행 중입니다. 브라우저를 엽니다...
+    echo 주소: http://localhost:8000
     start http://localhost:8000
     exit /b 0
 )
@@ -51,6 +56,7 @@ if not exist "frontend\dist\index.html" (
 )
 
 echo 신호판을 시작합니다...
+echo 주소: http://localhost:8000   ("신호판 열기.url" 을 더블클릭해도 같은 곳입니다)
 start "" wscript.exe "%~dp0scripts\hidden.vbs" "%~f0" run
 
 rem 서버가 실제로 응답할 때까지 기다린다. 무작정 몇 초 자고 브라우저를 열면
@@ -69,6 +75,7 @@ pause
 exit /b 1
 
 :ready
+echo 준비됐습니다. 브라우저를 엽니다 - http://localhost:8000
 start http://localhost:8000
 exit /b 0
 

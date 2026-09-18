@@ -20,7 +20,11 @@ COPY frontend/ ./
 RUN npm run build
 
 # ---- 2단계: 실제로 돌아가는 이미지 -------------------------------------------
-FROM python:3.11-slim
+#
+# 파이썬 버전은 **개인 PC와 맞춘다.** 여기만 다르면 "내 PC에선 되는데 서버에선
+# 안 된다"가 되고, 그건 이 이미지를 만든 이유 자체다. (인코딩 문제로 한 번 겪었다 —
+# 환경이 갈라지면 가장 늦은 자리에서 알게 된다. app/migrate.py 참고.)
+FROM python:3.14-slim
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \

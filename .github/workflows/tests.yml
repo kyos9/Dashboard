@@ -55,7 +55,9 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          # 개인 PC·Docker 이미지와 같은 버전으로 맞춘다. 갈라지면 어느 한쪽에서만
+          # 터지는 문제를 가장 늦게 알게 된다.
+          python-version: "3.14"
           cache: pip
           cache-dependency-path: backend/requirements*.txt
 
