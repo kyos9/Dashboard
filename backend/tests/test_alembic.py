@@ -126,3 +126,58 @@ def _head() -> str:
     from alembic.script import ScriptDirectory
 
     return ScriptDirectory(str(migrate.SCRIPT_LOCATION)).get_current_head()
+
+
+# ---------------------------------------------------------------------------
+#  한국어 윈도우에서 앱이 안 뜨던 자리
+# ---------------------------------------------------------------------------
+#
+#  Alembic은 ini 파일을 **시스템 로케일 인코딩**으로 읽는다. 한국어 윈도우에서는
+#  그게 cp949라, UTF-8로 저장된 한글 주석 한 줄이 UnicodeDecodeError가 되고
+#  서버가 기동하다 죽는다. 리눅스와 CI는 UTF-8이라 **여기서는 영원히 안 잡힌다** —
+#  실제로 그렇게 지나갔고 사용자 PC에서 처음 터졌다. 그래서 로케일을 흉내 낸다.
+
+
+def _force_locale_encoding(monkeypatch, encoding: str) -> None:
+    """Alembic이 ini를 읽을 때 쓰는 인코딩을 바꿔치기한다 (로케일 흉내)."""
+    from alembic.util import compat
+
+    real = compat.read_config_parser
+
+    def read(file_config, file_argument):
+        for name in file_argument:
+            # 실제로 로케일 인코딩으로 읽어본다 — 못 읽으면 여기서 터진다
+            with open(name, encoding=encoding) as fh:
+                fh.read()
+        return real(file_config, file_argument)
+
+    monkeypatch.setattr(compat, "read_config_parser", read)
+
+
+def test_startup_survives_a_korean_windows_locale(tmp_path, monkeypatch):
+    """cp949 로케일에서도 DB가 최신 스키마로 올라가야 한다.
+
+    앱이 ini를 아예 안 읽으므로 이 상황 자체가 생기지 않는다. 다시 읽기 시작하면
+    여기서 걸린다 — 그때 증상은 "서버가 안 뜬다"이고, 원인은 주석 한 줄이다.
+    """
+    _force_locale_encoding(monkeypatch, "cp949")
+
+    engine = create_engine(f"sqlite:///{tmp_path / 'korean.db'}")
+    try:
+        assert migrate.upgrade_to_head(engine) == _head()
+    finally:
+        engine.dispose()
+
+
+def test_the_app_builds_its_migration_config_without_a_file():
+    """설정을 코드에서 만든다 — 파일을 읽는 순간 위 문제가 돌아온다."""
+    assert migrate._config(None).config_file_name is None
+
+
+def test_the_ini_stays_ascii_for_the_command_line():
+    """`alembic revision -m ...` 는 여전히 이 파일을 로케일로 읽는다.
+
+    앱은 안 읽지만 명령줄은 읽으므로, 여기에 한글 주석을 넣으면 **한국어 윈도우에서
+    새 리비전을 만들 수 없게 된다.** 설명은 app/migrate.py 에 한국어로 둔다.
+    """
+    migrate.ALEMBIC_INI.read_bytes().decode("ascii")

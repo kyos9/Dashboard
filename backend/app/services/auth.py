@@ -82,7 +82,9 @@ def signing_key() -> bytes:
 def _load_or_create_key() -> bytes:
     try:
         if KEY_FILE.is_file():
-            saved = KEY_FILE.read_text().strip()
+            # 인코딩을 명시한다. 안 쓰면 시스템 로케일로 읽는데, 그건 PC마다 다르다
+            # (같은 이유로 앱이 안 뜬 적이 있다 — app/migrate.py 참고).
+            saved = KEY_FILE.read_text(encoding="utf-8").strip()
             if len(saved) >= 32:
                 return saved.encode()
     except OSError:
@@ -93,7 +95,7 @@ def _load_or_create_key() -> bytes:
         KEY_FILE.parent.mkdir(parents=True, exist_ok=True)
         # 만들면서 바로 600으로 연다. write_text 뒤에 chmod 하면 그 사이에 남이 읽을 수 있다.
         fd = os.open(KEY_FILE, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with os.fdopen(fd, "w") as handle:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
             handle.write(key)
     except OSError:
         logger.warning(

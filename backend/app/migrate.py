@@ -42,9 +42,23 @@ INITIAL_REVISION = "0001"
 
 
 def _config(connection) -> Config:
-    cfg = Config(str(ALEMBIC_INI))
+    """마이그레이션을 돌릴 설정. **ini 파일을 읽지 않는다.**
+
+    여기서 필요한 건 두 가지(스크립트 위치, 이미 열어둔 연결)뿐인데, ini를 읽게 두면
+    그 *내용*이 아니라 **읽는 방식** 때문에 앱이 통째로 안 뜬다.
+
+    Alembic은 ini를 **시스템 로케일 인코딩**으로 읽는다. 한국어 윈도우는 그게 cp949라,
+    UTF-8로 저장된 한글 주석 한 줄이 `UnicodeDecodeError`가 되고 기동 중에 죽는다.
+    리눅스와 CI는 UTF-8이라 **이 경로는 거기서 영원히 잡히지 않는다** — 실제로 그렇게
+    지나갔고, 사용자 PC에서 처음 터졌다.
+
+    alembic.ini는 명령줄(`alembic revision -m ...`)을 위해 남겨둔다. 그쪽은 여전히
+    로케일로 읽으므로 **그 파일은 ASCII로 유지한다** (test_alembic.py가 지킨다).
+    """
+    cfg = Config()
     # 작업 디렉터리가 어디든(서비스로 띄우면 / 인 경우도 있다) 같은 곳을 보게 절대경로로.
     cfg.set_main_option("script_location", str(SCRIPT_LOCATION))
+    cfg.set_main_option("path_separator", "os")
     # 이미 열어둔 연결 위에서 돌린다 — 테스트가 임시 DB를 겨냥할 수 있어야 한다.
     cfg.attributes["connection"] = connection
     return cfg
