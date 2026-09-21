@@ -193,6 +193,27 @@ _MACRO_FACTORIES = {
 }
 
 
+# 매크로는 시세보다 **넉넉하게** 기다린다.
+#
+# 둘째로, 아무도 화면 앞에서 기다리고 있지 않다 — 배치가 밤에 받는 값이다. 시세는
+# 사람이 "새로고침"을 누르고 보고 있으므로 빨리 포기하는 편이 낫지만, 여기서 30초에
+# 포기하면 그 지표는 하루를 통째로 건너뛴다.
+#
+# 첫째로, `fredgraph.csv` 는 그래프 화면이 쓰는 주소라 범위가 넓으면 느리다. 첫 수집은
+# 20년치를 받으므로 가장 느린 요청이 하필 가장 중요한 요청이다 — 그게 넘어가면 지표가
+# 영영 비어 있고, 2시간마다 같은 자리에서 다시 실패한다.
+#
+# 시세와 같은 환경변수로 덮어쓸 수 있게 두되, 기본값만 다르게 간다.
+def _macro_timeout() -> int:
+    raw = os.environ.get("SIGNAL_DASHBOARD_HTTP_TIMEOUT")
+    if raw:
+        try:
+            return int(raw)
+        except ValueError:
+            pass
+    return 60
+
+
 def build_macro_providers(source: str) -> list[MacroProvider]:
     """출처 이름 하나를 제공자 목록으로. 모르는 이름이면 빈 목록이다.
 
@@ -201,7 +222,7 @@ def build_macro_providers(source: str) -> list[MacroProvider]:
     폴백을 어떤 코드로 물을지는 `fetch_macro_points` 가 정한다.
     """
     factory = _MACRO_FACTORIES.get((source or "").strip().lower())
-    return list(factory(_timeout())) if factory else []
+    return list(factory(_macro_timeout())) if factory else []
 
 
 class AllMacroProvidersFailed(Exception):

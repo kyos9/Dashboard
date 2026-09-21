@@ -254,20 +254,30 @@ if app_modules and market is Market.KR:
         info("→ 실패해도 내장 목록(주요 종목)으로는 검색됩니다. 중소형주만 못 찾게 됩니다.")
 
 
-# ── 8. 원/달러 환율 ──────────────────────────────────────────────────
-# 원화와 달러 종목을 같이 담으면 비중 계산에 환율이 필요하다. 환율을 못 받으면
-# 화면이 추정치로 계산하므로, 여기서 실제로 받아지는지 확인한다.
+# ── 8. 환율 ──────────────────────────────────────────────────────────
+# 원화와 외화 종목을 같이 담으면 비중 계산에 환율이 필요하다. 못 받으면 화면이
+# 추정치로 계산하므로, 여기서 실제로 받아지는지 확인한다.
+#
+# **통화별로 따로 본다.** 달러는 되는데 엔이 막히는 경우가 실제로 있다 (심볼이 다르다).
+# 하나로 뭉뚱그리면 엔 종목만 비중이 틀린 채로 지나간다.
 if app_modules:
-    section("8. 원/달러 환율 조회")
+    section("8. 환율 조회")
     try:
         from app.services import fx
 
-        rate = fx.fetch_usd_krw(timeout=15)
-        if rate is None:
-            fail(f"환율을 받지 못했습니다 — 화면은 추정치({fx.FALLBACK_USD_KRW:,.0f}원)로 계산합니다")
-            info("→ 리밸런싱 화면에서 환율을 직접 입력하면 정확한 비중으로 계산됩니다.")
-        else:
-            ok(f"1달러 = {rate:,.2f}원")
+        for currency in fx.tracked_currencies():
+            try:
+                rate = fx.fetch_krw_rate(currency, timeout=15)
+            except Exception as exc:
+                fail(f"{currency.value}: {brief(exc, 200)}")
+                continue
+
+            if rate is None:
+                estimate = fx.FALLBACK_KRW.get(currency)
+                fail(f"1{currency.value} 환율을 받지 못했습니다 — 화면은 추정치({estimate:,.0f}원)로 계산합니다")
+                info("→ 리밸런싱 화면에서 직접 입력하면 정확한 비중으로 계산됩니다.")
+            else:
+                ok(f"1{currency.value} = {rate:,.2f}원")
     except Exception as exc:
         fail(brief(exc, 300))
 
@@ -278,6 +288,10 @@ if app_modules:
 if app_modules:
     section("9. 매크로 지표 (FRED)")
 
+    import datetime as dt
+    import time
+
+    from app.services import macro, providers
     from app.services.providers import fred
 
     print("  9-1) FRED API 키")
@@ -288,17 +302,48 @@ if app_modules:
         info("→ 키를 넣으면 더해지는 것은 '그 값이 언제 발표됐나' 하나입니다.")
         info("  https://fredaccount.stlouisfed.org/apikeys (무료) → .env 의 FRED_API_KEY")
 
+    # **기간을 끊어서 묻는다.** 그냥 물으면 1962년부터 전부 달라는 뜻이 되는데,
+    # `fredgraph.csv` 는 그래프 화면이 쓰는 주소라 범위가 넓을수록 서버가 느려진다.
+    # "닿긴 하는가"를 보려고 60년치를 받다가 시간이 넘으면, 막힌 것도 아닌데
+    # 막혔다고 읽힌다. 실제로 그 모습으로 한 번 헷갈렸다.
     print("\n  9-2) 키 없이 받는 길 (fred.stlouisfed.org CSV)")
+    reachable = False
     try:
-        points = fred.FredCsvProvider(timeout=20).fetch("DGS10")
+        began = time.monotonic()
+        points = fred.FredCsvProvider(timeout=30).fetch(
+            "DGS10", start=dt.date.today() - dt.timedelta(days=60)
+        )
+        took = time.monotonic() - began
         last = points[-1]
-        ok(f"{len(points):,}행 — 가장 최근 {last.as_of} 미 국채 10년물 {last.value}%")
+        ok(f"{len(points):,}행 ({took:.1f}초) — 가장 최근 {last.as_of} 미 국채 10년물 {last.value}%")
+        reachable = True
     except Exception as exc:
         fail(brief(exc, 400))
         info("→ 이 길이 막히면 매크로 지표가 통째로 안 들어옵니다. 위 2·3번(네트워크)을 보세요.")
 
+    # 닿는 건 확인했으니, 이번엔 **앱이 실제로 받는 만큼** 받아본다. 처음 한 번은
+    # 20년치를 받으므로 여기서 시간이 넘치면 첫 수집만 실패한다 — 닿는 것과 다른 문제다.
+    if reachable:
+        # 앱이 실제로 쓰는 제한으로 재본다 — 여기만 다른 값을 쓰면 진단이 거짓말을 한다.
+        macro_limit = providers._macro_timeout()
+        print(f"\n  9-3) 앱이 처음 받는 만큼 ({macro.BACKFILL_YEARS}년치, 제한 {macro_limit}초)")
+        try:
+            began = time.monotonic()
+            points = fred.FredCsvProvider(timeout=macro_limit).fetch(
+                "DGS10", start=dt.date.today() - dt.timedelta(days=365 * macro.BACKFILL_YEARS)
+            )
+            took = time.monotonic() - began
+            ok(f"{len(points):,}행 ({took:.1f}초)")
+            if took > macro_limit * 0.8:
+                info(f"→ 느립니다. 앱의 제한은 {macro_limit}초라 첫 수집이 아슬아슬합니다.")
+                info("  .env 에 SIGNAL_DASHBOARD_HTTP_TIMEOUT=120 을 넣으면 넉넉해집니다.")
+        except Exception as exc:
+            fail(brief(exc, 300))
+            info("→ 닿긴 하는데 20년치는 못 받습니다. .env 에"
+                 " SIGNAL_DASHBOARD_HTTP_TIMEOUT=120 을 넣고 다시 띄워보세요.")
+
     if fred.api_key():
-        print("\n  9-3) 공식 API (api.stlouisfed.org)")
+        print("\n  9-4) 공식 API (api.stlouisfed.org)")
         try:
             points = fred.FredApiProvider(timeout=20).fetch("DGS10")
             ok(f"{len(points):,}행 — 가장 최근 {points[-1].as_of}")
@@ -306,10 +351,9 @@ if app_modules:
             fail(brief(exc, 400))
             info("→ API 가 막혀도 9-2 가 되면 값은 들어옵니다 (발표일만 못 받습니다).")
 
-    print("\n  9-4) 지금 저장돼 있는 상태")
+    print("\n  9-5) 지금 저장돼 있는 상태")
     try:
         from app.db import SessionLocal
-        from app.services import macro
 
         db = SessionLocal()
         try:
