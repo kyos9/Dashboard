@@ -141,6 +141,18 @@ docker compose --profile https pull      # 이미지 받기 (몇 분)
 docker compose --profile https up -d
 ```
 
+> **ARM(A1.Flex)으로 잡으셨다면 대신 `--build`를 쓰세요.**
+>
+> ```bash
+> docker compose --profile https up -d --build
+> ```
+>
+> 올려둔 이미지는 **x86_64(amd64)용 하나뿐**입니다. ARM에서 `pull` 하면
+> `no matching manifest for linux/arm64` 로 거절당합니다. 미리 만들어 두는 것은
+> 1GB짜리 x86 인스턴스가 빌드를 못 견뎌서였는데, **A1.Flex는 RAM이 6~24GB라 그 문제가
+> 없습니다** — 그쪽은 직접 빌드하는 편이 맞습니다. (ARM 이미지까지 만들려면 CI에서
+> 에뮬레이션으로 돌려야 해서 빌드가 몇십 분씩 걸립니다. 필요해지면 그때 붙입니다.)
+
 그동안 무슨 일이 일어나는지:
 
 1. Postgres가 뜨고, 건강해질 때까지 앱이 기다립니다
@@ -156,17 +168,15 @@ docker compose logs -f app        # 마이그레이션·갱신 로그
 
 브라우저에서 `https://<도메인>` → **비밀번호 칸이 뜨면 성공입니다.**
 
-> **`pull`에서 `denied` / `unauthorized` 가 나오면** 이미지가 아직 비공개입니다.
-> GitHub → 프로필 → Packages → `dashboard` → Package settings → Change visibility →
-> **Public**. (저장소가 이미 공개라 이미지를 공개해도 새로 드러나는 것은 없습니다.
-> 비밀번호·`.env`는 이미지에 들어가지 않습니다.) 비공개로 두고 싶다면 서버에서
-> `docker login ghcr.io` 로 개인 토큰(`read:packages`)을 넣어두면 됩니다.
+> 이미지는 **공개**라 로그인 없이 받아집니다. 혹시 `denied` / `unauthorized` 가
+> 나온다면 비공개로 바뀐 것입니다 — GitHub → 프로필 → Packages → `dashboard` →
+> Package settings → Change visibility → **Public**. (저장소가 이미 공개라 새로
+> 드러나는 것은 없습니다. 비밀번호·`.env`는 이미지에 들어가지 않습니다.) 비공개로
+> 두고 싶다면 서버에서 `docker login ghcr.io` 로 개인 토큰(`read:packages`)을
+> 넣어두면 됩니다.
 >
 > **`manifest unknown` 이면** 아직 이미지가 안 올라온 것입니다. 저장소 Actions 탭에서
 > "Docker 이미지"가 끝났는지 보고 다시 받으세요.
-
-**서버가 넉넉해서 직접 빌드하고 싶다면** `--build`를 붙이면 그대로 됩니다
-(`docker compose --profile https up -d --build`). RAM 1GB에서는 하지 마세요 — 1번 참고.
 
 ## 7. 확인
 
@@ -191,6 +201,9 @@ cd Dashboard && git pull && docker compose --profile https pull && docker compos
 
 `git pull`은 `docker-compose.yml`·`Caddyfile` 같은 설정을 맞추려고, `compose pull`은
 새 이미지를 받으려고 합니다. **둘 다 해야 합니다.**
+
+ARM(A1.Flex)이라면 `compose pull` 대신 `--build` 입니다 — 6번 참고:
+`cd Dashboard && git pull && docker compose --profile https up -d --build`
 
 마이그레이션은 앱이 알아서 돌리고, 그 직전에 백업을 한 벌 뜹니다. 로그인은 유지됩니다
 (서명 키가 `/data` 볼륨에 남습니다).
@@ -240,6 +253,7 @@ scp -r ubuntu@<서버IP>:~/Dashboard/backups .    # 내 PC에서
 | 502 Bad Gateway | 앱이 아직 뜨는 중이거나 죽었습니다. `docker compose logs app` |
 | `pull` 이 `denied`/`unauthorized` | 이미지가 비공개입니다. 6번의 안내 |
 | `pull` 이 `manifest unknown` | 이미지가 아직 안 올라왔습니다. Actions 탭에서 "Docker 이미지" 확인 |
+| `no matching manifest for linux/arm64` | ARM 인스턴스입니다. 올려둔 이미지는 x86_64용이라 `--build` 로 띄우세요 (6번) |
 | 올렸는데 화면이 그대로 | `git pull` 만 하고 `docker compose pull` 을 안 했거나, 이미지가 아직 만들어지는 중입니다 (9번). 화면 오른쪽 위 버전으로 확인 |
 | 빌드가 이유 없이 멈춤 | RAM 부족입니다. 애초에 서버에서 빌드하지 마세요 (1번·6번). 굳이 한다면 2번의 스왑을 4G로 |
 | 비밀번호를 잊음 | `.env`에 그대로 있습니다. 바꾸면 들어와 있던 사람도 전부 나갑니다 |
