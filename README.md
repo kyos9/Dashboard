@@ -281,6 +281,7 @@ npm run dev
 
 ```bash
 cp .env.example .env       # POSTGRES_PASSWORD·DASHBOARD_PASSWORD를 직접 채웁니다
+docker compose pull        # GitHub이 만들어 올려둔 이미지를 받습니다
 docker compose up -d
 ```
 
@@ -290,8 +291,13 @@ docker compose up -d
 docker compose --profile https up -d    # .env 에 DOMAIN 이 채워져 있어야 합니다
 ```
 
-이후 업데이트는 `git pull && docker compose up -d --build`. 마이그레이션은 앱이 뜨면서
-스스로 돌리고, 그 직전에 백업을 한 벌 떠둡니다.
+이후 업데이트는 `git pull && docker compose pull && docker compose up -d`. 마이그레이션은
+앱이 뜨면서 스스로 돌리고, 그 직전에 백업을 한 벌 떠둡니다.
+
+**서버에서 빌드하지 않습니다.** 무료 티어에서 실제로 잡히는 1GB 인스턴스는 화면
+빌드(node) 도중 메모리가 모자라 죽는데, 그게 *이유 없이 멈춘 것*처럼 보입니다. 그래서
+GitHub이 푸시마다 이미지를 만들어 GHCR에 올려두고(`ghcr.io/kyos9/dashboard`) 서버는
+받기만 합니다. RAM이 넉넉한 곳에서 직접 빌드하려면 `--build`를 붙이면 그대로 됩니다.
 
 - 이미지는 화면(node)과 서버(python)를 각각 빌드해 한 덩어리로 만듭니다. 저장소와 같은
   폴더 구조(`/srv/backend`, `/srv/frontend/dist`)를 유지합니다.
@@ -439,7 +445,7 @@ cd frontend && npm test
 | 워크플로 | 언제 | 무엇을 |
 | --- | --- | --- |
 | `tests.yml` | 푸시할 때마다 | 백엔드 `pytest`를 **SQLite와 Postgres 양쪽**에서 · 프런트 `npm run build`(타입 검사 포함) + `npm test` |
-| `docker.yml` | Dockerfile·의존성이 바뀔 때만 | 이미지 빌드 + `docker compose config` 검사 |
+| `docker.yml` | 푸시할 때마다 | 이미지 빌드 → **GHCR에 올리기**(서버가 이걸 받아씁니다) + `docker compose config`·Caddyfile 검사 |
 
 **DB를 둘 다 돌리는 이유.** 내 PC는 SQLite, 서버는 Postgres입니다. SQLite는 타입에
 느슨하고 **외래키를 아예 검사하지 않아서** Postgres가 거절할 것을 조용히 받아줍니다.

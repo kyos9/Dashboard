@@ -33,12 +33,28 @@ Compute → Instances → Create instance.
 
 - 다른 가용성 도메인(AD-1/2/3)으로 바꿔서 다시 시도
 - 1 OCPU / 6GB 로 줄여서 시도 (작게 잡을수록 잘 잡힙니다)
-- 그래도 안 되면 **VM.Standard.E2.1.Micro**(AMD, 1GB). 돌아가긴 하지만 RAM이 빠듯해
-  아래 2번의 스왑이 **필수**입니다
+- 그래도 안 되면 **VM.Standard.E2.1.Micro**(AMD, 1GB). 이 문서대로 하면 돌아갑니다 —
+  아래를 보세요
 - 계정을 Pay As You Go 로 올리면 ARM 재고를 훨씬 잘 잡습니다 (무료 자원은 그대로 무료)
 
 Docker로 띄우므로 여기서 막히면 다른 곳(예: 국내 VPS)으로 옮겨도 이 문서의 3번부터
 그대로 씁니다. 붙잡고 있을 일이 아닙니다.
+
+### RAM 1GB(E2.1.Micro)로 가는 경우
+
+**평소 돌리는 데는 1GB로 충분합니다.** Postgres·앱·Caddy를 다 합쳐 평상시 500~600MB
+선입니다. 아키텍처도 x86_64라 ARM 전용 이미지 같은 걸림돌이 없습니다.
+
+문제는 딱 하나, **화면을 빌드하는 순간**입니다. `npm ci` → `tsc` → `vite build`가
+메모리를 크게 먹어서 1GB에서는 OOM Killer에게 죽는데, 그게 *이유 없이 멈춘 것*처럼
+보입니다. 그래서 **이 문서는 서버에서 빌드하지 않습니다.** GitHub이 푸시마다 이미지를
+만들어 올려두고(`.github/workflows/docker.yml`), 서버는 받기만 합니다(6번). 업데이트도
+매번 10분 넘게 빌드하는 대신 1분 안쪽으로 끝납니다.
+
+> **무료 인스턴스는 놀고 있으면 회수될 수 있습니다.** 오라클은 Always Free 인스턴스가
+> 7일간 CPU·네트워크·메모리를 거의 안 쓰면 회수 대상으로 봅니다. 하루 한 번 갱신만으로는
+> 부족할 수 있으니, 실제로 쓰기 시작한 뒤에도 가끔 확인하세요. 계정을 Pay As You Go 로
+> 올리면 이 대상에서 빠집니다(무료 자원은 그대로 무료이고, ARM 재고도 훨씬 잘 잡힙니다).
 
 ## 2. 서버 기본 설정
 
@@ -52,9 +68,10 @@ exit          # 그룹 적용을 위해 한 번 나갔다 다시 들어옵니다
 ```
 
 ```bash
-# 스왑 — RAM 1GB 인스턴스라면 필수입니다.
-# 화면 빌드(node)가 메모리를 제법 먹어서, 없으면 `docker compose build`가
-# 이유 없이 죽은 것처럼 끝납니다 (OOM Killer).
+# 스왑 — RAM 1GB 인스턴스라면 만들어 둡니다.
+# 빌드는 서버에서 안 하지만(1번 참고), 매일 갱신이 종목 10년치를 한꺼번에
+# 계산하는 순간처럼 잠깐 튀는 자리가 있습니다. 그때 죽지 않게 받쳐줍니다.
+# (서버에서 직접 빌드할 생각이라면 2G 대신 4G 로 만드세요.)
 sudo fallocate -l 2G /swapfile
 sudo chmod 600 /swapfile
 sudo mkswap /swapfile
@@ -102,7 +119,7 @@ dig +short signal.example.com     # 서버 IP가 나와야 다음으로 갑니�
 
 ```bash
 git clone https://github.com/kyos9/Dashboard.git
-cd dashboard
+cd Dashboard
 cp .env.example .env
 nano .env
 ```
@@ -113,14 +130,18 @@ nano .env
 | `DASHBOARD_PASSWORD` | **화면을 여는 비밀번호.** 비워두면 아무나 들어옵니다 |
 | `DOMAIN` | 4번에서 연결한 도메인 |
 | `ACME_EMAIL` | 인증서 문제 알림받을 메일 (비워도 됨) |
+| `IMAGE_TAG` | **비워둡니다.** 새 이미지에 문제가 있어 되돌릴 때만 씁니다 (9번) |
 
 ## 6. 띄우기
 
+**서버에서 빌드하지 않습니다.** GitHub이 만들어 올려둔 이미지를 받아서 띄웁니다.
+
 ```bash
-docker compose --profile https up -d --build
+docker compose --profile https pull      # 이미지 받기 (몇 분)
+docker compose --profile https up -d
 ```
 
-첫 실행은 몇 분 걸립니다(화면 빌드 + 파이썬 패키지). 그동안 무슨 일이 일어나는지:
+그동안 무슨 일이 일어나는지:
 
 1. Postgres가 뜨고, 건강해질 때까지 앱이 기다립니다
 2. 앱이 뜨면서 마이그레이션을 스스로 돌립니다 (그 직전에 백업을 한 벌 떠둡니다)
@@ -134,6 +155,18 @@ docker compose logs -f app        # 마이그레이션·갱신 로그
 ```
 
 브라우저에서 `https://<도메인>` → **비밀번호 칸이 뜨면 성공입니다.**
+
+> **`pull`에서 `denied` / `unauthorized` 가 나오면** 이미지가 아직 비공개입니다.
+> GitHub → 프로필 → Packages → `dashboard` → Package settings → Change visibility →
+> **Public**. (저장소가 이미 공개라 이미지를 공개해도 새로 드러나는 것은 없습니다.
+> 비밀번호·`.env`는 이미지에 들어가지 않습니다.) 비공개로 두고 싶다면 서버에서
+> `docker login ghcr.io` 로 개인 토큰(`read:packages`)을 넣어두면 됩니다.
+>
+> **`manifest unknown` 이면** 아직 이미지가 안 올라온 것입니다. 저장소 Actions 탭에서
+> "Docker 이미지"가 끝났는지 보고 다시 받으세요.
+
+**서버가 넉넉해서 직접 빌드하고 싶다면** `--build`를 붙이면 그대로 됩니다
+(`docker compose --profile https up -d --build`). RAM 1GB에서는 하지 마세요 — 1번 참고.
 
 ## 7. 확인
 
@@ -153,11 +186,30 @@ curl -s https://signal.example.com/api/health
 ## 9. 이후 업데이트
 
 ```bash
-cd dashboard && git pull && docker compose --profile https up -d --build
+cd Dashboard && git pull && docker compose --profile https pull && docker compose --profile https up -d
 ```
+
+`git pull`은 `docker-compose.yml`·`Caddyfile` 같은 설정을 맞추려고, `compose pull`은
+새 이미지를 받으려고 합니다. **둘 다 해야 합니다.**
 
 마이그레이션은 앱이 알아서 돌리고, 그 직전에 백업을 한 벌 뜹니다. 로그인은 유지됩니다
 (서명 키가 `/data` 볼륨에 남습니다).
+
+> 푸시하고 **몇 분 안에** 받으면 이미지가 아직 이전 것일 수 있습니다(GitHub이 만드는
+> 데 그만큼 걸립니다). 화면 오른쪽 위 버전이 안 바뀌었으면 Actions 탭에서
+> "Docker 이미지"가 끝났는지 보고 위 명령을 다시 돌리세요.
+>
+> **새 이미지에 문제가 있으면 되돌릴 수 있습니다.** `.env` 에 한 줄 넣고 다시 띄우면
+> 그 커밋의 이미지로 돌아갑니다.
+>
+> ```bash
+> echo 'IMAGE_TAG=sha-1234abc' >> .env      # 커밋 해시 앞 7자리
+> docker compose --profile https up -d
+> ```
+>
+> 쓸 수 있는 태그는 GitHub → Packages → `dashboard` 에서 볼 수 있습니다. 돌아올 때는
+> 그 줄을 지우면 다시 `latest` 입니다. (DB는 되돌아가지 않습니다 — 마이그레이션이
+> 이미 돈 뒤라면 백업에서 되돌려야 합니다.)
 
 ## 10. 백업 꺼내오기
 
@@ -166,7 +218,7 @@ cd dashboard && git pull && docker compose --profile https up -d --build
 
 ```bash
 docker compose cp app:/data/backups ./backups   # 서버 안에서
-scp -r ubuntu@<서버IP>:~/dashboard/backups .    # 내 PC에서
+scp -r ubuntu@<서버IP>:~/Dashboard/backups .    # 내 PC에서
 ```
 
 ## 11. 내 PC의 데이터는?
@@ -186,5 +238,8 @@ scp -r ubuntu@<서버IP>:~/dashboard/backups .    # 내 PC에서
 | 브라우저가 계속 기다리기만 함 | 3번 방화벽 **두 겹** 다 열었는지 |
 | "사이트가 안전하지 않음" | `docker compose logs caddy` — 인증서를 못 받은 겁니다. 4번의 A 레코드 확인 |
 | 502 Bad Gateway | 앱이 아직 뜨는 중이거나 죽었습니다. `docker compose logs app` |
-| 빌드가 이유 없이 멈춤 | RAM 부족입니다. 2번의 스왑 |
+| `pull` 이 `denied`/`unauthorized` | 이미지가 비공개입니다. 6번의 안내 |
+| `pull` 이 `manifest unknown` | 이미지가 아직 안 올라왔습니다. Actions 탭에서 "Docker 이미지" 확인 |
+| 올렸는데 화면이 그대로 | `git pull` 만 하고 `docker compose pull` 을 안 했거나, 이미지가 아직 만들어지는 중입니다 (9번). 화면 오른쪽 위 버전으로 확인 |
+| 빌드가 이유 없이 멈춤 | RAM 부족입니다. 애초에 서버에서 빌드하지 마세요 (1번·6번). 굳이 한다면 2번의 스왑을 4G로 |
 | 비밀번호를 잊음 | `.env`에 그대로 있습니다. 바꾸면 들어와 있던 사람도 전부 나갑니다 |
