@@ -47,6 +47,30 @@ DAILY_LOOKBACK_DAYS = 10
 # 공포 · 금리 · 물가.
 DEFAULT_PINNED = ["VIX", "DGS10", "PCEPILFE"]
 
+# --- 얼마나 자주 받아볼 것인가 ---------------------------------------------
+#
+# **24 가 아니라 20 이다.** 하루 한 번 도는 cron 은 매번 정확히 24시간 뒤에 돌지
+# 않는다 — 몇 초에서 몇 분씩 밀린다. 기준이 24시간이면 그 밀림 때문에 "아직 24시간이
+# 안 됐다"로 걸러져 **하루 걸러 한 번씩만** 받게 되고, 그 증상은 지표가 가끔 하루
+# 늦는 모습이라 원인을 짚기 어렵다. 넉넉히 20으로 두면 매일 돌고, 앱을 하루에 열 번
+# 다시 띄워도 20년치를 다시 받지는 않는다.
+CHECK_INTERVAL_HOURS = 20
+
+# 실패한 지표를 다시 해볼 때까지. 하루를 기다리지 않는 이유는 **고친 직후를 위해서다** —
+# `.env` 에 키를 넣고 앱을 다시 띄웠는데 내일까지 기다려야 한다면 고친 게 맞는지 알 수 없다.
+RETRY_AFTER_HOURS = 2
+
+# 값이 이 정도로 오래됐으면 "뭔가 잘못됐다"로 본다. 주기마다 다르다 — 일간 금리가
+# 열흘 전 값이면 문제지만, 월간 CPI 는 원래 한 달 반쯤 전 것이 최신이다
+# (8월 CPI 가 9월 중순에 나온다). 넉넉하게 잡았다 — 여기 걸리는 건 진짜 고장일 때뿐이어야
+# 하고, 멀쩡한데 빨간 표시가 뜨면 사람은 곧 표시를 안 믿게 된다.
+STALE_AFTER_DAYS = {
+    MacroFrequency.daily.value: 7,
+    MacroFrequency.weekly.value: 21,
+    MacroFrequency.monthly.value: 75,
+    MacroFrequency.quarterly.value: 200,
+}
+
 
 # ---------------------------------------------------------------------------
 #  어떤 지표를 들고 있는가
@@ -257,6 +281,48 @@ def upsert_values(db: Session, code: str, points, source: str | None = None) -> 
     return {"inserted": inserted, "revised": revised}
 
 
+def is_due(series: MacroSeries, now: dt.datetime | None = None) -> bool:
+    """이 지표를 지금 받아볼 때가 됐는가.
+
+    한 번도 안 받아봤으면 당연히 받는다. 그 뒤로는 하루 한 번이되, **마지막이 실패였다면
+    더 일찍 다시 해본다** (위 `RETRY_AFTER_HOURS`).
+
+    판정에 `last_checked_at`(시도한 시각)을 쓰지 `MacroValue.fetched_at`(값이 바뀐 시각)을
+    쓰지 않는다. 후자는 새 값이 없던 날 안 움직이므로, 그걸 기준으로 삼으면 발표가 없는
+    동안 매번 "아직 못 받았다"로 읽혀 20년치를 날마다 다시 받게 된다.
+    """
+    now = now or dt.datetime.utcnow()
+    if series.last_checked_at is None:
+        return True
+    hours = (now - series.last_checked_at).total_seconds() / 3600
+    return hours >= (RETRY_AFTER_HOURS if series.last_error else CHECK_INTERVAL_HOURS)
+
+
+def is_stale(db: Session, series: MacroSeries, today: dt.date | None = None) -> bool:
+    """들고 있는 값이 주기에 비해 지나치게 오래됐는가. (화면·진단에서 쓴다.)"""
+    last = latest_as_of(db, series.code)
+    if last is None:
+        return True
+    limit = STALE_AFTER_DAYS.get(series.frequency, STALE_AFTER_DAYS[MacroFrequency.daily.value])
+    return (today or dt.date.today()) - last > dt.timedelta(days=limit)
+
+
+def mark_checked(db: Session, series: MacroSeries, error: str | None = None) -> None:
+    """시도한 결과를 지표 행에 남긴다. **성공하면 지난 실패 사유를 지운다.**
+
+    안 지우면 이미 해결된 문제를 화면이 계속 띄우고, 그 표시는 곧 아무도 안 믿게 된다.
+    """
+    now = dt.datetime.utcnow()
+    series.last_checked_at = now
+    if error is None:
+        series.last_ok_at = now
+        series.last_error = None
+    else:
+        # 통째로 넣으면 화면이 읽기 어려워진다. 원인은 앞쪽에 나온다.
+        series.last_error = error[:500]
+    db.commit()
+
+
 def refresh_series(db: Session, series: MacroSeries, today: dt.date | None = None) -> dict:
     """지표 하나를 갱신한다. 실패해도 **이전 값은 그대로 남는다.**"""
     start = fetch_start(db, series, today=today)
@@ -274,9 +340,11 @@ def refresh_series(db: Session, series: MacroSeries, today: dt.date | None = Non
         )
     except AllMacroProvidersFailed as exc:
         logger.warning("%s 갱신 실패: %s", series.code, exc)
+        mark_checked(db, series, error=str(exc))
         return {"code": series.code, "ok": False, "error": str(exc), "hint": exc.hint()}
 
     result = upsert_values(db, series.code, points, source=provider)
+    mark_checked(db, series)
     return {
         "code": series.code,
         "ok": True,
@@ -286,24 +354,46 @@ def refresh_series(db: Session, series: MacroSeries, today: dt.date | None = Non
     }
 
 
-def refresh_all(db: Session, codes: list[str] | None = None, today: dt.date | None = None) -> list[dict]:
+def refresh_all(
+    db: Session,
+    codes: list[str] | None = None,
+    today: dt.date | None = None,
+    only_due: bool = False,
+    now: dt.datetime | None = None,
+) -> list[dict]:
     """활성 지표를 갱신한다. **한 지표가 실패해도 나머지는 계속한다.**
 
-    (어떤 지표를 "받을 때가 됐다"고 볼지 — 주기별 스케줄 — 는 3a-2 에서 이 위에 얹는다.
-    지금은 부르면 전부 받는다.)
+    `only_due` 가 참이면 받을 때가 된 것만 받는다 (`is_due`). 배치가 쓰는 길이다.
+    사람이 "지금 받아와" 를 누르는 길은 거짓으로 둔다 — 눌렀는데 아무 일도 안 일어나면
+    그건 고장으로 보인다.
     """
     wanted = set(codes) if codes else None
     results = []
     for series in active_series(db):
         if wanted is not None and series.code not in wanted:
             continue
+        if only_due and not is_due(series, now=now):
+            results.append({"code": series.code, "ok": True, "skipped": "아직 받을 때가 아님"})
+            continue
         try:
             results.append(refresh_series(db, series, today=today))
         except Exception as exc:  # 한 지표의 버그가 배치 전체를 멈추면 안 된다
             logger.exception("%s 갱신 중 예상치 못한 오류", series.code)
+            # 먼저 되돌린다 — 실패한 트랜잭션 위에서는 상태 기록도 같이 실패한다.
             db.rollback()
-            results.append({"code": series.code, "ok": False, "error": f"{type(exc).__name__}: {exc}"})
+            detail = f"{type(exc).__name__}: {exc}"
+            try:
+                mark_checked(db, series, error=detail)
+            except Exception:
+                logger.exception("%s 실패 기록마저 실패", series.code)
+                db.rollback()
+            results.append({"code": series.code, "ok": False, "error": detail})
     return results
+
+
+def refresh_due(db: Session, now: dt.datetime | None = None) -> list[dict]:
+    """배치가 부르는 자리 — 받을 때가 된 지표만 받는다."""
+    return refresh_all(db, only_due=True, now=now)
 
 
 # ---------------------------------------------------------------------------

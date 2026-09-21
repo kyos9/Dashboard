@@ -456,6 +456,159 @@ def test_the_defaults_do_not_overlap_in_meaning():
     assert len(set(units)) == len(units)
 
 
+# ---------------------------------------------------------------------------
+#  언제 받을 것인가 (주기별 갱신)
+# ---------------------------------------------------------------------------
+
+
+def _series(**kwargs) -> MacroSeries:
+    base = dict(code="DGS10", name="10년물", source="fred", source_code="DGS10",
+                unit="percent", transform="none", frequency="daily",
+                display_order=10, active=True)
+    return MacroSeries(**{**base, **kwargs})
+
+
+def test_an_indicator_we_never_tried_is_due():
+    assert macro.is_due(_series(), now=dt.datetime(2026, 9, 21, 12, 0)) is True
+
+
+def test_we_do_not_refetch_twenty_years_every_time_the_app_starts():
+    """앱을 다시 띄울 때마다 전 구간을 다시 받으면 안 된다 — 서버는 하루에도 몇 번 뜬다."""
+    now = dt.datetime(2026, 9, 21, 12, 0)
+    series = _series(last_checked_at=now - dt.timedelta(hours=1))
+    assert macro.is_due(series, now=now) is False
+
+
+def test_a_cron_that_slips_a_few_minutes_still_refreshes_today():
+    """기준이 24시간이면 cron 이 조금만 밀려도 **하루 걸러** 받게 된다.
+
+    증상은 "지표가 가끔 하루 늦는다"라서 원인을 짚기 어렵다. 그래서 여유를 뒀고,
+    누가 24로 되돌리면 여기서 걸린다.
+    """
+    now = dt.datetime(2026, 9, 21, 23, 0, 30)
+    series = _series(last_checked_at=now - dt.timedelta(hours=23, minutes=59))
+    assert macro.is_due(series, now=now) is True
+
+
+def test_a_failed_indicator_is_tried_again_sooner():
+    """키를 넣고 앱을 다시 띄웠는데 내일까지 기다려야 한다면 고쳤는지 알 수 없다."""
+    now = dt.datetime(2026, 9, 21, 12, 0)
+    three_hours_ago = now - dt.timedelta(hours=3)
+
+    assert macro.is_due(_series(last_checked_at=three_hours_ago, last_error="막힘"), now=now) is True
+    # 같은 시각이라도 성공했던 지표는 아직 아니다
+    assert macro.is_due(_series(last_checked_at=three_hours_ago), now=now) is False
+
+
+def test_staleness_is_judged_by_the_indicator_s_own_rhythm(db_session):
+    """월간 지표가 한 달 반 전 값인 건 정상이다. 일간 금리가 그러면 고장이다.
+
+    한 기준으로 판정하면 둘 중 하나는 반드시 틀린다 — 멀쩡한데 빨간 표시가 뜨면
+    사람은 곧 그 표시를 안 믿게 된다.
+    """
+    today = dt.date(2026, 9, 21)
+    fifty_days_ago = today - dt.timedelta(days=50)
+
+    db_session.add(_series(code="DAILY", frequency="daily"))
+    db_session.add(_series(code="MONTHLY", frequency="monthly"))
+    db_session.commit()
+    for code in ("DAILY", "MONTHLY"):
+        macro.upsert_values(db_session, code, [MacroPoint(fifty_days_ago, 1.0)])
+
+    by_code = {s.code: s for s in macro.active_series(db_session)}
+    assert macro.is_stale(db_session, by_code["DAILY"], today=today) is True
+    assert macro.is_stale(db_session, by_code["MONTHLY"], today=today) is False
+
+
+# ---------------------------------------------------------------------------
+#  결과를 남긴다 (실패 처리)
+# ---------------------------------------------------------------------------
+
+
+def test_a_failure_is_written_down_where_the_screen_can_see_it(db_session, monkeypatch):
+    macro.ensure_seed(db_session)
+
+    def fake_fetch(code, **kwargs):
+        raise AllMacroProvidersFailed(code, [ProviderUnavailable("fred_csv", "막힘")])
+
+    monkeypatch.setattr(macro, "fetch_macro_points", fake_fetch)
+    series = {s.code: s for s in macro.active_series(db_session)}["DGS10"]
+    macro.refresh_series(db_session, series)
+
+    assert series.last_checked_at is not None
+    assert series.last_ok_at is None
+    assert "막힘" in series.last_error
+
+
+def test_success_wipes_the_old_failure(db_session, monkeypatch):
+    """안 지우면 이미 해결된 문제를 화면이 계속 띄운다."""
+    macro.ensure_seed(db_session)
+    series = {s.code: s for s in macro.active_series(db_session)}["DGS10"]
+    macro.mark_checked(db_session, series, error="어제는 막혔다")
+    assert series.last_error
+
+    monkeypatch.setattr(
+        macro, "fetch_macro_points",
+        lambda code, **kwargs: ([MacroPoint(dt.date(2026, 9, 18), 4.2)], "fred_csv"),
+    )
+    macro.refresh_series(db_session, series)
+
+    assert series.last_error is None
+    assert series.last_ok_at is not None
+
+
+def test_an_unexpected_crash_is_recorded_too(db_session, monkeypatch):
+    """제공자 구현 자체의 버그도 흔적을 남겨야 한다 — 롤백 뒤에도 기록은 되어야 한다."""
+    macro.ensure_seed(db_session)
+
+    def boom(code, **kwargs):
+        raise ValueError("있을 수 없는 일")
+
+    monkeypatch.setattr(macro, "fetch_macro_points", boom)
+    macro.refresh_all(db_session, codes=["DGS10"])
+
+    series = {s.code: s for s in macro.active_series(db_session)}["DGS10"]
+    assert "있을 수 없는 일" in series.last_error
+
+
+def test_the_batch_leaves_alone_what_is_not_due_yet(db_session, monkeypatch):
+    """CPI 는 한 달에 한 번 나온다 — 날마다 20년치를 다시 받을 이유가 없다."""
+    macro.ensure_seed(db_session)
+    by_code = {s.code: s for s in macro.active_series(db_session)}
+    macro.mark_checked(db_session, by_code["PCEPILFE"])  # 방금 받아봤다
+
+    asked = []
+
+    def fake_fetch(code, **kwargs):
+        asked.append(code)
+        return [MacroPoint(dt.date(2026, 9, 18), 1.0)], "fred_csv"
+
+    monkeypatch.setattr(macro, "fetch_macro_points", fake_fetch)
+    results = {r["code"]: r for r in macro.refresh_due(db_session)}
+
+    assert "PCEPILFE" not in asked
+    assert results["PCEPILFE"]["skipped"]
+    assert "DGS10" in asked
+
+
+def test_pressing_refresh_by_hand_always_does_something(db_session, monkeypatch):
+    """눌렀는데 아무 일도 안 일어나면 그건 설정이 아니라 고장으로 보인다."""
+    macro.ensure_seed(db_session)
+    by_code = {s.code: s for s in macro.active_series(db_session)}
+    macro.mark_checked(db_session, by_code["DGS10"])
+
+    asked = []
+
+    def fake_fetch(code, **kwargs):
+        asked.append(code)
+        return [MacroPoint(dt.date(2026, 9, 18), 1.0)], "fred_csv"
+
+    monkeypatch.setattr(macro, "fetch_macro_points", fake_fetch)
+    macro.refresh_all(db_session, codes=["DGS10"])  # only_due 없이
+
+    assert asked == ["DGS10"]
+
+
 class _Response:
     def __init__(self, status_code: int, text: str):
         self.status_code = status_code

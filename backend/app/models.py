@@ -282,6 +282,20 @@ class MacroSeries(Base):
     display_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
+    # --- 마지막 갱신이 어떻게 됐는지 -------------------------------------
+    #
+    # 같은 표에 두는 이유: 지표 하나에 상태도 하나라 1:1 이고, 따로 표를 만들면 화면을
+    # 그릴 때마다 조인이 하나 는다. (사용자별 상태였다면 얘기가 다르다 — 그건 공용
+    # 표에 섞으면 안 되고, 그래서 `pinned_macro` 는 `portfolio_settings` 로 갔다.)
+    #
+    # **`MacroValue.fetched_at` 으로는 이걸 대신할 수 없다.** 그쪽은 값이 실제로
+    # 바뀌었을 때만 갱신된다 — 값이 그대로면 아무 흔적이 안 남아서, "받아봤는데 새 게
+    # 없었다"와 "아예 못 받았다"가 구분되지 않는다. 그 둘은 사용자가 할 일이 다르다.
+    last_checked_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
+    last_ok_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
+    # 마지막 실패 사유. 성공하면 지운다 — 남겨두면 이미 해결된 문제를 화면이 계속 띄운다.
+    last_error: Mapped[str | None] = mapped_column(String, nullable=True)
+
 
 class MacroValue(Base):
     """실제로 발표된 값. **공용 데이터다.**

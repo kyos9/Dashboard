@@ -26,6 +26,8 @@ def test_jobs_cover_both_market_closes():
             "listing_refresh",
             "listing_refresh_startup",
             "refresh_startup",
+            "macro_refresh",
+            "macro_refresh_startup",
             "backup",
             "backup_startup",
         }
@@ -39,6 +41,11 @@ def test_jobs_cover_both_market_closes():
         # 도쿄는 15:00 JST 마감 — 한국(15:30 KST)보다 30분 이르다
         japan = str(jobs["japan_refresh"].trigger)
         assert "hour='7'" in japan and "minute='0'" in japan
+
+        # 매크로: 미국 갱신(22:30)과 백업(23:30) 사이. 순서가 뒤집히면 그날 받은
+        # 지표가 백업에 안 들어가고, 하루 늦은 것만 남는다.
+        macro_job = str(jobs["macro_refresh"].trigger)
+        assert "hour='23'" in macro_job and "minute='0'" in macro_job
     finally:
         scheduler.shutdown_scheduler()
 
@@ -48,7 +55,7 @@ def test_start_is_idempotent():
     first = scheduler.start_scheduler()
     try:
         assert scheduler.start_scheduler() is first
-        assert len(first.get_jobs()) == 8
+        assert len(first.get_jobs()) == 10
     finally:
         scheduler.shutdown_scheduler()
 

@@ -8,6 +8,11 @@
 
 각 단계를 따로 검사하므로, 결과를 보면 원인이 네트워크 차단인지 / 백신·프록시의 TLS 간섭인지
 / 야후의 봇 차단인지 / 티커 오타인지 구분할 수 있다. 출력 전체를 그대로 복사해 공유하면 된다.
+
+마지막 9번은 매크로 지표(FRED)다. 시세와 다른 서버라 따로 막힐 수 있다.
+
+서버(도커)에서 돌릴 때는:
+    docker compose exec app python diagnose.py
 """
 
 from __future__ import annotations
@@ -265,6 +270,77 @@ if app_modules:
             ok(f"1달러 = {rate:,.2f}원")
     except Exception as exc:
         fail(brief(exc, 300))
+
+
+# ── 9. 매크로 지표 ───────────────────────────────────────────────────
+# 시세와 **다른 서버**(FRED)라 따로 막힐 수 있다. 화면에 지표가 안 뜰 때 원인이
+# 네트워크인지 / 키인지 / 아직 받을 때가 안 된 것인지를 여기서 가른다.
+if app_modules:
+    section("9. 매크로 지표 (FRED)")
+
+    from app.services.providers import fred
+
+    print("  9-1) FRED API 키")
+    if fred.api_key():
+        ok("키가 설정돼 있습니다 — 값의 '발표일'까지 받아옵니다")
+    else:
+        info("키가 없습니다. **문제가 아닙니다** — 아래 CSV 경로로 값은 그대로 받아옵니다.")
+        info("→ 키를 넣으면 더해지는 것은 '그 값이 언제 발표됐나' 하나입니다.")
+        info("  https://fredaccount.stlouisfed.org/apikeys (무료) → .env 의 FRED_API_KEY")
+
+    print("\n  9-2) 키 없이 받는 길 (fred.stlouisfed.org CSV)")
+    try:
+        points = fred.FredCsvProvider(timeout=20).fetch("DGS10")
+        last = points[-1]
+        ok(f"{len(points):,}행 — 가장 최근 {last.as_of} 미 국채 10년물 {last.value}%")
+    except Exception as exc:
+        fail(brief(exc, 400))
+        info("→ 이 길이 막히면 매크로 지표가 통째로 안 들어옵니다. 위 2·3번(네트워크)을 보세요.")
+
+    if fred.api_key():
+        print("\n  9-3) 공식 API (api.stlouisfed.org)")
+        try:
+            points = fred.FredApiProvider(timeout=20).fetch("DGS10")
+            ok(f"{len(points):,}행 — 가장 최근 {points[-1].as_of}")
+        except Exception as exc:
+            fail(brief(exc, 400))
+            info("→ API 가 막혀도 9-2 가 되면 값은 들어옵니다 (발표일만 못 받습니다).")
+
+    print("\n  9-4) 지금 저장돼 있는 상태")
+    try:
+        from app.db import SessionLocal
+        from app.services import macro
+
+        db = SessionLocal()
+        try:
+            rows = macro.active_series(db)
+            if not rows:
+                fail("지표 목록이 비어 있습니다 — 앱이 한 번도 안 떴거나 마이그레이션 전입니다")
+            empty = 0
+            for item in rows:
+                last = macro.latest_as_of(db, item.code)
+                if last is None:
+                    empty += 1
+                    state = "아직 받은 적 없음"
+                elif macro.is_stale(db, item):
+                    state = f"{last} (주기에 비해 오래됨)"
+                else:
+                    state = str(last)
+                due = "받을 때가 됨" if macro.is_due(item) else "대기"
+                # 한글은 화면에서 두 칸을 먹으므로 자릿수 패딩으로는 열이 안 맞는다.
+                # 억지로 맞추는 대신 가운뎃점으로 나눈다.
+                print(f"         {item.code:10s} {state} · {due}")
+                if item.last_error:
+                    fail(f"{item.code}: {item.last_error[:200]}")
+
+            if empty == len(rows):
+                info("→ 아직 한 번도 안 받았습니다. 앱을 켜고 1분쯤 기다리면 받아옵니다")
+                info("  (그 전에 9-2 가 실패한다면 먼저 그쪽이 풀려야 합니다).")
+        finally:
+            db.close()
+    except Exception as exc:
+        fail(brief(exc, 300))
+        info("→ 앱을 한 번 띄우면 표가 만들어지고 목록이 채워집니다.")
 
 
 print(f"\n{LINE}\n진단 완료 — 위 출력 전체를 복사해서 공유해주세요.\n{LINE}")

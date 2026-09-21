@@ -14,6 +14,10 @@
 위 시각 대부분에 꺼져 있다. 그래서 시세·백업 둘 다 **켠 직후에 한 번 더 보되, 이미
 최신이면 넘어간다.** 앱을 여닫을 때마다 다시 받아오면 그것대로 못 쓴다.
 
+매크로 지표는 UTC 23:00 — 미국 갱신 뒤, 백업 앞이다. 다만 여기서 **모든 지표를 매일
+받지는 않는다.** CPI 는 한 달에 한 번 나오는데 날마다 20년치를 다시 받을 이유가 없어서,
+받을 때가 됐는지는 `macro.is_due` 가 판정한다.
+
 여기에 더해 한국거래소 상장목록도 주기적으로 받아둔다. 내장 목록은 주요 종목
 위주라 중소형주가 이름으로 검색되지 않는데, 사용자가 "거래소 목록 갱신" 버튼의
 존재를 알아야만 해결되는 상태였다.
@@ -92,6 +96,30 @@ def _startup_backup_job() -> None:
     run_backup_if_stale()
 
 
+def _macro_refresh_job() -> None:
+    """매크로 지표 갱신. **받을 때가 된 것만** 받는다 (macro.is_due).
+
+    실패해도 조용히 넘어간다 — 매크로는 맥락이지 시그널이 아니다. 여기서 시끄럽게
+    굴면 정작 시세 갱신 실패가 묻힌다. 어느 지표가 왜 막혔는지는 지표 행에 남고
+    (`last_error`), 진단 화면에서 볼 수 있다.
+    """
+    from app.services import macro
+
+    db = SessionLocal()
+    try:
+        results = macro.refresh_due(db)
+        done = [r for r in results if r.get("ok") and not r.get("skipped")]
+        failed = [r for r in results if not r.get("ok")]
+        if done or failed:
+            logger.info("매크로 갱신: 성공 %d, 실패 %d", len(done), len(failed))
+        for item in failed:
+            logger.warning("매크로 %s: %s", item["code"], item.get("error"))
+    except Exception:
+        logger.warning("매크로 갱신에 실패했습니다", exc_info=True)
+    finally:
+        db.close()
+
+
 def _listing_refresh_job() -> None:
     """상장목록 캐시 채우기. 실패해도 앱은 내장 목록으로 계속 검색된다."""
     from app.services import symbols
@@ -157,6 +185,18 @@ def start_scheduler() -> BackgroundScheduler | None:
     # 이후에는 주 1회 (일요일 UTC 20:00 = 월요일 KST 05:00, 개장 전)
     scheduler.add_job(
         _listing_refresh_job, "cron", day_of_week="sun", hour=20, minute=0, id="listing_refresh"
+    )
+    # 매크로: 미국 갱신(22:30) 뒤, 백업(23:30) 앞. 그날 받은 지표까지 백업에 들어간다.
+    # FRED 의 일간 금리는 미 동부 오후 4시 15분쯤 올라오므로 이 시각이면 늘 그 뒤다
+    # (23:00 UTC = 18:00 EST / 19:00 EDT).
+    scheduler.add_job(
+        _macro_refresh_job, "cron", hour=23, minute=0, id="macro_refresh",
+        misfire_grace_time=MISFIRE_GRACE_SECONDS,
+    )
+    # 켠 직후 한 번 — 처음 띄웠을 때 지표가 비어 있지 않게 한다. 시세(30초) 뒤,
+    # 백업(60초) 앞에 둔다. 셋 다 네트워크를 쓰므로 겹치지 않게 벌려놓는다.
+    scheduler.add_job(
+        _macro_refresh_job, "date", run_date=_soon(45), id="macro_refresh_startup",
     )
     # 백업: 미국 갱신(22:30)이 끝난 뒤. 그날 받은 시세까지 들어간다.
     scheduler.add_job(
