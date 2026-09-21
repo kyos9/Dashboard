@@ -50,6 +50,13 @@ RUN pip install --no-cache-dir -r requirements.txt -r requirements-postgres.txt
 COPY backend/ ./
 COPY --from=frontend /build/dist /srv/frontend/dist
 
+# 어느 커밋으로 만든 이미지인지. 이미지에는 .git 이 안 들어가므로(.dockerignore)
+# 여기서 넣어주지 않으면 서버 화면이 버전만 알고 커밋은 모른다 — "올렸는데 그대로"가
+# 코드 문제인지 옛 이미지인지 구분이 안 된다. 손으로 빌드하면 비어 있고, 그때는
+# 앱이 알아서 git 에 물어본다.
+ARG GIT_SHA=""
+ENV APP_REVISION=$GIT_SHA
+
 # root로 돌리지 않는다. 컨테이너가 뚫려도 할 수 있는 일이 줄어든다.
 RUN useradd --create-home --uid 10001 signal \
     && mkdir -p /data \

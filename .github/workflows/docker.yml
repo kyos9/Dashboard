@@ -88,6 +88,10 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # 화면 오른쪽 위에 이 해시가 뜬다. 서버가 받아쓴 이미지가 어느 커밋인지
+          # 눈으로 확인할 수 있어야 "올렸는데 그대로"를 가릴 수 있다.
+          build-args: |
+            GIT_SHA=${{ github.sha }}
           # 캐시를 남겨두면 다음 빌드에서 안 바뀐 단계는 건너뛴다
           cache-from: type=gha
           cache-to: type=gha,mode=max

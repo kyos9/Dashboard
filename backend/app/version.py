@@ -4,6 +4,7 @@
 이게 없으면 "고쳤는데 그대로예요"가 코드 문제인지 옛날 코드가 도는 건지 구분이 안 된다.
 """
 
+import os
 import subprocess
 from functools import lru_cache
 from pathlib import Path
@@ -23,9 +24,25 @@ APP_VERSION = "0.11.0"
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
+# 이미지를 만들 때 박아 넣는 커밋 해시 (Dockerfile 의 ARG / .github/workflows/docker.yml).
+#
+# **도커에는 `.git` 이 없다**(.dockerignore). 그래서 아래 `git rev-parse` 가 서버에서는
+# 항상 빈손으로 돌아오고, 화면에는 `0.11.0` 만 남는다. 그 상태로는 서버가 오늘 이미지를
+# 받았는지 어제 것을 그대로 쓰고 있는지 알 방법이 없다 — 이 모듈이 애초에 있는 이유가
+# 그걸 알자는 것이었는데 정작 서버에서 안 되고 있었다.
+REVISION_ENV = "APP_REVISION"
+
+
 @lru_cache(maxsize=1)
 def git_revision() -> str | None:
-    """현재 체크아웃된 커밋. git이 없거나 저장소가 아니면 None."""
+    """현재 실행 중인 코드의 커밋. 알 수 없으면 None.
+
+    빌드할 때 박아둔 값을 먼저 본다 (도커). 없으면 저장소에 직접 물어본다 (개인 PC).
+    """
+    baked = os.environ.get(REVISION_ENV, "").strip()
+    if baked:
+        # 워크플로가 전체 해시를 넘긴다. 화면에는 앞 7자리면 충분하다.
+        return baked[:7]
     try:
         result = subprocess.run(
             ["git", "-C", str(REPO_ROOT), "rev-parse", "--short", "HEAD"],
