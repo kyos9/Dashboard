@@ -298,8 +298,11 @@ if app_modules:
     if fred.api_key():
         ok("키가 설정돼 있습니다 — 값의 '발표일'까지 받아옵니다")
     else:
-        info("키가 없습니다. **문제가 아닙니다** — 아래 CSV 경로로 값은 그대로 받아옵니다.")
-        info("→ 키를 넣으면 더해지는 것은 '그 값이 언제 발표됐나' 하나입니다.")
+        info("키가 없습니다. 보통은 **문제가 아닙니다** — 아래 CSV 경로로 값은 그대로 받아옵니다.")
+        info("→ 키를 넣으면 '그 값이 언제 발표됐나'가 더해집니다.")
+        info("  그리고 **가는 서버가 바뀝니다**: api.stlouisfed.org (키) vs")
+        info("  fred.stlouisfed.org (CSV). 아래 9-2 가 ReadTimeout 으로 막히는데")
+        info("  다른 사이트는 멀쩡하다면, 키를 넣는 것이 그 자체로 해결책일 수 있습니다.")
         info("  https://fredaccount.stlouisfed.org/apikeys (무료) → .env 의 FRED_API_KEY")
 
     # **기간을 끊어서 묻는다.** 그냥 물으면 1962년부터 전부 달라는 뜻이 되는데,
@@ -319,7 +322,9 @@ if app_modules:
         reachable = True
     except Exception as exc:
         fail(brief(exc, 400))
-        info("→ 이 길이 막히면 매크로 지표가 통째로 안 들어옵니다. 위 2·3번(네트워크)을 보세요.")
+        info("→ 위 2·3번(네트워크)이 전부 성공인데 여기만 막힌다면, 네트워크가 아니라")
+        info("  **이 서버가 우리 쪽 IP 를 안 받아주는 것**입니다 (클라우드 IP 는 흔히 막힙니다).")
+        info("  그때는 키를 받아 넣으세요 — 공식 API 는 주소가 달라 따로 열려 있는 경우가 많습니다.")
 
     # 닿는 건 확인했으니, 이번엔 **앱이 실제로 받는 만큼** 받아본다. 처음 한 번은
     # 20년치를 받으므로 여기서 시간이 넘치면 첫 수집만 실패한다 — 닿는 것과 다른 문제다.
@@ -378,8 +383,10 @@ if app_modules:
                     fail(f"{item.code}: {item.last_error[:200]}")
 
             if empty == len(rows):
-                info("→ 아직 한 번도 안 받았습니다. 앱을 켜고 1분쯤 기다리면 받아옵니다")
-                info("  (그 전에 9-2 가 실패한다면 먼저 그쪽이 풀려야 합니다).")
+                if any(item.last_error for item in rows):
+                    info("→ 받으러 가기는 했고 전부 실패했습니다. 위 [실패] 줄이 그 이유입니다.")
+                else:
+                    info("→ 아직 받으러 간 적이 없습니다. 앱을 켜고 1분쯤 기다리면 한 번 갑니다.")
         finally:
             db.close()
     except Exception as exc:

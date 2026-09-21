@@ -249,6 +249,7 @@ class AllMacroProvidersFailed(Exception):
 def fetch_macro_points(
     code: str,
     source: str,
+    source_code: str | None = None,
     fallback_source: str | None = None,
     fallback_code: str | None = None,
     start=None,
@@ -260,15 +261,19 @@ def fetch_macro_points(
     이상할 때 어디서 온 값인지 사후에 알아낼 방법이 있어야 한다. (시세는 DataFrame 에
     `attrs` 로 붙였지만 여기서는 리스트라 붙일 자리가 없어 같이 돌려준다.)
 
-    `fallback_code` 가 필요한 이유: 같은 지표라도 부르는 이름이 다르다. VIX 는 야후에서
-    `^VIX`, FRED 에서 `VIXCLS` 다. 앞쪽 코드를 뒤쪽에 그대로 물으면 "그런 지표 없다"가
-    돌아오고, 그러면 사용자는 코드를 잘못 적은 줄 안다.
+    **`code` 는 우리가 부르는 이름이고, 제공자에게 묻는 이름은 따로다.** 같은 지표라도
+    곳마다 이름이 다르다 — VIX 는 우리에게 `VIX`, 야후에서 `^VIX`, FRED 에서 `VIXCLS`.
+    `code` 를 그대로 물으면 "그런 티커 없다"가 돌아오고, 사용자는 코드를 잘못 적은 줄
+    안다. `code` 는 로그와 오류 메시지에만 쓴다 — 거기에는 우리 이름이 나와야 한다.
+
+    `source_code` 를 안 주면 `code` 로 묻는다. 둘이 같은 지표(FRED 쪽 대부분)가 많아
+    매번 적게 하지 않으려는 것이고, **다를 때 안 주면 조용히 틀린 것을 묻게 된다.**
     """
     failures: list[ProviderError] = []
     primary = build_macro_providers(source)
     secondary = build_macro_providers(fallback_source) if fallback_source else []
 
-    attempts = [(p, code) for p in primary]
+    attempts = [(p, source_code or code) for p in primary]
     attempts += [(p, fallback_code or code) for p in secondary]
 
     for provider, ask in attempts:

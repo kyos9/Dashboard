@@ -333,6 +333,9 @@ def refresh_series(db: Session, series: MacroSeries, today: dt.date | None = Non
         points, provider = fetch_macro_points(
             series.code,
             source=series.source,
+            # 우리가 부르는 이름(`code`)이 아니라 **그쪽에서 부르는 이름**으로 묻는다.
+            # VIX 는 우리에게 `VIX`, 야후에서 `^VIX` 다.
+            source_code=series.source_code,
             fallback_source=series.fallback_source,
             fallback_code=series.fallback_code,
             start=start,

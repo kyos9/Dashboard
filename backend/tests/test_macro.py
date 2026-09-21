@@ -280,12 +280,66 @@ def test_fallback_asks_with_the_other_place_s_code(monkeypatch):
     )
 
     points, provider = fetch_macro_points(
-        "VIX", source="yahoo", fallback_source="fred", fallback_code="VIXCLS"
+        "VIX",
+        source="yahoo",
+        source_code="^VIX",
+        fallback_source="fred",
+        fallback_code="VIXCLS",
     )
 
-    assert asked == [("yahoo", "VIX"), ("fred_csv", "VIXCLS")]
+    # 우리 이름(`VIX`)은 어느 쪽에도 나가지 않는다 — 양쪽 다 자기네 이름으로 묻는다
+    assert asked == [("yahoo", "^VIX"), ("fred_csv", "VIXCLS")]
     assert provider == "fred_csv"
     assert points[0].value == 18.4
+
+
+def test_the_primary_is_asked_with_its_own_name_too(monkeypatch):
+    """**여기서 한 번 놓쳤다.**
+
+    폴백 쪽 이름(`fallback_code`)만 챙기고 앞쪽은 우리 이름(`code`)을 그대로 물었다.
+    지표 여덟 중 일곱은 둘이 같아서(FRED 코드를 그대로 쓴다) 아무 일도 안 일어났고,
+    다른 하나가 VIX 였다 — 야후에 `^VIX` 대신 `VIX` 를 물어 "없는 티커" 가 돌아왔다.
+    처음 테스트가 그 잘못된 기대(`("yahoo", "VIX")`)를 그대로 박아둬서 잡히지도 않았다.
+    """
+    asked = []
+
+    class Recording:
+        name = "yahoo"
+
+        def supports(self, code):
+            return True
+
+        def fetch(self, code, start=None, want_release_dates=False):
+            asked.append(code)
+            return [MacroPoint(as_of=dt.date(2026, 9, 19), value=18.4)]
+
+    monkeypatch.setattr(
+        "app.services.providers._MACRO_FACTORIES", {"yahoo": lambda t: [Recording()]}
+    )
+
+    fetch_macro_points("VIX", source="yahoo", source_code="^VIX")
+    assert asked == ["^VIX"]
+
+
+def test_every_seeded_indicator_is_asked_by_its_provider_s_name(monkeypatch, db_session):
+    """시드 전체를 훑는다 — 지표를 더할 때 같은 실수를 반복하지 않도록.
+
+    코드에서 지표를 늘릴 수 있게 만들어둔 이상, "둘이 다른 지표"는 언제든 또 생긴다.
+    """
+    macro.ensure_seed(db_session)
+    asked = {}
+
+    def fake_fetch(code, source, source_code=None, **kwargs):
+        asked[code] = source_code
+        return [MacroPoint(dt.date(2026, 9, 18), 1.0)], source
+
+    monkeypatch.setattr(macro, "fetch_macro_points", fake_fetch)
+    macro.refresh_all(db_session)
+
+    expected = {spec["code"]: spec["source_code"] for spec in macro.SEED_SERIES}
+    assert asked == expected
+    # 실제로 다른 것이 하나는 있어야 이 테스트가 의미가 있다
+    assert any(code != source_code for code, source_code in expected.items())
 
 
 def test_every_failure_is_reported_together(monkeypatch):
@@ -366,7 +420,8 @@ def test_one_broken_indicator_does_not_stop_the_rest(db_session, monkeypatch):
     """시세 배치와 같은 원칙 — 하나가 막혀도 나머지는 갱신돼야 한다."""
     macro.ensure_seed(db_session)
 
-    def fake_fetch(code, source, fallback_source=None, fallback_code=None, start=None, want_release_dates=False):
+    def fake_fetch(code, source, source_code=None, fallback_source=None,
+                   fallback_code=None, start=None, want_release_dates=False):
         if code == "DGS10":
             raise AllMacroProvidersFailed("DGS10", [ProviderUnavailable("fred_csv", "막힘")])
         return [MacroPoint(dt.date(2026, 9, 19), 1.0)], "fred_csv"
