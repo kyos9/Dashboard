@@ -555,6 +555,46 @@ def test_a_failed_indicator_is_tried_again_sooner():
     assert macro.is_due(_series(last_checked_at=three_hours_ago), now=now) is False
 
 
+def test_restarting_retries_what_failed(db_session, monkeypatch):
+    """**실제로 헛돈 자리다.**
+
+    FRED 키를 `.env` 에 넣고 앱을 다시 띄웠는데 아무 일도 안 일어났다 — 직전 실패가
+    2시간 안쪽이라 전부 "대기"로 걸러졌기 때문이다. 고친 사람은 고친 게 맞는지조차
+    알 수 없고, 화면은 두 시간을 빈 채로 있는다.
+    """
+    now = dt.datetime(2026, 9, 21, 12, 0)
+    just_failed = _series(last_checked_at=now - dt.timedelta(minutes=5), last_error="막힘")
+
+    assert macro.is_due(just_failed, now=now) is False              # 평소 배치는 그대로 기다린다
+    assert macro.is_due(just_failed, now=now, after_restart=True) is True
+
+
+def test_restarting_does_not_refetch_what_already_worked(db_session):
+    """안 그러면 앱을 열 번 띄울 때 20년치를 열 번 다시 받는다."""
+    now = dt.datetime(2026, 9, 21, 12, 0)
+    fine = _series(last_checked_at=now - dt.timedelta(minutes=5), last_ok_at=now)
+    assert macro.is_due(fine, now=now, after_restart=True) is False
+
+
+def test_the_startup_job_asks_for_the_retry(db_session, monkeypatch):
+    """스케줄러가 그 신호를 실제로 넘기는지 — 안 넘기면 위 둘이 통과해도 소용없다."""
+    from app.services import scheduler
+
+    seen = {}
+
+    def fake_refresh_due(db, now=None, after_restart=False):
+        seen["after_restart"] = after_restart
+        return []
+
+    monkeypatch.setattr(macro, "refresh_due", fake_refresh_due)
+
+    scheduler._macro_refresh_job(after_restart=True)
+    assert seen["after_restart"] is True
+
+    scheduler._macro_refresh_job()
+    assert seen["after_restart"] is False
+
+
 def test_staleness_is_judged_by_the_indicator_s_own_rhythm(db_session):
     """월간 지표가 한 달 반 전 값인 건 정상이다. 일간 금리가 그러면 고장이다.
 

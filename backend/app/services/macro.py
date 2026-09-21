@@ -281,11 +281,25 @@ def upsert_values(db: Session, code: str, points, source: str | None = None) -> 
     return {"inserted": inserted, "revised": revised}
 
 
-def is_due(series: MacroSeries, now: dt.datetime | None = None) -> bool:
+def is_due(
+    series: MacroSeries, now: dt.datetime | None = None, after_restart: bool = False
+) -> bool:
     """이 지표를 지금 받아볼 때가 됐는가.
 
     한 번도 안 받아봤으면 당연히 받는다. 그 뒤로는 하루 한 번이되, **마지막이 실패였다면
     더 일찍 다시 해본다** (위 `RETRY_AFTER_HOURS`).
+
+    `after_restart` 는 **앱을 다시 띄웠다는 뜻이고, 그건 "뭔가 고쳤다"는 신호다.** 그때는
+    실패했던 지표를 시간과 무관하게 바로 다시 해본다.
+
+    이게 없어서 한 번 헛돌았다. FRED 키를 `.env` 에 넣고 다시 띄웠는데 **아무 일도 안
+    일어났다** — 직전 실패가 2시간 안쪽이라 전부 "대기"로 걸러졌기 때문이다. 고친 사람
+    입장에서는 고친 게 맞는지조차 알 수 없고, 화면은 두 시간 동안 빈 채로 있는다.
+    간격을 더 줄이는 것은 답이 아니다. 막혀 있는 서버를 2분마다 두드리는 게 되니까.
+    고쳤다는 신호가 올 때 다시 해보는 것이 맞다.
+
+    성공했던 지표는 재시작해도 안 받는다 — 그래야 앱을 열 번 띄워도 20년치를 열 번
+    다시 받지 않는다.
 
     판정에 `last_checked_at`(시도한 시각)을 쓰지 `MacroValue.fetched_at`(값이 바뀐 시각)을
     쓰지 않는다. 후자는 새 값이 없던 날 안 움직이므로, 그걸 기준으로 삼으면 발표가 없는
@@ -293,6 +307,8 @@ def is_due(series: MacroSeries, now: dt.datetime | None = None) -> bool:
     """
     now = now or dt.datetime.utcnow()
     if series.last_checked_at is None:
+        return True
+    if after_restart and series.last_error:
         return True
     hours = (now - series.last_checked_at).total_seconds() / 3600
     return hours >= (RETRY_AFTER_HOURS if series.last_error else CHECK_INTERVAL_HOURS)
@@ -363,6 +379,7 @@ def refresh_all(
     today: dt.date | None = None,
     only_due: bool = False,
     now: dt.datetime | None = None,
+    after_restart: bool = False,
 ) -> list[dict]:
     """활성 지표를 갱신한다. **한 지표가 실패해도 나머지는 계속한다.**
 
@@ -375,7 +392,7 @@ def refresh_all(
     for series in active_series(db):
         if wanted is not None and series.code not in wanted:
             continue
-        if only_due and not is_due(series, now=now):
+        if only_due and not is_due(series, now=now, after_restart=after_restart):
             results.append({"code": series.code, "ok": True, "skipped": "아직 받을 때가 아님"})
             continue
         try:
@@ -394,9 +411,14 @@ def refresh_all(
     return results
 
 
-def refresh_due(db: Session, now: dt.datetime | None = None) -> list[dict]:
-    """배치가 부르는 자리 — 받을 때가 된 지표만 받는다."""
-    return refresh_all(db, only_due=True, now=now)
+def refresh_due(
+    db: Session, now: dt.datetime | None = None, after_restart: bool = False
+) -> list[dict]:
+    """배치가 부르는 자리 — 받을 때가 된 지표만 받는다.
+
+    `after_restart` 는 켠 직후 한 번 도는 쪽에서 준다 (`is_due` 의 설명 참고).
+    """
+    return refresh_all(db, only_due=True, now=now, after_restart=after_restart)
 
 
 # ---------------------------------------------------------------------------

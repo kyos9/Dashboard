@@ -96,8 +96,11 @@ def _startup_backup_job() -> None:
     run_backup_if_stale()
 
 
-def _macro_refresh_job() -> None:
+def _macro_refresh_job(after_restart: bool = False) -> None:
     """매크로 지표 갱신. **받을 때가 된 것만** 받는다 (macro.is_due).
+
+    `after_restart` 는 켠 직후 도는 쪽에서 준다 — 다시 띄웠다는 건 보통 뭔가 고쳤다는
+    뜻이므로, 실패했던 지표는 재시도 간격을 기다리지 않고 바로 다시 해본다.
 
     실패해도 조용히 넘어간다 — 매크로는 맥락이지 시그널이 아니다. 여기서 시끄럽게
     굴면 정작 시세 갱신 실패가 묻힌다. 어느 지표가 왜 막혔는지는 지표 행에 남고
@@ -107,7 +110,7 @@ def _macro_refresh_job() -> None:
 
     db = SessionLocal()
     try:
-        results = macro.refresh_due(db)
+        results = macro.refresh_due(db, after_restart=after_restart)
         done = [r for r in results if r.get("ok") and not r.get("skipped")]
         failed = [r for r in results if not r.get("ok")]
         if done or failed:
@@ -197,6 +200,7 @@ def start_scheduler() -> BackgroundScheduler | None:
     # 백업(60초) 앞에 둔다. 셋 다 네트워크를 쓰므로 겹치지 않게 벌려놓는다.
     scheduler.add_job(
         _macro_refresh_job, "date", run_date=_soon(45), id="macro_refresh_startup",
+        args=[True],  # 고치고 다시 띄운 경우를 위해 실패했던 지표는 바로 다시 해본다
     )
     # 백업: 미국 갱신(22:30)이 끝난 뒤. 그날 받은 시세까지 들어간다.
     scheduler.add_job(
