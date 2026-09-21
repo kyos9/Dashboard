@@ -4,6 +4,7 @@
 이게 없으면 "고쳤는데 그대로예요"가 코드 문제인지 옛날 코드가 도는 건지 구분이 안 된다.
 """
 
+import datetime as dt
 import os
 import subprocess
 from functools import lru_cache
@@ -32,6 +33,16 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 # 그걸 알자는 것이었는데 정작 서버에서 안 되고 있었다.
 REVISION_ENV = "APP_REVISION"
 
+# 언제 만든 이미지인가 (ISO8601 UTC). 역시 빌드할 때 박는다.
+#
+# 해시만으로는 **사람이 못 읽는다.** `e81f1ee` 는 순서도 뜻도 없는 지문이라, 화면에서
+# 그것만 보고는 지금 도는 것이 어제 것인지 방금 받은 것인지 알 수 없다. 대조는 되지만
+# 그건 만든 사람의 용도이고, 화면은 쓰는 사람이 보는 자리다. 날짜를 같이 준다.
+#
+# 문자열 그대로 내보내고 **화면에서 읽기 좋게 바꾼다.** 서버에서 "9월 21일"로 만들어
+# 보내면 서버의 시간대(UTC)로 찍히는데, 보는 사람은 다른 시간대에 있다.
+BUILT_AT_ENV = "APP_BUILT_AT"
+
 
 @lru_cache(maxsize=1)
 def git_revision() -> str | None:
@@ -56,6 +67,33 @@ def git_revision() -> str | None:
 
 
 @lru_cache(maxsize=1)
+def built_at() -> str | None:
+    """이미지를 만든 시각 (ISO8601). 없거나 모양이 아니면 None.
+
+    모양을 확인하는 이유: 잘못된 값이 그대로 화면에 가면 `Invalid Date` 가 찍힌다.
+    없는 것보다 나쁘다 — 사용자는 고장으로 읽는다.
+    """
+    raw = os.environ.get(BUILT_AT_ENV, "").strip()
+    if not raw:
+        return None
+    try:
+        dt.datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return raw
+
+
+@lru_cache(maxsize=1)
 def version_string() -> str:
+    """로그와 한 줄 표시용. 화면은 아래 `info()` 의 조각들을 직접 조합한다."""
     revision = git_revision()
     return f"{APP_VERSION} ({revision})" if revision else APP_VERSION
+
+
+def info() -> dict:
+    """화면에 내보낼 조각들. **합치지 않고 따로 준다.**
+
+    합쳐서 보내면 화면이 그것을 다시 쪼개야 하고, 시각은 보는 사람의 시간대로
+    찍혀야 하는데 서버는 그게 어디인지 모른다.
+    """
+    return {"version": APP_VERSION, "revision": git_revision(), "built_at": built_at()}

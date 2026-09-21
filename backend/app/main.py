@@ -61,7 +61,7 @@ def health(request: Request):
         return body
     return {
         **body,
-        "version": version.version_string(),
+        **version.info(),
         # 국내/해외 제공자 순서가 다르므로 시장별로 내려준다
         "providers_by_market": providers.provider_overview(),
     }

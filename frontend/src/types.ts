@@ -255,6 +255,10 @@ export interface HealthInfo {
   locked?: boolean
   /** 잠긴 상태에서 로그인 전이면 내려오지 않는다 */
   version?: string
+  /** 커밋 해시 앞 7자리. 사람이 읽으라고 있는 값이 아니라 대조용이다 */
+  revision?: string | null
+  /** 이미지를 만든 시각 (ISO8601 UTC). 읽기 좋게 바꾸는 것은 브라우저가 한다 */
+  built_at?: string | null
   /** 시장별 제공자 순서 (국내는 네이버를 먼저 쓴다). 로그인 전이면 없다 */
   providers_by_market?: Record<Market, string[]>
 }

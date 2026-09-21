@@ -56,6 +56,9 @@ COPY --from=frontend /build/dist /srv/frontend/dist
 # 앱이 알아서 git 에 물어본다.
 ARG GIT_SHA=""
 ENV APP_REVISION=$GIT_SHA
+# 만든 시각. 해시는 대조용이고 이쪽이 사람이 읽는 값이다.
+ARG BUILD_TIME=""
+ENV APP_BUILT_AT=$BUILD_TIME
 
 # root로 돌리지 않는다. 컨테이너가 뚫려도 할 수 있는 일이 줄어든다.
 RUN useradd --create-home --uid 10001 signal \

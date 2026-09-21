@@ -21,6 +21,24 @@ function readStoredTheme(): Theme {
   return 'dark'
 }
 
+/** 이미지를 만든 시각을 "9/21 16:11" 로. 읽을 수 없는 값이면 빈 문자열.
+ *
+ * **브라우저에서 바꾼다.** 서버에서 만들어 보내면 서버 시간대(UTC)로 찍히는데,
+ * 보는 사람은 한국에 있다. 여기서 바꾸면 보는 사람의 시계와 같아진다.
+ *
+ * 잘못된 값이 오면 아무것도 안 붙인다 — `Invalid Date` 가 찍히는 건 없는 것보다 나쁘다.
+ */
+export function buildLabel(builtAt?: string | null): string {
+  if (!builtAt) return ''
+  const when = new Date(builtAt)
+  if (Number.isNaN(when.getTime())) return ''
+  // `toLocaleString` 에 맡기면 한국어 로케일에서 "9. 22. AM 01:11" 처럼 나온다.
+  // 점과 AM/PM 이 섞여 한눈에 안 읽히므로 직접 조립한다. 날짜 부분은 브라우저의
+  // 지역 시각(`getMonth`/`getHours`)을 쓰므로 보는 사람의 시계와 같다.
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${when.getMonth() + 1}/${when.getDate()} ${pad(when.getHours())}:${pad(when.getMinutes())}`
+}
+
 const TABS = [
   { to: '/', label: '대시보드', end: true },
   { to: '/history', label: '히스토리 차트', end: false },
@@ -79,14 +97,18 @@ export function AppHeader() {
               {health?.version && (
                 <span
                   className="badge badge-grey mono"
-                  title={
+                  title={[
+                    health.revision ? `커밋 ${health.revision}` : null,
                     health.providers_by_market
                       ? `시세 제공자 — 해외: ${health.providers_by_market.US.join(' → ')}` +
                         ` / 국내: ${health.providers_by_market.KR.join(' → ')}`
-                      : undefined
-                  }
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join('\n') || undefined}
                 >
                   v{health.version}
+                  {buildLabel(health.built_at) && ` · ${buildLabel(health.built_at)}`}
                 </span>
               )}
             </h1>

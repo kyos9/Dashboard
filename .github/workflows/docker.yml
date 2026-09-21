@@ -65,6 +65,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: 만든 시각 기록
+        id: built
+        # 화면 오른쪽 위에 이 시각이 뜬다. UTC 로 넘기고 읽기 좋게 바꾸는 것은
+        # 브라우저가 한다 — 보는 사람의 시간대는 서버가 알 수 없다.
+        run: echo "at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
       - name: 태그 정하기
         id: meta
         uses: docker/metadata-action@v5
@@ -92,6 +98,7 @@ jobs:
           # 눈으로 확인할 수 있어야 "올렸는데 그대로"를 가릴 수 있다.
           build-args: |
             GIT_SHA=${{ github.sha }}
+            BUILD_TIME=${{ steps.built.outputs.at }}
           # 캐시를 남겨두면 다음 빌드에서 안 바뀐 단계는 건너뛴다
           cache-from: type=gha
           cache-to: type=gha,mode=max

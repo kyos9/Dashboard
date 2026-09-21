@@ -11,11 +11,13 @@ function refreshResult(overrides: Partial<RefreshResult> & { ticker: string }): 
   return { ok: true, rows_upserted: 10, error: null, hint: null, ...overrides }
 }
 
-function mockHealth() {
+function mockHealth(extra: Record<string, unknown> = {}) {
   vi.spyOn(api, 'getHealth').mockResolvedValue({
     status: 'ok',
-    version: '0.4.0 (abc1234)',
+    version: '0.4.0',
+    revision: 'abc1234',
     providers_by_market: { US: ['yahoo', 'stooq'], KR: ['naver', 'yahoo'], JP: ['yahoo', 'stooq'] },
+    ...extra,
   })
 }
 
@@ -39,14 +41,37 @@ describe('버전 표시', () => {
   it('실행 중인 백엔드 버전을 보여준다 (업데이트가 반영됐는지 확인용)', async () => {
     mockHealth()
     renderHeader()
-    expect(await screen.findByText('v0.4.0 (abc1234)')).toBeInTheDocument()
+    expect(await screen.findByText('v0.4.0')).toBeInTheDocument()
   })
 
-  it('시장별 제공자 순서를 툴팁에 담는다', async () => {
+  it('만든 날짜를 같이 보여준다 — 해시만으로는 언제 것인지 알 수 없다', async () => {
+    mockHealth({ built_at: '2026-09-21T16:11:00Z' })
+    renderHeader()
+
+    // 시간대는 보는 사람의 것이므로 날짜 문자열을 고정하지 않는다.
+    // 확인할 것은 "버전 옆에 무언가 더 붙었는가"다.
+    const badge = await screen.findByText(/^v0\.4\.0 · /)
+    expect(badge).toBeInTheDocument()
+  })
+
+  it('만든 날짜가 없으면 버전만 보여준다 (손으로 빌드한 경우)', async () => {
+    mockHealth({ built_at: null })
+    renderHeader()
+    expect(await screen.findByText('v0.4.0')).toBeInTheDocument()
+  })
+
+  it('읽을 수 없는 날짜는 아예 안 붙인다 — Invalid Date 는 없는 것보다 나쁘다', async () => {
+    mockHealth({ built_at: '그런 날짜 없음' })
+    renderHeader()
+    expect(await screen.findByText('v0.4.0')).toBeInTheDocument()
+  })
+
+  it('커밋 해시와 제공자 순서를 툴팁에 담는다', async () => {
     mockHealth()
     renderHeader()
 
-    const badge = await screen.findByText('v0.4.0 (abc1234)')
+    const badge = await screen.findByText('v0.4.0')
+    expect(badge).toHaveAttribute('title', expect.stringContaining('커밋 abc1234'))
     expect(badge).toHaveAttribute('title', expect.stringContaining('국내: naver → yahoo'))
     expect(badge).toHaveAttribute('title', expect.stringContaining('해외: yahoo → stooq'))
   })
