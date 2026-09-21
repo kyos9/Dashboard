@@ -57,6 +57,9 @@ services:
       # 화면을 여는 비밀번호. 여기도 기본값을 주지 않는다 — 공개된 주소에 기본
       # 비밀번호로 올라가는 것이 이 잠금을 만든 이유 자체를 없앤다.
       DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:?.env 파일에 DASHBOARD_PASSWORD 를 정해주세요}
+      # 매크로 지표용. **비워도 된다** — 키가 없으면 키가 필요 없는 경로로 받는다.
+      # 위 둘과 달리 `:?` 를 안 붙인 이유가 그것이다. 없다고 앱이 안 뜨면 안 된다.
+      FRED_API_KEY: ${FRED_API_KEY:-}
     depends_on:
       db:
         condition: service_healthy

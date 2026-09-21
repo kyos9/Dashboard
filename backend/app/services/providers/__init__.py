@@ -1,7 +1,12 @@
-"""시세 제공자 레지스트리 — 순서대로 시도하고, 전부 실패하면 각각의 실제 원인을 모아 알린다.
+"""제공자 레지스트리 — 순서대로 시도하고, 전부 실패하면 각각의 실제 원인을 모아 알린다.
 
-제공자 순서는 시장별로 다르다. 국내 종목은 네이버를 먼저 쓴다 — 야후가 봇 차단이나
-회사망 방화벽에 막히는 환경에서도 국내주식은 받을 수 있어야 하기 때문이다.
+시세와 매크로 지표 두 갈래가 있고, 생각은 같다. 한 곳에만 의존하면 그쪽이 막히는 순간
+화면이 멈추므로 여러 곳을 순서대로 시도하고, 전부 실패했을 때는 "데이터 없음"이 아니라
+제공자별 실제 원인을 올린다 — 그래야 사용자가 고칠 수 있다.
+
+순서를 정하는 주체만 다르다. 시세는 **시장**이 정한다 (국내 종목은 네이버를 먼저 쓴다 —
+야후가 봇 차단이나 회사망 방화벽에 막히는 환경에서도 국내주식은 받을 수 있어야 하므로).
+매크로는 지표마다 사는 곳이 달라서 `macro_series` 행이 직접 정한다.
 """
 
 from __future__ import annotations
@@ -19,9 +24,11 @@ from app.services.providers.base import (
     ProviderUnavailable,
     TickerNotFound,
 )
+from app.services.providers.fred import FredApiProvider, FredCsvProvider
+from app.services.providers.macro_base import MacroPoint, MacroProvider
 from app.services.providers.naver import NaverProvider
 from app.services.providers.stooq import StooqProvider
-from app.services.providers.yahoo import YahooProvider
+from app.services.providers.yahoo import YahooMacroProvider, YahooProvider
 
 logger = logging.getLogger(__name__)
 
@@ -170,14 +177,113 @@ def fetch_price_history(ticker: str, period: str = "max", prefer: str | None = N
     raise AllProvidersFailed(ticker, failures)
 
 
+# ---------------------------------------------------------------------------
+#  매크로 지표 제공자
+# ---------------------------------------------------------------------------
+#
+#  시세와 같은 구조를 쓰되 순서를 정하는 방식이 다르다. 시세는 **시장**이 순서를
+#  정하지만(국내는 네이버 먼저), 매크로는 지표마다 사는 곳이 달라서 `macro_series`
+#  행이 직접 정한다. 지표를 늘릴 때 코드를 안 고쳐도 되게 하려면 그래야 한다.
+
+_MACRO_FACTORIES = {
+    # "fred" 하나가 두 제공자로 펼쳐진다 — 키가 있으면 공식 API, 없거나 막히면 CSV.
+    # 키 발급이 진입 장벽이므로 키 없이도 값은 나와야 한다.
+    "fred": lambda timeout: [FredApiProvider(timeout=timeout), FredCsvProvider(timeout=timeout)],
+    "yahoo": lambda timeout: [YahooMacroProvider(timeout=timeout)],
+}
+
+
+def build_macro_providers(source: str) -> list[MacroProvider]:
+    """출처 이름 하나를 제공자 목록으로. 모르는 이름이면 빈 목록이다.
+
+    **일부러 한 곳만 받는다.** 폴백까지 한 번에 펼쳐 돌려주면 호출부가 전부 같은 코드로
+    물어보게 되는데, 같은 지표라도 부르는 이름이 곳마다 다르다 (`^VIX` / `VIXCLS`).
+    폴백을 어떤 코드로 물을지는 `fetch_macro_points` 가 정한다.
+    """
+    factory = _MACRO_FACTORIES.get((source or "").strip().lower())
+    return list(factory(_timeout())) if factory else []
+
+
+class AllMacroProvidersFailed(Exception):
+    """모든 제공자가 실패. 어디서 왜 막혔는지 각각의 원인을 담는다."""
+
+    def __init__(self, code: str, failures: list[ProviderError]):
+        self.code = code
+        self.failures = failures
+        detail = " | ".join(f"{f.provider}: {f.message}" for f in failures) or "시도할 제공자가 없습니다"
+        super().__init__(f"{code} 지표를 받지 못했습니다 — {detail}")
+
+    def hint(self) -> str:
+        if self.failures and all(isinstance(f, TickerNotFound) for f in self.failures):
+            return "지표 코드를 확인해주세요 (FRED 화면 주소 끝에 붙는 대문자 코드입니다)."
+        if any(isinstance(f, ProviderUnavailable) for f in self.failures):
+            return (
+                "네트워크에서 FRED 로 나가지 못하고 있습니다. 백신·방화벽·회사망(프록시)이 "
+                "막고 있는지 확인해주세요. backend 폴더에서 `python diagnose.py` 를 실행하면 "
+                "바깥으로 나가는 길이 막혔는지 알 수 있습니다."
+            )
+        return "잠시 후 다시 시도해주세요."
+
+
+def fetch_macro_points(
+    code: str,
+    source: str,
+    fallback_source: str | None = None,
+    fallback_code: str | None = None,
+    start=None,
+    want_release_dates: bool = False,
+) -> tuple[list[MacroPoint], str]:
+    """제공자를 순서대로 시도해 첫 성공을 값과 **제공자 이름**으로 돌려준다.
+
+    이름까지 같이 주는 이유는 시세에서 `PriceDaily.source` 를 남기는 것과 같다 — 값이
+    이상할 때 어디서 온 값인지 사후에 알아낼 방법이 있어야 한다. (시세는 DataFrame 에
+    `attrs` 로 붙였지만 여기서는 리스트라 붙일 자리가 없어 같이 돌려준다.)
+
+    `fallback_code` 가 필요한 이유: 같은 지표라도 부르는 이름이 다르다. VIX 는 야후에서
+    `^VIX`, FRED 에서 `VIXCLS` 다. 앞쪽 코드를 뒤쪽에 그대로 물으면 "그런 지표 없다"가
+    돌아오고, 그러면 사용자는 코드를 잘못 적은 줄 안다.
+    """
+    failures: list[ProviderError] = []
+    primary = build_macro_providers(source)
+    secondary = build_macro_providers(fallback_source) if fallback_source else []
+
+    attempts = [(p, code) for p in primary]
+    attempts += [(p, fallback_code or code) for p in secondary]
+
+    for provider, ask in attempts:
+        if not provider.supports(ask):
+            continue
+        try:
+            points = provider.fetch(ask, start=start, want_release_dates=want_release_dates)
+            if failures:
+                logger.info(
+                    "%s: %s 제공자로 대체 조회 성공 (앞선 실패: %s)",
+                    code, provider.name, [f.provider for f in failures],
+                )
+            return points, provider.name
+
+        except ProviderError as exc:
+            logger.warning("%s: %s", code, exc)
+            failures.append(exc)
+
+        except Exception as exc:  # 제공자 구현 자체의 버그도 다음 제공자를 막지 않는다
+            logger.exception("%s: %s 제공자에서 예상치 못한 오류", code, provider.name)
+            failures.append(ProviderError(provider.name, f"예상치 못한 오류 — {exc}"))
+
+    raise AllMacroProvidersFailed(code, failures)
+
+
 __all__ = [
+    "AllMacroProvidersFailed",
     "AllProvidersFailed",
     "EmptyData",
     "ProviderError",
     "ProviderUnavailable",
     "TickerNotFound",
+    "build_macro_providers",
     "build_providers",
     "configured_order",
+    "fetch_macro_points",
     "fetch_price_history",
     "provider_overview",
 ]

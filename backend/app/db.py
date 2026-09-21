@@ -12,12 +12,15 @@ SQLite 파일 하나로 두고, 서버는 Postgres를 쓰는 게 목표라 주�
 엉뚱한 빈 DB가 열리고, 사용자는 데이터가 사라진 줄 안다.
 """
 
+import logging
 import os
 from pathlib import Path
 from urllib.parse import urlsplit
 
 from sqlalchemy import create_engine, inspect, make_url, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_DB_PATH = Path(__file__).resolve().parents[1] / "signal_dashboard.db"
 
@@ -209,8 +212,31 @@ def adopt_pre_alembic_database(bind=None) -> None:
 
 
 def init_db(bind=None) -> None:
-    """앱이 뜰 때 DB를 최신 스키마로 맞춘다."""
+    """앱이 뜰 때 DB를 최신 스키마로 맞추고, 기본 매크로 지표 목록을 채운다."""
     from app import models  # noqa: F401  (모든 테이블이 Base.metadata에 등록되도록)
     from app.migrate import upgrade_to_head
 
-    upgrade_to_head(bind or engine)
+    bind = bind or engine
+    upgrade_to_head(bind)
+    _seed_macro_series(bind)
+
+
+def _seed_macro_series(bind) -> None:
+    """매크로 지표 목록을 채운다 — **없는 행만 넣는다.**
+
+    마이그레이션이 아니라 여기서 하는 이유: 지표 목록은 스키마가 아니라 내용이고,
+    앞으로 코드에서 지표가 늘어날 때마다 리비전을 하나씩 만들 이유가 없다. 이미 있는
+    행은 건드리지 않으므로(`macro.ensure_seed`) 사용자가 끈 지표가 되살아나지 않는다.
+
+    여기서 실패해도 앱은 떠야 한다 — 매크로는 부가 기능이고, 이것 때문에 종목 화면까지
+    못 보게 되는 건 말이 안 된다.
+    """
+    from sqlalchemy.orm import Session
+
+    from app.services import macro
+
+    try:
+        with Session(bind) as session:
+            macro.ensure_seed(session)
+    except Exception:
+        logger.exception("매크로 지표 목록을 채우지 못했습니다 (앱은 계속 뜹니다)")

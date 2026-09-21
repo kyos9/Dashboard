@@ -83,3 +83,34 @@ class YahooProvider:
             f"{ticker}: {self.retries + 1}회 시도 모두 실패 — "
             f"{type(last_error).__name__}: {last_error}",
         ) from last_error
+
+
+class YahooMacroProvider:
+    """야후를 매크로 지표 제공자로 쓰는 얇은 어댑터 — 종가를 그 날의 값으로 읽는다.
+
+    지수 형태로 거래되는 것(`^VIX`)에만 쓴다. 값이 "그 날의 종가" 하나면 충분하고,
+    FRED 의 같은 시리즈(`VIXCLS`)보다 하루 빠르기 때문이다.
+
+    **아무 지수에나 붙이면 안 된다.** 야후의 `^TNX` 는 10년물 금리를 10배로 들고 있어서
+    (4.2% -> 42.0) 그대로 쓰면 값이 조용히 열 배가 된다. 같은 단위·같은 정의라고 확인한
+    것만 `macro_series` 에 야후로 적는다.
+    """
+
+    name = "yahoo"
+
+    def __init__(self, timeout: int = 30):
+        self._prices = YahooProvider(timeout=timeout)
+
+    def supports(self, code: str) -> bool:
+        return True
+
+    def fetch(self, code, start=None, want_release_dates: bool = False):
+        from app.services.providers.macro_base import MacroPoint, normalize_points, period_for
+
+        df = self._prices.fetch(code, period_for(start))
+        points = [
+            MacroPoint(as_of=as_of, value=float(close))
+            for as_of, close in df["close"].items()
+            if start is None or as_of >= start
+        ]
+        return normalize_points(points, self.name, code)
