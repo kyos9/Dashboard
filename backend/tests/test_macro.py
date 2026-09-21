@@ -595,6 +595,80 @@ def test_the_startup_job_asks_for_the_retry(db_session, monkeypatch):
     assert seen["after_restart"] is False
 
 
+def test_a_pce_that_has_not_been_published_yet_is_not_stale(db_session):
+    """**실제로 틀리게 표시했던 자리다.**
+
+    9월 21일 화면에 "7월 PCE" 가 최신으로 떠 있고 나는 그것을 "오래됨"으로 표시했다.
+    그런데 8월 PCE 는 9월 26일에 나온다 — 그때 7월분이 최신인 것은 정상이다.
+
+    월간을 한 숫자로 재서 생긴 일이다. 8월 CPI 는 9월 중순, 8월 PCE 는 9월 말에
+    나오는데 둘을 같은 자로 쟀다. 발표일을 알면 그걸로 재면 된다.
+    """
+    today = dt.date(2026, 9, 21)
+    db_session.add(_series(code="PCEPILFE", frequency="monthly"))
+    db_session.commit()
+    macro.upsert_values(
+        db_session,
+        "PCEPILFE",
+        # 7월분이고, 8월 28일에 발표됐다 (다음 것은 9월 26일)
+        [MacroPoint(dt.date(2026, 7, 1), 125.3, released_at=dt.date(2026, 8, 28))],
+    )
+
+    series = {s.code: s for s in macro.active_series(db_session)}["PCEPILFE"]
+    assert macro.is_stale(db_session, series, today=today) is False
+
+
+def test_a_pce_that_really_stopped_coming_is_stale(db_session):
+    """반대쪽도 봐야 한다 — 넉넉하게 잡느라 진짜 고장을 놓치면 표시가 무의미해진다."""
+    today = dt.date(2026, 9, 21)
+    db_session.add(_series(code="PCEPILFE", frequency="monthly"))
+    db_session.commit()
+    macro.upsert_values(
+        db_session,
+        "PCEPILFE",
+        # 넉 달 전에 발표된 것이 아직 최신이다 — 그동안 세 번은 더 나왔어야 한다
+        [MacroPoint(dt.date(2026, 4, 1), 124.0, released_at=dt.date(2026, 5, 29))],
+    )
+
+    series = {s.code: s for s in macro.active_series(db_session)}["PCEPILFE"]
+    assert macro.is_stale(db_session, series, today=today) is True
+
+
+def test_a_delayed_publication_counts_as_fresh(db_session):
+    """발표가 밀리면 `as_of` 는 아주 오래됐는데 **방금 받은 값**이 된다.
+
+    미국 통계는 실제로 밀린다 (연방정부 셧다운 때 몇 주씩 밀린 전례가 있다). 그때
+    `as_of` 로만 재면 "다섯 달 전 값"이라 고장처럼 보이지만, 실제로는 지난주에 나온
+    최신 발표다. 두 자가 정반대를 가리키는 자리라 여기서 무엇을 보는지가 드러난다.
+    """
+    today = dt.date(2026, 9, 21)
+    db_session.add(_series(code="CPIAUCSL", frequency="monthly"))
+    db_session.commit()
+    macro.upsert_values(
+        db_session,
+        "CPIAUCSL",
+        # 4월분인데(143일 전) 밀려서 9월 5일에야 나왔다 — 16일 전 발표다
+        [MacroPoint(dt.date(2026, 5, 1), 320.1, released_at=dt.date(2026, 9, 5))],
+    )
+
+    series = {s.code: s for s in macro.active_series(db_session)}["CPIAUCSL"]
+    # as_of 기준(100일)이면 걸린다. 발표일 기준(45일)이면 안 걸린다.
+    assert (today - dt.date(2026, 5, 1)).days > macro.STALE_AFTER_DAYS["monthly"]
+    assert macro.is_stale(db_session, series, today=today) is False
+
+
+def test_without_a_release_date_it_falls_back_to_the_looser_ruler(db_session):
+    """키가 없으면 발표일이 안 온다 (CSV 는 안 준다). 그때도 멀쩡한 걸 걸면 안 된다."""
+    today = dt.date(2026, 9, 21)
+    db_session.add(_series(code="PCEPILFE", frequency="monthly"))
+    db_session.commit()
+    macro.upsert_values(db_session, "PCEPILFE", [MacroPoint(dt.date(2026, 7, 1), 125.3)])
+
+    series = {s.code: s for s in macro.active_series(db_session)}["PCEPILFE"]
+    # as_of 로부터 82일. 예전 기준(75일)이면 걸렸다.
+    assert macro.is_stale(db_session, series, today=today) is False
+
+
 def test_staleness_is_judged_by_the_indicator_s_own_rhythm(db_session):
     """월간 지표가 한 달 반 전 값인 건 정상이다. 일간 금리가 그러면 고장이다.
 

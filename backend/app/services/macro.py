@@ -60,15 +60,32 @@ CHECK_INTERVAL_HOURS = 20
 # `.env` 에 키를 넣고 앱을 다시 띄웠는데 내일까지 기다려야 한다면 고친 게 맞는지 알 수 없다.
 RETRY_AFTER_HOURS = 2
 
-# 값이 이 정도로 오래됐으면 "뭔가 잘못됐다"로 본다. 주기마다 다르다 — 일간 금리가
-# 열흘 전 값이면 문제지만, 월간 CPI 는 원래 한 달 반쯤 전 것이 최신이다
-# (8월 CPI 가 9월 중순에 나온다). 넉넉하게 잡았다 — 여기 걸리는 건 진짜 고장일 때뿐이어야
-# 하고, 멀쩡한데 빨간 표시가 뜨면 사람은 곧 표시를 안 믿게 된다.
+# 값이 언제부터 "오래됐다"인가.
+#
+# **발표일을 알면 그걸로 잰다.** 한 번 발표됐으면 다음 것은 대략 한 주기 뒤에 나오므로,
+# "마지막 발표 이후 한 주기하고도 한참이 지났는가"가 곧 고장 여부다.
+STALE_AFTER_RELEASE_DAYS = {
+    MacroFrequency.daily.value: 7,
+    MacroFrequency.weekly.value: 21,
+    MacroFrequency.monthly.value: 45,
+    MacroFrequency.quarterly.value: 135,
+}
+
+# 발표일을 모를 때(키가 없어 CSV 로 받은 경우) 쓰는, `as_of` 기준의 자.
+#
+# **월간을 한 숫자로 재면 반드시 하나는 틀린다.** 지표마다 발표가 얼마나 늦는지가
+# 다르기 때문이다 — 8월 CPI 는 9월 중순에 나오지만 8월 PCE 는 9월 말에 나온다.
+# 실제로 75일로 뒀다가 9월 21일에 "7월 PCE 가 최신"인 정상 상태를 오래됐다고 표시했다.
+# 그때 최신이 7월분인 것은 **8월분이 아직 안 나왔기 때문**이었다.
+#
+# 그래서 가장 늦은 쪽(PCE)에 맞춰 넉넉히 잡는다. 여기 걸리는 건 진짜 고장일 때뿐이어야
+# 하고, 멀쩡한데 빨간 표시가 뜨면 사람은 곧 그 표시를 안 믿게 된다. 진짜 고장은 어차피
+# `last_error` 가 따로 말해준다 — 이쪽은 보조 수단이지 유일한 경보가 아니다.
 STALE_AFTER_DAYS = {
     MacroFrequency.daily.value: 7,
     MacroFrequency.weekly.value: 21,
-    MacroFrequency.monthly.value: 75,
-    MacroFrequency.quarterly.value: 200,
+    MacroFrequency.monthly.value: 100,
+    MacroFrequency.quarterly.value: 250,
 }
 
 
@@ -314,13 +331,34 @@ def is_due(
     return hours >= (RETRY_AFTER_HOURS if series.last_error else CHECK_INTERVAL_HOURS)
 
 
+def latest_point(db: Session, code: str) -> MacroValue | None:
+    return db.scalar(
+        select(MacroValue).where(MacroValue.code == code).order_by(MacroValue.as_of.desc()).limit(1)
+    )
+
+
 def is_stale(db: Session, series: MacroSeries, today: dt.date | None = None) -> bool:
-    """들고 있는 값이 주기에 비해 지나치게 오래됐는가. (화면·진단에서 쓴다.)"""
-    last = latest_as_of(db, series.code)
-    if last is None:
+    """들고 있는 값이 지나치게 오래됐는가. (화면·진단에서 쓴다.)
+
+    **발표일을 알면 그걸로 잰다.** `as_of` 로만 재면 발표가 늦는 지표가 멀쩡한데도
+    걸린다 — 9월 21일에 최신 PCE 가 7월분인 것은 8월분이 아직 안 나왔기 때문이지
+    고장이 아니다. 반면 "마지막으로 뭔가 발표된 지 한참"이라면 그건 진짜 이상하다.
+
+    `released_at` 은 키가 있을 때만 채워지므로, 없으면 `as_of` 기준 자로 물러선다.
+    """
+    row = latest_point(db, series.code)
+    if row is None:
         return True
+
+    today = today or dt.date.today()
+    if row.released_at is not None:
+        limit = STALE_AFTER_RELEASE_DAYS.get(
+            series.frequency, STALE_AFTER_RELEASE_DAYS[MacroFrequency.daily.value]
+        )
+        return today - row.released_at > dt.timedelta(days=limit)
+
     limit = STALE_AFTER_DAYS.get(series.frequency, STALE_AFTER_DAYS[MacroFrequency.daily.value])
-    return (today or dt.date.today()) - last > dt.timedelta(days=limit)
+    return today - row.as_of > dt.timedelta(days=limit)
 
 
 def mark_checked(db: Session, series: MacroSeries, error: str | None = None) -> None:
