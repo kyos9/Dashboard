@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppStateProvider } from '../AppState'
@@ -210,6 +210,37 @@ describe('등록된 종목 목록', () => {
 
     await screen.findByText(/미국 · \$USD/)
     expect(screen.queryByLabelText('VOO 표시 이름')).not.toBeInTheDocument()
+  })
+
+  it('종목을 완전히 지울 수 있다 — 되돌릴 수 없으니 한 번 더 묻는다', async () => {
+    const purge = vi.spyOn(api, 'purgeStock').mockResolvedValue(undefined)
+    mockApi([stock({ ticker: 'VOO' })])
+    const user = userEvent.setup()
+    renderManager()
+
+    await user.click(await screen.findByRole('button', { name: '삭제' }))
+    expect(purge).not.toHaveBeenCalled()
+
+    // 확인은 표 아래가 아니라 화면 위에 떠야 한다 (종목이 많으면 표 아래는 안 보인다)
+    const dialog = screen.getByRole('alertdialog')
+    expect(within(dialog).getByText(/되돌릴 수 없고/)).toBeInTheDocument()
+
+    await user.click(within(dialog).getByRole('button', { name: '네, 완전히 지웁니다' }))
+    await waitFor(() => expect(purge).toHaveBeenCalledWith('VOO'))
+    expect(await screen.findByText(/VOO을\(를\) 지웠습니다/)).toBeInTheDocument()
+  })
+
+  it('삭제를 취소하면 아무것도 지우지 않는다', async () => {
+    const purge = vi.spyOn(api, 'purgeStock').mockResolvedValue(undefined)
+    mockApi([stock({ ticker: 'VOO' })])
+    const user = userEvent.setup()
+    renderManager()
+
+    await user.click(await screen.findByRole('button', { name: '삭제' }))
+    await user.click(screen.getByRole('button', { name: '취소' }))
+
+    expect(purge).not.toHaveBeenCalled()
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
   })
 
   it('활성 종목의 목표 비중 합계를 알려준다', async () => {

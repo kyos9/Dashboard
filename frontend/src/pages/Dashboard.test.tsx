@@ -195,11 +195,18 @@ function fakeDataTransfer() {
   }
 }
 
-/** 핸들을 잡아 다른 행 위에 놓는다 */
-function dragOnto(handle: HTMLElement, target: HTMLElement) {
+/** 핸들을 잡아 다른 행 위로 끈다 (아직 놓지는 않는다) */
+function dragOver(handle: HTMLElement, target: HTMLElement) {
   const dataTransfer = fakeDataTransfer()
   fireEvent.dragStart(handle, { dataTransfer })
-  fireEvent.dragOver(target, { dataTransfer })
+  // jsdom에는 레이아웃이 없어 행의 크기가 0이다 — clientX가 0이면 앞, 크면 뒤가 된다
+  fireEvent.dragOver(target, { dataTransfer, clientX: 0, clientY: 0 })
+  return dataTransfer
+}
+
+/** 핸들을 잡아 다른 행 위에 놓는다 */
+function dragOnto(handle: HTMLElement, target: HTMLElement) {
+  const dataTransfer = dragOver(handle, target)
   fireEvent.drop(target, { dataTransfer })
 }
 
@@ -425,6 +432,34 @@ describe('대시보드 · 종목 순서', () => {
     expect(save).not.toHaveBeenCalled()
   })
 
+  it('끄는 동안 자리가 미리 벌어진다 — 놓기 전에 어디로 갈지 보인다', async () => {
+    mockApi()
+    const save = vi.spyOn(api, 'updateStockOrder').mockResolvedValue([])
+    renderDashboard()
+
+    expect(await nameOrder()).toEqual(['삼성전자', 'VOO'])
+    dragOver(screen.getByRole('button', { name: 'VOO 순서 바꾸기' }), await cardRow('삼성전자'))
+
+    expect(await nameOrder()).toEqual(['VOO', '삼성전자'])
+    // 아직 손을 놓지 않았다 — 저장할 순서가 아니다
+    expect(save).not.toHaveBeenCalled()
+  })
+
+  it('끌다 말면 원래 순서로 돌아온다', async () => {
+    mockApi()
+    const save = vi.spyOn(api, 'updateStockOrder').mockResolvedValue([])
+    renderDashboard()
+
+    const handle = await screen.findByRole('button', { name: 'VOO 순서 바꾸기' })
+    dragOver(handle, await cardRow('삼성전자'))
+    expect(await nameOrder()).toEqual(['VOO', '삼성전자'])
+
+    fireEvent.dragEnd(handle)
+
+    expect(await nameOrder()).toEqual(['삼성전자', 'VOO'])
+    expect(save).not.toHaveBeenCalled()
+  })
+
   it('저장에 실패하면 순서를 되돌리고 이유를 보여준다', async () => {
     mockApi()
     vi.spyOn(api, 'updateStockOrder').mockRejectedValue(new Error('백엔드가 응답하지 않습니다'))
@@ -504,9 +539,11 @@ describe('대시보드 · 설정 모드', () => {
 
     // 아직 지우면 안 된다 — 되돌릴 수 없는 동작이다
     expect(purge).not.toHaveBeenCalled()
-    expect(screen.getByText(/되돌릴 수 없고/)).toBeInTheDocument()
+    // 확인은 표 아래가 아니라 화면 위에 떠야 한다 (종목이 많으면 표 아래는 안 보인다)
+    const dialog = screen.getByRole('alertdialog')
+    expect(within(dialog).getByText(/되돌릴 수 없고/)).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: '네, 완전히 지웁니다' }))
+    await user.click(within(dialog).getByRole('button', { name: '네, 완전히 지웁니다' }))
     await waitFor(() => expect(purge).toHaveBeenCalledWith('VOO'))
   })
 

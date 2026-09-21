@@ -34,20 +34,42 @@ export function moveOne(
 /**
  * 끌어다 놓은 자리로 옮긴다.
  *
- * 놓은 행이 있던 자리에 끼워 넣는다 — 아래로 끌었으면 그 행 뒤, 위로 끌었으면 그 행 앞이다.
- * (아래로 끌 때 앞에 넣으면 손으로 놓은 위치보다 한 칸 위에 떨어져서, 매번 한 칸씩
- * 어긋나는 것처럼 느껴진다.)
+ * 놓은 행의 위(before)나 아래(after)에 끼워 넣는다. 어느 쪽인지는 마우스가 그 행의
+ * 절반을 넘었는지로 정한다(`dropSide`) — 넘기 전에 자리를 바꿔버리면, 커서가 조금만
+ * 떨려도 행이 위아래로 튄다.
  *
  * 필터가 걸려 있어도 전체 순서에서 "놓은 행"의 자리를 그대로 쓰므로, 화면에 보이는
  * 결과와 저장되는 순서가 어긋나지 않는다.
  */
-export function moveTo(order: string[], item: string, target: string): string[] {
+export function placeAt(
+  order: string[],
+  item: string,
+  target: string,
+  side: 'before' | 'after',
+): string[] {
   const from = order.indexOf(item)
   const to = order.indexOf(target)
   if (from === -1 || to === -1 || from === to) return order
 
   const next = [...order]
   next.splice(from, 1)
-  next.splice(next.indexOf(target) + (from < to ? 1 : 0), 0, item)
-  return next
+  next.splice(next.indexOf(target) + (side === 'after' ? 1 : 0), 0, item)
+  // 원래 있던 자리 그대로면 새 배열을 만들지 않는다 (끌고 있는 동안 매번 다시 그리게 된다)
+  return next.join('\u0000') === order.join('\u0000') ? order : next
+}
+
+/**
+ * 놓으려는 행의 앞인가 뒤인가.
+ *
+ * 세로로 쌓인 목록(표)은 위아래 절반으로, 가로로 늘어선 목록(카드가 여러 열일 때)은
+ * 좌우 절반으로 가른다. `horizontal`은 옆 항목이 같은 줄에 있는지로 판단한 값이다.
+ */
+export function dropSide(
+  rect: { top: number; left: number; width: number; height: number },
+  pointer: { x: number; y: number },
+  horizontal: boolean,
+): 'before' | 'after' {
+  const middle = horizontal ? rect.left + rect.width / 2 : rect.top + rect.height / 2
+  const at = horizontal ? pointer.x : pointer.y
+  return at > middle ? 'after' : 'before'
 }

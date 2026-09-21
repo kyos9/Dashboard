@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAppState } from '../AppState'
 import { api } from '../api/client'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ErrorNotice } from '../components/ErrorNotice'
 import { NumberInput } from '../components/NumberInput'
 import { SymbolSearch } from '../components/SymbolSearch'
@@ -26,7 +27,17 @@ const emptyForm: StockCreateInput = {
 /** 구분 입력을 돕는 예시값 — 자유 입력이므로 강제되지 않는다 */
 const CATEGORY_SUGGESTIONS = ['지수', '알파', '안전자산']
 
-function StockRow({ stock, onSaved, onError }: { stock: Stock; onSaved: () => void; onError: (e: unknown) => void }) {
+function StockRow({
+  stock,
+  onSaved,
+  onError,
+  onPurge,
+}: {
+  stock: Stock
+  onSaved: () => void
+  onError: (e: unknown) => void
+  onPurge: (stock: Stock) => void
+}) {
   const [name, setName] = useState(stock.name ?? '')
   const [category, setCategory] = useState(stock.category ?? '')
   const [dcaAmount, setDcaAmount] = useState(String(stock.dca_amount))
@@ -174,6 +185,9 @@ function StockRow({ stock, onSaved, onError }: { stock: Stock; onSaved: () => vo
           <button className="sm ghost" onClick={toggleActive}>
             {stock.active ? '비활성화' : '활성화'}
           </button>
+          <button className="sm danger" onClick={() => onPurge(stock)}>
+            삭제
+          </button>
         </div>
       </td>
     </tr>
@@ -203,6 +217,8 @@ export function StockManager() {
   const [picked, setPicked] = useState<SymbolMatch | null>(null)
   const [listingBusy, setListingBusy] = useState(false)
   const [listing, setListing] = useState<ListingStatus | null>(null)
+  const [purging, setPurging] = useState<Stock | null>(null)
+  const [purgeBusy, setPurgeBusy] = useState(false)
 
   useEffect(() => {
     api
@@ -220,6 +236,23 @@ export function StockManager() {
   const handleSaved = () => {
     setError(null)
     notifyDataChanged()
+  }
+
+  /** 종목과 딸린 기록을 전부 지운다. 되돌릴 수 없으므로 한 번 더 묻고 나서 온다. */
+  const purge = async (stock: Stock) => {
+    setPurgeBusy(true)
+    setError(null)
+    try {
+      await api.purgeStock(stock.ticker)
+      setPurging(null)
+      setNotice({ tone: 'green', text: `${stockLabel(stock)}을(를) 지웠습니다.` })
+      notifyDataChanged()
+    } catch (e) {
+      setError(e)
+      setPurging(null)
+    } finally {
+      setPurgeBusy(false)
+    }
   }
 
   const createWith = async (query: string) => {
@@ -413,10 +446,10 @@ export function StockManager() {
           </div>
         ) : (
           <div className="table-scroll">
-            <table className="data-table fixed" style={{ minWidth: 1310 }}>
+            <table className="data-table fixed" style={{ minWidth: 1390 }}>
               <thead>
                 <tr>
-                  <th style={{ width: 174 }}>종목</th>
+                  <th style={{ width: 202 }}>종목</th>
                   <th style={{ width: 108 }}>구분</th>
                   <th style={{ width: 228 }}>DCA 금액 / 주기</th>
                   <th style={{ width: 132 }}>목표 비중</th>
@@ -435,18 +468,44 @@ export function StockManager() {
                     <br />
                     직접 지정
                   </th>
-                  <th style={{ width: 248 }}>작업</th>
+                  <th style={{ width: 300 }}>작업</th>
                 </tr>
               </thead>
               <tbody>
                 {stocks.map((s) => (
-                  <StockRow key={s.ticker} stock={s} onSaved={handleSaved} onError={setError} />
+                  <StockRow
+                    key={s.ticker}
+                    stock={s}
+                    onSaved={handleSaved}
+                    onError={setError}
+                    onPurge={setPurging}
+                  />
                 ))}
               </tbody>
             </table>
           </div>
         )}
       </div>
+
+      {purging && (
+        <ConfirmDialog
+          title={`${stockLabel(purging)} 삭제`}
+          confirmLabel="네, 완전히 지웁니다"
+          busyLabel="지우는 중…"
+          busy={purgeBusy}
+          onConfirm={() => void purge(purging)}
+          onCancel={() => setPurging(null)}
+        >
+          <p>
+            <strong>{stockLabel(purging)}</strong>({purging.ticker})의 시세·지표·매수 기록까지 전부
+            지웁니다. 되돌릴 수 없고, 다시 등록하면 히스토리를 처음부터 새로 받아야 합니다.
+          </p>
+          <p>
+            잠시 목록에서만 내리려는 것이라면 <strong>비활성화</strong>를 쓰세요. 기록은 그대로 남고
+            언제든 다시 켤 수 있습니다.
+          </p>
+        </ConfirmDialog>
+      )}
     </div>
   )
 }

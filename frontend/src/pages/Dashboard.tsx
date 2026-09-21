@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ChartModal } from '../components/ChartModal'
 import { NumberInput } from '../components/NumberInput'
-import { moveOne, moveTo } from '../lib/reorder'
+import { dropSide, moveOne, placeAt } from '../lib/reorder'
+import { useReorderAnimation } from '../lib/flip'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 import { useAppState } from '../AppState'
 import { api } from '../api/client'
 import { ErrorNotice } from '../components/ErrorNotice'
@@ -325,7 +327,9 @@ export function Dashboard() {
   const [stocks, setStocks] = useState<Stock[]>([])
   const [reordering, setReordering] = useState(false)
   const [dragging, setDragging] = useState<string | null>(null)
-  const [dragOver, setDragOver] = useState<string | null>(null)
+  // 끄는 동안 보여줄 임시 순서. 놓기 전에도 자리가 벌어지는 게 보여야
+  // "여기 놓으면 여기로 간다"를 손이 아니라 눈으로 확인할 수 있다.
+  const [preview, setPreview] = useState<string[] | null>(null)
 
   const [drafts, setDrafts] = useState<Record<string, Draft>>({})
   const [saving, setSaving] = useState(false)
@@ -359,6 +363,7 @@ export function Dashboard() {
   /** 새 순서를 화면에 먼저 반영하고 저장한다. 실패하면 화면도 되돌린다. */
   const applyOrder = async (next: string[]) => {
     const order = stocks.map((s) => s.ticker)
+    setPreview(null)
     if (next.join() === order.join()) return
 
     const previousStocks = stocks
@@ -389,12 +394,21 @@ export function Dashboard() {
       moveOne(stocks.map((s) => s.ticker), visible.map((c) => c.ticker), ticker, direction),
     )
 
-  const handleDrop = (target: string) => {
-    const item = dragging
+  /** 끄는 동안 자리를 미리 벌려준다. 놓는 순간에는 이미 보이던 그 순서를 저장한다. */
+  const handleDragOverRow = (target: string, side: 'before' | 'after') => {
+    if (!dragging || dragging === target) return
+    setPreview((current) => {
+      const base = current ?? stocks.map((s) => s.ticker)
+      const next = placeAt(base, dragging, target, side)
+      return next === base ? current : next
+    })
+  }
+
+  const handleDrop = () => {
+    const shown = preview
     setDragging(null)
-    setDragOver(null)
-    if (!item || item === target) return
-    void applyOrder(moveTo(stocks.map((s) => s.ticker), item, target))
+    setPreview(null)
+    if (shown) void applyOrder(shown)
   }
 
   const handleConfirm = async (buyId: number) => {
@@ -493,15 +507,24 @@ export function Dashboard() {
     )
   }, [cards])
 
-  const visible = useMemo(
-    () =>
-      cards.filter((c) => {
-        if (category !== '전체' && categoryOf(c.category) !== category) return false
-        if (quick === 'knee' && !c.knee_buy_v2) return false
-        if (quick === 'rebalance' && !c.rebalance_signal.active) return false
-        return true
-      }),
-    [cards, category, quick],
+  const visible = useMemo(() => {
+    const shown = cards.filter((c) => {
+      if (category !== '전체' && categoryOf(c.category) !== category) return false
+      if (quick === 'knee' && !c.knee_buy_v2) return false
+      if (quick === 'rebalance' && !c.rebalance_signal.active) return false
+      return true
+    })
+    if (!preview) return shown
+    // 끄는 동안에는 임시 순서로 보여준다 (저장은 놓을 때 한 번만 한다)
+    const rank = new Map(preview.map((ticker, index) => [ticker, index]))
+    return [...shown].sort((a, b) => (rank.get(a.ticker) ?? 0) - (rank.get(b.ticker) ?? 0))
+  }, [cards, category, quick, preview])
+
+  // 순서가 바뀐 렌더에서만 각 행을 새 자리로 미끄러뜨린다.
+  // 끄는 동안에는 자리만 즉시 바꾼다 (미끄러뜨리면 크롬이 끌기를 취소한다 — flip.ts 참고)
+  const listRef = useReorderAnimation<HTMLDivElement>(
+    visible.map((c) => c.ticker).join(),
+    dragging !== null,
   )
 
   // 순서 화살표는 "보이는 목록" 기준으로 끝인지 판단해야 누른 결과가 눈에 보인다
@@ -509,14 +532,14 @@ export function Dashboard() {
     tickers: visible.map((c) => c.ticker),
     busy: reordering,
     dragging,
-    dragOver,
     onMove: handleMove,
     onDragStart: setDragging,
     onDragEnd: () => {
+      // 끌다 말았으면(ESC·바깥에 놓기) 보여주던 임시 순서도 접는다
       setDragging(null)
-      setDragOver(null)
+      setPreview(null)
     },
-    onDragOverRow: (ticker) => setDragOver((current) => (current === ticker ? current : ticker)),
+    onDragOverRow: handleDragOverRow,
     onDrop: handleDrop,
   }
 
@@ -707,6 +730,7 @@ export function Dashboard() {
         </div>
       </div>
 
+      <div ref={listRef}>
       {visible.length === 0 ? (
         <div className="empty-state">
           <h3>조건에 맞는 종목이 없습니다</h3>
@@ -745,6 +769,7 @@ export function Dashboard() {
           controls={rowControls}
         />
       )}
+      </div>
 
       {chartCard && (
         <ChartModal
@@ -767,32 +792,44 @@ interface RowControlProps {
   tickers: string[]
   busy: boolean
   dragging: string | null
-  dragOver: string | null
   onMove: (ticker: string, direction: 'up' | 'down') => void
   onDragStart: (ticker: string) => void
   onDragEnd: () => void
-  onDragOverRow: (ticker: string) => void
-  onDrop: (ticker: string) => void
+  onDragOverRow: (ticker: string, side: 'before' | 'after') => void
+  onDrop: () => void
 }
 
-/** 끌어다 놓을 수 있는 행 — 표와 편집 표가 같은 동작을 쓴다 */
+/**
+ * 끌어다 놓을 수 있는 행 — 표와 편집 표와 카드가 같은 동작을 쓴다.
+ *
+ * `data-flip-key`는 순서가 바뀔 때 이 요소를 새 자리로 미끄러뜨리기 위한 표식이다.
+ */
 function dragProps(ticker: string, controls: RowControlProps) {
   return {
-    className:
-      controls.dragging === ticker
-        ? 'dragging'
-        : controls.dragOver === ticker && controls.dragging
-          ? 'drop-target'
-          : '',
-    onDragOver: (event: React.DragEvent) => {
+    'data-flip-key': ticker,
+    className: controls.dragging === ticker ? 'dragging' : '',
+    onDragOver: (event: React.DragEvent<HTMLElement>) => {
       if (!controls.dragging) return
       event.preventDefault()
       event.dataTransfer.dropEffect = 'move'
-      controls.onDragOverRow(ticker)
+      const element = event.currentTarget
+      // 옆 항목이 같은 줄에 있으면 가로로 늘어선 목록(여러 열 카드)이다.
+      // 표는 한 줄에 한 행이므로 위아래 절반으로 가른다.
+      const sibling = element.nextElementSibling ?? element.previousElementSibling
+      const horizontal =
+        sibling instanceof HTMLElement && Math.abs(sibling.offsetTop - element.offsetTop) < 4
+      controls.onDragOverRow(
+        ticker,
+        dropSide(
+          element.getBoundingClientRect(),
+          { x: event.clientX, y: event.clientY },
+          horizontal,
+        ),
+      )
     },
     onDrop: (event: React.DragEvent) => {
       event.preventDefault()
-      controls.onDrop(ticker)
+      controls.onDrop()
     },
   }
 }
@@ -1128,22 +1165,22 @@ function SettingsTable({
       </div>
 
       {confirmingPurge && (
-        <div className="callout amber" role="alertdialog">
-          <span className="ico">⚠</span>
-          <div>
-            <strong>{confirmingPurge}</strong>의 시세·지표·매수 기록까지 전부 지웁니다. 되돌릴 수 없고, 다시
-            등록하면 히스토리를 처음부터 새로 받아야 합니다. 잠시 치워두려는 것이라면{' '}
-            <strong>감추기</strong>를 쓰세요.
-            <div className="btn-group" style={{ marginTop: 8 }}>
-              <button className="danger" disabled={busy} onClick={() => onRemove(confirmingPurge, 'purge')}>
-                {busy ? '지우는 중…' : '네, 완전히 지웁니다'}
-              </button>
-              <button disabled={busy} onClick={() => onConfirmPurge(null)}>
-                취소
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog
+          title={`${confirmingPurge} 완전 삭제`}
+          confirmLabel="네, 완전히 지웁니다"
+          busyLabel="지우는 중…"
+          busy={busy}
+          onConfirm={() => onRemove(confirmingPurge, 'purge')}
+          onCancel={() => onConfirmPurge(null)}
+        >
+          <p>
+            <strong>{confirmingPurge}</strong>의 시세·지표·매수 기록까지 전부 지웁니다. 되돌릴 수 없고,
+            다시 등록하면 히스토리를 처음부터 새로 받아야 합니다.
+          </p>
+          <p>
+            잠시 치워두려는 것이라면 <strong>감추기</strong>를 쓰세요.
+          </p>
+        </ConfirmDialog>
       )}
 
       <p className="hint" style={{ marginTop: 12 }}>

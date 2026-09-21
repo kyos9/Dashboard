@@ -1414,6 +1414,31 @@ button:disabled {
   border-color: var(--border-strong);
 }
 
+/* 되돌릴 수 없는 동작을 묻는 팝업 — 읽고 대답하기 좋은 폭으로 좁힌다 */
+.confirm-modal {
+  width: min(460px, 100%);
+}
+
+.confirm-body {
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--text);
+  word-break: keep-all;
+}
+
+.confirm-body p {
+  margin: 0 0 8px;
+}
+
+.confirm-body p:last-child {
+  margin-bottom: 0;
+}
+
+.confirm-actions {
+  margin-top: 16px;
+  justify-content: flex-end;
+}
+
 @media (max-width: 640px) {
   .modal-backdrop {
     padding: 0;
@@ -1424,6 +1449,15 @@ button:disabled {
     max-height: 100vh;
     border-radius: 0;
     border: none;
+  }
+
+  /* 짧은 확인창까지 화면을 다 채우면 남은 여백이 더 커 보인다 — 가운데 카드로 둔다 */
+  .confirm-modal {
+    align-self: center;
+    height: fit-content;
+    margin: 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
   }
 }
 
@@ -1511,19 +1545,23 @@ button.stock-name:hover {
   cursor: grabbing;
 }
 
+/*
+ * 끌고 있는 행. 놓기 전에도 다른 행들이 비켜서 자리가 나므로, 따로 놓을 자리를
+ * 표시하지 않는다 — 지금 보이는 순서가 곧 저장될 순서다.
+ */
 tr.dragging,
 .stock-card.dragging {
-  opacity: 0.4;
+  opacity: 0.6;
 }
 
-/* 여기에 놓으면 어디로 가는지 — 놓기 전에 보여야 한 번에 맞출 수 있다 */
-tr.drop-target td {
-  box-shadow: inset 0 2px 0 var(--blue);
+tr.dragging td {
+  background: var(--blue-soft);
 }
 
-.stock-card.drop-target {
+.stock-card.dragging {
   border-color: var(--blue);
 }
+
 
 /* ---------- 설정(편집) 모드 ---------- */
 

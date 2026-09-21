@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { moveOne, moveTo } from './reorder'
+import { dropSide, moveOne, placeAt } from './reorder'
 
 const ALL = ['A', 'B', 'C', 'D']
 
@@ -46,25 +46,48 @@ describe('필터가 걸려 있을 때', () => {
 })
 
 describe('끌어다 놓기', () => {
-  it('아래로 끌면 놓은 행 뒤에 들어간다', () => {
-    expect(moveTo(ALL, 'A', 'C')).toEqual(['B', 'C', 'A', 'D'])
+  it('놓은 행 뒤에 넣는다', () => {
+    expect(placeAt(ALL, 'A', 'C', 'after')).toEqual(['B', 'C', 'A', 'D'])
   })
 
-  it('위로 끌면 놓은 행 앞에 들어간다', () => {
-    expect(moveTo(ALL, 'D', 'B')).toEqual(['A', 'D', 'B', 'C'])
+  it('놓은 행 앞에 넣는다', () => {
+    expect(placeAt(ALL, 'D', 'B', 'before')).toEqual(['A', 'D', 'B', 'C'])
   })
 
-  it('제자리에 놓으면 그대로', () => {
-    expect(moveTo(ALL, 'B', 'B')).toEqual(ALL)
+  it('맨 끝·맨 앞으로 보낼 수 있다', () => {
+    expect(placeAt(ALL, 'A', 'D', 'after')).toEqual(['B', 'C', 'D', 'A'])
+    expect(placeAt(ALL, 'D', 'A', 'before')).toEqual(['D', 'A', 'B', 'C'])
+  })
+
+  it('제자리면 원래 배열을 그대로 돌려준다', () => {
+    // 끄는 동안 매 순간 호출되므로, 바뀐 게 없으면 새 배열을 만들면 안 된다
+    // (만들면 화면 전체가 계속 다시 그려진다)
+    expect(placeAt(ALL, 'B', 'B', 'after')).toBe(ALL)
+    expect(placeAt(ALL, 'A', 'B', 'before')).toBe(ALL)
+    expect(placeAt(ALL, 'B', 'A', 'after')).toBe(ALL)
   })
 
   it('목록에 없는 항목은 무시한다', () => {
-    expect(moveTo(ALL, 'Z', 'B')).toEqual(ALL)
-    expect(moveTo(ALL, 'B', 'Z')).toEqual(ALL)
+    expect(placeAt(ALL, 'Z', 'B', 'after')).toEqual(ALL)
+    expect(placeAt(ALL, 'B', 'Z', 'after')).toEqual(ALL)
+  })
+})
+
+describe('어느 쪽에 놓을지', () => {
+  const ROW = { top: 100, left: 0, width: 800, height: 40 }
+
+  it('세로 목록은 행의 절반을 넘겨야 뒤로 간다', () => {
+    expect(dropSide(ROW, { x: 400, y: 105 }, false)).toBe('before')
+    expect(dropSide(ROW, { x: 400, y: 135 }, false)).toBe('after')
   })
 
-  it('맨 끝으로 끌 수 있다', () => {
-    expect(moveTo(ALL, 'A', 'D')).toEqual(['B', 'C', 'D', 'A'])
-    expect(moveTo(ALL, 'D', 'A')).toEqual(['D', 'A', 'B', 'C'])
+  it('절반에 걸치면 앞으로 — 커서가 떨릴 때 자리가 튀지 않게', () => {
+    expect(dropSide(ROW, { x: 400, y: 120 }, false)).toBe('before')
+  })
+
+  it('가로로 늘어선 목록은 좌우로 가른다', () => {
+    const card = { top: 0, left: 200, width: 300, height: 260 }
+    expect(dropSide(card, { x: 250, y: 900 }, true)).toBe('before')
+    expect(dropSide(card, { x: 480, y: 900 }, true)).toBe('after')
   })
 })
