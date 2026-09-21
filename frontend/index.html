@@ -1,10 +1,29 @@
 <!doctype html>
-<html lang="en">
+<html lang="ko">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+    <title>신호판 — 매수·매도 시그널</title>
+    <meta
+      name="description"
+      content="기술적 타이밍 시그널, DCA 매수 워크플로우, 비중조절 신호를 한 화면에서 봅니다."
+    />
+
+    <!-- 폰에 설치해 앱처럼 쓰기 위한 것들. manifest 가 이름·아이콘·시작 주소를 들고 있다. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>frontend</title>
+    <!-- 아이폰은 manifest 의 아이콘을 보지 않는다. 홈 화면 아이콘은 이 링크로만 정해진다. -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <!-- 주소창·상태바 색. 테마를 바꾸면 화면이 이 값을 고쳐 쓴다(AppHeader). -->
+    <meta name="theme-color" content="#0a0e14" />
+
+    <!-- 아이폰에서 홈 화면 아이콘으로 열면 사파리 껍데기 없이 뜨게 한다. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="신호판" />
   </head>
   <body>
     <div id="root"></div>

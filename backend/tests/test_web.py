@@ -21,6 +21,8 @@ def served(tmp_path, monkeypatch):
     (dist / "index.html").write_text("<!doctype html><title>신호판</title>", encoding="utf-8")
     (dist / "assets" / "app.js").write_text("console.log(1)", encoding="utf-8")
     (dist / "favicon.svg").write_text("<svg/>", encoding="utf-8")
+    (dist / "sw.js").write_text("self.addEventListener('fetch', () => {})", encoding="utf-8")
+    (dist / "manifest.webmanifest").write_text('{"name": "신호판"}', encoding="utf-8")
     (tmp_path / "secret.txt").write_text("남의 파일", encoding="utf-8")
 
     monkeypatch.setattr(web, "DIST", dist)
@@ -61,6 +63,32 @@ def test_static_files_are_served(served):
 def test_index_is_not_cached(served):
     """index.html이 캐시되면 새 버전을 올려도 옛 화면이 뜬다."""
     assert served.get("/").headers.get("cache-control") == "no-cache"
+
+
+@pytest.mark.parametrize("path", ["/sw.js", "/manifest.webmanifest"])
+def test_pwa_files_are_not_cached(served, path):
+    """서비스 워커가 캐시되면 새 버전이 영영 안 내려간다.
+
+    브라우저는 sw.js를 다시 받아 **내용이 달라졌을 때만** 갱신을 시작한다. 캐시가 옛
+    내용을 돌려주면 달라진 적이 없는 상태로 굳고, 사람이 브라우저 설정에서 손으로
+    지우기 전까지 배포가 반영되지 않는다.
+    """
+    assert served.get(path).headers.get("cache-control") == "no-cache"
+
+
+def test_service_worker_is_served_as_javascript(served):
+    """HTML로 나가면 브라우저가 등록을 거부한다 (SPA 폴백에 먹히지 않는지도 같이 본다)."""
+    res = served.get("/sw.js")
+    assert res.status_code == 200
+    assert "javascript" in res.headers["content-type"]
+    assert "addEventListener" in res.text
+
+
+def test_manifest_has_its_own_content_type(served):
+    """text/html로 나가면 크롬이 manifest를 읽지 않아 설치 버튼이 뜨지 않는다."""
+    res = served.get("/manifest.webmanifest")
+    assert res.status_code == 200
+    assert "manifest+json" in res.headers["content-type"]
 
 
 @pytest.mark.parametrize("path", ["/../secret.txt", "/%2e%2e/secret.txt", "/assets/../../secret.txt"])

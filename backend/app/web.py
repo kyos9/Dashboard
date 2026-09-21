@@ -24,8 +24,15 @@ from fastapi.staticfiles import StaticFiles
 DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
 
 # 브라우저가 항상 다시 받아야 하는 파일. 나머지(assets/…)는 파일명에 해시가 붙어 있어
-# 영원히 캐시해도 안전하지만, index.html이 캐시되면 새 버전을 배포해도 옛 화면이 뜬다.
-NO_CACHE = {"index.html"}
+# 영원히 캐시해도 안전하다.
+#
+# - index.html   : 캐시되면 새 버전을 배포해도 옛 화면이 뜬다.
+# - sw.js        : 서비스 워커. **이게 캐시되면 새 버전이 영영 안 내려간다** — 브라우저는
+#                  이 파일을 다시 받아 내용이 달라졌을 때만 갱신을 시작하는데, 캐시가
+#                  옛 내용을 돌려주면 "달라진 적이 없는" 상태로 굳는다. 고치려면 사람이
+#                  브라우저 설정에서 손으로 지워야 하므로, 여기서 막는다.
+# - manifest     : 앱 이름·아이콘이 여기 있다. 고쳐도 한참 옛것이 남으면 원인을 찾기 어렵다.
+NO_CACHE = {"index.html", "sw.js", "manifest.webmanifest"}
 
 
 def frontend_dist() -> Path | None:

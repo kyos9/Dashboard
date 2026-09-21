@@ -40,6 +40,18 @@
   --radius-sm: 8px;
   --gap: 14px;
 
+  /* 화면 좌우 여백. 헤더·탭·본문이 같은 선에서 시작하도록 한 군데서 정한다. */
+  --gutter: clamp(14px, 3vw, 28px);
+
+  /*
+   * 거기에 "가려지는 두께"를 더한 값. index.html 의 viewport-fit=cover 로 화면
+   * 구석까지 그릴 수 있게 되면 **가려지는 자리에도** 그리게 된다 — 아이폰 노치 옆,
+   * 홈 인디케이터 위, 가로로 눕혔을 때의 곡면. env() 는 그 두께이고 노치가 없는
+   * 기기에서는 0이라, PC에서도 그대로 안전하다.
+   */
+  --gutter-left: calc(var(--gutter) + env(safe-area-inset-left, 0px));
+  --gutter-right: calc(var(--gutter) + env(safe-area-inset-right, 0px));
+
   --font-sans: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans KR',
     'Malgun Gothic', Helvetica, Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', 'Cascadia Mono', Consolas, 'D2Coding',
@@ -116,7 +128,8 @@ h4 {
   flex-wrap: wrap;
   align-items: center;
   gap: 12px;
-  padding: 14px clamp(14px, 3vw, 28px);
+  /* 상태바가 비쳐 보이는 설정(black-translucent)이라 위쪽도 피해야 한다 */
+  padding: calc(14px + env(safe-area-inset-top, 0px)) var(--gutter-right) 14px var(--gutter-left);
   background: linear-gradient(180deg, var(--bg-elevated), var(--panel));
   border-bottom: 1px solid var(--border);
 }
@@ -204,7 +217,7 @@ h4 {
   display: flex;
   gap: 9px;
   align-items: flex-start;
-  padding: 10px clamp(14px, 3vw, 28px);
+  padding: 10px var(--gutter-right) 10px var(--gutter-left);
   background: var(--red-soft);
   border-bottom: 1px solid rgba(240, 82, 82, 0.35);
   color: var(--red);
@@ -219,7 +232,7 @@ h4 {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
-  padding: 10px clamp(14px, 3vw, 28px);
+  padding: 10px var(--gutter-right) 10px var(--gutter-left);
   border-bottom: 1px solid var(--border);
   background: var(--bg-elevated);
 }
@@ -250,7 +263,7 @@ h4 {
 .page {
   max-width: 1440px;
   margin: 0 auto;
-  padding: 22px clamp(14px, 3vw, 28px) 72px;
+  padding: 22px var(--gutter-right) calc(72px + env(safe-area-inset-bottom, 0px)) var(--gutter-left);
 }
 
 .page-head {
@@ -1327,15 +1340,21 @@ button:disabled {
 /* ---------- 좁은 화면 ---------- */
 
 @media (max-width: 720px) {
+  /* 좌우 여백만 좁힌다. 헤더·탭·본문이 한꺼번에 따라오고, 노치 회피도 그대로 남는다 */
+  :root {
+    --gutter: 14px;
+  }
   .app-header {
-    padding: 12px 14px;
+    padding-top: calc(12px + env(safe-area-inset-top, 0px));
+    padding-bottom: 12px;
   }
   .header-right {
     margin-left: 0;
     width: 100%;
   }
   .page {
-    padding: 18px 14px 56px;
+    padding-top: 18px;
+    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
   }
   .kpi-figure .big {
     font-size: 22px;
@@ -1439,6 +1458,41 @@ button:disabled {
   justify-content: flex-end;
 }
 
+/* 아이폰에서 홈 화면에 추가하는 방법 안내 — 읽고 따라 하는 글이라 폭을 좁힌다 */
+.install-hint {
+  width: min(440px, 100%);
+}
+
+.install-hint-body {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text);
+  word-break: keep-all;
+}
+
+.install-hint-body p {
+  margin: 0 0 10px;
+}
+
+.install-hint-body ol {
+  margin: 0 0 10px;
+  padding-left: 20px;
+}
+
+.install-hint-body li {
+  margin-bottom: 6px;
+}
+
+.install-hint-body .hint-note {
+  margin-bottom: 0;
+  color: var(--text-dim);
+}
+
+.install-hint .btn-group {
+  margin-top: 16px;
+  justify-content: flex-end;
+}
+
 @media (max-width: 640px) {
   .modal-backdrop {
     padding: 0;
@@ -1452,7 +1506,8 @@ button:disabled {
   }
 
   /* 짧은 확인창까지 화면을 다 채우면 남은 여백이 더 커 보인다 — 가운데 카드로 둔다 */
-  .confirm-modal {
+  .confirm-modal,
+  .install-hint {
     align-self: center;
     height: fit-content;
     margin: 16px;
@@ -1801,4 +1856,64 @@ table.data-table tr.dirty:hover td {
 
 .login-panel button {
   width: 100%;
+}
+
+/* ==========================================================================
+   손가락으로 쓰는 화면
+
+   마우스가 아니라 손가락이 닿는 기기(`pointer: coarse`)에만 적용한다. 폭으로
+   가르지 않는 이유는, 창을 좁힌 PC와 폰은 필요한 것이 다르기 때문이다 — 좁은
+   PC 창에 버튼만 커지면 어색하고, 넓은 태블릿에서 손가락이 빗나가는 건 여전하다.
+   ========================================================================== */
+
+@media (pointer: coarse) {
+  /*
+   * **글자 크기가 16px보다 작은 입력칸을 누르면 아이폰 사파리가 화면을 확대한다.**
+   * 그리고 되돌려주지 않는다 — 숫자 하나 고치고 나면 화면이 확대된 채 옆으로
+   * 밀려 있다. 막는 방법은 두 가지인데, viewport 에 maximum-scale=1 을 넣는 쪽은
+   * 두 손가락 확대까지 막아버리므로(눈이 불편한 사람에게서 확대를 뺏는다) 쓰지 않는다.
+   * 입력칸 글자를 16px로 키우는 쪽이 맞다.
+   */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  /* 손끝이 닿는 면적. 12px 남짓한 버튼은 옆 버튼과 구분되지 않는다 */
+  button,
+  .tab {
+    min-height: 40px;
+  }
+
+  .icon-btn {
+    width: 38px;
+    height: 38px;
+  }
+
+  /* 길게 눌렀을 때 글자가 선택되며 파랗게 뜨는 것을 막는다 (누른 건 버튼이다) */
+  button,
+  .tab {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
+
+/*
+ * 화면 높이. 폰 브라우저의 100vh 는 주소창이 **접히기 전** 높이라, 실제로 보이는
+ * 것보다 길다 — 아래쪽이 잘린다. dvh 는 지금 실제로 보이는 높이다. 모르는
+ * 브라우저는 이 줄을 통째로 무시하고 위의 vh 를 쓴다.
+ */
+.login-shell {
+  min-height: 100dvh;
+}
+
+@media (max-width: 640px) {
+  .modal {
+    max-height: 100dvh;
+    /* 홈 인디케이터에 버튼이 가리지 않게 */
+    padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+    /* 팝업 안에서 끝까지 내렸을 때 뒤 화면이 따라 움직이지 않게 */
+    overscroll-behavior: contain;
+  }
 }

@@ -4,6 +4,7 @@ import { useAppState } from '../AppState'
 import { api } from '../api/client'
 import { useAuth } from './AuthGate'
 import { DiagnosticsModal } from './DiagnosticsModal'
+import { InstallButton } from './InstallButton'
 import type { HealthInfo } from '../types'
 
 type Theme = 'dark' | 'light'
@@ -41,6 +42,14 @@ export function AppHeader() {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
+
+    // 폰에 설치해 열면 주소창·상태바가 이 색으로 칠해진다. 테마를 바꿨는데 위쪽만
+    // 어두운 채로 남으면 앱이 덜 그려진 것처럼 보인다. index.css의 --bg를 그대로
+    // 읽어 쓴다 — 색을 여기에 또 적으면 언젠가 둘이 어긋난다.
+    const meta = document.querySelector('meta[name="theme-color"]')
+    const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()
+    if (meta && bg) meta.setAttribute('content', bg)
+
     try {
       localStorage.setItem(THEME_KEY, theme)
     } catch {
@@ -101,6 +110,8 @@ export function AppHeader() {
           >
             진단
           </button>
+          {/* 설치할 수 있을 때만 나온다 (이미 설치했거나 PC 크롬이 아니면 숨는다) */}
+          <InstallButton />
           {/* 잠긴 서버에서만 나온다 — 개인 PC에서는 나갈 문이 애초에 없다 */}
           {locked && (
             <button className="ghost" onClick={() => void logout()} title="로그아웃">
