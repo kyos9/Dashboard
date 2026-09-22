@@ -33,6 +33,7 @@ function mockPinned(body: Partial<MacroPinned> = {}) {
   return vi.spyOn(api, 'getMacroPinned').mockResolvedValue({
     codes: ['VIX'],
     series: [series({ code: 'VIX', name: 'VIX' })],
+    badges: [],
     ...body,
   })
 }
@@ -102,12 +103,71 @@ describe('홈 화면 매크로 한 줄', () => {
     expect(await screen.findByRole('link', { name: /VIX/ })).toHaveAttribute('href', '/macro')
   })
 
-  it('다 껐으면 줄 자체가 없다', async () => {
+  it('다 껐으면 지표 줄 자체가 없다', async () => {
     mockPinned({ codes: [], series: [] })
     const { container } = renderStrip()
 
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(container.querySelector('.macro-strip')).toBeNull()
+  })
+
+  it('장단기 금리차도 지표 하나처럼 한 줄에 들어간다', async () => {
+    mockPinned({
+      codes: ['TERM_SPREAD'],
+      series: [
+        series({
+          code: 'TERM_SPREAD',
+          name: '장단기 금리차',
+          unit: 'percent',
+          value: -0.25,
+          change: -0.1,
+        }),
+      ],
+    })
+    renderStrip()
+
+    expect(await screen.findByText('장단기 금리차')).toBeInTheDocument()
+    expect(screen.getByText('-0.25%')).toBeInTheDocument()
+  })
+
+  it('국면 배지도 홈에 같이 뜬다', async () => {
+    mockPinned({
+      badges: [
+        { key: 'vix_fear', label: '공포 구간', detail: 'VIX 32.4', tone: 'amber', as_of: null },
+      ],
+    })
+    renderStrip()
+
+    expect(await screen.findByText('공포 구간')).toBeInTheDocument()
+    expect(screen.getByText('VIX 32.4')).toBeInTheDocument()
+  })
+
+  it('지표를 다 내려도 배지는 남는다 — 껐다는 건 "알리지 말라"가 아니다', async () => {
+    mockPinned({
+      codes: [],
+      series: [],
+      badges: [
+        {
+          key: 'inverted_curve',
+          label: '장단기 금리 역전',
+          detail: 'DGS10 − DGS2 -0.27%p',
+          tone: 'amber',
+          as_of: null,
+        },
+      ],
+    })
+    const { container } = renderStrip()
+
+    expect(await screen.findByText('장단기 금리 역전')).toBeInTheDocument()
+    expect(container.querySelector('.macro-strip')).toBeNull()
+  })
+
+  it('배지도 칩도 없으면 홈에 아무것도 안 붙는다', async () => {
+    mockPinned({ codes: [], series: [], badges: [] })
+    const { container } = renderStrip()
+
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(container.querySelector('.macro-home')).toBeNull()
   })
 
   it('매크로를 못 받아와도 홈에 오류를 띄우지 않는다 — 종목 표를 가리면 안 된다', async () => {

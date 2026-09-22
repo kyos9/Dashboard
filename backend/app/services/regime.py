@@ -42,6 +42,14 @@ ZONES: dict[str, list[tuple[int, int, str, bool]]] = {
 # 배지 색은 하나뿐이다 (맨 위 설명 참고)
 TONE = "amber"
 
+# 아래 규칙들이 실제로 들여다보는 지표. (장단기 금리차는 계산값이라 여기 없다.)
+#
+# 홈은 고른 지표만 읽는데 배지는 **고르지 않은 지표도 봐야 한다** — VIX 를 홈에서
+# 내렸다고 공포 구간 배지가 사라지면 안 된다. 그래서 규칙이 무엇을 보는지 여기 적어두고,
+# 홈은 딱 그만큼만 더 읽는다. 규칙을 늘릴 때 이 목록도 같이 늘려야 하고, 잊으면
+# `test_macro_api.py` 의 "홈과 매크로 탭이 같은 배지를 말한다"가 잡는다.
+WATCHED_CODES = ["VIX", "FEARGREED"]
+
 
 def zone_of(code: str, value: float | None) -> dict | None:
     """이 값이 어느 구간인가. 구간이 정의된 지표가 아니거나 값이 없으면 `None`.

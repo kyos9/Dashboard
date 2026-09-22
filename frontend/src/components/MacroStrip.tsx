@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import { useAppState } from '../AppState'
 import { macroChange, macroValue, zoneTone } from '../lib/macro'
+import { RegimeBadges } from './RegimeBadges'
 import type { MacroPinned, MacroSeriesInfo } from '../types'
 
 /**
@@ -48,13 +49,20 @@ export function MacroStrip() {
     }
   }, [refreshKey])
 
-  if (!data || data.series.length === 0) return null
+  // 배지와 칩 중 하나라도 있으면 그린다. **배지는 칩과 따로 온다** — 지표를 다 내렸어도
+  // 이상한 일이 생기면 알려야 한다 (`services/macro.py` 의 `badges` 주석 참고).
+  if (!data || (data.series.length === 0 && data.badges.length === 0)) return null
 
   return (
-    <div className="macro-strip" aria-label="매크로 지표 요약">
-      {data.series.map((series) => (
-        <Chip key={series.code} series={series} />
-      ))}
+    <div className="macro-home">
+      <RegimeBadges badges={data.badges} />
+      {data.series.length > 0 && (
+        <div className="macro-strip" aria-label="매크로 지표 요약">
+          {data.series.map((series) => (
+            <Chip key={series.code} series={series} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }

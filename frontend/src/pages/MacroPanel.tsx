@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { ErrorNotice } from '../components/ErrorNotice'
 import { MacroChartModal } from '../components/MacroChartModal'
+import { RegimeBadges } from '../components/RegimeBadges'
 import { useAppState } from '../AppState'
 import {
   FREQUENCY_LABEL,
@@ -11,7 +12,8 @@ import {
   statusOf,
   zoneTone,
 } from '../lib/macro'
-import type { MacroBadge, MacroOverview, MacroSeriesInfo, TermSpread } from '../types'
+import { TERM_SPREAD_CODE } from '../types'
+import type { MacroOverview, MacroSeriesInfo, TermSpread } from '../types'
 
 /**
  * 장단기 금리차 한 줄.
@@ -23,7 +25,15 @@ import type { MacroBadge, MacroOverview, MacroSeriesInfo, TermSpread } from '../
  * 과거에 침체보다 1~2년 앞섰고, 그 사이에 주가가 더 오른 적도 많다. 그래서 문구는
  * "역전됐다"까지만 말하고 다음에 뭘 하라는 말은 하지 않는다.
  */
-export function TermSpreadLine({ spread }: { spread: TermSpread | null }) {
+export function TermSpreadLine({
+  spread,
+  pinned,
+  onTogglePin,
+}: {
+  spread: TermSpread | null
+  pinned: boolean
+  onTogglePin: () => void
+}) {
   if (!spread) {
     return (
       <p className="hint">
@@ -50,32 +60,16 @@ export function TermSpreadLine({ spread }: { spread: TermSpread | null }) {
           {spread.long_code} − {spread.short_code} · {spread.as_of} 기준
         </span>
       </div>
-    </div>
-  )
-}
-
-/**
- * 국면 배지 줄.
- *
- * **합쳐서 점수 하나로 만들지 않는다.** "매크로 62점"을 만드는 순간 왜 62인지 아무도
- * 모르게 되고, 근거가 안 보이는 숫자는 판단에 도움이 안 된다. 규칙 하나가 배지 하나라야
- * 이유가 그대로 보인다 (`services/regime.py`).
- *
- * 아무것도 안 걸려도 자리를 비우지 않는다 — "조용하다"도 알아야 할 정보고, 빈 자리는
- * "아직 안 불러왔나"로 보인다.
- */
-export function RegimeRow({ badges }: { badges: MacroBadge[] }) {
-  if (badges.length === 0) {
-    return <p className="hint regime-quiet">지금 눈에 띄는 국면은 없습니다.</p>
-  }
-  return (
-    <div className="regime-row">
-      {badges.map((badge) => (
-        <span key={badge.key} className={`badge badge-${badge.tone} regime-badge`}>
-          {badge.label}
-          <span className="regime-detail">{badge.detail}</span>
-        </span>
-      ))}
+      {/* 받아온 지표가 아니라 계산값이지만 홈에서는 지표 하나처럼 켜고 끌 수 있다 */}
+      <button
+        className={`pin-btn${pinned ? ' on' : ''}`}
+        onClick={onTogglePin}
+        aria-pressed={pinned}
+        title={pinned ? '홈 화면에서 내리기' : '홈 화면에 올리기'}
+        aria-label="장단기 금리차 홈 화면에 올리기"
+      >
+        {pinned ? '★' : '☆'}
+      </button>
     </div>
   )
 }
@@ -229,6 +223,7 @@ export function MacroPanel() {
 
   const series = data?.series ?? []
   const pinned = data?.pinned ?? []
+  const badges = data?.badges ?? []
 
   return (
     <>
@@ -261,8 +256,18 @@ export function MacroPanel() {
         </div>
       ) : (
         <>
-          <RegimeRow badges={data?.badges ?? []} />
-          <TermSpreadLine spread={data?.term_spread ?? null} />
+          {badges.length > 0 ? (
+            <RegimeBadges badges={badges} />
+          ) : (
+            /* 이 화면은 국면을 보러 오는 곳이라, 조용하면 조용하다고 적어야 한다.
+               빈 자리는 "아직 안 불러왔나"로 보인다. */
+            <p className="hint regime-quiet">지금 눈에 띄는 국면은 없습니다.</p>
+          )}
+          <TermSpreadLine
+            spread={data?.term_spread ?? null}
+            pinned={pinned.includes(TERM_SPREAD_CODE)}
+            onTogglePin={() => void togglePin(TERM_SPREAD_CODE)}
+          />
           <div className="card-grid">
             {series.map((item) => (
               <MacroCard

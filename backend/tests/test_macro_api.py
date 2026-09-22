@@ -176,13 +176,13 @@ def test_an_indicator_without_a_published_band_has_no_zone(api):
 
 def test_untouched_settings_show_the_default_three(api):
     client, SessionLocal = api
-    for code in ("VIX", "DGS10", "PCEPILFE"):
+    for code in ("VIX", "DGS10", "DGS2", "FEARGREED"):
         _fill(SessionLocal, _series(code=code), [(dt.date(2026, 9, 21), 1.0)])
 
     body = client.get("/api/macro/pinned").json()
 
-    assert body["codes"] == ["VIX", "DGS10", "PCEPILFE"]
-    assert [card["code"] for card in body["series"]] == ["VIX", "DGS10", "PCEPILFE"]
+    assert body["codes"] == ["VIX", "TERM_SPREAD", "FEARGREED"]
+    assert [card["code"] for card in body["series"]] == ["VIX", "TERM_SPREAD", "FEARGREED"]
 
 
 def test_pinned_cards_come_back_in_the_order_you_picked(api):
@@ -217,7 +217,7 @@ def test_a_code_that_does_not_exist_is_refused(api):
     assert response.status_code == 400
     assert "NOPE" in response.json()["detail"]
     # 하나가 틀렸다고 나머지를 저장해버리면 사용자가 고른 것과 저장된 것이 달라진다
-    assert client.get("/api/macro/pinned").json()["codes"] == ["VIX", "DGS10", "PCEPILFE"]
+    assert client.get("/api/macro/pinned").json()["codes"] == ["VIX", "TERM_SPREAD", "FEARGREED"]
 
 
 def test_the_same_code_twice_is_stored_once(api):
@@ -252,3 +252,114 @@ def test_pinned_is_not_read_as_an_indicator_code(api):
     """`/{code}` 가 먼저 등록돼 있으면 `/pinned` 가 "PINNED 라는 지표"로 잡혀 404 가 된다."""
     client, _ = api
     assert client.get("/api/macro/pinned").status_code == 200
+
+
+# --- 홈에 올린 장단기 금리차 ------------------------------------------------
+
+
+def test_the_spread_can_sit_on_the_home_row_like_any_indicator(api):
+    """받아오는 지표가 아니라 계산값이지만, 홈에서는 지표 하나처럼 보여야 한다."""
+    client, SessionLocal = api
+    _fill(SessionLocal, _series(code="DGS10"), [
+        (dt.date(2026, 9, 18), 4.05),
+        (dt.date(2026, 9, 21), 4.11),
+    ])
+    _fill(SessionLocal, _series(code="DGS2"), [
+        (dt.date(2026, 9, 18), 4.20),
+        (dt.date(2026, 9, 21), 4.36),
+    ])
+
+    card = client.put("/api/macro/pinned", json={"codes": ["TERM_SPREAD"]}).json()["series"][0]
+
+    assert card["code"] == "TERM_SPREAD"
+    assert card["name"] == "장단기 금리차"
+    assert card["unit"] == "percent"
+    assert card["value"] == pytest.approx(-0.25)
+    # 직전 값과의 차이도 온다 (-0.15 -> -0.25)
+    assert card["change"] == pytest.approx(-0.10)
+    assert card["as_of"] == "2026-09-21"
+    # 계산값이라 발표일이 없다. 있는 척하면 "이 날 발표된 숫자"로 읽힌다
+    assert card["released_at"] is None
+
+
+def test_the_spread_only_subtracts_values_from_the_same_day(api):
+    """어제 10년물과 그제 2년물을 뺀 것은 금리차가 아니라 아무 뜻 없는 숫자다."""
+    client, SessionLocal = api
+    _fill(SessionLocal, _series(code="DGS10"), [
+        (dt.date(2026, 9, 18), 4.05),
+        (dt.date(2026, 9, 21), 4.11),
+    ])
+    _fill(SessionLocal, _series(code="DGS2"), [(dt.date(2026, 9, 21), 4.36)])
+
+    card = client.put("/api/macro/pinned", json={"codes": ["TERM_SPREAD"]}).json()["series"][0]
+
+    assert card["value"] == pytest.approx(-0.25)
+    assert card["change"] is None, "짝이 없는 날로 변화를 만들면 안 된다"
+
+
+def test_the_spread_drops_out_when_one_leg_is_missing(api):
+    """두 금리 중 하나가 없으면 금리차도 없다 — 0으로 보이면 안 된다."""
+    client, SessionLocal = api
+    _fill(SessionLocal, _series(code="DGS10"), [(dt.date(2026, 9, 21), 4.11)])
+
+    body = client.put("/api/macro/pinned", json={"codes": ["TERM_SPREAD"]}).json()
+
+    assert body["codes"] == ["TERM_SPREAD"], "고른 것 자체는 남는다"
+    assert body["series"] == []
+
+
+def test_the_spread_is_not_rejected_as_an_unknown_code(api):
+    """`macro_series` 에 행이 없다고 400 을 주면 ☆ 를 누를 수가 없다."""
+    client, _ = api
+    assert client.put("/api/macro/pinned", json={"codes": ["TERM_SPREAD"]}).status_code == 200
+
+
+# --- 홈에도 뜨는 국면 배지 ---------------------------------------------------
+
+
+def test_the_home_row_carries_the_badges_too(api):
+    client, SessionLocal = api
+    _fill(SessionLocal, _series(code="VIX", unit="level"), [(dt.date(2026, 9, 21), 32.4)])
+
+    body = client.get("/api/macro/pinned").json()
+
+    assert [b["key"] for b in body["badges"]] == ["vix_fear"]
+
+
+def test_badges_do_not_disappear_when_you_unpin_the_indicator(api):
+    """VIX 를 홈에서 내렸다고 공포 구간 배지가 사라지면, 화면이 "조용하다"고 거짓말을 한다."""
+    client, SessionLocal = api
+    _fill(SessionLocal, _series(code="VIX", unit="level"), [(dt.date(2026, 9, 21), 32.4)])
+    _fill(SessionLocal, _series(code="DFF"), [(dt.date(2026, 9, 21), 4.3)])
+
+    body = client.put("/api/macro/pinned", json={"codes": ["DFF"]}).json()
+
+    assert [card["code"] for card in body["series"]] == ["DFF"]
+    assert [b["key"] for b in body["badges"]] == ["vix_fear"]
+
+
+def test_turning_every_indicator_off_still_leaves_the_badges(api):
+    """다 끈 것은 "숫자를 늘 보진 않겠다"이지 "이상한 일이 생겨도 알리지 말라"가 아니다."""
+    client, SessionLocal = api
+    _fill(SessionLocal, _series(code="VIX", unit="level"), [(dt.date(2026, 9, 21), 32.4)])
+
+    body = client.put("/api/macro/pinned", json={"codes": []}).json()
+
+    assert body["series"] == []
+    assert [b["key"] for b in body["badges"]] == ["vix_fear"]
+
+
+def test_home_and_the_macro_tab_say_the_same_badges(api):
+    """둘은 읽는 범위가 다르다 — 매크로 탭은 전 지표, 홈은 규칙이 보는 것만
+    (`regime.WATCHED_CODES`). 규칙을 늘리면서 그 목록을 잊으면 홈만 조용해진다."""
+    client, SessionLocal = api
+    _fill(SessionLocal, _series(code="VIX", unit="level"), [(dt.date(2026, 9, 21), 41.0)])
+    _fill(SessionLocal, _series(code="FEARGREED", unit="level"), [(dt.date(2026, 9, 21), 8.0)])
+    _fill(SessionLocal, _series(code="DGS10"), [(dt.date(2026, 9, 21), 4.11)])
+    _fill(SessionLocal, _series(code="DGS2"), [(dt.date(2026, 9, 21), 4.46)])
+
+    tab = client.get("/api/macro").json()["badges"]
+    home = client.get("/api/macro/pinned").json()["badges"]
+
+    assert [b["key"] for b in tab] == ["inverted_curve", "vix_fear", "fear_greed_extreme"]
+    assert home == tab

@@ -45,9 +45,20 @@ BACKFILL_YEARS = 20
 # 일간 금리는 수정되지 않으므로 최근 며칠이면 된다.
 DAILY_LOOKBACK_DAYS = 10
 
+# 장단기 금리차를 홈에서 가리키는 이름.
+#
+# **`macro_series` 에 없는 코드다.** 받아오는 지표가 아니라 두 금리에서 계산한 값이라
+# 행이 없고, 그래서 갱신 상태도 발표일도 없다. 그래도 홈에서는 지표 하나처럼 켜고 끌 수
+# 있어야 해서 이름을 하나 준다 — 사용자에게는 "볼 수 있는 것" 중 하나이지 우리 내부
+# 사정이 아니다. FRED 코드와 겹치지 않게 밑줄을 넣었다 (저쪽은 `DGS10` 처럼 쓴다).
+TERM_SPREAD_CODE = "TERM_SPREAD"
+
 # 홈 화면에 아무것도 고르지 않았을 때 보여줄 것. 성격이 겹치지 않게 골랐다 —
-# 공포 · 금리 · 물가.
-DEFAULT_PINNED = ["VIX", "DGS10", "PCEPILFE"]
+# 공포(VIX) · 금리 곡선(장단기 금리차) · 심리(공포·탐욕).
+#
+# 물가 대신 금리차를 둔 이유: 물가는 한 달에 한 번 움직여서 홈에 늘 띄워둘 값이 아니다.
+# 셋 다 매일 바뀌고, 셋 다 국면 배지가 보는 값이라 홈에서 배지와 숫자가 맞물린다.
+DEFAULT_PINNED = ["VIX", TERM_SPREAD_CODE, "FEARGREED"]
 
 # --- 얼마나 자주 받아볼 것인가 ---------------------------------------------
 #
@@ -577,6 +588,78 @@ def term_spread_point(
     return long_row.as_of, long_row.value - short_row.value
 
 
+def term_spread_points(
+    db: Session, limit: int = 2, long_code: str = "DGS10", short_code: str = "DGS2"
+) -> list[tuple[dt.date, float]]:
+    """최근 금리차 몇 점. 오름차순으로 돌려준다.
+
+    직전 값이 있어야 홈에서 "어제보다 얼마"를 말할 수 있다. 여기서도 **같은 날짜끼리만**
+    뺀다 — 한쪽만 갱신된 날은 아예 점을 만들지 않는다. 그런 날의 차이는 금리차가 아니라
+    "이틀에 걸친 두 금리의 차"이고, 그건 아무 뜻도 없는 숫자다.
+    """
+    long_rows = list(
+        db.scalars(
+            select(MacroValue)
+            .where(MacroValue.code == long_code)
+            .order_by(MacroValue.as_of.desc())
+            .limit(limit)
+        ).all()
+    )
+    if not long_rows:
+        return []
+
+    dates = [row.as_of for row in long_rows]
+    short = {
+        row.as_of: row.value
+        for row in db.scalars(
+            select(MacroValue).where(MacroValue.code == short_code, MacroValue.as_of.in_(dates))
+        ).all()
+    }
+    points = [(row.as_of, row.value - short[row.as_of]) for row in long_rows if row.as_of in short]
+    points.reverse()
+    return points
+
+
+def term_spread_snapshot(db: Session, today: dt.date | None = None) -> dict | None:
+    """금리차를 **지표 카드와 같은 모양으로.**
+
+    홈의 한 줄은 지표든 계산값이든 같은 모양으로 그려야 한다 — 칩마다 다른 모양이면
+    화면이 아니라 목록 여러 개가 된다.
+
+    갱신 상태는 **10년물 것을 그대로 쓴다.** 금리차는 따로 받아오지 않으므로 "언제
+    받아봤나"는 재료를 언제 받아봤나와 같은 질문이고, 재료가 막히면 금리차도 막힌다.
+    """
+    points = term_spread_points(db, limit=2)
+    if not points:
+        return None
+
+    source = db.get(MacroSeries, "DGS10")
+    as_of, value = points[-1]
+    previous = points[-2][1] if len(points) > 1 else None
+
+    return {
+        "code": TERM_SPREAD_CODE,
+        "name": "장단기 금리차",
+        "note": "10년물 − 2년물",
+        "unit": MacroUnit.percent.value,
+        "transform": MacroTransform.none.value,
+        "transform_label": None,
+        "frequency": MacroFrequency.daily.value,
+        "as_of": as_of,
+        "value": value,
+        "previous": previous,
+        "change": (value - previous) if previous is not None else None,
+        # 계산값이라 발표일이 없다. 있는 척하면 "이 날 발표된 숫자"로 읽힌다.
+        "released_at": None,
+        "source": source.source if source else None,
+        "zone": None,
+        "stale": is_stale(db, source, today=today) if source else False,
+        "last_checked_at": source.last_checked_at if source else None,
+        "last_ok_at": source.last_ok_at if source else None,
+        "last_error": source.last_error if source else None,
+    }
+
+
 # ---------------------------------------------------------------------------
 #  홈 화면 즐겨찾기
 # ---------------------------------------------------------------------------
@@ -764,7 +847,9 @@ def pinned_overview(db: Session, today: dt.date | None = None) -> dict:
     """
     codes = pinned_codes(settings_service.get_settings(db))
     if not codes:
-        return {"codes": [], "series": []}
+        # 지표를 다 껐어도 배지는 남는다 — 껐다는 것은 "숫자를 늘 보고 있진 않겠다"이지
+        # "이상한 일이 생겨도 알리지 말라"가 아니다.
+        return {"codes": [], "series": [], "badges": badges(db, today=today)}
 
     rows = {
         series.code: series
@@ -772,11 +857,18 @@ def pinned_overview(db: Session, today: dt.date | None = None) -> dict:
             select(MacroSeries).where(MacroSeries.code.in_(codes), MacroSeries.active.is_(True))
         ).all()
     }
+
     # 고른 **순서대로** 돌려준다. `IN` 질의가 돌려주는 순서는 아무 의미가 없다.
-    return {
-        "codes": codes,
-        "series": [snapshot(db, rows[code], today=today) for code in codes if code in rows],
-    }
+    cards: list[dict] = []
+    for code in codes:
+        if code == TERM_SPREAD_CODE:
+            # 받아온 지표가 아니라 계산값이라 `macro_series` 에 행이 없다 (위 상수 참고)
+            card = term_spread_snapshot(db, today=today)
+            if card:
+                cards.append(card)
+        elif code in rows:
+            cards.append(snapshot(db, rows[code], today=today))
+    return {"codes": codes, "series": cards, "badges": badges(db, today=today)}
 
 
 def normalize_codes(codes: list[str]) -> list[str]:
@@ -792,6 +884,31 @@ def normalize_codes(codes: list[str]) -> list[str]:
         if code and code not in seen:
             seen.append(code)
     return seen
+
+
+def badges(db: Session, today: dt.date | None = None) -> list[dict]:
+    """국면 배지만 따로. **규칙이 보는 지표만 읽는다** (`regime.WATCHED_CODES`).
+
+    홈이 쓴다. 홈은 고른 지표만 읽지만 배지는 안 고른 지표도 봐야 한다 — VIX 를 홈에서
+    내렸다고 공포 구간 배지가 사라지면, 화면이 "지금 조용하다"고 거짓말을 하게 된다.
+
+    매크로 탭은 이 함수를 안 쓴다. 그쪽은 어차피 전 지표를 계산하므로 그 결과를 그대로
+    `regime.badges` 에 넘긴다 — 판정하는 코드는 한 군데(`regime.badges`)뿐이다.
+    """
+    rows = db.scalars(
+        select(MacroSeries).where(
+            MacroSeries.code.in_(regime.WATCHED_CODES), MacroSeries.active.is_(True)
+        )
+    ).all()
+    spread = term_spread_point(db)
+    return regime.badges(
+        [snapshot(db, row, today=today) for row in rows],
+        (
+            {"as_of": spread[0], "value": spread[1], "long_code": "DGS10", "short_code": "DGS2"}
+            if spread
+            else None
+        ),
+    )
 
 
 def set_pinned(db: Session, codes: list[str]) -> list[str]:

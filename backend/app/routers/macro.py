@@ -53,6 +53,9 @@ def put_pinned(payload: MacroPinnedUpdate, db: Session = Depends(get_db)):
     wanted = macro.normalize_codes(payload.codes)
     if wanted:
         known = set(db.scalars(select(MacroSeries.code).where(MacroSeries.code.in_(wanted))).all())
+        # 장단기 금리차는 `macro_series` 에 행이 없다 — 받아오는 지표가 아니라 두 금리에서
+        # 계산한 값이다. 그래도 홈에서는 켜고 끌 수 있어야 한다.
+        known.add(macro.TERM_SPREAD_CODE)
         missing = [code for code in wanted if code not in known]
         if missing:
             raise HTTPException(status_code=400, detail=f"unknown macro code: {', '.join(missing)}")

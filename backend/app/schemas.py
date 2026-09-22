@@ -386,10 +386,15 @@ class MacroOverviewOut(BaseModel):
 
 
 class MacroPinnedOut(BaseModel):
-    """홈 화면 한 줄. 고른 코드와, 그 중 실제로 살아있는 지표들."""
+    """홈 화면 한 줄. 고른 코드와, 그 중 실제로 살아있는 지표들.
+
+    배지가 같이 온다. **고른 지표만 보고 만든 것이 아니다** — VIX 를 홈에서 내렸다고
+    공포 구간 배지가 사라지면 화면이 "지금 조용하다"고 거짓말을 하게 된다.
+    """
 
     codes: list[str]
     series: list[MacroSeriesOut]
+    badges: list[MacroBadgeOut] = []
 
 
 class MacroPinnedUpdate(BaseModel):

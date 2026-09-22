@@ -361,7 +361,15 @@ export interface MacroPinned {
   codes: string[]
   /** 그 중 실제로 보여줄 수 있는 것들, 고른 순서대로 */
   series: MacroSeriesInfo[]
+  /**
+   * 국면 배지. **고른 지표만 보고 만든 것이 아니다** — VIX 를 홈에서 내렸다고 공포 구간
+   * 배지가 사라지면 화면이 "지금 조용하다"고 거짓말을 하게 된다.
+   */
+  badges: MacroBadge[]
 }
+
+/** 장단기 금리차를 홈에서 가리키는 이름. `macro_series` 에 없는 계산값이다 */
+export const TERM_SPREAD_CODE = 'TERM_SPREAD'
 
 export interface MacroHistory {
   code: string

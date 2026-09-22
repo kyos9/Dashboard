@@ -503,12 +503,30 @@ def test_a_chosen_order_is_kept():
     assert macro.pinned_codes(settings) == ["DGS2", "VIX"]
 
 
-def test_the_defaults_do_not_overlap_in_meaning():
-    """공포 · 금리 · 물가 — 셋이 같은 것을 말하면 홈에 셋을 둘 이유가 없다."""
+def test_the_defaults_all_exist():
+    """가리키는 것이 없는 코드가 기본값에 있으면 홈이 조용히 빈다."""
+    known = {spec["code"] for spec in macro.SEED_SERIES} | {macro.TERM_SPREAD_CODE}
+    assert set(macro.DEFAULT_PINNED) <= known
+    assert len(set(macro.DEFAULT_PINNED)) == len(macro.DEFAULT_PINNED)
+
+
+def test_the_defaults_all_move_every_day():
+    """홈에 **늘 띄워둘** 값이다. 한 달에 한 번 바뀌는 숫자는 매일 볼 이유가 없다."""
     by_code = {spec["code"]: spec for spec in macro.SEED_SERIES}
-    assert set(macro.DEFAULT_PINNED) <= set(by_code)
-    units = [by_code[code]["unit"] for code in macro.DEFAULT_PINNED]
-    assert len(set(units)) == len(units)
+    for code in macro.DEFAULT_PINNED:
+        if code == macro.TERM_SPREAD_CODE:
+            continue  # 일간 금리 둘에서 계산하므로 일간이다
+        assert by_code[code]["frequency"] == "daily", code
+
+
+def test_the_defaults_do_not_overlap_in_meaning():
+    """공포(VIX) · 금리 곡선 · 심리(공포·탐욕) — 셋이 같은 것을 말하면 셋을 둘 이유가 없다.
+
+    VIX 와 공포·탐욕은 둘 다 "무서워하고 있나"를 보지만 **같은 것을 재지 않는다** —
+    앞은 옵션 가격에서 나오는 숫자 하나, 뒤는 일곱 가지를 합친 0~100 점수다
+    (`SEED_SERIES` 의 FEARGREED 주석 참고). 어긋날 때가 오히려 볼 만하다.
+    """
+    assert macro.DEFAULT_PINNED == ["VIX", macro.TERM_SPREAD_CODE, "FEARGREED"]
 
 
 # ---------------------------------------------------------------------------

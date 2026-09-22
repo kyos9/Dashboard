@@ -280,7 +280,7 @@ describe('홈에 올리는 ☆', () => {
     mockMacro({ pinned: [] })
     const save = vi
       .spyOn(api, 'setMacroPinned')
-      .mockResolvedValue({ codes: ['DGS10'], series: [] })
+      .mockResolvedValue({ codes: ['DGS10'], series: [], badges: [] })
     const user = userEvent.setup()
     renderPanel()
 
@@ -291,7 +291,7 @@ describe('홈에 올리는 ☆', () => {
 
   it('켜져 있는 것을 누르면 빼고 저장한다', async () => {
     mockMacro({ pinned: ['DGS10'] })
-    const save = vi.spyOn(api, 'setMacroPinned').mockResolvedValue({ codes: [], series: [] })
+    const save = vi.spyOn(api, 'setMacroPinned').mockResolvedValue({ codes: [], series: [], badges: [] })
     const user = userEvent.setup()
     renderPanel()
 
@@ -299,6 +299,22 @@ describe('홈에 올리는 ☆', () => {
 
     // **빈 목록을 그대로 보낸다** — "다 껐다"는 선택이고, 안 보내면 기본값으로 되돌아간다
     expect(save).toHaveBeenCalledWith([])
+  })
+
+  it('장단기 금리차도 홈에 올릴 수 있다 — 계산값이지만 사용자에겐 지표 하나다', async () => {
+    mockMacro({
+      term_spread: { as_of: '2026-09-21', value: -0.25, long_code: 'DGS10', short_code: 'DGS2' },
+      pinned: [],
+    })
+    const save = vi
+      .spyOn(api, 'setMacroPinned')
+      .mockResolvedValue({ codes: ['TERM_SPREAD'], series: [], badges: [] })
+    const user = userEvent.setup()
+    renderPanel()
+
+    await user.click(await screen.findByRole('button', { name: /장단기 금리차 홈 화면에/ }))
+
+    expect(save).toHaveBeenCalledWith(['TERM_SPREAD'])
   })
 
   it('저장에 실패하면 별을 원래대로 되돌린다', async () => {
