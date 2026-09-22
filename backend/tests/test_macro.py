@@ -790,7 +790,11 @@ class _Response:
 
 
 def _monthly(db_session, code: str, start_year: int, months: int, first: float, step: float):
-    """`start_year`-01 부터 매달 한 점씩. 값은 `first` 에서 `step` 씩 는다."""
+    """`start_year`-01 부터 매달 한 점씩. 값은 `first` 에서 `step` 씩 는다.
+
+    **부르기 전에 `macro_series` 행을 먼저 넣어야 한다.** `macro_value.code` 가 그쪽을
+    가리키는 외래키다.
+    """
     year, month = start_year, 1
     value = first
     for _ in range(months):
@@ -810,6 +814,7 @@ def test_a_one_year_chart_of_yoy_is_not_empty(db_session):
     멀쩡히 들어와 있으니 원인을 엉뚱한 데서 찾게 된다.
     """
     series = _series(code="CPIAUCSL", unit="index", transform="yoy", frequency="monthly")
+    db_session.add(series)
     _monthly(db_session, "CPIAUCSL", 2025, 21, first=100.0, step=1.0)  # 2025-01 ~ 2026-09
 
     points = macro.display_points(db_session, series, start=dt.date(2026, 1, 1))
@@ -823,6 +828,7 @@ def test_a_one_year_chart_of_yoy_is_not_empty(db_session):
 def test_the_extra_year_we_read_does_not_show_up_on_the_chart(db_session):
     """여유분은 계산에만 쓴다. 돌려주면 "1년을 눌렀는데 2년이 보인다"가 된다."""
     series = _series(code="CPIAUCSL", unit="index", transform="yoy", frequency="monthly")
+    db_session.add(series)
     _monthly(db_session, "CPIAUCSL", 2025, 21, first=100.0, step=1.0)
 
     points = macro.display_points(db_session, series, start=dt.date(2026, 1, 1))
@@ -832,6 +838,7 @@ def test_the_extra_year_we_read_does_not_show_up_on_the_chart(db_session):
 
 def test_a_plain_series_is_handed_over_untouched(db_session):
     series = _series(code="DGS10", unit="percent", transform="none", frequency="daily")
+    db_session.add(series)
     db_session.add_all([
         MacroValue(code="DGS10", as_of=dt.date(2026, 9, 18), value=4.05),
         MacroValue(code="DGS10", as_of=dt.date(2026, 9, 21), value=4.11),

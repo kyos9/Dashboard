@@ -10,7 +10,7 @@
 
 import os
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, event, text
 
 from app.db import Base
 
@@ -44,7 +44,25 @@ def make_engine(sqlite_url: str = "sqlite:///:memory:", **sqlite_kwargs):
         return engine
     kwargs = {"connect_args": {"check_same_thread": False}}
     kwargs.update(sqlite_kwargs)
-    return create_engine(sqlite_url, **kwargs)
+    engine = create_engine(sqlite_url, **kwargs)
+    _enforce_foreign_keys(engine)
+    return engine
+
+
+def _enforce_foreign_keys(engine) -> None:
+    """SQLite 는 외래키를 **기본적으로 안 본다.** 연결마다 켜줘야 한다.
+
+    안 켜면 두 실행이 서로 다른 것을 검사하게 되고, 그 차이가 CI 에서만 터진다.
+    실제로 그랬다 — `macro_value` 를 넣으면서 `macro_series` 행을 안 만든 테스트가
+    SQLite 에서는 통과하고 Postgres 에서만 실패했다. 그러면 여기서 아무리 돌려봐도
+    소용이 없고, 올려봐야 아는 상태가 된다. 두 실행이 같은 것을 봐야 한다.
+    """
+
+    @event.listens_for(engine, "connect")
+    def _on_connect(dbapi_connection, _record):  # pragma: no cover - 연결 훅
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
 
 
 def dispose(engine) -> None:
