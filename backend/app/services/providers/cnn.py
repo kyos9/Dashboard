@@ -49,6 +49,17 @@ HEADERS = {
 # 이 지수는 정의상 0~100 이다. 벗어난 값이 오면 그건 지수가 아니라 **모양이 바뀐 것**이다.
 LOW, HIGH = 0.0, 100.0
 
+# 이보다 앞을 물으면 **HTTP 500** 이 돌아온다.
+#
+# 실제로 그렇게 깨졌다. 앱은 지표를 처음 받을 때 20년치를 달라고 하는데(`BACKFILL_YEARS`),
+# 이 지수는 그만큼 오래되지 않았다. 없는 기간을 물었더니 "그 기간은 없다"가 아니라 500 이
+# 왔고, 화면에는 지표가 통째로 안 들어왔다. 60일치를 물은 진단은 멀쩡히 성공해서 더
+# 헷갈렸다 — 그래서 진단도 앱과 같은 범위를 재도록 고쳤다.
+#
+# 시작일을 저쪽이 알려주지 않으므로 넉넉히 뒤로 잡는다. 여기서 몇 달 손해 보는 것이
+# 500 으로 지표가 아예 안 들어오는 것보다 훨씬 낫다.
+EARLIEST = dt.date(2021, 1, 1)
+
 
 class FearGreedProvider:
     """CNN 공포·탐욕 지수. 0(극단적 공포) ~ 100(극단적 탐욕)."""
@@ -66,6 +77,10 @@ class FearGreedProvider:
     ) -> list[MacroPoint]:
         """`want_release_dates` 는 무시한다 — 매일 나오는 값이라 발표일이 곧 그 날짜다."""
         import requests
+
+        # 저쪽이 들고 있지 않은 기간을 물으면 500 이 온다 (위 `EARLIEST` 참고).
+        if start is not None and start < EARLIEST:
+            start = EARLIEST
 
         # 주소 끝에 날짜를 붙이면 그때부터 준다. 안 붙이면 저쪽이 정한 만큼만 온다.
         url = f"{URL}/{start.isoformat()}" if start is not None else URL
@@ -85,6 +100,14 @@ class FearGreedProvider:
 
         if status == 404:
             raise TickerNotFound(self.name, f"{code}: CNN 에 그런 주소가 없습니다")
+        if status >= 500:
+            # 원인을 적어준다. 그냥 "HTTP 500" 만 뜨면 저쪽이 고장난 줄 알고 기다리게
+            # 되는데, 실제로는 우리가 없는 기간을 물어서 그랬다.
+            raise ProviderUnavailable(
+                self.name,
+                f"{code}: HTTP {status} — 저쪽 서버가 답을 못 만들었습니다 "
+                f"(없는 기간을 물었을 때 이렇게 옵니다. 이 지수는 {EARLIEST} 이후만 있습니다)",
+            )
         if status != 200:
             raise ProviderUnavailable(self.name, f"{code}: HTTP {status}")
 

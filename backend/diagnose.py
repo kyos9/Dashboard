@@ -406,17 +406,32 @@ if app_modules:
     if spec is None:
         fail("지표 목록에 FEARGREED 가 없습니다 — 코드가 오래된 버전입니다")
     else:
-        try:
-            began = time.monotonic()
-            points = cnn.FearGreedProvider(timeout=providers._macro_timeout()).fetch(
-                spec["source_code"], start=dt.date.today() - dt.timedelta(days=60)
-            )
-            took = time.monotonic() - began
-            last = points[-1]
-            ok(f"{len(points):,}행 ({took:.1f}초) — 가장 최근 {last.as_of} {last.value:g}점")
+        # **앱이 실제로 묻는 범위로 잰다.** 짧게만 물어보면 안 되는 상황에서도 성공이
+        # 뜬다. 실제로 그랬다 — 여기서 60일치를 물어 성공했는데 앱은 처음 받을 때
+        # 20년치를 물어 HTTP 500 을 받고 있었고, 진단만 보면 멀쩡해 보였다.
+        # (FRED 9-2/9-3 에서 이미 한 번 배운 것을 여기에 적용하지 않았다.)
+        provider = cnn.FearGreedProvider(timeout=providers._macro_timeout())
+        windows = [
+            ("최근 60일", dt.date.today() - dt.timedelta(days=60)),
+            (f"앱이 처음 받는 만큼 ({macro.BACKFILL_YEARS}년치)",
+             dt.date.today() - dt.timedelta(days=365 * macro.BACKFILL_YEARS)),
+        ]
+        failed = False
+        for label, start in windows:
+            try:
+                began = time.monotonic()
+                points = provider.fetch(spec["source_code"], start=start)
+                took = time.monotonic() - began
+                last = points[-1]
+                ok(f"{label}: {len(points):,}행 ({took:.1f}초) — "
+                   f"가장 최근 {last.as_of} {last.value:g}점 (처음 {points[0].as_of})")
+            except Exception as exc:
+                failed = True
+                fail(f"{label}: {brief(exc, 400)}")
+
+        if not failed:
             info("  (0 극단적 공포 ~ 100 극단적 탐욕)")
-        except Exception as exc:
-            fail(brief(exc, 400))
+        else:
             info("→ **이것 하나만 안 되는 것은 큰 문제가 아닙니다.** 나머지 지표는 FRED 에서")
             info("  따로 받아오므로 그대로 들어옵니다.")
             info("  공식 API 가 아니라 CNN 지수 화면이 쓰는 주소를 그대로 부르는 것이라,")

@@ -237,14 +237,30 @@ class AllMacroProvidersFailed(Exception):
         detail = " | ".join(f"{f.provider}: {f.message}" for f in failures) or "시도할 제공자가 없습니다"
         super().__init__(f"{code} 지표를 받지 못했습니다 — {detail}")
 
+    @property
+    def providers(self) -> list[str]:
+        """실제로 실패한 곳들. 순서는 시도한 순서대로, 중복 없이."""
+        names: list[str] = []
+        for failure in self.failures:
+            if failure.provider not in names:
+                names.append(failure.provider)
+        return names
+
     def hint(self) -> str:
+        """**어디가 막혔는지 이름을 적는다.**
+
+        예전에는 전부 "FRED 로 나가지 못하고 있습니다" 라고 했다. 지표마다 출처가 다른데
+        한 곳 이름을 박아둔 탓이다. 공포·탐욕 지수(CNN)가 실패했을 때 실제로 FRED 방화벽을
+        확인하라고 안내했다 — FRED 는 멀쩡했고, 사용자는 엉뚱한 데를 보게 된다.
+        """
+        where = ", ".join(self.providers) or "출처"
         if self.failures and all(isinstance(f, TickerNotFound) for f in self.failures):
-            return "지표 코드를 확인해주세요 (FRED 화면 주소 끝에 붙는 대문자 코드입니다)."
+            return f"{where} 에 그런 지표 코드가 없습니다 — 철자를 확인해주세요."
         if any(isinstance(f, ProviderUnavailable) for f in self.failures):
             return (
-                "네트워크에서 FRED 로 나가지 못하고 있습니다. 백신·방화벽·회사망(프록시)이 "
-                "막고 있는지 확인해주세요. backend 폴더에서 `python diagnose.py` 를 실행하면 "
-                "바깥으로 나가는 길이 막혔는지 알 수 있습니다."
+                f"{where} 로 나가지 못하고 있습니다. 백신·방화벽·회사망(프록시)이 막고 있는지 "
+                "확인해주세요. backend 폴더에서 `python diagnose.py` 를 실행하면 어디가 "
+                "막혔는지 알 수 있습니다."
             )
         return "잠시 후 다시 시도해주세요."
 
