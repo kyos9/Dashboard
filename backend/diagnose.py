@@ -416,6 +416,28 @@ if app_modules:
 
             pinned = view["pinned"]
             print(f"         홈 화면: {', '.join(pinned) if pinned else '(다 꺼둠)'}")
+
+            # **"물가 상회" 배지가 안 뜨는 이유는 두 가지고, 화면에서는 안 갈린다** —
+            # 넘지 않았거나, 비교할 예상치가 아예 없거나. 앞은 정상이고 뒤는 사람이 넣어야
+            # 하는 일이다. 여기서 그 둘을 갈라준다.
+            print("\n  9-7) 예상치 (물가 상회 배지가 보는 것)")
+            waiting = [card for card in view["series"] if card.get("forecastable")]
+            if not waiting:
+                info("예상치를 받는 지표가 없습니다 (매일 나오는 값에는 컨센서스가 없습니다).")
+            for card in waiting:
+                forecast = card.get("forecast")
+                pending = card.get("pending_forecast")
+                if forecast:
+                    actual = card.get("value")
+                    verdict = "상회" if regime.beats_forecast(actual, forecast["value"]) else "이하"
+                    ok(f"{card['name']} {actual:.1f}% vs 예상 {forecast['value']:.1f}% "
+                       f"({forecast['source_label']}, {forecast['forecast_date']}) → {verdict}")
+                else:
+                    info(f"{card['name']}: {card.get('as_of')} 발표분의 예상치가 없습니다 "
+                         "— 매크로 탭 카드에서 직접 넣을 수 있습니다.")
+                if pending:
+                    print(f"         다음({pending['as_of']:%Y-%m}) 예상 {pending['value']:.1f}% "
+                          f"({pending['source_label']})")
         finally:
             db.close()
     except Exception as exc:

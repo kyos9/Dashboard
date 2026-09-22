@@ -312,6 +312,26 @@ export interface MacroBadge {
   as_of: string | null
 }
 
+/**
+ * 예상치 한 줄.
+ *
+ * **값의 단위가 `MacroSeriesInfo.value` 와 같다** — 저장된 원본 지수(320.541)가 아니라
+ * 화면에 뜨는 전년비(2.7)다. 예상치를 내는 쪽이 전부 전년비로만 발표하기 때문이다.
+ */
+export interface MacroForecast {
+  /** 어느 달을 예측한 것인가 (그 달 1일) */
+  as_of: string
+  value: number
+  /** manual | cleveland_fed */
+  source: string
+  /** 화면에 그대로 적는 출처 이름 ("직접 입력") */
+  source_label: string
+  /** 언제 한 예측인가. 나우캐스트는 매일 바뀌므로 이게 있어야 "언제 기준"인지 안다 */
+  forecast_date: string
+  /** 실제 − 예상 (%p). 아직 안 나온 달이면 null */
+  surprise: number | null
+}
+
 /** 카드 한 장에 필요한 것 전부 */
 export interface MacroSeriesInfo {
   code: string
@@ -332,6 +352,12 @@ export interface MacroSeriesInfo {
   source: string | null
   /** 값이 어느 구간인가. **구간을 정해서 발표하는 지표에만** 있다 (지금은 공포·탐욕 하나) */
   zone: MacroZone | null
+  /** 이 지표에 "예상치"라는 말이 성립하는가. 매일 나오는 값에는 컨센서스가 없다 */
+  forecastable: boolean
+  /** **방금 나온 값**의 예상치. "물가 상회" 배지가 보는 것이 이쪽이다 */
+  forecast: MacroForecast | null
+  /** 아직 안 나온 달의 예상치. 비교할 실제값이 없으니 배지도 없다 */
+  pending_forecast: MacroForecast | null
   stale: boolean
   last_checked_at: string | null
   last_ok_at: string | null

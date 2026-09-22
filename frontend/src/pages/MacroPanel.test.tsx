@@ -33,6 +33,9 @@ function series(overrides: Partial<MacroSeriesInfo> & { code: string }): MacroSe
     released_at: null,
     source: 'fred_api',
     zone: null,
+    forecastable: false,
+    forecast: null,
+    pending_forecast: null,
     stale: false,
     last_checked_at: '2026-09-21T23:00:00',
     last_ok_at: '2026-09-21T23:00:00',
@@ -420,5 +423,149 @@ describe('화면 전체', () => {
     // 2020년이 화면에 있어야 보인다
     expect(within(dialog).getByRole('button', { name: '5년' })).toHaveClass('active')
     expect(api.getMacroHistory).toHaveBeenCalledWith('DGS10', '5y')
+  })
+})
+
+describe('예상치', () => {
+  const cpi = (overrides: Partial<MacroSeriesInfo> = {}): MacroSeriesInfo =>
+    series({
+      code: 'CPIAUCSL',
+      name: 'CPI',
+      transform: 'yoy',
+      transform_label: '전년비',
+      frequency: 'monthly',
+      as_of: '2026-08-01',
+      value: 3.2,
+      forecastable: true,
+      ...overrides,
+    })
+
+  const forecast = (overrides = {}) => ({
+    as_of: '2026-08-01',
+    value: 3.0,
+    source: 'manual',
+    source_label: '직접 입력',
+    forecast_date: '2026-09-10',
+    surprise: 0.2,
+    ...overrides,
+  })
+
+  it('예상치가 있으면 값 옆에 예상과 실제 차이를 적는다', async () => {
+    mockMacro({ series: [cpi({ forecast: forecast() })] })
+    renderPanel()
+
+    expect(await screen.findByText(/예상 3.00%/)).toBeInTheDocument()
+    // 0.2%가 아니라 0.2%p다 — 전년비끼리의 차이라 %로 읽으면 다른 숫자가 된다
+    expect(screen.getByText(/\+0.20%p/)).toBeInTheDocument()
+    expect(screen.getByText(/직접 입력/)).toBeInTheDocument()
+  })
+
+  it('아직 발표 전인 달의 예상치는 그렇다고 말한다', async () => {
+    mockMacro({
+      series: [
+        cpi({
+          forecast: forecast(),
+          pending_forecast: forecast({ as_of: '2026-09-01', value: 2.9, surprise: null }),
+        }),
+      ],
+    })
+    renderPanel()
+
+    // 이번 발표 결과와 다음 달 예상이 둘 다 보인다 — 한 칸에 합치면 하나가 다른 하나를 가린다
+    expect(await screen.findByText(/예상 3.00%/)).toBeInTheDocument()
+    expect(screen.getByText(/2026-09 예상/)).toBeInTheDocument()
+    expect(screen.getByText(/아직 발표 전/)).toBeInTheDocument()
+  })
+
+  it('매일 나오는 값에는 입력칸을 띄우지 않는다', async () => {
+    mockMacro()
+    renderPanel()
+
+    await screen.findByText('미 10년물 금리')
+    expect(screen.queryByRole('button', { name: '예상치 입력' })).not.toBeInTheDocument()
+  })
+
+  it('입력칸은 마지막 발표의 다음 달로 열린다', async () => {
+    mockMacro({ series: [cpi()] })
+    renderPanel()
+
+    await userEvent.click(await screen.findByRole('button', { name: '예상치 입력' }))
+
+    // 예상치를 적는 때는 보통 발표 전이고, 그때 궁금한 건 아직 안 나온 달이다
+    expect(screen.getByLabelText('CPI 예상치가 가리키는 달')).toHaveValue('2026-09')
+  })
+
+  it('저장하면 그 달 1일로 보낸다', async () => {
+    mockMacro({ series: [cpi()] })
+    const save = vi.spyOn(api, 'setMacroForecast').mockResolvedValue(cpi())
+    renderPanel()
+
+    await userEvent.click(await screen.findByRole('button', { name: '예상치 입력' }))
+    await userEvent.type(screen.getByLabelText('CPI 예상치'), '2.7')
+    await userEvent.click(screen.getByRole('button', { name: '저장' }))
+
+    // 값이 그 달 1일로 저장돼 있어서, 날짜를 안 맞추면 영영 짝이 안 맞는다
+    await waitFor(() => expect(save).toHaveBeenCalledWith('CPIAUCSL', '2026-09-01', 2.7))
+  })
+
+  it('전년비가 마이너스인 달도 적을 수 있다', async () => {
+    mockMacro({ series: [cpi()] })
+    const save = vi.spyOn(api, 'setMacroForecast').mockResolvedValue(cpi())
+    renderPanel()
+
+    await userEvent.click(await screen.findByRole('button', { name: '예상치 입력' }))
+    await userEvent.type(screen.getByLabelText('CPI 예상치'), '-0.2')
+    await userEvent.click(screen.getByRole('button', { name: '저장' }))
+
+    // 빼기표를 버리면 −0.2 를 넣었는데 0.2 가 저장된다 (2009·2015년 CPI 가 실제로 마이너스였다)
+    await waitFor(() => expect(save).toHaveBeenCalledWith('CPIAUCSL', '2026-09-01', -0.2))
+  })
+
+  it('저장하고 나면 화면을 다시 읽는다 — 배지가 예상치를 보고 뜨기 때문이다', async () => {
+    mockMacro({ series: [cpi()] })
+    vi.spyOn(api, 'setMacroForecast').mockResolvedValue(cpi())
+    renderPanel()
+
+    await userEvent.click(await screen.findByRole('button', { name: '예상치 입력' }))
+    await userEvent.type(screen.getByLabelText('CPI 예상치'), '2.7')
+    await userEvent.click(screen.getByRole('button', { name: '저장' }))
+
+    await waitFor(() => expect(api.getMacro).toHaveBeenCalledTimes(2))
+  })
+
+  it('지우면 그 달 예상치를 지운다', async () => {
+    mockMacro({ series: [cpi({ forecast: forecast() })] })
+    const clear = vi.spyOn(api, 'clearMacroForecast').mockResolvedValue(cpi())
+    renderPanel()
+
+    await userEvent.click(await screen.findByRole('button', { name: '예상치 입력' }))
+    await userEvent.clear(screen.getByLabelText('CPI 예상치가 가리키는 달'))
+    await userEvent.type(screen.getByLabelText('CPI 예상치가 가리키는 달'), '2026-08')
+    await userEvent.click(screen.getByRole('button', { name: '지우기' }))
+
+    await waitFor(() => expect(clear).toHaveBeenCalledWith('CPIAUCSL', '2026-08-01'))
+  })
+
+  it('빈 칸으로는 저장할 수 없다', async () => {
+    mockMacro({ series: [cpi()] })
+    renderPanel()
+
+    await userEvent.click(await screen.findByRole('button', { name: '예상치 입력' }))
+
+    expect(screen.getByRole('button', { name: '저장' })).toBeDisabled()
+  })
+
+  it('저장이 실패하면 이유를 띄우고 입력칸을 닫지 않는다', async () => {
+    mockMacro({ series: [cpi()] })
+    vi.spyOn(api, 'setMacroForecast').mockRejectedValue(new Error('너무 먼 미래입니다'))
+    renderPanel()
+
+    await userEvent.click(await screen.findByRole('button', { name: '예상치 입력' }))
+    await userEvent.type(screen.getByLabelText('CPI 예상치'), '2.7')
+    await userEvent.click(screen.getByRole('button', { name: '저장' }))
+
+    expect(await screen.findByText(/너무 먼 미래입니다/)).toBeInTheDocument()
+    // 닫아버리면 방금 친 숫자를 다시 쳐야 한다
+    expect(screen.getByLabelText('CPI 예상치')).toBeInTheDocument()
   })
 })

@@ -2058,6 +2058,67 @@ table.data-table tr.dirty:hover td {
   opacity: 0.8;
 }
 
+/* ---------- 예상치 ---------- */
+
+/* 값 바로 아래 한 줄. **색을 쓰지 않는다** — 물가가 예상보다 높은 게 좋은 일인지
+   나쁜 일인지는 무엇을 들고 있느냐에 따라 다르고, 그 판단은 이 화면이 할 일이 아니다.
+   "예상을 넘었다"는 사실은 국면 배지가 따로 말한다. */
+.macro-forecast {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-dim);
+}
+
+.macro-surprise {
+  margin-left: 8px;
+  color: var(--text);
+}
+
+/* 카드 안에서 여는 입력칸. 설정 화면으로 보내면 어떤 값이 나왔는지 보면서 적을 수가 없다 */
+.forecast-open {
+  align-self: flex-start;
+  font-size: 12.5px;
+}
+
+.forecast-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-soft);
+}
+
+.forecast-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  /* 폰에서 두 칸이 한 줄에 안 들어가면 각자 한 줄을 쓰게 둔다 */
+  flex: 1 1 110px;
+  min-width: 0;
+}
+
+.forecast-form input {
+  width: 100%;
+  min-width: 0;
+}
+
+.forecast-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1 1 auto;
+}
+
+.forecast-actions button {
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  font-size: 12.5px;
+}
+
 /* ---------- 홈 화면 매크로 한 줄 ---------- */
 
 /* 폰에서는 가로로 밀어서 본다. 줄바꿈으로 두면 지표 셋이 세 줄을 차지해서 종목 표를

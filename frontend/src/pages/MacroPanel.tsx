@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { ErrorNotice } from '../components/ErrorNotice'
 import { MacroChartModal } from '../components/MacroChartModal'
+import { NumberInput } from '../components/NumberInput'
 import { RegimeBadges } from '../components/RegimeBadges'
 import { useAppState } from '../AppState'
 import {
@@ -74,16 +75,160 @@ export function TermSpreadLine({
   )
 }
 
+/** "2026-08-01" -> "2026-08". 값이 없으면 이번 달. */
+function monthOf(asOf: string | null): string {
+  if (asOf) return asOf.slice(0, 7)
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+}
+
+/**
+ * 입력칸에 처음 들어가 있을 달.
+ *
+ * **마지막 발표의 다음 달이다.** 예상치를 적는 때는 보통 발표 **전**이고, 그때 궁금한
+ * 것은 아직 안 나온 달이다. 마지막 발표 달을 기본으로 두면 매번 한 칸씩 올려야 한다.
+ */
+function defaultMonth(series: MacroSeriesInfo): string {
+  if (!series.as_of) return monthOf(null)
+  const [year, month] = series.as_of.slice(0, 7).split('-').map(Number)
+  const next = new Date(Date.UTC(year, month, 1))
+  return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, '0')}`
+}
+
+/**
+ * 예상치 한 줄과 그 입력칸.
+ *
+ * 카드 안에 둔다. 설정 화면으로 보내면 어떤 값이 나왔는지 보면서 적을 수가 없고,
+ * 예상치는 그 값 바로 옆에서만 뜻이 있다.
+ */
+function ForecastBox({
+  series,
+  onSave,
+  onClear,
+}: {
+  series: MacroSeriesInfo
+  onSave: (code: string, month: string, value: number) => Promise<boolean>
+  onClear: (code: string, month: string) => Promise<boolean>
+}) {
+  const [open, setOpen] = useState(false)
+  const [month, setMonth] = useState(() => defaultMonth(series))
+  const [value, setValue] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const { forecast, pending_forecast: pending } = series
+  const number = Number(value)
+  const canSave = value !== '' && value !== '-' && Number.isFinite(number)
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!canSave || busy) return
+    setBusy(true)
+    const ok = await onSave(series.code, month, number)
+    setBusy(false)
+    if (ok) {
+      setOpen(false)
+      setValue('')
+    }
+  }
+
+  const remove = async () => {
+    if (busy) return
+    setBusy(true)
+    const ok = await onClear(series.code, month)
+    setBusy(false)
+    if (ok) {
+      setOpen(false)
+      setValue('')
+    }
+  }
+
+  return (
+    <>
+      {forecast && (
+        <p className="macro-forecast">
+          예상 {macroValue(forecast.value, series.unit)}
+          {forecast.surprise !== null && (
+            /* 실제 − 예상. 색은 안 쓴다 — 물가가 높은 게 좋은 일인지는 무엇을 들고
+               있느냐에 따라 다르고, 그 판단은 이 화면이 할 일이 아니다. */
+            <span className="macro-surprise mono">
+              실제 {macroChange(forecast.surprise, series.unit)}
+            </span>
+          )}
+          <span className="hint"> {forecast.source_label}</span>
+        </p>
+      )}
+      {pending && (
+        <p className="macro-forecast">
+          <span className="hint">{monthOf(pending.as_of)} 예상</span>{' '}
+          {macroValue(pending.value, series.unit)}
+          <span className="hint"> {pending.source_label} · 아직 발표 전</span>
+        </p>
+      )}
+
+      {open ? (
+        <form className="forecast-form" onSubmit={(event) => void submit(event)}>
+          <label>
+            <span className="hint">달</span>
+            <input
+              type="month"
+              value={month}
+              onChange={(event) => setMonth(event.target.value)}
+              aria-label={`${series.name} 예상치가 가리키는 달`}
+            />
+          </label>
+          <label>
+            <span className="hint">예상(%)</span>
+            {/* 전년비는 마이너스가 될 수 있다 (2009·2015년 CPI) — 빼기표를 받는다 */}
+            <NumberInput
+              value={value}
+              onChange={setValue}
+              allowNegative
+              placeholder="2.7"
+              aria-label={`${series.name} 예상치`}
+            />
+          </label>
+          <div className="forecast-actions">
+            <button type="submit" className="primary" disabled={!canSave || busy}>
+              저장
+            </button>
+            <button type="button" onClick={() => void remove()} disabled={busy}>
+              지우기
+            </button>
+            <button type="button" onClick={() => setOpen(false)} disabled={busy}>
+              닫기
+            </button>
+          </div>
+        </form>
+      ) : (
+        <button
+          className="link-btn forecast-open"
+          onClick={() => {
+            setMonth(defaultMonth(series))
+            setValue('')
+            setOpen(true)
+          }}
+        >
+          예상치 입력
+        </button>
+      )}
+    </>
+  )
+}
+
 function MacroCard({
   series,
   pinned,
   onOpen,
   onTogglePin,
+  onSaveForecast,
+  onClearForecast,
 }: {
   series: MacroSeriesInfo
   pinned: boolean
   onOpen: () => void
   onTogglePin: () => void
+  onSaveForecast: (code: string, month: string, value: number) => Promise<boolean>
+  onClearForecast: (code: string, month: string) => Promise<boolean>
 }) {
   const status = statusOf(series)
   const change = macroChange(series.change, series.unit)
@@ -128,6 +273,12 @@ function MacroCard({
           {series.zone.label} 구간
           <span className="macro-zone-range">{series.zone.range}</span>
         </p>
+      )}
+
+      {/* 예상치는 발표되는 지표에만 있다. VIX·금리는 매일 시장에서 나오는 값이라
+          "예상 대비"라는 개념 자체가 없어서 입력칸도 안 띄운다. */}
+      {series.forecastable && (
+        <ForecastBox series={series} onSave={onSaveForecast} onClear={onClearForecast} />
       )}
 
       <p className="hint macro-foot">
@@ -221,6 +372,34 @@ export function MacroPanel() {
     }
   }
 
+  /**
+   * 예상치를 넣거나 지운 뒤.
+   *
+   * 화면 전체를 다시 읽는다. 바뀐 카드만 갈아끼우면 **배지가 안 따라온다** —
+   * "물가 상회"는 예상치를 보고 뜨는 것이라, 예상치를 지웠는데 배지가 남아 있는
+   * 화면이 된다. 요청 한 번이고 이 화면은 자주 여는 곳이 아니다.
+   */
+  const afterForecast = async (run: () => Promise<unknown>): Promise<boolean> => {
+    setError(null)
+    try {
+      await run()
+      await load()
+      // 홈의 배지도 달라진다
+      notifyDataChanged()
+      return true
+    } catch (e) {
+      setError(e)
+      return false
+    }
+  }
+
+  const saveForecast = (code: string, month: string, value: number) =>
+    // 입력칸은 달까지만 고르므로 그 달 1일로 보낸다 (값이 그렇게 저장돼 있다)
+    afterForecast(() => api.setMacroForecast(code, `${month}-01`, value))
+
+  const clearForecast = (code: string, month: string) =>
+    afterForecast(() => api.clearMacroForecast(code, `${month}-01`))
+
   const series = data?.series ?? []
   const pinned = data?.pinned ?? []
   const badges = data?.badges ?? []
@@ -276,6 +455,8 @@ export function MacroPanel() {
                 pinned={pinned.includes(item.code)}
                 onOpen={() => setOpen(item)}
                 onTogglePin={() => void togglePin(item.code)}
+                onSaveForecast={saveForecast}
+                onClearForecast={clearForecast}
               />
             ))}
           </div>

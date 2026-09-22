@@ -6,7 +6,8 @@ function series(overrides: Partial<MacroSeriesInfo>): MacroSeriesInfo {
   return {
     code: 'DGS10', name: '10년물', note: null, unit: 'percent', transform: 'none',
     transform_label: null, frequency: 'daily', as_of: '2026-09-21', value: 4.11,
-    previous: 4.05, change: 0.06, released_at: null, source: 'fred_api', zone: null, stale: false,
+    previous: 4.05, change: 0.06, released_at: null, source: 'fred_api', zone: null,
+    forecastable: false, forecast: null, pending_forecast: null, stale: false,
     last_checked_at: '2026-09-21T23:00:00', last_ok_at: '2026-09-21T23:00:00',
     last_error: null, ...overrides,
   }

@@ -39,6 +39,22 @@ ZONES: dict[str, list[tuple[int, int, str, bool]]] = {
     "FEARGREED": FEAR_GREED_BANDS,
 }
 
+# "물가가 예상을 상회" 규칙이 보는 지표.
+#
+# **주기로 가르지 않고 코드를 적는다.** 예상치를 넣을 수 있는 지표는 "월간이면 된다"로
+# 가를 수 있지만(`macro.is_forecastable`), 이 배지가 하는 말은 "**물가**가 예상을
+# 넘었다"이다. 나중에 실업률 같은 월간 지표가 들어왔을 때 주기로 갈랐으면 실업률
+# 발표에 "물가 상회"라고 적히게 된다.
+INFLATION_CODES = ["PCEPILFE", "PCEPI", "CPILFESL", "CPIAUCSL"]
+
+# 실제와 예상을 **소수 첫째 자리에서** 비교한다.
+#
+# 발표도 예상도 그 자리까지만 말한다 ("2.9%", "예상 2.7%"). 그런데 우리가 화면에 쓰는
+# 전년비는 지수에서 직접 계산한 값이라 2.8734... 처럼 나오고, 반올림 전 값으로 비교하면
+# 예상 2.7 에 실제 2.7049 인 달에도 "상회" 배지가 뜬다. 그건 상회가 아니라 우리 계산의
+# 꼬리다. 공포·탐욕 구간을 정수로 반올림해서 고르는 것(`zone_of`)과 같은 이유다.
+FORECAST_DECIMALS = 1
+
 # 배지 색은 하나뿐이다 (맨 위 설명 참고)
 TONE = "amber"
 
@@ -48,7 +64,7 @@ TONE = "amber"
 # 내렸다고 공포 구간 배지가 사라지면 안 된다. 그래서 규칙이 무엇을 보는지 여기 적어두고,
 # 홈은 딱 그만큼만 더 읽는다. 규칙을 늘릴 때 이 목록도 같이 늘려야 하고, 잊으면
 # `test_macro_api.py` 의 "홈과 매크로 탭이 같은 배지를 말한다"가 잡는다.
-WATCHED_CODES = ["VIX", "FEARGREED"]
+WATCHED_CODES = ["VIX", "FEARGREED", *INFLATION_CODES]
 
 
 def zone_of(code: str, value: float | None) -> dict | None:
@@ -130,8 +146,52 @@ def badges(series: list[dict], spread: dict | None = None) -> list[dict]:
                 )
             )
 
-    # 4. "물가가 예상을 상회" 는 예측치(ROADMAP 3a-4)가 들어온 뒤에 붙인다. 지금은
-    #    비교할 예상치가 없어서, 넣으면 우리가 정한 기준(2% 목표 같은 것)을 출처인 척
-    #    말하게 된다.
+    # 4. 물가가 예상을 상회 — 예상치가 **들어와 있는 달에만** 판정한다
+    #
+    #    우리가 정한 기준(2% 목표 같은 것)과는 비교하지 않는다. 그건 출처가 없는
+    #    판정이고, 화면이 그걸 출처인 척 말하게 된다. 비교 대상은 사람이 넣었거나
+    #    받아온 예상치뿐이다 — 없으면 이 배지는 그냥 안 뜬다.
+    #
+    #    지표마다 따로 뜬다. CPI 와 근원 PCE 가 같은 달에 둘 다 예상을 넘었다면 그건
+    #    두 개의 사실이고, 합쳐서 한 마디로 만들면 어느 쪽이 얼마나 넘었는지가 사라진다.
+    for code in INFLATION_CODES:
+        item = by_code.get(code)
+        if not item:
+            continue
+        badge = _above_forecast(item)
+        if badge:
+            found.append(badge)
 
     return found
+
+
+def beats_forecast(actual: float | None, forecast: float | None) -> bool:
+    """실제가 예상보다 높은가. 둘 다 발표되는 자리(소수 첫째)까지만 보고 판정한다."""
+    if actual is None or forecast is None:
+        return False
+    return round(actual, FORECAST_DECIMALS) > round(forecast, FORECAST_DECIMALS)
+
+
+def _above_forecast(item: dict) -> dict | None:
+    """한 지표가 예상을 넘었으면 배지 하나.
+
+    `pending_forecast`(아직 안 나온 달의 예상치)는 보지 않는다. 비교할 실제값이 없는
+    예상치로 판정하면 그건 예측이지 사실이 아니다.
+    """
+    forecast = item.get("forecast")
+    if not forecast:
+        return None
+
+    actual = item.get("value")
+    if not beats_forecast(actual, forecast.get("value")):
+        return None
+
+    return _badge(
+        f"inflation_above_forecast:{item.get('code')}",
+        "물가 상회",
+        # 이름·실제·예상을 다 적는다. "물가 상회"만 있으면 어느 물가가 얼마나 넘었는지,
+        # 무엇과 비교한 것인지가 전부 빠진다.
+        f"{item.get('name') or item.get('code')} {actual:.1f}% "
+        f"(예상 {forecast['value']:.1f}% · {forecast.get('source_label') or forecast.get('source')})",
+        item.get("as_of"),
+    )

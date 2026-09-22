@@ -363,3 +363,154 @@ def test_home_and_the_macro_tab_say_the_same_badges(api):
 
     assert [b["key"] for b in tab] == ["inverted_curve", "vix_fear", "fear_greed_extreme"]
     assert home == tab
+
+
+# ---------------------------------------------------------------------------
+#  예측치 (3a-4)
+# ---------------------------------------------------------------------------
+#
+#  화면에서 "예상치 입력"을 눌렀을 때 실제로 오가는 것들. 저장되는 단위가 원본 지수가
+#  아니라 **화면에 뜨는 전년비**라는 점이 여기서 한 번 더 확인된다.
+
+AUG = dt.date(2026, 8, 1)
+
+
+def _cpi_series(code="CPIAUCSL", name="CPI", order=70) -> MacroSeries:
+    return MacroSeries(code=code, name=name, source="fred", source_code=code,
+                       unit="index", transform="yoy", frequency="monthly",
+                       display_order=order, active=True)
+
+
+def _cpi_months(pct: float) -> list[tuple[dt.date, float]]:
+    """전년비가 정확히 `pct` 가 되는 두 달치 지수."""
+    return [(dt.date(2025, 8, 1), 100.0), (AUG, 100.0 * (1.0 + pct / 100.0))]
+
+
+def test_typing_a_forecast_comes_back_on_the_card(api):
+    client, SessionLocal = api
+    _fill(SessionLocal, _cpi_series(), _cpi_months(3.2))
+
+    card = client.put(
+        "/api/macro/CPIAUCSL/forecast", json={"as_of": "2026-08-01", "value": 3.0}
+    ).json()
+
+    assert card["code"] == "CPIAUCSL"
+    assert card["forecastable"] is True
+    assert card["forecast"]["value"] == 3.0
+    assert card["forecast"]["source_label"] == "직접 입력"
+    assert card["forecast"]["surprise"] == pytest.approx(0.2)
+
+
+def test_a_forecast_the_release_beat_raises_the_badge(api):
+    client, SessionLocal = api
+    _fill(SessionLocal, _cpi_series(), _cpi_months(3.2))
+    client.put("/api/macro/CPIAUCSL/forecast", json={"as_of": "2026-08-01", "value": 3.0})
+
+    badges = client.get("/api/macro").json()["badges"]
+
+    assert [b["label"] for b in badges] == ["물가 상회"]
+    assert "예상 3.0%" in badges[0]["detail"]
+
+
+def test_the_badge_reaches_the_home_screen_too(api):
+    """홈은 고른 지표만 읽는다. 물가를 안 골라도 이 배지는 떠야 한다."""
+    client, SessionLocal = api
+    _fill(SessionLocal, _cpi_series(), _cpi_months(3.2))
+    client.put("/api/macro/CPIAUCSL/forecast", json={"as_of": "2026-08-01", "value": 3.0})
+    client.put("/api/macro/pinned", json={"codes": []})
+
+    home = client.get("/api/macro/pinned").json()
+
+    assert home["series"] == []
+    assert [b["label"] for b in home["badges"]] == ["물가 상회"]
+
+
+def test_home_and_the_macro_tab_agree_about_the_price_badge(api):
+    client, SessionLocal = api
+    _fill(SessionLocal, _cpi_series(), _cpi_months(3.2))
+    client.put("/api/macro/CPIAUCSL/forecast", json={"as_of": "2026-08-01", "value": 3.0})
+
+    tab = client.get("/api/macro").json()["badges"]
+    home = client.get("/api/macro/pinned").json()["badges"]
+
+    assert [b["key"] for b in tab] == [b["key"] for b in home]
+    assert [b["detail"] for b in tab] == [b["detail"] for b in home]
+
+
+def test_erasing_the_forecast_turns_the_badge_off(api):
+    """잘못 넣은 예상치 때문에 배지가 계속 떠 있으면 사용자가 끌 방법이 없다."""
+    client, SessionLocal = api
+    _fill(SessionLocal, _cpi_series(), _cpi_months(3.2))
+    client.put("/api/macro/CPIAUCSL/forecast", json={"as_of": "2026-08-01", "value": 3.0})
+
+    card = client.delete("/api/macro/CPIAUCSL/forecast?as_of=2026-08-01").json()
+
+    assert card["forecast"] is None
+    assert client.get("/api/macro").json()["badges"] == []
+
+
+def test_a_daily_indicator_refuses_a_forecast(api):
+    """VIX 에 "예상치"를 넣을 수 있게 두면 그 숫자가 무엇과 비교되는지 아무도 모른다."""
+    client, SessionLocal = api
+    _fill(SessionLocal, _series(), [(dt.date(2026, 9, 21), 4.11)])
+
+    response = client.put("/api/macro/DGS10/forecast", json={"as_of": "2026-09-01", "value": 4.0})
+
+    assert response.status_code == 400
+    assert "예상치" in response.json()["detail"]
+
+
+def test_a_code_that_does_not_exist_is_a_404(api):
+    client, _ = api
+    response = client.put("/api/macro/NOPE/forecast", json={"as_of": "2026-08-01", "value": 3.0})
+    assert response.status_code == 404
+
+
+def test_a_year_typed_wrong_is_refused(api):
+    """2062 년 예상치는 지우기 전까지 "다음 발표 예상"으로 계속 떠 있게 된다."""
+    client, SessionLocal = api
+    _fill(SessionLocal, _cpi_series(), _cpi_months(3.2))
+
+    response = client.put(
+        "/api/macro/CPIAUCSL/forecast", json={"as_of": "2062-08-01", "value": 3.0}
+    )
+
+    assert response.status_code == 400
+
+
+def test_a_value_with_the_decimal_point_lost_is_refused(api):
+    """2.7 대신 270 을 넣는 실수. 27 은 못 막지만 그건 화면에 그대로 보인다."""
+    client, SessionLocal = api
+    _fill(SessionLocal, _cpi_series(), _cpi_months(3.2))
+
+    response = client.put(
+        "/api/macro/CPIAUCSL/forecast", json={"as_of": "2026-08-01", "value": 270.0}
+    )
+
+    assert response.status_code == 422
+
+
+def test_next_months_forecast_is_kept_apart_from_this_months_result(api):
+    client, SessionLocal = api
+    _fill(SessionLocal, _cpi_series(), _cpi_months(3.2))
+    client.put("/api/macro/CPIAUCSL/forecast", json={"as_of": "2026-08-01", "value": 3.0})
+    card = client.put(
+        "/api/macro/CPIAUCSL/forecast", json={"as_of": "2026-09-01", "value": 2.9}
+    ).json()
+
+    assert card["forecast"]["as_of"] == "2026-08-01"
+    assert card["pending_forecast"]["as_of"] == "2026-09-01"
+    assert card["pending_forecast"]["surprise"] is None
+    # 아직 안 나온 달의 예상치로 배지를 띄우면 그건 예측이지 사실이 아니다
+    assert len(client.get("/api/macro").json()["badges"]) == 1
+
+
+def test_a_daily_card_says_it_takes_no_forecast(api):
+    client, SessionLocal = api
+    _fill(SessionLocal, _series(), [(dt.date(2026, 9, 21), 4.11)])
+
+    card = client.get("/api/macro").json()["series"][0]
+
+    assert card["forecastable"] is False
+    assert card["forecast"] is None
+    assert card["pending_forecast"] is None

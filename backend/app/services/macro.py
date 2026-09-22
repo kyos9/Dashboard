@@ -21,6 +21,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import (
+    MacroForecast,
     MacroFrequency,
     MacroSeries,
     MacroTransform,
@@ -653,6 +654,11 @@ def term_spread_snapshot(db: Session, today: dt.date | None = None) -> dict | No
         "released_at": None,
         "source": source.source if source else None,
         "zone": None,
+        # 계산값이라 "예상치"가 없다. 두 금리의 컨센서스를 빼면 금리차 예상치가 되긴
+        # 하지만 그건 아무도 발표하지 않는 숫자이고, 우리가 만들면 출처가 우리가 된다.
+        "forecastable": False,
+        "forecast": None,
+        "pending_forecast": None,
         "stale": is_stale(db, source, today=today) if source else False,
         "last_checked_at": source.last_checked_at if source else None,
         "last_ok_at": source.last_ok_at if source else None,
@@ -801,6 +807,11 @@ def snapshot(db: Session, series: MacroSeries, today: dt.date | None = None) -> 
         # 것이 아니라 발표하는 쪽이 정해둔 것이라 서버에서 붙인다 — 화면 둘(매크로 탭과
         # 홈)이 각자 경계를 들고 있으면 언젠가 둘이 다른 이름을 말한다.
         "zone": regime.zone_of(series.code, latest[1] if latest else None),
+        # 예상치는 여기서 안 읽는다. 카드 아홉 장이면 질의가 아홉 번 늘기 때문에
+        # `attach_forecasts` 가 한 번에 읽어 나눠준다 — 자리만 비워둔다.
+        "forecastable": is_forecastable(series),
+        "forecast": None,
+        "pending_forecast": None,
         # 발표일과 출처는 **원본 행**에서 온다. 변환은 날짜를 안 바꾸므로 같은 날 것이다.
         "released_at": raw.released_at if raw else None,
         "source": raw.source if raw else None,
@@ -824,7 +835,7 @@ def overview(db: Session, today: dt.date | None = None) -> dict:
         if spread
         else None
     )
-    snapshots = [snapshot(db, series, today=today) for series in series_list]
+    snapshots = attach_forecasts(db, [snapshot(db, series, today=today) for series in series_list])
     return {
         "series": snapshots,
         "term_spread": term,
@@ -868,7 +879,11 @@ def pinned_overview(db: Session, today: dt.date | None = None) -> dict:
                 cards.append(card)
         elif code in rows:
             cards.append(snapshot(db, rows[code], today=today))
-    return {"codes": codes, "series": cards, "badges": badges(db, today=today)}
+    return {
+        "codes": codes,
+        "series": attach_forecasts(db, cards),
+        "badges": badges(db, today=today),
+    }
 
 
 def normalize_codes(codes: list[str]) -> list[str]:
@@ -902,7 +917,9 @@ def badges(db: Session, today: dt.date | None = None) -> list[dict]:
     ).all()
     spread = term_spread_point(db)
     return regime.badges(
-        [snapshot(db, row, today=today) for row in rows],
+        # 예상치를 붙이고 넘긴다 — "물가 상회" 규칙이 그걸 본다. 안 붙이면 홈에서만
+        # 그 배지가 조용히 빠지고, 매크로 탭과 다른 말을 하게 된다.
+        attach_forecasts(db, [snapshot(db, row, today=today) for row in rows]),
         (
             {"as_of": spread[0], "value": spread[1], "long_code": "DGS10", "short_code": "DGS2"}
             if spread
@@ -922,3 +939,215 @@ def set_pinned(db: Session, codes: list[str]) -> list[str]:
     settings.pinned_macro = wanted
     db.commit()
     return wanted
+
+
+# ---------------------------------------------------------------------------
+#  예측치
+# ---------------------------------------------------------------------------
+#
+#  예상치가 없으면 "CPI 3.1%" 가 좋은 숫자인지 나쁜 숫자인지 알 수 없다. 시장이 움직이는
+#  것은 값 자체가 아니라 **예상 대비 어긋난 폭**이다.
+#
+#  **저장하는 단위가 원본 값과 다르다.** `macro_value` 에는 원본 지수(CPI 320.541)가
+#  들어가지만 여기에는 **화면에 뜨는 단위**, 즉 변환까지 끝난 값(전년비 2.9)이 들어간다.
+#  둘을 맞추고 싶은 마음이 들지만 맞출 수가 없다 — 예상치를 내는 쪽(클리블랜드 연준
+#  나우캐스트도, Investing 화면도)이 전부 전년비 %로만 발표하고 지수 레벨로는 아무도
+#  예상치를 내지 않는다. 지수로 되돌리려면 우리가 계산을 하나 지어내야 하고, 그러면
+#  저장된 숫자가 더 이상 "출처가 말한 값"이 아니게 된다.
+
+FORECAST_MANUAL = "manual"
+# 자동 수집 자리. 제공자는 3a-4b 에서 붙인다 — 개발 환경에서 clevelandfed.org 가 프록시
+# 정책으로 막혀 있어(403) 주소를 확인할 수가 없었고, 확인 못 한 주소를 박아 넣으면
+# "예상치 기능이 고장났다"로 보이는 코드를 심는 셈이다. 이름과 우선순위는 지금 정해둔다.
+FORECAST_CLEVELAND = "cleveland_fed"
+
+FORECAST_SOURCE_LABEL = {
+    FORECAST_MANUAL: "직접 입력",
+    FORECAST_CLEVELAND: "클리블랜드 연준",
+}
+
+# 같은 달에 여러 예상치가 있을 때 누구 말을 쓰는가. **사람이 넣은 것이 먼저다** —
+# 직접 넣었다는 건 자동값이 마음에 안 들었다는 뜻이고, 그걸 자동값이 덮으면 다음 배치
+# 때 조용히 되돌아간다.
+FORECAST_SOURCE_PRIORITY = [FORECAST_MANUAL, FORECAST_CLEVELAND]
+
+# 받아들일 수 있는 예상치 범위(%). 전년비 물가가 이 밖으로 나가는 일은 없고, 여기
+# 걸리는 건 자릿수를 잘못 넣은 경우(2.7 대신 270)다. 27 을 걸러내지는 못한다 —
+# 그건 화면에 그대로 보이므로 사람이 본다.
+FORECAST_LIMIT = 100.0
+
+# 몇 달 앞까지 넣을 수 있나. 예상치는 **다음 발표**를 위한 것이고, 그 앞을 넣을 일이
+# 없다. 여기 걸리는 건 연도를 잘못 친 경우(2026 대신 2062)다 — 그런 줄은 지우기
+# 전까지 "다음 발표 예상"으로 계속 떠 있게 된다.
+FORECAST_MAX_MONTHS_AHEAD = 12
+
+
+def is_forecastable(series: MacroSeries) -> bool:
+    """이 지표에 "예상치"라는 말이 성립하는가.
+
+    **발표되는 지표에만 성립한다.** VIX·금리·공포탐욕은 시장에서 매일 나오는 값이라
+    "예상 대비 어긋났다"는 개념 자체가 없다 — 발표일도 컨센서스도 없다. 코드를 박아
+    두지 않고 주기로 가르는 이유는, 나중에 월간 지표를 하나 더 넣어도 이 함수를 안
+    고쳐도 되게 하려는 것이다.
+    """
+    return series.frequency != MacroFrequency.daily.value
+
+
+def month_start(day: dt.date) -> dt.date:
+    """예측치의 `as_of` 를 값의 `as_of` 와 같은 축에 올린다.
+
+    월간 지표의 값은 그 달 1일로 저장된다(2026년 8월 CPI -> 2026-08-01). 화면에서
+    "2026-08-15" 같은 날짜가 넘어오면 정규화하지 않는 한 **영원히 짝이 안 맞는다** —
+    저장은 되는데 비교할 값을 못 찾아서 예상치가 화면에 안 뜬다.
+    """
+    return day.replace(day=1)
+
+
+def _forecast_rank(row: MacroForecast) -> tuple:
+    """누구 말을 먼저 쓸지. 출처 우선순위 -> 최신 예측 순."""
+    try:
+        priority = FORECAST_SOURCE_PRIORITY.index(row.source)
+    except ValueError:
+        priority = len(FORECAST_SOURCE_PRIORITY)  # 모르는 출처는 맨 뒤
+    return (-priority, row.forecast_date)
+
+
+def _forecast_dict(row: MacroForecast, actual: float | None) -> dict:
+    """예측치 한 줄을 화면이 읽는 모양으로.
+
+    `surprise` 는 **실제 − 예상**이다. 실제값이 아직 없으면(다음 달 예상치) `None` 이고,
+    그 경우 화면은 "다음 발표 예상" 이라고 적는다.
+    """
+    return {
+        "as_of": row.as_of,
+        "value": row.value,
+        "source": row.source,
+        "source_label": FORECAST_SOURCE_LABEL.get(row.source, row.source),
+        "forecast_date": row.forecast_date,
+        # **꼬리를 자른다.** 전년비는 지수를 나눠 만든 값이라 예상과 정확히 같은 달에도
+        # 차이가 -8.4e-15 로 나오고, 그대로 두면 화면에 "−0.00%p" 라는 있지도 않은
+        # 하락이 뜬다. 여섯째 자리 아래는 어차피 화면에 안 나온다.
+        "surprise": round(actual - row.value, 6) if actual is not None else None,
+    }
+
+
+def attach_forecasts(db: Session, snapshots: list[dict]) -> list[dict]:
+    """스냅샷들에 예측치를 붙인다. **질의는 한 번이다.**
+
+    스냅샷마다 따로 읽으면 매크로 탭 한 장에 질의가 아홉 개 는다. 카드를 그리는 자리는
+    화면을 열 때마다 도는 곳이라, 한 번에 읽어 나눠주는 쪽이 맞다.
+
+    두 칸을 따로 채운다:
+
+    - `forecast` — **방금 나온 값**의 예상치. `surprise` 가 붙고 배지가 이걸 본다.
+    - `pending_forecast` — 아직 안 나온 달의 예상치. 비교할 실제값이 없으니 배지도 없다.
+
+    둘을 한 칸에 합치면 하나가 다른 하나를 가린다. 9월 예상치를 넣는 순간 8월 발표가
+    예상을 넘었다는 표시가 사라지거나, 반대로 방금 넣은 9월 예상치가 화면에 안 떠서
+    저장이 안 된 것처럼 보인다 — 둘 다 실제로 겪을 일이다.
+    """
+    from sqlalchemy import and_, or_
+
+    wanted = [item for item in snapshots if item.get("forecastable")]
+    for item in wanted:
+        item["forecast"] = None
+        item["pending_forecast"] = None
+    if not wanted:
+        return snapshots
+
+    # 지표마다 "언제부터 볼지"가 다르다 — 각자의 최신 발표 달부터다. 그 앞의 예측치는
+    # 이미 지나간 달의 것이라 화면에 쓸 데가 없다.
+    conditions = []
+    for item in wanted:
+        latest = item.get("as_of")
+        if latest is None:
+            # 값이 아직 하나도 없는 지표. 넣어둔 예상치는 전부 "아직 안 나온 것"이다.
+            conditions.append(MacroForecast.code == item["code"])
+        else:
+            conditions.append(
+                and_(MacroForecast.code == item["code"], MacroForecast.as_of >= latest)
+            )
+
+    rows = db.scalars(select(MacroForecast).where(or_(*conditions))).all()
+
+    by_code: dict[str, list[MacroForecast]] = {}
+    for row in rows:
+        by_code.setdefault(row.code, []).append(row)
+
+    for item in wanted:
+        candidates = by_code.get(item["code"], [])
+        if not candidates:
+            continue
+        latest = item.get("as_of")
+
+        matched = [row for row in candidates if row.as_of == latest]
+        if matched:
+            item["forecast"] = _forecast_dict(max(matched, key=_forecast_rank), item.get("value"))
+
+        later = [row for row in candidates if latest is None or row.as_of > latest]
+        if later:
+            # 다음 달이 여럿 쌓여 있으면 **가장 가까운 달**을 보여준다. 두 달 뒤 예상치가
+            # 다음 달 것을 가리면 화면이 엉뚱한 달을 말한다.
+            next_month = min(row.as_of for row in later)
+            same = [row for row in later if row.as_of == next_month]
+            item["pending_forecast"] = _forecast_dict(max(same, key=_forecast_rank), None)
+
+    return snapshots
+
+
+def set_forecast(
+    db: Session,
+    code: str,
+    as_of: dt.date,
+    value: float,
+    source: str = FORECAST_MANUAL,
+    forecast_date: dt.date | None = None,
+) -> dict:
+    """예상치 한 줄을 넣는다. **같은 날 같은 출처로 또 넣으면 덮어쓴다.**
+
+    덮어쓰는 것이 맞다 — 오타를 고치는 길이 그것뿐이기 때문이다. 대신 날이 바뀌면
+    새 줄이 쌓인다. 나우캐스트는 매일 바뀌고, 한 칸에 덮어쓰면 "발표 직전에 무엇을
+    예상하고 있었나"가 사라진다 (`models.MacroForecast` 참고).
+    """
+    as_of = month_start(as_of)
+    forecast_date = forecast_date or dt.date.today()
+
+    row = db.scalar(
+        select(MacroForecast).where(
+            MacroForecast.code == code,
+            MacroForecast.as_of == as_of,
+            MacroForecast.source == source,
+            MacroForecast.forecast_date == forecast_date,
+        )
+    )
+    if row is None:
+        row = MacroForecast(
+            code=code, as_of=as_of, source=source, forecast_date=forecast_date, value=value
+        )
+        db.add(row)
+    else:
+        row.value = value
+    db.commit()
+    return {"code": code, "as_of": as_of, "value": value, "source": source}
+
+
+def clear_forecast(db: Session, code: str, as_of: dt.date, source: str = FORECAST_MANUAL) -> int:
+    """그 달에 사람이 넣어둔 예상치를 전부 지운다. 지운 줄 수를 돌려준다.
+
+    **덮어쓰기만으로는 못 지운다.** 어제 넣은 줄이 남아 있으면 오늘 것을 지워도 어제
+    것이 다시 화면에 뜨고, 잘못 넣은 예상치 때문에 "물가 상회" 배지가 계속 떠 있게
+    된다. 배지는 사람이 끌 수 있어야 한다.
+    """
+    as_of = month_start(as_of)
+    rows = db.scalars(
+        select(MacroForecast).where(
+            MacroForecast.code == code,
+            MacroForecast.as_of == as_of,
+            MacroForecast.source == source,
+        )
+    ).all()
+    for row in rows:
+        db.delete(row)
+    if rows:
+        db.commit()
+    return len(rows)

@@ -13,12 +13,14 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.models import MacroSeries
 from app.schemas import (
+    MacroForecastUpdate,
     MacroHistoryOut,
     MacroOverviewOut,
     MacroPinnedOut,
     MacroPinnedUpdate,
     MacroPointOut,
     MacroRefreshResult,
+    MacroSeriesOut,
 )
 from app.services import macro
 
@@ -62,6 +64,70 @@ def put_pinned(payload: MacroPinnedUpdate, db: Session = Depends(get_db)):
 
     macro.set_pinned(db, wanted)
     return macro.pinned_overview(db)
+
+
+# --- 예측치 ---------------------------------------------------------------
+#
+# 경로가 `/{code}/forecast` 라 칸이 둘이고, `/{code}` 와 겹치지 않는다. 그래도 `/pinned`
+# 바로 아래, `/{code}` 위에 둔다 — 경로 순서가 중요한 파일에서는 순서를 눈으로 볼 수
+# 있게 모아두는 편이 안전하다.
+def _forecast_series(db: Session, code: str) -> MacroSeries:
+    """예측치를 넣을 수 있는 지표를 찾아 온다. 못 넣는 지표는 여기서 400 으로 끊는다."""
+    series = db.get(MacroSeries, code.upper())
+    if series is None:
+        raise HTTPException(status_code=404, detail="macro series not found")
+    if not macro.is_forecastable(series):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"{series.code}: 매일 나오는 값에는 예상치가 없습니다 "
+                "(발표되는 지표에만 컨센서스가 있습니다)"
+            ),
+        )
+    return series
+
+
+def _forecast_card(db: Session, series: MacroSeries) -> dict:
+    """바뀐 뒤의 카드 한 장. 화면이 그대로 갈아끼우면 되게 같은 모양으로 돌려준다."""
+    return macro.attach_forecasts(db, [macro.snapshot(db, series)])[0]
+
+
+@router.put("/{code}/forecast", response_model=MacroSeriesOut)
+def put_forecast(code: str, payload: MacroForecastUpdate, db: Session = Depends(get_db)):
+    """예상치를 직접 넣는다 (Investing 에서 본 숫자를 옮겨 적는 자리).
+
+    **같은 날 다시 넣으면 덮어쓴다.** 오타를 고치는 길이 그것뿐이다. 날이 바뀌면 새 줄이
+    쌓이고, 그래야 "발표 직전에 무엇을 예상하고 있었나"가 남는다.
+    """
+    series = _forecast_series(db, code)
+
+    limit = dt.date.today() + dt.timedelta(days=31 * macro.FORECAST_MAX_MONTHS_AHEAD)
+    if payload.as_of > limit:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{payload.as_of}: 너무 먼 미래입니다 (연도를 확인해주세요)",
+        )
+
+    macro.set_forecast(db, series.code, payload.as_of, payload.value)
+    return _forecast_card(db, series)
+
+
+@router.delete("/{code}/forecast", response_model=MacroSeriesOut)
+def delete_forecast(
+    code: str,
+    as_of: dt.date = Query(..., description="지울 예상치가 가리키는 달 (그 달 아무 날)"),
+    db: Session = Depends(get_db),
+):
+    """그 달에 직접 넣어둔 예상치를 지운다.
+
+    **덮어쓰기만으로는 못 지운다.** 어제 넣은 줄이 남아 있으면 잘못된 예상치 때문에
+    "물가 상회" 배지가 계속 떠 있게 되고, 사용자는 끌 방법이 없다.
+
+    받아온 예상치는 안 건드린다 — 지워도 다음 배치가 다시 받아온다.
+    """
+    series = _forecast_series(db, code)
+    macro.clear_forecast(db, series.code, as_of)
+    return _forecast_card(db, series)
 
 
 @router.get("/{code}", response_model=MacroHistoryOut)

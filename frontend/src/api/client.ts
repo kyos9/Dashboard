@@ -17,6 +17,7 @@ import type {
   MacroOverview,
   MacroPinned,
   MacroRefreshResult,
+  MacroSeriesInfo,
   Stock,
   StockCreateInput,
   StockCreateResult,
@@ -166,6 +167,20 @@ export const api = {
 
   setMacroPinned: (codes: string[]) =>
     request<MacroPinned>('/macro/pinned', { method: 'PUT', body: JSON.stringify({ codes }) }),
+
+  /** 예상치를 직접 넣는다. 같은 날 다시 넣으면 덮어쓴다 (오타를 고치는 길이 그것뿐이다) */
+  setMacroForecast: (code: string, asOf: string, value: number) =>
+    request<MacroSeriesInfo>(`/macro/${encodeURIComponent(code)}/forecast`, {
+      method: 'PUT',
+      body: JSON.stringify({ as_of: asOf, value }),
+    }),
+
+  /** 그 달에 직접 넣어둔 예상치를 지운다. 받아온 예상치는 안 건드린다 */
+  clearMacroForecast: (code: string, asOf: string) =>
+    request<MacroSeriesInfo>(
+      `/macro/${encodeURIComponent(code)}/forecast?as_of=${encodeURIComponent(asOf)}`,
+      { method: 'DELETE' },
+    ),
 
   getLogs: (level: 'warning' | 'all' = 'warning') =>
     request<LogsResponse>(`/logs?level=${level}`),

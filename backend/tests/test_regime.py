@@ -132,3 +132,118 @@ def test_no_badge_is_coloured_like_a_verdict():
 def test_missing_values_do_not_raise():
     """받아온 적 없는 지표(값 None)가 섞여 있어도 화면은 떠야 한다."""
     assert regime.badges([_card("VIX", None), _card("FEARGREED", None)], None) == []
+
+
+# --- 물가가 예상을 상회 -------------------------------------------------------
+
+
+def _inflation(value, forecast=None, pending=None, code="CPIAUCSL", name="CPI") -> dict:
+    """물가 카드 한 장. `attach_forecasts` 가 붙여주는 모양 그대로."""
+    def wrap(item):
+        if item is None:
+            return None
+        as_of, number = item
+        return {
+            "as_of": as_of,
+            "value": number,
+            "source": "manual",
+            "source_label": "직접 입력",
+            "forecast_date": dt.date(2026, 9, 10),
+            "surprise": None,
+        }
+
+    return {
+        "code": code,
+        "name": name,
+        "value": value,
+        "as_of": dt.date(2026, 8, 1),
+        "forecastable": True,
+        "forecast": wrap(forecast),
+        "pending_forecast": wrap(pending),
+    }
+
+
+def test_no_forecast_means_no_badge():
+    """비교할 예상치가 없으면 아무 말도 하지 않는다 — 2% 목표 같은 우리 기준을 쓰지 않는다."""
+    assert regime.badges([_inflation(3.4)]) == []
+
+
+def test_coming_in_above_the_forecast_raises_the_badge():
+    found = regime.badges([_inflation(3.2, forecast=(dt.date(2026, 8, 1), 3.0))])
+
+    assert [b["label"] for b in found] == ["물가 상회"]
+    assert found[0]["tone"] == "amber"
+    assert found[0]["as_of"] == dt.date(2026, 8, 1)
+
+
+def test_the_badge_says_which_price_and_against_what():
+    """이름만 있으면 어느 물가가 무엇과 비교해 얼마나 넘었는지가 전부 빠진다."""
+    found = regime.badges([_inflation(3.2, forecast=(dt.date(2026, 8, 1), 3.0))])
+
+    detail = found[0]["detail"]
+    assert "CPI" in detail
+    assert "3.2%" in detail
+    assert "예상 3.0%" in detail
+    assert "직접 입력" in detail
+
+
+def test_meeting_the_forecast_is_not_beating_it():
+    assert regime.badges([_inflation(3.0, forecast=(dt.date(2026, 8, 1), 3.0))]) == []
+
+
+def test_coming_in_below_says_nothing():
+    """예상을 밑돈 것은 이 규칙이 하는 말이 아니다."""
+    assert regime.badges([_inflation(2.8, forecast=(dt.date(2026, 8, 1), 3.0))]) == []
+
+
+def test_our_own_rounding_tail_is_not_a_surprise():
+    """전년비는 지수에서 계산한 값이라 3.0049 처럼 나온다. 그건 상회가 아니다."""
+    assert regime.badges([_inflation(3.0049, forecast=(dt.date(2026, 8, 1), 3.0))]) == []
+
+
+def test_a_real_tenth_of_a_point_counts():
+    found = regime.badges([_inflation(3.06, forecast=(dt.date(2026, 8, 1), 3.0))])
+    assert len(found) == 1
+
+
+def test_a_forecast_for_a_month_not_out_yet_decides_nothing():
+    """비교할 실제값이 없는 예상치로 판정하면 그건 예측이지 사실이 아니다."""
+    assert regime.badges([_inflation(3.4, pending=(dt.date(2026, 9, 1), 3.0))]) == []
+
+
+def test_two_prices_beating_their_forecasts_make_two_badges():
+    """합쳐서 한 마디로 만들면 어느 쪽이 얼마나 넘었는지가 사라진다."""
+    found = regime.badges([
+        _inflation(3.2, forecast=(dt.date(2026, 8, 1), 3.0), code="CPIAUCSL", name="CPI"),
+        _inflation(2.9, forecast=(dt.date(2026, 8, 1), 2.7), code="PCEPILFE", name="근원 PCE"),
+    ])
+
+    assert len(found) == 2
+    assert {b["key"] for b in found} == {
+        "inflation_above_forecast:CPIAUCSL",
+        "inflation_above_forecast:PCEPILFE",
+    }
+
+
+def test_something_that_is_not_a_price_never_says_price_above_forecast():
+    """월간이라고 다 물가가 아니다 — 실업률 발표에 "물가 상회"라고 적히면 안 된다."""
+    card = _inflation(4.4, forecast=(dt.date(2026, 8, 1), 4.2), code="UNRATE", name="실업률")
+    assert regime.badges([card]) == []
+
+
+def test_the_rules_do_not_know_about_each_other():
+    found = regime.badges(
+        [_card("VIX", 32.4), _inflation(3.2, forecast=(dt.date(2026, 8, 1), 3.0))],
+        _spread(-0.27),
+    )
+    assert [b["key"] for b in found] == [
+        "inverted_curve",
+        "vix_fear",
+        "inflation_above_forecast:CPIAUCSL",
+    ]
+
+
+def test_the_price_rules_read_indicators_the_home_screen_must_also_load():
+    """홈은 `WATCHED_CODES` 만 더 읽는다. 물가가 빠지면 홈에서만 이 배지가 사라진다."""
+    for code in regime.INFLATION_CODES:
+        assert code in regime.WATCHED_CODES

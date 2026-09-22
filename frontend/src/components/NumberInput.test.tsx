@@ -102,3 +102,49 @@ describe('숫자 입력칸', () => {
     expect(onChange).toHaveBeenLastCalledWith('1234567')
   })
 })
+
+describe('음수', () => {
+  it('기본으로는 빼기표를 버린다 — 금액·수량·비중에 음수가 들어갈 일이 없다', () => {
+    expect(parseNumeric('-1234', true)).toBe('1234')
+  })
+
+  it('허락하면 앞의 빼기표 하나를 남긴다', () => {
+    expect(parseNumeric('-0.2', true, true)).toBe('-0.2')
+    // 빼기표만 친 중간 상태도 살려야 계속 칠 수 있다
+    expect(parseNumeric('-', true, true)).toBe('-')
+    // 가운데 낀 것은 빼기표가 아니다
+    expect(parseNumeric('1-2', true, true)).toBe('12')
+  })
+
+  it('빼기표가 콤마 자리를 어지럽히지 않는다', () => {
+    expect(formatNumeric('-1234')).toBe('-1,234')
+    expect(formatNumeric('-')).toBe('-')
+  })
+
+  it('허락한 칸에서는 마이너스를 칠 수 있다', async () => {
+    const onChange = vi.fn()
+    const user = userEvent.setup()
+
+    function Controlled() {
+      const [value, setValue] = useState('')
+      return (
+        <NumberInput
+          value={value}
+          onChange={(next) => {
+            setValue(next)
+            onChange(next)
+          }}
+          allowNegative
+          aria-label="예상치"
+        />
+      )
+    }
+
+    render(<Controlled />)
+    await user.type(screen.getByLabelText('예상치'), '-0.2')
+
+    // 조용히 버리면 −0.2 를 넣었는데 0.2 가 저장된다 — 거절이 아니라 다른 숫자가 된다
+    expect(onChange).toHaveBeenLastCalledWith('-0.2')
+    expect(Number(onChange.mock.lastCall![0])).toBe(-0.2)
+  })
+})

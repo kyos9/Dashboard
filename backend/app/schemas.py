@@ -1,7 +1,7 @@
 import datetime as dt
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.markets import Currency, Market
 from app.models import BuyStatus, BuyType, DcaPeriod, RebalancePeriod
@@ -334,6 +334,27 @@ class MacroBadgeOut(BaseModel):
     as_of: Optional[dt.date] = None
 
 
+class MacroForecastOut(BaseModel):
+    """예상치 한 줄.
+
+    **값의 단위가 `MacroSeriesOut.value` 와 같다** — 저장된 원본 지수(320.541)가 아니라
+    화면에 뜨는 전년비(2.7)다. 예상치를 내는 쪽이 전부 전년비로만 발표하기 때문이고,
+    지수로 되돌리려면 우리가 계산을 하나 지어내야 한다 (`services/macro.py` 참고).
+    """
+
+    # 어느 달을 예측한 것인가 (그 달 1일)
+    as_of: dt.date
+    value: float
+    # manual | cleveland_fed
+    source: str
+    # 화면에 그대로 적는 출처 이름 ("직접 입력")
+    source_label: str
+    # 언제 한 예측인가. 나우캐스트는 매일 바뀌므로 이게 있어야 "언제 기준 예상"인지 안다
+    forecast_date: dt.date
+    # 실제 − 예상 (%p). 아직 안 나온 달이면 None
+    surprise: Optional[float] = None
+
+
 class MacroSeriesOut(BaseModel):
     """카드 한 장에 필요한 것 전부.
 
@@ -360,6 +381,15 @@ class MacroSeriesOut(BaseModel):
     released_at: Optional[dt.date] = None
     source: Optional[str] = None
     zone: Optional[MacroZoneOut] = None
+
+    # 이 지표에 "예상치"라는 말이 성립하는가. 매일 시장에서 나오는 값(VIX·금리)은
+    # 발표도 컨센서스도 없어서 입력란 자체를 띄우지 않는다.
+    forecastable: bool = False
+    # **방금 나온 값**의 예상치. 배지("물가 상회")가 보는 것이 이쪽이다
+    forecast: Optional[MacroForecastOut] = None
+    # 아직 안 나온 달의 예상치. 비교할 실제값이 없으니 배지도 없다 — 한 칸에 합치면
+    # 다음 달 예상치를 넣는 순간 이번 달 결과가 화면에서 사라진다
+    pending_forecast: Optional[MacroForecastOut] = None
 
     stale: bool = False
     last_checked_at: Optional[dt.datetime] = None
@@ -402,6 +432,18 @@ class MacroPinnedUpdate(BaseModel):
     (`models.PortfolioSettings.pinned_macro` 참고)."""
 
     codes: list[str]
+
+
+class MacroForecastUpdate(BaseModel):
+    """예상치 직접 입력. Investing 화면에서 본 숫자를 사람이 옮겨 적는 자리다.
+
+    범위를 두는 것은 자릿수 실수(2.7 대신 270)를 막으려는 것이다. 27 은 못 막는다 —
+    그건 화면에 그대로 보이므로 사람이 본다.
+    """
+
+    # 어느 달의 발표를 예측한 것인가. 며칠을 넣든 그 달 1일로 맞춰 저장한다
+    as_of: dt.date
+    value: float = Field(ge=-100.0, le=100.0)
 
 
 class MacroHistoryOut(BaseModel):
