@@ -24,6 +24,7 @@ from app.services.providers.base import (
     ProviderUnavailable,
     TickerNotFound,
 )
+from app.services.providers.cnn import FearGreedProvider
 from app.services.providers.fred import FredApiProvider, FredCsvProvider
 from app.services.providers.macro_base import MacroPoint, MacroProvider
 from app.services.providers.naver import NaverProvider
@@ -190,6 +191,8 @@ _MACRO_FACTORIES = {
     # 키 발급이 진입 장벽이므로 키 없이도 값은 나와야 한다.
     "fred": lambda timeout: [FredApiProvider(timeout=timeout), FredCsvProvider(timeout=timeout)],
     "yahoo": lambda timeout: [YahooMacroProvider(timeout=timeout)],
+    # 공포·탐욕 지수. 갈 곳이 여기뿐이라 한 개다 (`cnn.py` 의 설명 참고).
+    "cnn": lambda timeout: [FearGreedProvider(timeout=timeout)],
 }
 
 

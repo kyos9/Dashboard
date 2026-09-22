@@ -13,6 +13,9 @@ import type {
   SymbolMatch,
   HealthInfo,
   LogsResponse,
+  MacroHistory,
+  MacroOverview,
+  MacroRefreshResult,
   Stock,
   StockCreateInput,
   StockCreateResult,
@@ -148,6 +151,14 @@ export const api = {
   refreshFx: () => request<FxInfo>('/rebalance/fx/refresh', { method: 'POST' }),
 
   getRebalanceCurrent: () => request<RebalanceCurrent>('/rebalance/current'),
+
+  /** 지표 목록 + 최신값 + 갱신 상태, 그리고 금리차 */
+  getMacro: () => request<MacroOverview>('/macro'),
+  /** 차트용 시계열. 기본 5년 — 지금 금리가 높은지는 2020년이 화면에 있어야 보인다 */
+  getMacroHistory: (code: string, range: string = '5y') =>
+    request<MacroHistory>(`/macro/${encodeURIComponent(code)}?range=${range}`),
+  /** 사람이 누르는 갱신 — 배치와 달리 "받을 때가 됐는지"를 따지지 않는다 */
+  refreshMacro: () => request<MacroRefreshResult[]>('/macro/refresh', { method: 'POST' }),
 
   getLogs: (level: 'warning' | 'all' = 'warning') =>
     request<LogsResponse>(`/logs?level=${level}`),

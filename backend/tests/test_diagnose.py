@@ -27,6 +27,7 @@ WATCHED = {
     "fred": "app.services.providers.fred",
     "symbols": "app.services.symbols",
     "krx": "app.services.krx",
+    "cnn": "app.services.providers.cnn",
 }
 
 

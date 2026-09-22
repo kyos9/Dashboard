@@ -113,6 +113,26 @@ SEED_SERIES: list[dict] = [
         "display_order": 10,
     },
     {
+        # VIX 바로 다음에 둔다. 둘 다 "무서워하고 있나"를 보는 것이지만 **같은 것을
+        # 재지 않는다** — VIX 는 옵션 가격에서 나오는 숫자 하나이고, 이쪽은 일곱 가지
+        # (주가 모멘텀·신고가/신저가·시장 폭·풋콜 비율·정크본드 수요·변동성·안전자산
+        # 수요)를 합쳐 0~100 으로 만든 것이다. 둘이 어긋날 때가 오히려 볼 만하다.
+        "code": "FEARGREED",
+        "name": "공포·탐욕 지수",
+        "note": "0 공포 ~ 100 탐욕",
+        "source": "cnn",
+        "source_code": "fearandgreed",
+        # 폴백이 없다. 이 지수를 내는 곳이 여기뿐이다 — 이름이 같은 다른 지수
+        # (alternative.me)는 암호화폐 시장 것이라 꽂으면 값이 조용히 다른 시장의
+        # 것으로 바뀐다. `providers/cnn.py` 의 설명 참고.
+        "fallback_source": None,
+        "fallback_code": None,
+        "unit": MacroUnit.level.value,
+        "transform": MacroTransform.none.value,
+        "frequency": MacroFrequency.daily.value,
+        "display_order": 15,
+    },
+    {
         "code": "DGS10",
         "name": "미 10년물 금리",
         "note": "장기 금리의 기준",
@@ -337,7 +357,12 @@ def latest_point(db: Session, code: str) -> MacroValue | None:
     )
 
 
-def is_stale(db: Session, series: MacroSeries, today: dt.date | None = None) -> bool:
+def is_stale(
+    db: Session,
+    series: MacroSeries,
+    today: dt.date | None = None,
+    row: MacroValue | None = None,
+) -> bool:
     """들고 있는 값이 지나치게 오래됐는가. (화면·진단에서 쓴다.)
 
     **발표일을 알면 그걸로 잰다.** `as_of` 로만 재면 발표가 늦는 지표가 멀쩡한데도
@@ -345,8 +370,11 @@ def is_stale(db: Session, series: MacroSeries, today: dt.date | None = None) -> 
     고장이 아니다. 반면 "마지막으로 뭔가 발표된 지 한참"이라면 그건 진짜 이상하다.
 
     `released_at` 은 키가 있을 때만 채워지므로, 없으면 `as_of` 기준 자로 물러선다.
+
+    `row` 는 호출부가 이미 최신 행을 읽어둔 경우에 넘긴다 — 카드를 아홉 장 그리면서
+    같은 질의를 아홉 번 더 할 이유가 없다.
     """
-    row = latest_point(db, series.code)
+    row = row or latest_point(db, series.code)
     if row is None:
         return True
 
@@ -519,6 +547,15 @@ def term_spread(db: Session, long_code: str = "DGS10", short_code: str = "DGS2")
 
     **같은 날짜의 값끼리만 뺀다.** 어제 10년물과 그제 2년물을 빼면 그건 금리차가 아니다.
     """
+    point = term_spread_point(db, long_code=long_code, short_code=short_code)
+    return point[1] if point else None
+
+
+def term_spread_point(
+    db: Session, long_code: str = "DGS10", short_code: str = "DGS2"
+) -> tuple[dt.date, float] | None:
+    """금리차와 **그 값이 어느 날 것인지**. 화면은 날짜까지 보여줘야 한다 —
+    두 금리가 어제 것인데 금리차만 오늘 것처럼 보이면 그게 더 헷갈린다."""
     long_row = db.scalars(
         select(MacroValue).where(MacroValue.code == long_code).order_by(MacroValue.as_of.desc()).limit(1)
     ).first()
@@ -531,7 +568,7 @@ def term_spread(db: Session, long_code: str = "DGS10", short_code: str = "DGS2")
     ).first()
     if short_row is None:
         return None
-    return long_row.value - short_row.value
+    return long_row.as_of, long_row.value - short_row.value
 
 
 # ---------------------------------------------------------------------------
@@ -550,3 +587,150 @@ def pinned_codes(settings: PortfolioSettings | None) -> list[str]:
     if settings is None or settings.pinned_macro is None:
         return list(DEFAULT_PINNED)
     return [str(code) for code in settings.pinned_macro]
+
+
+# ---------------------------------------------------------------------------
+#  화면이 읽는 모양
+# ---------------------------------------------------------------------------
+#
+#  저장된 것은 원본 지수(CPI 320.541)이고 화면에 뜨는 것은 전년비(2.9%)다. 그 사이의
+#  계산을 여기서 한 번만 하고, 라우터와 진단이 같은 함수를 쓴다 — 두 군데서 따로
+#  계산하면 언젠가 화면과 진단이 다른 숫자를 말하게 된다.
+
+# 변환에 필요한 **과거 여유분**.
+#
+# 이게 없으면 조용히 틀린다. "1년치를 보여달라"를 그대로 1년치만 읽어 전년비로 바꾸면,
+# 모든 점이 자기 12개월 전 값을 못 찾아 **차트가 통째로 빈다.** 변환을 먼저 하고
+# 자르는 순서로 가되, 읽을 때 12개월치를 더 읽어둔다.
+TRANSFORM_LOOKBACK_DAYS = {
+    MacroTransform.yoy.value: 400,  # 12개월 + 여유 (월 초/말이 어긋나도 그 달이 들어오게)
+    MacroTransform.mom.value: 40,
+}
+
+# 변환된 값 옆에 붙는 말. 화면에서 "2.9%" 만 보면 그게 물가인지 전년비인지 알 수 없다.
+TRANSFORM_LABEL = {
+    MacroTransform.yoy.value: "전년비",
+    MacroTransform.mom.value: "전월비",
+}
+
+
+def display_unit(series: MacroSeries) -> str:
+    """변환을 거친 **뒤**의 단위.
+
+    지수를 전년비로 바꾸면 더 이상 지수가 아니라 %다. 저장된 단위를 그대로 화면에
+    쓰면 CPI 가 "320.5 지수"가 아니라 "2.9 지수"로 뜬다.
+    """
+    if series.transform in TRANSFORM_LABEL:
+        return MacroUnit.percent.value
+    return series.unit
+
+
+def display_points(
+    db: Session, series: MacroSeries, start: dt.date | None = None
+) -> list[tuple[dt.date, float]]:
+    """화면에 그대로 그릴 수 있는 점들. 변환까지 끝난 값이다."""
+    read_from = start
+    if start is not None:
+        pad = TRANSFORM_LOOKBACK_DAYS.get(series.transform)
+        if pad:
+            read_from = start - dt.timedelta(days=pad)
+
+    rows = values(db, series.code, start=read_from)
+    points = apply_transform(series.transform, [(row.as_of, row.value) for row in rows])
+
+    if start is not None:
+        # 여유분은 계산에만 쓰고 돌려주지 않는다 — 고른 기간 밖의 점이 차트에 끼면
+        # "1년을 눌렀는데 2년이 보인다"가 된다.
+        points = [point for point in points if point[0] >= start]
+    return points
+
+
+# 1년이 몇 점인가. 카드에 필요한 만큼만 읽으려고 쓴다.
+PERIODS_PER_YEAR = {
+    MacroFrequency.daily.value: 260,  # 거래일 기준
+    MacroFrequency.weekly.value: 53,
+    MacroFrequency.monthly.value: 12,
+    MacroFrequency.quarterly.value: 4,
+}
+
+
+def snapshot_limit(series: MacroSeries) -> int:
+    """카드 한 장을 그리려고 **뒤에서 몇 줄**만 읽을 것인가.
+
+    필요한 건 최신값과 직전값 두 점뿐인데, 전 구간을 읽으면 지표 아홉 개짜리 목록을
+    한 번 그릴 때마다 20년치(수만 행)가 올라온다. 화면을 열 때마다 그러므로 그냥
+    느린 게 아니라 **열수록 느려지는** 쪽이다.
+
+    전년비는 사정이 다르다 — 지금 값 하나를 만드는 데 12개월 전 값이 필요하므로
+    1년치를 읽어야 한다. 여유 4점은 중간에 한 달이 비어도 최신 점이 사라지지 않게.
+    """
+    per_year = PERIODS_PER_YEAR.get(series.frequency, PERIODS_PER_YEAR[MacroFrequency.daily.value])
+    if series.transform == MacroTransform.yoy.value:
+        return per_year + 4
+    if series.transform == MacroTransform.mom.value:
+        return max(per_year // 12, 1) + 4
+    return 2
+
+
+def recent_values(db: Session, code: str, limit: int) -> list[MacroValue]:
+    """뒤에서 `limit` 줄. 돌려줄 때는 다시 오름차순이다 (계산이 그 순서를 기대한다)."""
+    rows = db.scalars(
+        select(MacroValue)
+        .where(MacroValue.code == code)
+        .order_by(MacroValue.as_of.desc())
+        .limit(limit)
+    ).all()
+    return list(reversed(rows))
+
+
+def snapshot(db: Session, series: MacroSeries, today: dt.date | None = None) -> dict:
+    """지표 하나를 카드 한 장에 필요한 만큼으로.
+
+    `change` 는 **직전 값과의 차이**이지 변화율이 아니다. 여기 오는 값들은 이미 % 인
+    경우가 많아서(금리 4.2%, 전년비 2.9%) 다시 %로 나누면 "%의 %"가 되어 아무도 못
+    읽는다. 금리가 4.1 에서 4.2 로 갔으면 +0.1(%p)이라고 말하는 게 맞다.
+    """
+    rows = recent_values(db, series.code, snapshot_limit(series))
+    points = apply_transform(series.transform, [(row.as_of, row.value) for row in rows])
+    latest = points[-1] if points else None
+    previous = points[-2] if len(points) > 1 else None
+    raw = rows[-1] if rows else None
+
+    return {
+        "code": series.code,
+        "name": series.name,
+        "note": series.note,
+        "unit": display_unit(series),
+        "transform": series.transform,
+        "transform_label": TRANSFORM_LABEL.get(series.transform),
+        "frequency": series.frequency,
+        "as_of": latest[0] if latest else None,
+        "value": latest[1] if latest else None,
+        "previous": previous[1] if previous else None,
+        "change": (latest[1] - previous[1]) if latest and previous else None,
+        # 발표일과 출처는 **원본 행**에서 온다. 변환은 날짜를 안 바꾸므로 같은 날 것이다.
+        "released_at": raw.released_at if raw else None,
+        "source": raw.source if raw else None,
+        "stale": is_stale(db, series, today=today, row=raw),
+        "last_checked_at": series.last_checked_at,
+        "last_ok_at": series.last_ok_at,
+        "last_error": series.last_error,
+    }
+
+
+def overview(db: Session, today: dt.date | None = None) -> dict:
+    """매크로 화면 한 장.
+
+    금리차를 지표 목록과 **따로** 내려준다. 저장된 지표가 아니라 두 지표에서 계산한
+    값이라 `macro_series` 행이 없고, 목록에 섞으면 "이건 왜 갱신 상태가 없나"가 된다.
+    """
+    series_list = active_series(db)
+    spread = term_spread_point(db)
+    return {
+        "series": [snapshot(db, series, today=today) for series in series_list],
+        "term_spread": (
+            {"as_of": spread[0], "value": spread[1], "long_code": "DGS10", "short_code": "DGS2"}
+            if spread
+            else None
+        ),
+    }

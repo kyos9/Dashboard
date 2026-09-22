@@ -782,3 +782,191 @@ class _Response:
     def __init__(self, status_code: int, text: str):
         self.status_code = status_code
         self.text = text
+
+
+# ---------------------------------------------------------------------------
+#  화면이 읽는 모양
+# ---------------------------------------------------------------------------
+
+
+def _monthly(db_session, code: str, start_year: int, months: int, first: float, step: float):
+    """`start_year`-01 부터 매달 한 점씩. 값은 `first` 에서 `step` 씩 는다."""
+    year, month = start_year, 1
+    value = first
+    for _ in range(months):
+        db_session.add(MacroValue(code=code, as_of=dt.date(year, month, 1), value=value))
+        value += step
+        month += 1
+        if month > 12:
+            year, month = year + 1, 1
+    db_session.commit()
+
+
+def test_a_one_year_chart_of_yoy_is_not_empty(db_session):
+    """**12개월치를 더 읽어야 한다.**
+
+    "1년치를 달라"를 그대로 1년치만 읽어 전년비로 바꾸면 모든 점이 자기 12개월 전 값을
+    못 찾아 **차트가 통째로 빈다.** 화면에서는 "매크로 차트가 안 뜬다"로 보이고, 값은
+    멀쩡히 들어와 있으니 원인을 엉뚱한 데서 찾게 된다.
+    """
+    series = _series(code="CPIAUCSL", unit="index", transform="yoy", frequency="monthly")
+    _monthly(db_session, "CPIAUCSL", 2025, 21, first=100.0, step=1.0)  # 2025-01 ~ 2026-09
+
+    points = macro.display_points(db_session, series, start=dt.date(2026, 1, 1))
+
+    assert points, "여유분을 안 읽으면 여기가 빈다"
+    assert points[0][0] == dt.date(2026, 1, 1)
+    # 12개월 전은 100+12=112, 지금은 100+0... 2026-01 은 13번째 점(112.0), 1년 전은 100.0
+    assert points[0][1] == pytest.approx(12.0)
+
+
+def test_the_extra_year_we_read_does_not_show_up_on_the_chart(db_session):
+    """여유분은 계산에만 쓴다. 돌려주면 "1년을 눌렀는데 2년이 보인다"가 된다."""
+    series = _series(code="CPIAUCSL", unit="index", transform="yoy", frequency="monthly")
+    _monthly(db_session, "CPIAUCSL", 2025, 21, first=100.0, step=1.0)
+
+    points = macro.display_points(db_session, series, start=dt.date(2026, 1, 1))
+
+    assert all(as_of >= dt.date(2026, 1, 1) for as_of, _ in points)
+
+
+def test_a_plain_series_is_handed_over_untouched(db_session):
+    series = _series(code="DGS10", unit="percent", transform="none", frequency="daily")
+    db_session.add_all([
+        MacroValue(code="DGS10", as_of=dt.date(2026, 9, 18), value=4.05),
+        MacroValue(code="DGS10", as_of=dt.date(2026, 9, 21), value=4.11),
+    ])
+    db_session.commit()
+
+    assert macro.display_points(db_session, series) == [
+        (dt.date(2026, 9, 18), 4.05),
+        (dt.date(2026, 9, 21), 4.11),
+    ]
+
+
+def test_an_index_turned_into_yoy_is_no_longer_an_index():
+    """저장된 단위를 그대로 쓰면 CPI 가 "2.9 지수"로 뜬다 — 그건 지수가 아니라 %다."""
+    assert macro.display_unit(_series(unit="index", transform="yoy")) == "percent"
+    assert macro.display_unit(_series(unit="index", transform="mom")) == "percent"
+    assert macro.display_unit(_series(unit="index", transform="none")) == "index"
+    assert macro.display_unit(_series(unit="level", transform="none")) == "level"
+
+
+def test_the_card_shows_the_transformed_number(db_session):
+    series = _series(code="CPIAUCSL", unit="index", transform="yoy", frequency="monthly")
+    db_session.add(series)
+    _monthly(db_session, "CPIAUCSL", 2025, 14, first=100.0, step=1.0)  # 2025-01 ~ 2026-02
+
+    card = macro.snapshot(db_session, series, today=dt.date(2026, 3, 1))
+
+    assert card["as_of"] == dt.date(2026, 2, 1)
+    assert card["value"] == pytest.approx(12.0 / 101.0 * 100.0)  # 113.0 / 101.0
+    assert card["unit"] == "percent"
+    assert card["transform_label"] == "전년비"
+
+
+def test_the_change_is_a_difference_not_a_ratio(db_session):
+    """금리가 4.05 에서 4.11 로 갔으면 +0.06 이다. %로 다시 나누면 "%의 %"가 된다."""
+    series = _series(code="DGS10", unit="percent", transform="none")
+    db_session.add(series)
+    db_session.add_all([
+        MacroValue(code="DGS10", as_of=dt.date(2026, 9, 18), value=4.05),
+        MacroValue(code="DGS10", as_of=dt.date(2026, 9, 21), value=4.11),
+    ])
+    db_session.commit()
+
+    card = macro.snapshot(db_session, series, today=dt.date(2026, 9, 21))
+
+    assert card["value"] == 4.11
+    assert card["previous"] == 4.05
+    assert card["change"] == pytest.approx(0.06)
+
+
+def test_an_indicator_with_nothing_in_it_says_so_instead_of_showing_a_zero(db_session):
+    """값이 없을 때 0 을 내면 금리가 0% 인 것처럼 보인다. 없는 것은 없다고 해야 한다."""
+    series = _series(code="DGS2", last_error="FRED 가 막혔습니다")
+    db_session.add(series)
+    db_session.commit()
+
+    card = macro.snapshot(db_session, series, today=dt.date(2026, 9, 21))
+
+    assert card["value"] is None
+    assert card["change"] is None
+    assert card["stale"] is True
+    assert card["last_error"] == "FRED 가 막혔습니다"
+
+
+def test_the_spread_is_not_in_the_list_of_indicators(db_session):
+    """금리차는 받아온 지표가 아니라 계산한 값이다. 목록에 섞으면 "왜 갱신 상태가
+    없나"가 되고, 사용자는 고장으로 읽는다."""
+    for code, value in (("DGS10", 4.11), ("DGS2", 4.36)):
+        db_session.add(_series(code=code, name=code))
+        db_session.add(MacroValue(code=code, as_of=dt.date(2026, 9, 21), value=value))
+    db_session.commit()
+
+    view = macro.overview(db_session, today=dt.date(2026, 9, 21))
+
+    assert [card["code"] for card in view["series"]] == ["DGS10", "DGS2"]
+    assert view["term_spread"]["value"] == pytest.approx(-0.25)
+    assert view["term_spread"]["as_of"] == dt.date(2026, 9, 21)
+
+
+def test_no_spread_when_the_two_rates_are_not_from_the_same_day(db_session):
+    db_session.add(_series(code="DGS10"))
+    db_session.add(MacroValue(code="DGS10", as_of=dt.date(2026, 9, 21), value=4.11))
+    db_session.commit()
+
+    assert macro.overview(db_session)["term_spread"] is None
+
+
+# ---------------------------------------------------------------------------
+#  공포·탐욕 지수
+# ---------------------------------------------------------------------------
+
+
+def test_fear_and_greed_has_nowhere_to_fall_back_to():
+    """이름이 같은 다른 지수(alternative.me)는 **암호화폐 시장** 것이다. 폴백으로
+    꽂으면 값이 조용히 다른 시장의 것으로 바뀐다 — 야후 `^TNX` 와 같은 함정이다."""
+    spec = next(s for s in macro.SEED_SERIES if s["code"] == "FEARGREED")
+    assert spec["fallback_source"] is None
+    assert spec["fallback_code"] is None
+    assert spec["source"] == "cnn"
+
+
+def test_nothing_else_falls_back_to_the_fear_and_greed_provider():
+    """CNN 제공자는 자기 코드에만 답하므로 폴백으로 적어봐야 조용히 건너뛴다.
+    그러면 폴백이 있는 줄 알았는데 없는 셈이 된다."""
+    assert [s["code"] for s in macro.SEED_SERIES if s.get("fallback_source") == "cnn"] == []
+
+
+def test_fear_and_greed_is_a_plain_zero_to_hundred_number():
+    """전년비로 바꾸면 안 된다 — 지수 레벨이 아니라 이미 완성된 0~100 점수다."""
+    spec = next(s for s in macro.SEED_SERIES if s["code"] == "FEARGREED")
+    assert spec["unit"] == "level"
+    assert spec["transform"] == "none"
+
+
+def test_the_card_does_not_read_twenty_years_to_show_two_numbers():
+    """카드에 필요한 건 최신값과 직전값 둘뿐이다. 전 구간을 읽으면 지표 아홉 개짜리
+    목록을 한 번 그릴 때마다 수만 행이 올라오고, 그건 화면을 열 때마다 반복된다."""
+    assert macro.snapshot_limit(_series(transform="none", frequency="daily")) == 2
+    assert macro.snapshot_limit(_series(transform="none", frequency="monthly")) == 2
+
+    # 전년비만 예외다 — 지금 값 하나를 만드는 데 12개월 전 값이 있어야 한다
+    assert macro.snapshot_limit(_series(transform="yoy", frequency="monthly")) == 16
+    assert macro.snapshot_limit(_series(transform="yoy", frequency="daily")) > 250
+
+
+def test_a_twenty_year_indicator_still_shows_the_right_yoy(db_session):
+    """적게 읽는다고 값이 달라지면 안 된다. 20년치를 넣고 **끝의 두 점**을 확인한다."""
+    series = _series(code="CPIAUCSL", unit="index", transform="yoy", frequency="monthly")
+    db_session.add(series)
+    _monthly(db_session, "CPIAUCSL", 2006, 12 * 20 + 8, first=100.0, step=1.0)
+
+    card = macro.snapshot(db_session, series, today=dt.date(2026, 9, 21))
+
+    # 2006-01 부터 248개월 -> 마지막은 2026-08. 12개월 전은 2025-08.
+    assert card["as_of"] == dt.date(2026, 8, 1)
+    latest, base = 100.0 + 247, 100.0 + 235
+    assert card["value"] == pytest.approx((latest / base - 1) * 100)
+    assert card["change"] is not None, "직전 전년비까지 나와야 변화폭을 말할 수 있다"

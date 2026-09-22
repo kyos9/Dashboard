@@ -102,31 +102,4 @@ def api(monkeypatch):
     with TestClient(main_module.app) as client:
         yield client, TestingSessionLocal
     main_module.app.dependency_overrides.clear()
-
-
-@pytest.fixture()
-def api(monkeypatch):
-    monkeypatch.setenv("SIGNAL_DASHBOARD_DISABLE_SCHEDULER", "1")
-    # 리프레시(yfinance) 호출은 네트워크가 필요하므로 종목 생성 시 자동 백필은 막아둔다.
-    monkeypatch.setattr(
-        "app.routers.stocks.refresh_and_evaluate_stock", lambda db, stock, full_backfill=False: {}
-    )
-
-    # 메모리 SQLite는 연결마다 DB가 따로 생기므로 StaticPool로 하나를 붙들어야 한다
-    # (Postgres로 돌 때는 서버가 하나라 해당 없다).
-    engine = dbsetup.make_engine(poolclass=StaticPool)
-    Base.metadata.create_all(bind=engine)
-    TestingSessionLocal = sessionmaker(bind=engine)
-
-    def override_get_db():
-        db = TestingSessionLocal()
-        try:
-            yield db
-        finally:
-            db.close()
-
-    main_module.app.dependency_overrides[get_db] = override_get_db
-    with TestClient(main_module.app) as client:
-        yield client, TestingSessionLocal
-    main_module.app.dependency_overrides.clear()
     dbsetup.dispose(engine)

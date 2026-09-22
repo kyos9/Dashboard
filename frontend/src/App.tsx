@@ -4,6 +4,7 @@ import { AppHeader } from './components/AppHeader'
 import { AuthGate } from './components/AuthGate'
 import { Dashboard } from './pages/Dashboard'
 import { HistoryChart } from './pages/HistoryChart'
+import { MacroPanel } from './pages/MacroPanel'
 import { RebalancePanel } from './pages/RebalancePanel'
 import { StockManager } from './pages/StockManager'
 
@@ -17,6 +18,7 @@ function App() {
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/history" element={<HistoryChart />} />
+              <Route path="/macro" element={<MacroPanel />} />
               <Route path="/rebalance" element={<RebalancePanel />} />
               <Route path="/stocks" element={<StockManager />} />
             </Routes>

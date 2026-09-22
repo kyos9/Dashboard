@@ -279,3 +279,69 @@ export interface LogsResponse {
   entries: LogEntry[]
   counts: Record<string, number>
 }
+
+/* ---------- 매크로 지표 ---------- */
+
+/** 차트에 찍을 점 하나. 변환까지 끝난 값이다 (CPI라면 지수가 아니라 전년비) */
+export interface MacroPoint {
+  as_of: string
+  value: number
+}
+
+/** 카드 한 장에 필요한 것 전부 */
+export interface MacroSeriesInfo {
+  code: string
+  name: string
+  note: string | null
+  /** 변환을 거친 뒤의 단위 (percent | index | level) */
+  unit: string
+  transform: string
+  /** "전년비" 같은 꼬리표. 없으면 원본 그대로라는 뜻 */
+  transform_label: string | null
+  frequency: string
+  as_of: string | null
+  value: number | null
+  previous: number | null
+  /** 직전 값과의 **차이** — 변화율이 아니다 (원래 값이 이미 %인 경우가 많다) */
+  change: number | null
+  released_at: string | null
+  source: string | null
+  stale: boolean
+  last_checked_at: string | null
+  last_ok_at: string | null
+  last_error: string | null
+}
+
+/** 장단기 금리차 — 받아온 지표가 아니라 두 금리에서 계산한 값 */
+export interface TermSpread {
+  as_of: string
+  value: number
+  long_code: string
+  short_code: string
+}
+
+export interface MacroOverview {
+  series: MacroSeriesInfo[]
+  term_spread: TermSpread | null
+}
+
+export interface MacroHistory {
+  code: string
+  name: string
+  unit: string
+  transform: string
+  transform_label: string | null
+  points: MacroPoint[]
+}
+
+export interface MacroRefreshResult {
+  code: string
+  ok: boolean
+  provider: string | null
+  as_of: string | null
+  inserted: number | null
+  revised: number | null
+  error: string | null
+  hint: string | null
+  skipped: string | null
+}

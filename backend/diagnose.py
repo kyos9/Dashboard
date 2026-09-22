@@ -394,4 +394,34 @@ if app_modules:
         info("→ 앱을 한 번 띄우면 표가 만들어지고 목록이 채워집니다.")
 
 
+# ── 10. 공포·탐욕 지수 ───────────────────────────────────────────────
+# FRED 와 **또 다른 서버**(CNN)라 따로 막힌다. 게다가 문서 없는 주소라 어느 날 모양이
+# 바뀔 수 있고, 그때 화면에는 "받지 못했습니다" 한 줄만 뜬다. 여기서 원인을 가른다.
+if app_modules:
+    section("10. 공포·탐욕 지수 (CNN)")
+
+    from app.services.providers import cnn
+
+    spec = next((s for s in macro.SEED_SERIES if s["code"] == "FEARGREED"), None)
+    if spec is None:
+        fail("지표 목록에 FEARGREED 가 없습니다 — 코드가 오래된 버전입니다")
+    else:
+        try:
+            began = time.monotonic()
+            points = cnn.FearGreedProvider(timeout=providers._macro_timeout()).fetch(
+                spec["source_code"], start=dt.date.today() - dt.timedelta(days=60)
+            )
+            took = time.monotonic() - began
+            last = points[-1]
+            ok(f"{len(points):,}행 ({took:.1f}초) — 가장 최근 {last.as_of} {last.value:g}점")
+            info("  (0 극단적 공포 ~ 100 극단적 탐욕)")
+        except Exception as exc:
+            fail(brief(exc, 400))
+            info("→ **이것 하나만 안 되는 것은 큰 문제가 아닙니다.** 나머지 지표는 FRED 에서")
+            info("  따로 받아오므로 그대로 들어옵니다.")
+            info("  공식 API 가 아니라 CNN 지수 화면이 쓰는 주소를 그대로 부르는 것이라,")
+            info("  저쪽이 모양을 바꾸거나 막으면 여기만 조용히 멈춥니다. 그때는 이 지표를")
+            info("  꺼두고(macro_series.active) 나머지를 쓰면 됩니다.")
+
+
 print(f"\n{LINE}\n진단 완료 — 위 출력 전체를 복사해서 공유해주세요.\n{LINE}")

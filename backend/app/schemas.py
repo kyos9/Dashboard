@@ -297,3 +297,80 @@ class LogsOut(BaseModel):
     level: str  # 걸러낸 기준 (warning | all)
     entries: list[LogEntry]  # 최신이 앞
     counts: dict[str, int]  # 읽어들인 구간의 레벨별 건수
+
+
+# --- 매크로 지표 -----------------------------------------------------------
+
+
+class MacroPointOut(BaseModel):
+    """차트에 찍을 점 하나. **변환까지 끝난 값**이다 (CPI 라면 지수가 아니라 전년비)."""
+
+    as_of: dt.date
+    value: float
+
+
+class MacroSeriesOut(BaseModel):
+    """카드 한 장에 필요한 것 전부.
+
+    "값이 왜 없는지"를 화면이 말할 수 있어야 해서 상태 세 칸(`last_*`)이 같이 간다.
+    받아본 적이 없는 것과, 받아봤는데 막힌 것과, 받았는데 새 발표가 없는 것은 사용자가
+    할 일이 각각 다르다.
+    """
+
+    code: str
+    name: str
+    note: Optional[str] = None
+    # 변환을 거친 **뒤**의 단위 (percent | index | level)
+    unit: str
+    transform: str
+    # "전년비" 같은 꼬리표. 없으면 원본 그대로라는 뜻
+    transform_label: Optional[str] = None
+    frequency: str
+
+    as_of: Optional[dt.date] = None
+    value: Optional[float] = None
+    previous: Optional[float] = None
+    # 직전 값과의 **차이**다 (변화율이 아니다 — 원래 값이 이미 %인 경우가 많다)
+    change: Optional[float] = None
+    released_at: Optional[dt.date] = None
+    source: Optional[str] = None
+
+    stale: bool = False
+    last_checked_at: Optional[dt.datetime] = None
+    last_ok_at: Optional[dt.datetime] = None
+    last_error: Optional[str] = None
+
+
+class TermSpreadOut(BaseModel):
+    """장단기 금리차. 받아온 지표가 아니라 두 금리에서 계산한 값이다."""
+
+    as_of: dt.date
+    value: float
+    long_code: str
+    short_code: str
+
+
+class MacroOverviewOut(BaseModel):
+    series: list[MacroSeriesOut]
+    term_spread: Optional[TermSpreadOut] = None
+
+
+class MacroHistoryOut(BaseModel):
+    code: str
+    name: str
+    unit: str
+    transform: str
+    transform_label: Optional[str] = None
+    points: list[MacroPointOut]
+
+
+class MacroRefreshResult(BaseModel):
+    code: str
+    ok: bool
+    provider: Optional[str] = None
+    as_of: Optional[str] = None
+    inserted: Optional[int] = None
+    revised: Optional[int] = None
+    error: Optional[str] = None
+    hint: Optional[str] = None
+    skipped: Optional[str] = None
