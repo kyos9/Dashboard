@@ -141,13 +141,17 @@ def test_search_falls_back_to_yahoo_when_nothing_local(monkeypatch, db_session):
 
 
 def test_ticker_shaped_input_is_treated_as_a_ticker(db_session):
-    """공백 없는 영문 한 단어는 티커로 본다 — 야후 검색을 기다리지 않기 위해서다.
+    """공백 없는 영문 한 단어는 티커로도 본다 — 야후 검색을 기다리지 않기 위해서다.
 
-    덕분에 "VOO"는 네트워크 없이 즉시 해석되지만, "apple"처럼 티커 모양인 회사명은
-    그 자체가 티커로 잡힌다 (해외 종목은 티커로 입력하는 것을 전제로 한다).
+    **다만 그 추측이 이름을 이기지는 않는다.** 예전에는 이 규칙 때문에 "apple"이
+    `APPLE` 이라는 없는 종목으로 해석됐다. 영문 열 자 이하는 전부 티커 모양이라,
+    회사 이름을 친 사람이 시세가 붙지 않는 빈 종목을 등록하게 됐다.
     """
     assert symbols.resolve("VOO", db=db_session, allow_network=False).ticker == "VOO"
-    assert symbols.resolve("apple", db=db_session, allow_network=False).ticker == "APPLE"
+    # 이름을 아는 종목이 있으면 그쪽이 이긴다
+    assert symbols.resolve("apple", db=db_session, allow_network=False).ticker == "AAPL"
+    # 아무 데도 없는 티커 모양은 여전히 티커로 — 그래야 목록에 없는 종목을 넣을 수 있다
+    assert symbols.resolve("ZZZZ", db=db_session, allow_network=False).ticker == "ZZZZ"
 
 
 def test_local_hit_does_not_touch_network(monkeypatch, db_session):

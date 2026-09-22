@@ -20,7 +20,13 @@ from app.markets import (
     parse_krx_ticker,
     parse_tse_ticker,
 )
-from app.services.symbols import JP_SEED_PATH, SEED_PATH
+from app.services.symbols import (
+    JP_SEED_PATH,
+    SEED_PATH,
+    US_SEED_PATH,
+    US_TICKER_RE,
+    _has_hangul,
+)
 
 
 @pytest.mark.parametrize(
@@ -143,6 +149,48 @@ def test_japanese_seed_entries_are_well_formed():
         aliases = entry.get("aliases", [])
         assert isinstance(aliases, list)
         assert all(isinstance(a, str) and a.strip() for a in aliases), f"별칭이 이상하다: {entry}"
+
+
+def test_us_seed_entries_are_well_formed():
+    """미국 목록도 손으로 적은 데이터다 — 형식만이라도 자동으로 지킨다.
+
+    이름이 낡는 것은 나중에 상장목록이 덮어주지만, **티커가 틀리면 엉뚱한 회사**의
+    시세를 받아온다. 그건 사람이 대조할 수밖에 없고(`check_us_seed.py`),
+    여기서는 형식과 중복만 막는다.
+    """
+    entries = json.loads(US_SEED_PATH.read_text(encoding="utf-8"))
+    assert len(entries) > 50
+
+    codes = set()
+    names = set()
+    for entry in entries:
+        code = entry["code"]
+        # 미국 티커: 영문으로 시작하고, 클래스 구분에 하이픈이 붙는다 (`BRK-B`)
+        assert US_TICKER_RE.match(code), f"잘못된 티커: {entry}"
+        assert code == code.upper(), f"티커는 대문자로 적는다: {entry}"
+        assert code not in codes, f"티커 중복: {code}"
+        codes.add(code)
+
+        name = entry["name"].strip()
+        assert name, f"이름이 비었다: {entry}"
+        assert name not in names, f"이름 중복: {name}"
+        names.add(name)
+
+        assert entry.get("instrument", "STOCK") in {"STOCK", "ETF"}, f"알 수 없는 종류: {entry}"
+
+        aliases = entry.get("aliases", [])
+        assert isinstance(aliases, list)
+        assert all(isinstance(a, str) and a.strip() for a in aliases), f"별칭이 이상하다: {entry}"
+
+
+def test_us_seed_covers_etfs_with_korean_aliases():
+    """ETF를 한글 통칭으로 못 찾으면 목록을 넣은 이유가 없다."""
+    entries = json.loads(US_SEED_PATH.read_text(encoding="utf-8"))
+    etfs = [e for e in entries if e.get("instrument") == "ETF"]
+    assert len(etfs) >= 30, "ETF가 너무 적다"
+    assert all(
+        any(_has_hangul(alias) for alias in entry.get("aliases", [])) for entry in etfs
+    ), "한글 별칭이 없는 ETF가 있다"
 
 
 def test_japanese_seed_does_not_collide_with_korean_codes():

@@ -279,3 +279,91 @@ def test_a_tokyo_ticker_not_in_the_seed_still_registers():
 def test_korean_stocks_are_not_displaced_by_the_japanese_seed():
     matches = symbols.search("삼성전자", allow_network=False)
     assert matches[0].ticker == "005930.KS"
+
+
+# ── 미국 종목·ETF ────────────────────────────────────────────────────
+# 야후는 미국 종목 이름을 영문으로만 준다. 한글로 찾으려면 내장 별칭이 있어야 한다.
+
+
+def test_an_american_stock_can_be_found_by_its_korean_name():
+    matches = symbols.search("애플", allow_network=False)
+    assert matches[0].ticker == "AAPL"
+    assert matches[0].market is Market.US
+
+
+def test_an_american_stock_can_be_found_by_its_english_name():
+    """`apple`은 미국 티커 규칙에도 걸린다 — 이름 쪽이 이겨야 한다."""
+    matches = symbols.search("apple", allow_network=False)
+    assert matches[0].ticker == "AAPL"
+
+
+def test_an_etf_can_be_found_by_the_name_people_actually_say():
+    assert symbols.search("나스닥100", allow_network=False)[0].ticker == "QQQ"
+    assert symbols.search("미국채20년", allow_network=False)[0].ticker == "TLT"
+    assert symbols.search("반도체", allow_network=False)[0].instrument == "ETF"
+
+
+def test_a_ticker_with_a_class_suffix_still_matches():
+    """`BRK-B`는 하이픈이 들어가서 코드 비교를 눌러서 해야 맞는다."""
+    assert symbols.search("brk-b", allow_network=False)[0].ticker == "BRK-B"
+    assert symbols.search("버크셔", allow_network=False)[0].ticker == "BRK-B"
+
+
+def test_a_name_shaped_like_a_ticker_does_not_become_a_fake_stock():
+    """`apple`을 치면 `APPLE`이라는 없는 종목이 후보에 남아 있었다.
+
+    이름을 아는 후보가 있는데도 추측을 같이 보여주면, 사용자가 그쪽을 고를 수 있고
+    그러면 시세가 붙지 않는 빈 종목이 등록된다.
+    """
+    tickers = [m.ticker for m in symbols.search("apple", allow_network=False)]
+    assert "APPLE" not in tickers
+
+
+def test_an_unknown_ticker_is_still_offered_so_it_can_be_registered():
+    """내장 목록은 주요 종목뿐이다 — 없는 티커도 직접 넣을 수 있어야 한다."""
+    matches = symbols.search("ZZZZ", allow_network=False)
+    assert [m.ticker for m in matches] == ["ZZZZ"]
+
+
+def test_a_bare_ticker_guess_does_not_block_the_name_search(monkeypatch):
+    """추측 하나가 있다고 네트워크를 건너뛰면, 내장 목록에 없는 회사는 영영 못 찾는다."""
+    called = []
+
+    def fake_yahoo(query, limit, timeout=10):
+        called.append(query)
+        return [
+            symbols.SymbolMatch(
+                ticker="ZZZZ", name="Zzzz Corporation", market=Market.US,
+                source="yahoo", score=symbols.SCORE_NAME_PREFIX,
+            )
+        ]
+
+    monkeypatch.setattr(symbols, "_search_yahoo", fake_yahoo)
+    matches = symbols.search("ZZZZ", allow_network=True)
+
+    assert called == ["zzzz"]
+    assert matches[0].name == "Zzzz Corporation"  # 이름까지 채워진다
+
+
+def test_a_known_name_does_not_call_the_network(monkeypatch):
+    """평소 검색은 전부 오프라인으로 끝나야 한다 — 사람이 늘어도 호출이 늘지 않게."""
+    monkeypatch.setattr(
+        symbols, "_search_yahoo",
+        lambda *a, **k: pytest.fail("내장 목록에 있는데 네트워크를 썼다"),
+    )
+    assert symbols.search("테슬라", allow_network=True)[0].ticker == "TSLA"
+
+
+def test_korean_and_japanese_stocks_are_not_displaced_by_the_us_seed():
+    assert symbols.search("삼성전자", allow_network=False)[0].ticker == "005930.KS"
+    assert symbols.search("도요타", allow_network=False)[0].ticker == "7203.T"
+
+
+def test_a_one_letter_query_does_not_go_out_to_the_network(monkeypatch):
+    """`AAPL`을 치는 동안 `a` · `aa` 까지 야후로 나가면, 검색 한 번이 요청 여러 번이 된다."""
+    monkeypatch.setattr(
+        symbols, "_search_yahoo",
+        lambda *a, **k: pytest.fail("두 글자 이하인데 네트워크를 썼다"),
+    )
+    symbols.search("a", allow_network=True)
+    symbols.search("zq", allow_network=True)

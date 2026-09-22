@@ -8,7 +8,8 @@
 
 해석 순서 (앞에서 찾으면 뒤는 보지 않는다):
   1. 이미 티커 형태인가 — `VOO`, `005930.KS`, `^GSPC`
-  2. 번들 시드 (`app/data/krx_seed.json`) — 네트워크가 막혀도 주요 종목은 찾을 수 있다
+  2. 번들 시드 (`krx_seed.json` · `jp_seed.json` · `us_seed.json`) — 네트워크가 막혀도
+     주요 종목은 찾을 수 있고, 미국 종목은 한글 이름으로도 찾을 수 있다
   3. DB에 캐시된 KRX 상장목록
   4. KRX 상장목록 온라인 조회 (받아오면 DB에 캐시)
   5. 야후 검색 API — 해외 종목과 국내 ETF까지 폭넓게 커버
@@ -42,6 +43,7 @@ logger = logging.getLogger(__name__)
 
 SEED_PATH = Path(__file__).resolve().parent.parent / "data" / "krx_seed.json"
 JP_SEED_PATH = Path(__file__).resolve().parent.parent / "data" / "jp_seed.json"
+US_SEED_PATH = Path(__file__).resolve().parent.parent / "data" / "us_seed.json"
 
 # 내장 목록을 손으로 정리한 시점. 이후의 신규 상장·사명 변경은 들어 있지 않으므로
 # 화면에 그대로 보여준다 — 목록이 언제 기준인지 모르면 "검색이 안 된다"의 원인을
@@ -52,6 +54,14 @@ SEED_AS_OF = "2026-09"
 # 목록이고, 그래서 갱신되지 않는다. 여기 없는 종목은 티커(`7203.T`)로 등록하면 되고,
 # 이름이 마음에 안 들면 종목 관리 화면에서 그 자리에서 고칠 수 있다.
 JP_SEED_AS_OF = "2026-09"
+
+# 미국 내장 목록의 기준 시점. 야후는 미국 종목 이름을 영문으로만 주므로 "애플"로는 아무것도
+# 찾을 수 없다. 자주 보는 종목과 ETF에 **한글 별칭**을 붙여 손으로 적어둔 목록이고,
+# 그래서 갱신되지 않는다. 여기 없는 종목은 티커(`AAPL`)나 영문 이름으로 등록하면 된다.
+#
+# 이름은 상장목록의 공식 표기를 따라 적었다. 사명이 바뀌면 낡을 수 있는데, 나중에 미국
+# 상장목록을 받아오면 한국거래소 목록이 KRX 시드를 덮듯 이 이름도 덮이고 별칭만 남는다.
+US_SEED_AS_OF = "2026-09"
 
 # 미국식 티커 모양 (VOO, BRK-B, ^GSPC). 한글이 섞이면 당연히 해당 없음.
 US_TICKER_RE = re.compile(r"^\^?[A-Za-z][A-Za-z0-9.\-]{0,9}$")
@@ -137,6 +147,17 @@ def load_jp_seed() -> list[dict]:
         return []
 
 
+@lru_cache(maxsize=1)
+def load_us_seed() -> list[dict]:
+    """번들된 미국 주요 종목·ETF 목록 (영문 이름 + 한글 별칭)."""
+    try:
+        with US_SEED_PATH.open(encoding="utf-8") as fp:
+            return json.load(fp)
+    except Exception:
+        logger.exception("미국 시드 파일을 읽지 못했습니다: %s", US_SEED_PATH)
+        return []
+
+
 def jp_seed_name(code: str) -> str | None:
     """도쿄 종목코드에 붙은 한글 이름. 목록에 없으면 None."""
     for entry in load_jp_seed():
@@ -146,6 +167,18 @@ def jp_seed_name(code: str) -> str | None:
 
 
 def _entry_to_match(entry: dict, source: str, score: float) -> SymbolMatch:
+    if entry.get("market") == Market.US.value:
+        # 미국은 종목코드가 곧 티커다 (`AAPL`). 한국처럼 시장 접미사를 붙이지 않는다.
+        return SymbolMatch(
+            ticker=normalize_ticker(entry["code"]),
+            name=entry["name"],
+            market=Market.US,
+            instrument=entry.get("instrument") or "STOCK",
+            source=source,
+            confident=True,
+            score=score,
+        )
+
     if entry.get("market") == Market.JP.value:
         return SymbolMatch(
             ticker=f"{entry['code']}.T",
@@ -172,7 +205,9 @@ def _entry_to_match(entry: dict, source: str, score: float) -> SymbolMatch:
 
 def _score_entry(entry: dict, query: str, query_tight: str) -> float:
     """검색어가 이 종목과 얼마나 맞는지. 0이면 후보 아님."""
-    if entry["code"] == query_tight:
+    # 미국 코드는 티커라서 대소문자와 하이픈이 섞인다 (`BRK-B`). 양쪽 다 눌러서 비교한다 —
+    # 한국 코드는 숫자뿐이라 눌러도 그대로다.
+    if _tight(entry["code"]) == query_tight:
         return SCORE_CODE_EXACT
 
     name_tight = _tight(entry["name"])
@@ -237,6 +272,9 @@ def _local_entries(db: Session | None) -> list[dict]:
     # (위 걸러내기는 한국 종목끼리의 문제이므로 여기 적용하지 않는다.)
     entries.extend(
         {**entry, "market": Market.JP.value, "source": "seed-jp"} for entry in load_jp_seed()
+    )
+    entries.extend(
+        {**entry, "market": Market.US.value, "source": "seed-us"} for entry in load_us_seed()
     )
     return entries
 
@@ -323,6 +361,9 @@ def _bare_code_candidates(code: str) -> list[SymbolMatch]:
         for index, board in enumerate((Board.KOSPI, Board.KOSDAQ))
     ]
 
+
+# 이보다 짧은 검색어로는 바깥에 묻지 않는다 (한 글자를 칠 때마다 요청이 나가지 않게).
+MIN_NETWORK_QUERY_LEN = 3
 
 # 상장목록은 자주 바뀌지 않는다 (신규 상장·사명 변경 정도). 이보다 오래되면 다시 받는다.
 LISTING_STALE_AFTER = dt.timedelta(days=7)
@@ -429,6 +470,19 @@ def _search_yahoo(query: str, limit: int, timeout: int = 10) -> list[SymbolMatch
     return out
 
 
+def _is_bare_ticker_guess(match: SymbolMatch) -> bool:
+    """"티커 모양이라 티커로 봤다"일 뿐, 실재하는지도 이름도 모르는 후보인가.
+
+    `apple` 은 미국 티커 규칙(영문 10자 이하)에 걸려서 `APPLE` 이라는 후보가 된다. 이걸
+    찾은 것으로 치면 두 가지가 한꺼번에 망가진다 — 화면에 없는 종목이 뜨고, 이름 검색을
+    할 필요가 없다고 판단해 **네트워크까지 가지 않는다**. 실제로 `apple` 은 야후를 한 번도
+    부르지 않았고 사용자는 시세가 붙지 않는 `APPLE` 을 등록할 수 있었다.
+
+    이름을 아는 후보(시드·거래소 목록·야후)는 `name` 이 티커와 다르므로 여기 걸리지 않는다.
+    """
+    return match.source == "ticker" and match.name == match.ticker
+
+
 def _dedupe(matches: list[SymbolMatch]) -> list[SymbolMatch]:
     """같은 티커는 점수가 높은 것만 남긴다 (순서는 유지)."""
     best: dict[str, SymbolMatch] = {}
@@ -458,8 +512,22 @@ def search(
 
     matches.extend(_search_local(db, normalized, limit))
 
-    # 로컬에서 못 찾았을 때만 네트워크를 쓴다 (평소 검색은 전부 오프라인으로 끝난다)
-    if allow_network and not matches:
+    # 이름을 아는 후보가 하나라도 있으면 이름 모르는 추측은 버린다. 남겨두면 `apple` 을
+    # 쳤을 때 목록에 `AAPL` 과 `APPLE` 이 나란히 서고, 잘못 고르면 빈 종목이 등록된다.
+    if any(not _is_bare_ticker_guess(match) for match in matches):
+        matches = [match for match in matches if not _is_bare_ticker_guess(match)]
+
+    # 로컬에서 못 찾았을 때만 네트워크를 쓴다 (평소 검색은 전부 오프라인으로 끝난다).
+    # 이름 모르는 추측뿐인 것도 "못 찾았다"로 본다 — 그래야 `apple` 이 야후까지 간다.
+    def unresolved() -> bool:
+        return all(_is_bare_ticker_guess(match) for match in matches)
+
+    # 너무 짧은 입력은 바깥에 묻지 않는다. 티커 모양이면 한 글자도 추측이 되므로,
+    # 안 막으면 `AAPL` 을 치는 동안 `a` · `aa` · `aap` 까지 전부 야후로 나간다.
+    # 한두 글자짜리 진짜 티커(`V`, `T`)는 내장 목록에 있어서 여기까지 오지 않는다.
+    long_enough = len(normalized) >= MIN_NETWORK_QUERY_LEN
+
+    if allow_network and long_enough and unresolved():
         if db is not None and (KRX_CODE_RE.match(normalized) or _has_hangul(normalized)):
             try:
                 count = refresh_krx_listing(db)
@@ -468,7 +536,7 @@ def search(
             except Exception as exc:
                 logger.info("KRX 목록 갱신 실패: %s", exc)
 
-        if not matches:
+        if unresolved():
             matches.extend(_search_yahoo(normalized, limit))
 
     # 아무 데서도 못 찾은 6자리 코드는 시장을 모르니 양쪽 다 후보로 제시한다
