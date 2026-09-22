@@ -47,17 +47,27 @@ export function parseNumeric(input: string, allowDecimal: boolean, allowNegative
   return cleaned.slice(0, first + 1) + cleaned.slice(first + 1).replace(/\./g, '')
 }
 
-/** 커서 앞에 숫자가 몇 개 있는지 — 콤마가 끼어들어도 커서 자리를 지키기 위한 기준 */
+/**
+ * 커서 앞에 "사람이 친 글자"가 몇 개 있는지 — 콤마가 끼어들어도 커서 자리를 지키기 위한 기준.
+ *
+ * **빼기표도 하나로 센다.** 안 세면 "-" 를 친 직후 아래 `caretAfterDigits` 가 0을 돌려주고
+ * 커서가 빼기표 **앞**으로 간다. 그러면 다음 글자가 "-" 앞에 들어가 "0-" 이 되는데, 그건
+ * 음수로 안 읽혀 빼기표가 조용히 사라진다 — −0.2 를 쳤는데 0.2 가 저장되는, 이 파일이
+ * 막으려던 바로 그 실패다. (커서 복원은 다음 그림 때 도는데, 사람이 치는 속도에서는
+ * 글자 사이에 그림이 항상 한 번 들어간다.)
+ */
+const KEPT = /[\d.-]/
+
 function digitsBefore(text: string, caret: number): number {
-  return (text.slice(0, caret).match(/[\d.]/g) ?? []).length
+  return (text.slice(0, caret).match(/[\d.-]/g) ?? []).length
 }
 
-/** 숫자 n개를 지난 지점의 인덱스 */
+/** 그 글자 n개를 지난 지점의 인덱스 */
 function caretAfterDigits(text: string, n: number): number {
   if (n === 0) return 0
   let seen = 0
   for (let i = 0; i < text.length; i++) {
-    if (/[\d.]/.test(text[i])) {
+    if (KEPT.test(text[i])) {
       seen += 1
       if (seen === n) return i + 1
     }

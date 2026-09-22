@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import { useState } from 'react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
@@ -146,5 +146,25 @@ describe('음수', () => {
     // 조용히 버리면 −0.2 를 넣었는데 0.2 가 저장된다 — 거절이 아니라 다른 숫자가 된다
     expect(onChange).toHaveBeenLastCalledWith('-0.2')
     expect(Number(onChange.mock.lastCall![0])).toBe(-0.2)
+  })
+
+  it('빼기표를 친 뒤 커서가 그 앞으로 밀리지 않는다', async () => {
+    const user = userEvent.setup()
+
+    function Controlled() {
+      const [value, setValue] = useState('')
+      return <NumberInput value={value} onChange={setValue} allowNegative aria-label="예상치" />
+    }
+
+    render(<Controlled />)
+    const input = screen.getByLabelText('예상치') as HTMLInputElement
+
+    await user.type(input, '-')
+    // 커서 복원은 다음 그림 때 돈다. 사람이 치는 속도에서는 글자 사이에 항상 한 번 들어간다.
+    await act(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())))
+
+    // 0이면 커서가 빼기표 **앞**이라는 뜻이고, 그러면 다음 글자가 "0-" 을 만든다.
+    // 그건 음수로 안 읽혀 빼기표가 조용히 사라진다 (브라우저에서 −0.2 -> 0.2).
+    expect(input.selectionStart).toBe(1)
   })
 })
