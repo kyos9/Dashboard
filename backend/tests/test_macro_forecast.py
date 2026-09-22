@@ -309,8 +309,12 @@ def test_months_already_behind_us_are_left_in_the_database(api):
             event.remove(db.get_bind(), "after_cursor_execute", capture)
 
         assert len(bound) == 1
-        values = {str(value) for value in bound[0]}
-        assert AUG.isoformat() in values, bound
+        # 드라이버마다 파라미터를 다른 모양으로 준다 — sqlite3 는 자리순 튜플,
+        # psycopg 는 이름을 붙인 사전이다. 사전을 그냥 돌면 값이 아니라 이름이 나온다.
+        raw = bound[0]
+        given = raw.values() if isinstance(raw, dict) else raw
+        # sqlite 는 날짜를 문자열로, psycopg 는 date 객체로 넘긴다. 둘 다 str() 이 같다.
+        assert AUG.isoformat() in {str(value) for value in given}, bound
 
 
 def test_hitting_the_forecast_exactly_shows_no_movement(api):
