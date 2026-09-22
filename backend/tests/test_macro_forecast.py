@@ -330,3 +330,211 @@ def test_hitting_the_forecast_exactly_shows_no_movement(api):
         surprise = _card(db)["forecast"]["surprise"]
         assert surprise == 0
         assert not surprise < 0
+
+
+# ---------------------------------------------------------------------------
+#  나우캐스트 자동 수집
+# ---------------------------------------------------------------------------
+#
+#  여기서 확인하는 것은 **단위**다. 나우캐스트는 전월비를 내는데 카드는 전년비로 뜨므로,
+#  그대로 넣으면 실제 3.2% 와 예상 0.44% 를 비교하게 된다. 숫자가 둘 다 그럴듯해서
+#  화면에서는 안 보이고, 증상은 "매달 물가 상회 배지가 뜬다"로만 나타난다.
+
+from app.services.providers.cleveland import ForecastPoint  # noqa: E402
+
+SEP = dt.date(2026, 9, 1)
+
+
+def _point(code="CPIAUCSL", as_of=SEP, value=0.4, unit="mom", on=dt.date(2026, 9, 21)):
+    return ForecastPoint(code=code, as_of=as_of, forecast_date=on, value=value, unit=unit)
+
+
+class _FakeNowcast:
+    name = "cleveland_fed"
+
+    def __init__(self, points=None, error=None):
+        self.points = points or []
+        self.error = error
+        self.calls = 0
+
+    def fetch(self):
+        self.calls += 1
+        if self.error:
+            raise self.error
+        return self.points
+
+
+def _index_months(db, code, months: dict[dt.date, float]):
+    for as_of, value in months.items():
+        db.add(MacroValue(code=code, as_of=as_of, value=value, source="fred_api"))
+    db.commit()
+
+
+def test_shifting_months_crosses_the_year_boundary():
+    assert macro.shift_month(dt.date(2026, 1, 1), -1) == dt.date(2025, 12, 1)
+    assert macro.shift_month(dt.date(2026, 12, 1), 1) == dt.date(2027, 1, 1)
+    assert macro.shift_month(SEP, -12) == dt.date(2025, 9, 1)
+
+
+def test_a_month_over_month_nowcast_becomes_a_year_over_year_forecast(api):
+    """카드의 3.2% 를 만드는 계산과 한 글자도 다르지 않아야 한다."""
+    _, SessionLocal = api
+    with SessionLocal() as db:
+        db.add(_cpi())
+        _index_months(db, "CPIAUCSL", {dt.date(2025, 9, 1): 100.0, dt.date(2026, 8, 1): 103.0})
+
+        # 9월 지수는 8월(103.0)보다 0.4% 오를 것 -> 103.412, 작년 9월(100.0) 대비 3.412%
+        assert macro.forecast_from_mom(db, "CPIAUCSL", SEP, 0.4) == pytest.approx(3.412)
+
+
+def test_without_last_months_index_there_is_no_forecast(api):
+    """매달 열흘쯤 생기는 상황이다 — 9월분을 예측 중인데 8월분이 아직 발표 전."""
+    _, SessionLocal = api
+    with SessionLocal() as db:
+        db.add(_cpi())
+        _index_months(db, "CPIAUCSL", {dt.date(2025, 9, 1): 100.0})
+
+        assert macro.forecast_from_mom(db, "CPIAUCSL", SEP, 0.4) is None
+
+
+def test_without_the_year_ago_index_there_is_no_forecast(api):
+    _, SessionLocal = api
+    with SessionLocal() as db:
+        db.add(_cpi())
+        _index_months(db, "CPIAUCSL", {dt.date(2026, 8, 1): 103.0})
+
+        assert macro.forecast_from_mom(db, "CPIAUCSL", SEP, 0.4) is None
+
+
+def test_only_the_last_nowcast_of_each_month_is_kept():
+    """파일에는 한 달을 예측한 날들이 전부 들어 있다. 지난달은 마지막 하나면 된다 —
+    그게 "발표 직전의 예상"이다."""
+    best = macro.latest_per_month([
+        _point(value=0.30, on=dt.date(2026, 9, 10)),
+        _point(value=0.44, on=dt.date(2026, 9, 21)),
+        _point(value=0.20, on=dt.date(2026, 9, 15)),
+        _point(code="PCEPI", value=0.36, on=dt.date(2026, 9, 21)),
+    ])
+
+    assert len(best) == 2
+    assert best[("CPIAUCSL", SEP)].value == 0.44
+    assert best[("CPIAUCSL", SEP)].forecast_date == dt.date(2026, 9, 21)
+
+
+def test_a_fetched_nowcast_lands_on_the_card_in_screen_units(api):
+    _, SessionLocal = api
+    with SessionLocal() as db:
+        _fill_cpi(db, _cpi(), {dt.date(2025, 8, 1): 100.0, AUG: 103.2})
+        _index_months(db, "CPIAUCSL", {dt.date(2025, 9, 1): 100.5})
+
+        result = macro.refresh_forecasts(
+            db, provider=_FakeNowcast([_point(as_of=SEP, value=0.4)]), today=dt.date(2026, 9, 21)
+        )
+
+        assert result["ok"] and result["stored"] == 1
+        pending = _card(db)["pending_forecast"]
+        # 103.2 * 1.004 = 103.6128, 작년 9월(100.5) 대비 3.097% — **0.4 가 아니다**
+        assert pending["value"] == pytest.approx(3.0973, abs=1e-3)
+        assert pending["source_label"] == "클리블랜드 연준"
+
+
+def test_a_year_over_year_file_needs_no_conversion(api):
+    """나중에 전년비를 내는 파일로 옮겨가도 같은 길로 들어와야 한다."""
+    _, SessionLocal = api
+    with SessionLocal() as db:
+        _fill_cpi(db, _cpi(), _cpi_at(3.2))
+
+        macro.refresh_forecasts(
+            db, provider=_FakeNowcast([_point(as_of=AUG, value=3.0, unit="yoy")]),
+            today=dt.date(2026, 9, 21),
+        )
+
+        assert _card(db)["forecast"]["value"] == 3.0
+
+
+def test_a_month_we_cannot_convert_is_left_empty_not_invented(api):
+    _, SessionLocal = api
+    with SessionLocal() as db:
+        db.add(_cpi())
+        db.commit()
+
+        result = macro.refresh_forecasts(
+            db, provider=_FakeNowcast([_point(as_of=SEP, value=0.4)]), today=dt.date(2026, 9, 21)
+        )
+
+        assert result["stored"] == 0 and result["skipped"] == 1
+        assert db.scalars(select(MacroForecast)).all() == []
+
+
+def test_months_far_in_the_past_are_not_stored(api):
+    """파일에는 2013년부터 들어 있다. 다 넣으면 첫 실행에 수천 줄이 된다."""
+    _, SessionLocal = api
+    with SessionLocal() as db:
+        _fill_cpi(db, _cpi(), {dt.date(2013, 6, 1): 100.0, dt.date(2013, 7, 1): 100.5,
+                               dt.date(2012, 8, 1): 99.0})
+
+        result = macro.refresh_forecasts(
+            db, provider=_FakeNowcast([_point(as_of=dt.date(2013, 8, 1), value=0.4)]),
+            today=dt.date(2026, 9, 21),
+        )
+
+        assert result["stored"] == 0
+
+
+def test_what_a_person_typed_still_wins_over_the_nowcast(api):
+    """직접 넣었다는 건 자동값이 마음에 안 들었다는 뜻이다. 배치가 덮으면 안 된다."""
+    _, SessionLocal = api
+    with SessionLocal() as db:
+        _fill_cpi(db, _cpi(), _cpi_at(3.2))
+        macro.set_forecast(db, "CPIAUCSL", AUG, 2.5, forecast_date=dt.date(2026, 9, 21))
+
+        macro.refresh_forecasts(
+            db, provider=_FakeNowcast([_point(as_of=AUG, value=3.0, unit="yoy")]),
+            today=dt.date(2026, 9, 21),
+        )
+
+        assert _card(db)["forecast"]["value"] == 2.5
+
+
+def test_the_file_is_not_downloaded_twice_in_a_day(api):
+    """7MB 짜리 파일이다. 앱을 다시 띄울 때마다 받을 이유가 없다."""
+    _, SessionLocal = api
+    with SessionLocal() as db:
+        _fill_cpi(db, _cpi(), _cpi_at(3.2))
+        provider = _FakeNowcast([_point(as_of=AUG, value=3.0, unit="yoy")])
+
+        macro.refresh_forecasts(db, provider=provider, today=dt.date(2026, 9, 21))
+        again = macro.refresh_forecasts(db, provider=provider, today=dt.date(2026, 9, 21))
+
+        assert provider.calls == 1
+        assert again["skipped"] == "오늘 이미 받았음"
+
+
+def test_pressing_refresh_asks_again_anyway(api):
+    """사람이 눌렀는데 아무 일도 안 일어나면 그건 고장으로 보인다."""
+    _, SessionLocal = api
+    with SessionLocal() as db:
+        _fill_cpi(db, _cpi(), _cpi_at(3.2))
+        provider = _FakeNowcast([_point(as_of=AUG, value=3.0, unit="yoy")])
+
+        macro.refresh_forecasts(db, provider=provider, today=dt.date(2026, 9, 21))
+        macro.refresh_forecasts(db, provider=provider, today=dt.date(2026, 9, 21), force=True)
+
+        assert provider.calls == 2
+
+
+def test_a_failed_nowcast_does_not_touch_the_indicator(api):
+    """예상치를 못 받은 것과 CPI 를 못 받은 것은 사용자가 할 일이 완전히 다르다."""
+    _, SessionLocal = api
+    with SessionLocal() as db:
+        _fill_cpi(db, _cpi(), _cpi_at(3.2))
+
+        result = macro.refresh_forecasts(
+            db, provider=_FakeNowcast(error=RuntimeError("막혔습니다")),
+            today=dt.date(2026, 9, 21),
+        )
+
+        assert result["ok"] is False and "막혔습니다" in result["error"]
+        assert db.get(MacroSeries, "CPIAUCSL").last_error is None
+        # 값 자체는 그대로 있다
+        assert _card(db)["value"] == pytest.approx(3.2)

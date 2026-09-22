@@ -129,6 +129,17 @@ def _macro_refresh_job(startup: bool = False) -> None:
             logger.info("매크로 갱신: 성공 %d, 실패 %d", len(done), len(failed))
         for item in failed:
             logger.warning("매크로 %s: %s", item["code"], item.get("error"))
+
+        # 예측치는 **따로 받는다.** 지표 값과 다른 서버에서 오고, 없어도 지표는
+        # 멀쩡하다 — 예상치가 없으면 "물가 상회" 배지가 안 뜰 뿐이다. 그래서 여기서
+        # 실패해도 위의 갱신 결과를 건드리지 않는다.
+        #
+        # 켠 직후에도 부른다. 7MB 짜리 파일이지만 하루에 한 번만 실제로 받는다
+        # (`forecasts_fetched_today`) — 켠 직후 한 번이 있어야 새로 띄운 서버가
+        # 예상치 없이 하루를 보내지 않는다.
+        forecast = macro.refresh_forecasts(db)
+        if not forecast.get("ok"):
+            logger.warning("예측치 갱신 실패: %s", forecast.get("error"))
     except Exception:
         logger.warning("매크로 갱신에 실패했습니다", exc_info=True)
     finally:

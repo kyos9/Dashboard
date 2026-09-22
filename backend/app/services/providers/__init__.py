@@ -207,7 +207,7 @@ _MACRO_FACTORIES = {
 # 영영 비어 있고, 2시간마다 같은 자리에서 다시 실패한다.
 #
 # 시세와 같은 환경변수로 덮어쓸 수 있게 두되, 기본값만 다르게 간다.
-def _macro_timeout() -> int:
+def macro_timeout() -> int:
     raw = os.environ.get("SIGNAL_DASHBOARD_HTTP_TIMEOUT")
     if raw:
         try:
@@ -225,7 +225,7 @@ def build_macro_providers(source: str) -> list[MacroProvider]:
     폴백을 어떤 코드로 물을지는 `fetch_macro_points` 가 정한다.
     """
     factory = _MACRO_FACTORIES.get((source or "").strip().lower())
-    return list(factory(_macro_timeout())) if factory else []
+    return list(factory(macro_timeout())) if factory else []
 
 
 class AllMacroProvidersFailed(Exception):

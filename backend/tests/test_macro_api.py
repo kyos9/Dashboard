@@ -514,3 +514,21 @@ def test_a_daily_card_says_it_takes_no_forecast(api):
     assert card["forecastable"] is False
     assert card["forecast"] is None
     assert card["pending_forecast"] is None
+
+
+def test_pressing_refresh_also_asks_for_the_forecast(api):
+    """사람이 보기에 "지금 받아오기"는 이 화면에 뜨는 것 전부를 뜻한다.
+
+    테스트에서는 바깥이 막혀 있으므로 예측치 쪽이 실패한다 — 그때 **지표 결과는
+    그대로 가고** 예측치만 한 줄로 따로 온다. 하나가 다른 하나를 오류로 만들면 안 된다.
+    """
+    client, SessionLocal = api
+    _fill(SessionLocal, _cpi_series(), _cpi_months(3.2))
+
+    results = client.post("/api/macro/refresh").json()
+
+    indicators = [r for r in results if r["code"] == "CPIAUCSL"]
+    forecast = [r for r in results if r["code"] == "예측치"]
+    assert len(indicators) == 1
+    assert len(forecast) == 1 and forecast[0]["ok"] is False
+    assert "직접 넣을 수 있습니다" in forecast[0]["hint"]

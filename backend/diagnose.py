@@ -330,7 +330,7 @@ if app_modules:
     # 20년치를 받으므로 여기서 시간이 넘치면 첫 수집만 실패한다 — 닿는 것과 다른 문제다.
     if reachable:
         # 앱이 실제로 쓰는 제한으로 재본다 — 여기만 다른 값을 쓰면 진단이 거짓말을 한다.
-        macro_limit = providers._macro_timeout()
+        macro_limit = providers.macro_timeout()
         print(f"\n  9-3) 앱이 처음 받는 만큼 ({macro.BACKFILL_YEARS}년치, 제한 {macro_limit}초)")
         try:
             began = time.monotonic()
@@ -460,7 +460,7 @@ if app_modules:
         # 뜬다. 실제로 그랬다 — 여기서 60일치를 물어 성공했는데 앱은 처음 받을 때
         # 20년치를 물어 HTTP 500 을 받고 있었고, 진단만 보면 멀쩡해 보였다.
         # (FRED 9-2/9-3 에서 이미 한 번 배운 것을 여기에 적용하지 않았다.)
-        provider = cnn.FearGreedProvider(timeout=providers._macro_timeout())
+        provider = cnn.FearGreedProvider(timeout=providers.macro_timeout())
         windows = [
             ("최근 60일", dt.date.today() - dt.timedelta(days=60)),
             (f"앱이 처음 받는 만큼 ({macro.BACKFILL_YEARS}년치)",
@@ -487,6 +487,57 @@ if app_modules:
             info("  공식 API 가 아니라 CNN 지수 화면이 쓰는 주소를 그대로 부르는 것이라,")
             info("  저쪽이 모양을 바꾸거나 막으면 여기만 조용히 멈춥니다. 그때는 이 지표를")
             info("  꺼두고(macro_series.active) 나머지를 쓰면 됩니다.")
+
+
+
+# ── 11. 물가 예상치 (클리블랜드 연준 나우캐스트) ──────────────────────
+# **또 다른 서버라 따로 막힌다.** 그리고 여기서 확인해야 하는 것이 하나 더 있다 —
+# 단위다. 이 파일은 전월비를 내는데 카드는 전년비로 뜬다. 그대로 넣으면 실제 3.2% 와
+# 예상 0.44% 를 비교하게 되어 매달 배지가 뜨는데, 숫자가 둘 다 그럴듯해서 화면에서는
+# 안 보인다. 그래서 받은 단위와 바꾼 값을 같이 찍는다.
+if app_modules:
+    section("11. 물가 예상치 (클리블랜드 연준 나우캐스트)")
+
+    from app.services.providers.cleveland import ClevelandNowcastProvider
+
+    provider = ClevelandNowcastProvider(timeout=providers.macro_timeout())
+    try:
+        began = time.monotonic()
+        points = provider.fetch()
+        took = time.monotonic() - began
+        best = macro.latest_per_month(points)
+        months = sorted({month for _, month in best})
+        ok(f"{len(points):,}행 ({took:.1f}초) — {months[0]:%Y-%m} ~ {months[-1]:%Y-%m}")
+
+        units = {point.unit for point in best.values()}
+        print(f"         받은 단위: {', '.join(sorted(units))}  (카드는 전년비로 뜹니다)")
+
+        from app.db import SessionLocal
+
+        db = SessionLocal()
+        try:
+            for month in months[-2:]:
+                for code in sorted(regime.INFLATION_CODES):
+                    point = best.get((code, month))
+                    if point is None:
+                        continue
+                    if point.unit == "mom":
+                        converted = macro.forecast_from_mom(db, code, month, point.value)
+                        shown = f"{converted:.2f}% (전년비)" if converted is not None else (
+                            "바꿀 수 없음 — 지난달 지수가 아직 없습니다"
+                        )
+                    else:
+                        shown = f"{point.value:.2f}%"
+                    print(f"         {month:%Y-%m} {code:10s} {point.value:+.3f} ({point.unit})"
+                          f" -> {shown}  [{point.forecast_date} 기준]")
+        finally:
+            db.close()
+    except Exception as exc:
+        fail(brief(exc, 400))
+        info("→ **이것이 안 되어도 나머지는 그대로입니다.** 예상치가 없으면 \"물가 상회\"")
+        info("  배지가 안 뜰 뿐이고, 매크로 탭 카드에서 직접 넣을 수도 있습니다.")
+        info("  공식 API 가 아니라 나우캐스팅 화면이 읽는 파일을 그대로 받는 것이라,")
+        info("  저쪽이 옮기거나 모양을 바꾸면 여기만 멈춥니다.")
 
 
 print(f"\n{LINE}\n진단 완료 — 위 출력 전체를 복사해서 공유해주세요.\n{LINE}")

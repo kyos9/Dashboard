@@ -166,5 +166,17 @@ def refresh(db: Session = Depends(get_db)):
 
     **받을 때가 됐는지 따지지 않는다.** 눌렀는데 "아직 받을 때가 아님"만 돌아오면
     그건 고장으로 보인다. 배치(`refresh_due`)와 다른 점이 그것뿐이다.
+
+    예측치도 같이 받는다(`force=True`) — 사람이 보기에 "지금 받아오기"는 이 화면에
+    뜨는 것 전부를 뜻하지, 지표만을 뜻하지 않는다. 실패해도 지표 결과는 그대로 간다.
     """
-    return macro.refresh_all(db)
+    results = macro.refresh_all(db)
+    forecast = macro.refresh_forecasts(db, force=True)
+    if not forecast.get("ok"):
+        # 목록에 한 줄로 끼워 보낸다. 예상치를 못 받은 것도 사용자가 알아야 하지만,
+        # 그것 때문에 지표 갱신 결과가 통째로 오류로 보이면 안 된다.
+        results.append(
+            {"code": "예측치", "ok": False, "error": forecast.get("error"),
+             "hint": "예상치는 없어도 지표는 그대로입니다 — 카드에서 직접 넣을 수 있습니다."}
+        )
+    return results

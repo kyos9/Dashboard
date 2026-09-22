@@ -950,10 +950,14 @@ def set_pinned(db: Session, codes: list[str]) -> list[str]:
 #
 #  **저장하는 단위가 원본 값과 다르다.** `macro_value` 에는 원본 지수(CPI 320.541)가
 #  들어가지만 여기에는 **화면에 뜨는 단위**, 즉 변환까지 끝난 값(전년비 2.9)이 들어간다.
-#  둘을 맞추고 싶은 마음이 들지만 맞출 수가 없다 — 예상치를 내는 쪽(클리블랜드 연준
-#  나우캐스트도, Investing 화면도)이 전부 전년비 %로만 발표하고 지수 레벨로는 아무도
-#  예상치를 내지 않는다. 지수로 되돌리려면 우리가 계산을 하나 지어내야 하고, 그러면
-#  저장된 숫자가 더 이상 "출처가 말한 값"이 아니게 된다.
+#  지수 레벨로 예상치를 내는 곳이 없기 때문이다 — 사람이 Investing 에서 옮겨 적는 것은
+#  전년비이고, 클리블랜드 연준 나우캐스트는 전월비를 낸다. 어느 쪽이든 지수로 되돌리려면
+#  계산을 하나 더 얹어야 하는데, 화면에 뜨는 단위로 두면 **카드의 숫자와 예상치를 눈으로
+#  바로 견줄 수 있다.** 비교하는 자리에서 단위가 하나인 것이 가장 중요하다.
+#
+#  그래서 **들어올 때 단위를 맞춘다.** 전월비로 오는 나우캐스트는 전년비로 바꿔서 넣는다
+#  (아래 `forecast_from_mom`). 안 바꾸고 넣으면 실제 3.2% 와 예상 0.44% 를 비교하게 되어
+#  매달 "물가 상회" 배지가 뜨는데, 숫자가 둘 다 그럴듯해서 화면에서는 안 보인다.
 
 FORECAST_MANUAL = "manual"
 # 자동 수집 자리. 제공자는 3a-4b 에서 붙인다 — 개발 환경에서 clevelandfed.org 가 프록시
@@ -1151,3 +1155,122 @@ def clear_forecast(db: Session, code: str, as_of: dt.date, source: str = FORECAS
     if rows:
         db.commit()
     return len(rows)
+
+
+# ---------------------------------------------------------------------------
+#  예측치 자동 수집 (클리블랜드 연준 나우캐스트)
+# ---------------------------------------------------------------------------
+#
+#  **단위를 맞춰서 넣는다.** 나우캐스트는 전월비(MoM)를 내는데 우리 카드는 전년비로
+#  뜬다. 그대로 넣으면 실제 3.2% 와 예상 0.44% 를 비교하게 되어 매달 "물가 상회"가
+#  뜨는데, 숫자가 둘 다 그럴듯해서 화면만 보고는 알아챌 수 없다.
+#
+#  바꾸는 계산은 지어낸 것이 아니라 **실제값에 쓰는 것과 똑같은 변환**이다. 나우캐스트는
+#  "이번 달 지수가 지난달보다 얼마 오를 것"이라고 말하고, 지난달 지수와 열두 달 전 지수는
+#  이미 우리가 들고 있다. 그래서 예상 지수를 만들어 `year_over_year` 와 같은 식으로
+#  나눈다 — 카드의 3.2% 를 만드는 계산과 한 글자도 다르지 않다.
+
+# 처음 받을 때 거슬러 올라가는 달 수. 파일에는 2013년부터 들어 있지만 그걸 다 넣으면
+# 첫 실행에 수천 줄이 되고, 화면에 쓰이는 것은 최근 몇 달뿐이다.
+FORECAST_BACKFILL_MONTHS = 24
+
+
+def shift_month(day: dt.date, months: int) -> dt.date:
+    """그 달 1일에서 `months` 만큼 옮긴 달의 1일."""
+    index = (day.year * 12 + day.month - 1) + months
+    return dt.date(index // 12, index % 12 + 1, 1)
+
+
+def raw_value(db: Session, code: str, as_of: dt.date) -> float | None:
+    """저장된 **원본** 값 (변환 전 지수). 그 달이 없으면 None."""
+    return db.scalar(
+        select(MacroValue.value).where(MacroValue.code == code, MacroValue.as_of == as_of)
+    )
+
+
+def forecast_from_mom(db: Session, code: str, month: dt.date, mom: float) -> float | None:
+    """전월비 예상치를 화면 단위(전년비)로.
+
+    지난달 지수나 열두 달 전 지수가 없으면 **아무것도 돌려주지 않는다.** 이 상황은
+    실제로 매달 열흘쯤 생긴다 — 9월분을 예측하는 중인데 8월분이 아직 발표 전인 기간이다.
+    그때 억지로 값을 만들면 그건 예상치가 아니라 우리가 지어낸 숫자가 된다.
+    """
+    previous = raw_value(db, code, shift_month(month, -1))
+    base = raw_value(db, code, shift_month(month, -12))
+    if previous is None or not base:
+        return None
+    predicted = previous * (1.0 + mom / 100.0)
+    return (predicted / base - 1.0) * 100.0
+
+
+def latest_per_month(points) -> dict:
+    """(코드, 달)마다 **가장 최근 예측**만 남긴다.
+
+    파일에는 한 달을 예측한 날들이 전부 들어 있다. 그걸 다 저장하면 첫 실행에 수만 줄이
+    되고 질의도 그만큼 돈다. 매일 도는 배치가 날마다 한 줄씩 쌓으므로 이력은 그렇게
+    만들어지고, 지난달들은 마지막 예측 하나면 된다 — 그게 "발표 직전의 예상"이다.
+    """
+    best: dict = {}
+    for point in points:
+        key = (point.code, point.as_of)
+        current = best.get(key)
+        if current is None or point.forecast_date > current.forecast_date:
+            best[key] = point
+    return best
+
+
+def forecasts_fetched_today(db: Session, today: dt.date | None = None) -> bool:
+    """오늘 이미 받아왔는가. 7MB 짜리 파일이라 앱을 다시 띄울 때마다 받을 이유가 없다."""
+    today = today or dt.date.today()
+    return db.scalar(
+        select(MacroForecast.id).where(
+            MacroForecast.source == FORECAST_CLEVELAND, MacroForecast.forecast_date == today
+        ).limit(1)
+    ) is not None
+
+
+def refresh_forecasts(db: Session, provider=None, today: dt.date | None = None, force: bool = False) -> dict:
+    """나우캐스트를 받아 예측치를 채운다.
+
+    **실패해도 나머지는 그대로다.** 예상치는 있으면 좋은 것이고, 없으면 배지가 안 뜰
+    뿐이다 — 직접 입력이 따로 살아 있고 지표 값 자체와는 무관하다. 그래서 여기서 나는
+    오류는 지표의 `last_error` 를 건드리지 않는다. 둘을 섞으면 화면이 "CPI 를 못
+    받았다"고 말하는데 실제로는 예상치만 못 받은 상태가 된다.
+    """
+    today = today or dt.date.today()
+    if not force and forecasts_fetched_today(db, today=today):
+        return {"ok": True, "skipped": "오늘 이미 받았음"}
+
+    if provider is None:
+        from app.services.providers import macro_timeout
+        from app.services.providers.cleveland import ClevelandNowcastProvider
+
+        provider = ClevelandNowcastProvider(timeout=macro_timeout())
+
+    try:
+        points = provider.fetch()
+    except Exception as exc:
+        detail = f"{type(exc).__name__}: {exc}"
+        logger.warning("예측치를 받지 못했습니다 — %s", detail)
+        return {"ok": False, "error": detail}
+
+    oldest = shift_month(dt.date(today.year, today.month, 1), -FORECAST_BACKFILL_MONTHS)
+    stored = skipped = 0
+    for point in latest_per_month(points).values():
+        if point.as_of < oldest:
+            continue
+        value = point.value
+        if point.unit == "mom":
+            value = forecast_from_mom(db, point.code, point.as_of, point.value)
+        if value is None:
+            # 비교할 지수가 아직 없는 달. 값을 지어내느니 비워둔다.
+            skipped += 1
+            continue
+        set_forecast(
+            db, point.code, point.as_of, value,
+            source=FORECAST_CLEVELAND, forecast_date=point.forecast_date,
+        )
+        stored += 1
+
+    logger.info("예측치 %d개를 저장했습니다 (건너뜀 %d)", stored, skipped)
+    return {"ok": True, "stored": stored, "skipped": skipped, "provider": provider.name}
