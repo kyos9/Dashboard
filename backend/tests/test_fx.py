@@ -12,8 +12,9 @@ import datetime as dt
 import pytest
 
 from app.markets import Currency
-from app.models import FxRate, PortfolioSettings
+from app.models import FxRate
 from app.services import fx
+from tests.factories import make_settings
 
 
 def store(db, currency: Currency, rate: float, updated_at: dt.datetime | None = None) -> None:
@@ -29,8 +30,7 @@ def store(db, currency: Currency, rate: float, updated_at: dt.datetime | None = 
 
 
 def override(db, **by_code: float) -> None:
-    db.add(PortfolioSettings(id=1, fx_overrides=dict(by_code)))
-    db.commit()
+    make_settings(db, fx_overrides=dict(by_code))
 
 
 # ── 적용 순서 ────────────────────────────────────────────────────────

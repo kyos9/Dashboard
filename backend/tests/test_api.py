@@ -3,8 +3,9 @@ import datetime as dt
 import pandas as pd
 import pytest
 
-from app.models import IndicatorDaily, PriceDaily, SignalDaily, Stock
+from app.models import IndicatorDaily, PriceDaily, SignalDaily
 from app.services import data_ingestion
+from tests.factories import make_buy, make_stock
 
 
 def test_health(api):
@@ -240,19 +241,9 @@ def test_confirm_buy_execution(api):
     db = SessionLocal()
     today = dt.date.today()
     db.add(PriceDaily(ticker="VOO", date=today, open=100, high=101, low=99, close=100.0, volume=1000))
-    from app.models import BuyExecution, BuyStatus, BuyType
+    from app.models import BuyType
 
-    buy = BuyExecution(
-        ticker="VOO",
-        period_start=today,
-        period_end=today,
-        exec_date=today,
-        type=BuyType.signal,
-        amount=500.0,
-        status=BuyStatus.scheduled,
-    )
-    db.add(buy)
-    db.commit()
+    buy = make_buy(db, "VOO", period_start=today, type=BuyType.signal, amount=500.0)
     buy_id = buy.id
     db.close()
 
@@ -478,7 +469,7 @@ def test_staleness_is_judged_against_the_stocks_own_market(api, monkeypatch):
     import datetime as dt
 
     from app.markets import Market
-    from app.models import PriceDaily, Stock
+    from app.models import PriceDaily
 
     client, Session = api
     korea_today = dt.date(2026, 9, 17)
@@ -490,8 +481,8 @@ def test_staleness_is_judged_against_the_stocks_own_market(api, monkeypatch):
     )
 
     with Session() as session:
-        session.add(Stock(ticker="005930.KS", name="삼성전자", target_weight_pct=50))
-        session.add(Stock(ticker="VOO", name="S&P500", target_weight_pct=50))
+        make_stock(session, "005930.KS", name="삼성전자", target_weight_pct=50, commit=False)
+        make_stock(session, "VOO", name="S&P500", target_weight_pct=50, commit=False)
         # 종목을 **먼저** 커밋한다. 한 번에 flush하면 SQLAlchemy가 테이블 이름순으로
         # 넣어서 price_daily가 stocks보다 먼저 나간다 (둘 사이에 ORM relationship이
         # 없어 의존 관계를 모른다). SQLite는 외래키를 검사하지 않아 그냥 통과하지만

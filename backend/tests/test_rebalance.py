@@ -3,28 +3,26 @@ import datetime as dt
 import pytest
 
 from app.markets import Market
-from app.models import Holding, PortfolioSettings, PriceDaily, RebalancePeriod, SignalDaily, Stock
+from app.models import PriceDaily, RebalancePeriod, SignalDaily
 from app.services import rebalance
 from app.services.trading_calendar import period_trading_bounds
+from tests.factories import make_holding, make_settings, make_stock
 
 
 def _make_stock(db, ticker, target_weight_pct, band=None, override=None, rebalance_period=RebalancePeriod.quarterly):
-    stock = Stock(
-        ticker=ticker,
+    return make_stock(
+        db,
+        ticker,
         target_weight_pct=target_weight_pct,
         rebalance_band_pct=band,
         review_date_override=override,
         rebalance_period=rebalance_period,
     )
-    db.add(stock)
-    db.commit()
-    return stock
 
 
 def _set_price_and_holding(db, ticker, close, quantity):
     db.add(PriceDaily(ticker=ticker, date=dt.date.today(), open=close, high=close, low=close, close=close, volume=1))
-    db.add(Holding(ticker=ticker, quantity=quantity))
-    db.commit()
+    make_holding(db, ticker, quantity)
 
 
 def test_actual_weight_computation(db_session):
@@ -92,15 +90,14 @@ def test_review_date_auto_computed_when_no_override(db_session):
 
 
 def test_band_falls_back_to_global_default(db_session):
-    db_session.add(PortfolioSettings(id=1, default_rebalance_band_pct=7.5))
-    db_session.commit()
+    make_settings(db_session, default_rebalance_band_pct=7.5)
     stock = _make_stock(db_session, "AAA", target_weight_pct=50.0, band=None)
     default_band = rebalance.get_default_band_pct(db_session)
     assert rebalance.band_for_stock(stock, default_band) == 7.5
 
 
 def test_band_uses_per_stock_override_when_set(db_session):
-    db_session.add(PortfolioSettings(id=1, default_rebalance_band_pct=7.5))
+    make_settings(db_session, default_rebalance_band_pct=7.5)
     stock = _make_stock(db_session, "AAA", target_weight_pct=50.0, band=2.0)
     assert rebalance.band_for_stock(stock, 7.5) == 2.0
 
@@ -126,8 +123,7 @@ def test_mixed_currency_weights_are_converted_to_base(db_session):
     삼성전자 800,000원 + VOO 1,000달러(= 1,300,000원, 환율 1300) = 2,100,000원.
     환산을 빠뜨리면 800,000 대 1,000이 되어 삼성전자가 99.9%로 잡힌다.
     """
-    db_session.add(PortfolioSettings(id=1, base_currency="KRW", fx_overrides={"USD": 1300.0}))
-    db_session.commit()
+    make_settings(db_session, base_currency="KRW", fx_overrides={"USD": 1300.0})
 
     kr = _make_stock(db_session, "005930.KS", target_weight_pct=40.0)
     us = _make_stock(db_session, "VOO", target_weight_pct=60.0)
@@ -146,10 +142,7 @@ def test_three_currencies_add_up_to_a_hundred_percent(db_session):
     엔은 자릿수가 원과 가까워(1엔 ≈ 9원) 환산을 빠뜨려도 값이 그럴듯해 보인다.
     달러처럼 1300배 어긋나지 않으니 **틀린 줄 모르고 쓰게 되는 쪽**이라 더 위험하다.
     """
-    db_session.add(
-        PortfolioSettings(id=1, base_currency="KRW", fx_overrides={"USD": 1300.0, "JPY": 9.0})
-    )
-    db_session.commit()
+    make_settings(db_session, base_currency="KRW", fx_overrides={"USD": 1300.0, "JPY": 9.0})
 
     kr = _make_stock(db_session, "005930.KS", target_weight_pct=40.0)
     us = _make_stock(db_session, "VOO", target_weight_pct=30.0)
@@ -166,8 +159,7 @@ def test_three_currencies_add_up_to_a_hundred_percent(db_session):
 
 def test_japanese_rows_keep_yen_amounts(db_session):
     """주문은 엔으로 내므로 평가금액은 엔 그대로도 있어야 한다."""
-    db_session.add(PortfolioSettings(id=1, base_currency="KRW", fx_overrides={"JPY": 9.0}))
-    db_session.commit()
+    make_settings(db_session, base_currency="KRW", fx_overrides={"JPY": 9.0})
     _make_stock(db_session, "7203.T", target_weight_pct=100.0)
     _set_price_and_holding(db_session, "7203.T", close=3_000.0, quantity=100)
 
@@ -180,8 +172,7 @@ def test_japanese_rows_keep_yen_amounts(db_session):
 
 def test_rows_keep_native_currency_amounts_alongside_converted(db_session):
     """주문은 현지 통화로 내야 하므로 평가금액은 양쪽 다 필요하다."""
-    db_session.add(PortfolioSettings(id=1, base_currency="KRW", fx_overrides={"USD": 1300.0}))
-    db_session.commit()
+    make_settings(db_session, base_currency="KRW", fx_overrides={"USD": 1300.0})
     _make_stock(db_session, "VOO", target_weight_pct=100.0)
     _set_price_and_holding(db_session, "VOO", close=500.0, quantity=2)
 
@@ -195,8 +186,7 @@ def test_rows_keep_native_currency_amounts_alongside_converted(db_session):
 
 
 def test_base_currency_usd_converts_the_other_way(db_session):
-    db_session.add(PortfolioSettings(id=1, base_currency="USD", fx_overrides={"USD": 1300.0}))
-    db_session.commit()
+    make_settings(db_session, base_currency="USD", fx_overrides={"USD": 1300.0})
     _make_stock(db_session, "005930.KS", target_weight_pct=100.0)
     _set_price_and_holding(db_session, "005930.KS", close=65_000.0, quantity=2)  # 130,000원
 

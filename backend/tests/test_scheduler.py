@@ -11,8 +11,8 @@
 import pandas as pd
 
 from app.markets import Market
-from app.models import Stock
 from app.services import pipeline, scheduler
+from tests.factories import make_stock
 
 
 def test_jobs_cover_both_market_closes():
@@ -70,9 +70,8 @@ def _stub_fetch(monkeypatch):
 
 
 def test_korea_job_only_refreshes_korean_stocks(db_session, monkeypatch):
-    db_session.add(Stock(ticker="005930.KS", target_weight_pct=50))
-    db_session.add(Stock(ticker="VOO", target_weight_pct=50))
-    db_session.commit()
+    make_stock(db_session, "005930.KS", target_weight_pct=50)
+    make_stock(db_session, "VOO", target_weight_pct=50)
 
     refreshed = []
     monkeypatch.setattr(
@@ -94,8 +93,7 @@ def test_korea_job_only_refreshes_korean_stocks(db_session, monkeypatch):
 
 def test_fx_failure_does_not_lose_price_results(db_session, monkeypatch):
     """환율 조회가 실패해도 시세 갱신 결과는 그대로 돌아와야 한다."""
-    db_session.add(Stock(ticker="VOO", target_weight_pct=100))
-    db_session.commit()
+    make_stock(db_session, "VOO", target_weight_pct=100)
 
     monkeypatch.setattr(
         pipeline,
@@ -193,9 +191,8 @@ def test_one_failed_fetch_does_not_stop_the_rest(db_session, monkeypatch):
     전 종목을 한꺼번에 조회하게 바뀌면서, 한 종목의 실패가 묶음 전체를 무너뜨리지
     않는지가 새로 중요해졌다.
     """
-    db_session.add(Stock(ticker="VOO", target_weight_pct=50))
-    db_session.add(Stock(ticker="ZZZZ", target_weight_pct=50))
-    db_session.commit()
+    make_stock(db_session, "VOO", target_weight_pct=50)
+    make_stock(db_session, "ZZZZ", target_weight_pct=50)
 
     monkeypatch.setattr(
         pipeline.data_ingestion,
@@ -269,9 +266,8 @@ def test_catch_up_only_refreshes_markets_that_fell_behind(db_session, monkeypatc
 
     from app.models import PriceDaily
 
-    db_session.add(Stock(ticker="VOO", target_weight_pct=50))
-    db_session.add(Stock(ticker="005930.KS", target_weight_pct=50))
-    db_session.commit()
+    make_stock(db_session, "VOO", target_weight_pct=50)
+    make_stock(db_session, "005930.KS", target_weight_pct=50)
 
     us_last = pipeline.last_closed_trading_day(Market.US)
     kr_last = pipeline.last_closed_trading_day(Market.KR)
@@ -301,8 +297,7 @@ def test_catch_up_does_nothing_when_prices_are_current(db_session, monkeypatch):
     """켤 때마다 다시 받아오면 그것대로 못 쓴다."""
     from app.models import PriceDaily
 
-    db_session.add(Stock(ticker="VOO", target_weight_pct=100))
-    db_session.commit()
+    make_stock(db_session, "VOO", target_weight_pct=100)
     db_session.add(
         PriceDaily(
             ticker="VOO", date=pipeline.last_closed_trading_day(Market.US),

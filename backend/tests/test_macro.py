@@ -11,8 +11,9 @@ import json
 
 import pytest
 
-from app.models import MacroSeries, MacroValue, PortfolioSettings
+from app.models import MacroSeries, MacroValue
 from app.services import macro
+from tests.factories import build_settings
 from app.services.providers import (
     AllMacroProvidersFailed,
     EmptyData,
@@ -486,7 +487,7 @@ def test_term_spread_only_subtracts_the_same_day(db_session):
 
 
 def test_never_chosen_shows_the_defaults():
-    assert macro.pinned_codes(PortfolioSettings()) == macro.DEFAULT_PINNED
+    assert macro.pinned_codes(build_settings()) == macro.DEFAULT_PINNED
     assert macro.pinned_codes(None) == macro.DEFAULT_PINNED
 
 
@@ -495,11 +496,11 @@ def test_turning_everything_off_stays_off():
 
     껐는데 기본값이 다시 뜨는 화면은 설정이 아니라 고장으로 보인다.
     """
-    assert macro.pinned_codes(PortfolioSettings(pinned_macro=[])) == []
+    assert macro.pinned_codes(build_settings(pinned_macro=[])) == []
 
 
 def test_a_chosen_order_is_kept():
-    settings = PortfolioSettings(pinned_macro=["DGS2", "VIX"])
+    settings = build_settings(pinned_macro=["DGS2", "VIX"])
     assert macro.pinned_codes(settings) == ["DGS2", "VIX"]
 
 

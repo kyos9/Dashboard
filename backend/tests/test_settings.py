@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.models import PortfolioSettings
 from app.services.settings import SINGLETON_ID, get_settings
+from tests.factories import make_settings
 
 
 def test_creates_the_row_when_there_is_none(db_session):
@@ -33,8 +34,7 @@ def test_losing_the_race_is_not_an_error(db_session, monkeypatch):
     "설정이 없다"를 보고 들어왔는데 넣으려는 순간 이미 있는 상황이다. 먼저 넣은 쪽이
     넣어준 행을 읽으면 그만이지, 사용자에게 500을 보여줄 일이 아니다.
     """
-    db_session.add(PortfolioSettings(id=SINGLETON_ID, default_rebalance_band_pct=3.0))
-    db_session.commit()
+    make_settings(db_session, default_rebalance_band_pct=3.0)
 
     real_get = db_session.get
     seen = []

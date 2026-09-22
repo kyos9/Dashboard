@@ -4,8 +4,9 @@ import numpy as np
 import pytest
 import pandas as pd
 
-from app.models import IndicatorDaily, PriceDaily, Stock
+from app.models import IndicatorDaily, PriceDaily
 from app.services import data_ingestion
+from tests.factories import make_stock
 
 
 def _fake_price_df(n=30, start="2024-01-02"):
@@ -26,9 +27,7 @@ def _fake_price_df(n=30, start="2024-01-02"):
 
 
 def test_upsert_prices_inserts_and_updates(db_session):
-    stock = Stock(ticker="TST", target_weight_pct=0.0)
-    db_session.add(stock)
-    db_session.commit()
+    make_stock(db_session, "TST", target_weight_pct=0.0)
 
     df = _fake_price_df(10)
     n = data_ingestion.upsert_prices(db_session, "TST", df)
@@ -45,9 +44,7 @@ def test_upsert_prices_inserts_and_updates(db_session):
 
 
 def test_recompute_indicators_populates_table(db_session):
-    stock = Stock(ticker="TST", target_weight_pct=0.0)
-    db_session.add(stock)
-    db_session.commit()
+    make_stock(db_session, "TST", target_weight_pct=0.0)
 
     df = _fake_price_df(30)
     data_ingestion.upsert_prices(db_session, "TST", df)
@@ -63,9 +60,7 @@ def test_recompute_indicators_populates_table(db_session):
 
 
 def test_refresh_ticker_uses_mocked_fetch(db_session, monkeypatch):
-    stock = Stock(ticker="TST", target_weight_pct=0.0)
-    db_session.add(stock)
-    db_session.commit()
+    make_stock(db_session, "TST", target_weight_pct=0.0)
 
     df = _fake_price_df(300)
     monkeypatch.setattr(data_ingestion, "fetch_price_history", lambda ticker, period="max", prefer=None: df)
@@ -108,8 +103,7 @@ def test_yahoo_blocked_falls_back_to_stooq_end_to_end(db_session, monkeypatch):
 
     monkeypatch.setattr(requests, "get", lambda *a, **k: _Resp())
 
-    db_session.add(Stock(ticker="VOO", target_weight_pct=100.0))
-    db_session.commit()
+    make_stock(db_session, "VOO", target_weight_pct=100.0)
 
     result = data_ingestion.refresh_ticker(db_session, "VOO", full_backfill=True)
 
@@ -145,8 +139,7 @@ def test_all_providers_blocked_reports_real_cause_and_hint(db_session, monkeypat
 
     monkeypatch.setattr(requests, "get", blocked)
 
-    db_session.add(Stock(ticker="VOO", target_weight_pct=100.0))
-    db_session.commit()
+    make_stock(db_session, "VOO", target_weight_pct=100.0)
 
     try:
         data_ingestion.refresh_ticker(db_session, "VOO", full_backfill=False)
@@ -161,8 +154,7 @@ def test_all_providers_blocked_reports_real_cause_and_hint(db_session, monkeypat
 
 def test_upsert_records_which_provider_supplied_the_prices(db_session):
     """제공자마다 종가 기준이 다를 수 있으므로 어디서 온 값인지 남겨야 한다."""
-    db_session.add(Stock(ticker="005930.KS", target_weight_pct=0.0))
-    db_session.commit()
+    make_stock(db_session, "005930.KS", target_weight_pct=0.0)
 
     df = _fake_price_df(5)
     df.attrs["provider"] = "naver"
@@ -177,8 +169,7 @@ def test_upsert_warns_when_provider_changes(db_session, caplog):
 
     조용히 섞이는 게 가장 나쁘다 — 나중에 지표가 튀어도 원인을 짚을 수 없다.
     """
-    db_session.add(Stock(ticker="005930.KS", target_weight_pct=0.0))
-    db_session.commit()
+    make_stock(db_session, "005930.KS", target_weight_pct=0.0)
 
     first = _fake_price_df(5)
     first.attrs["provider"] = "naver"
@@ -194,8 +185,7 @@ def test_upsert_warns_when_provider_changes(db_session, caplog):
 
 def test_upsert_without_provider_keeps_existing_source(db_session):
     """출처를 모르는 경로로 다시 저장해도 이미 아는 출처를 지우지 않는다."""
-    db_session.add(Stock(ticker="TST", target_weight_pct=0.0))
-    db_session.commit()
+    make_stock(db_session, "TST", target_weight_pct=0.0)
 
     df = _fake_price_df(3)
     df.attrs["provider"] = "yahoo"
@@ -209,8 +199,7 @@ def test_upsert_without_provider_keeps_existing_source(db_session):
 
 def test_refresh_prefers_the_provider_that_already_filled_this_ticker(db_session, monkeypatch):
     """갱신할 때는 지금까지 이 종목을 받아온 곳을 먼저 시도한다."""
-    db_session.add(Stock(ticker="005930.KS", target_weight_pct=0.0))
-    db_session.commit()
+    make_stock(db_session, "005930.KS", target_weight_pct=0.0)
 
     first = _fake_price_df(5)
     first.attrs["provider"] = "naver"
@@ -231,8 +220,7 @@ def test_refresh_prefers_the_provider_that_already_filled_this_ticker(db_session
 
 def test_full_backfill_does_not_pin_the_old_provider(db_session, monkeypatch):
     """전체 백필은 처음부터 다시 받는 것이므로 평소 순서를 그대로 쓴다."""
-    db_session.add(Stock(ticker="005930.KS", target_weight_pct=0.0))
-    db_session.commit()
+    make_stock(db_session, "005930.KS", target_weight_pct=0.0)
 
     first = _fake_price_df(5)
     first.attrs["provider"] = "yahoo"
@@ -251,8 +239,7 @@ def test_full_backfill_does_not_pin_the_old_provider(db_session, monkeypatch):
 
 def test_mixed_history_has_no_single_preference(db_session):
     """이미 섞여 있으면 어느 쪽을 선호할지 정할 수 없다 — 억지로 하나를 고르지 않는다."""
-    db_session.add(Stock(ticker="005930.KS", target_weight_pct=0.0))
-    db_session.commit()
+    make_stock(db_session, "005930.KS", target_weight_pct=0.0)
 
     for provider, start in (("naver", "2024-01-02"), ("yahoo", "2024-03-01")):
         df = _fake_price_df(5, start=start)
@@ -268,8 +255,7 @@ def test_unchanged_rows_are_not_written_again(db_session, monkeypatch):
     지표는 매번 전 구간을 다시 계산한다(중간이 틀어지는 걸 막기 위해서다). 그 결과를
     통째로 다시 저장하면 10년치 종목 하나에 수백 ms가 든다 — 어제와 똑같은 값인데도.
     """
-    db_session.add(Stock(ticker="TST", target_weight_pct=0.0))
-    db_session.commit()
+    make_stock(db_session, "TST", target_weight_pct=0.0)
 
     df = _fake_price_df(300)
     data_ingestion.upsert_prices(db_session, "TST", df)
@@ -303,8 +289,7 @@ def test_unchanged_rows_are_not_written_again(db_session, monkeypatch):
 
 def test_changed_row_is_updated_in_place(db_session):
     """값이 바뀐 행만 갱신된다 — 나머지 행은 건드리지 않는다."""
-    db_session.add(Stock(ticker="TST", target_weight_pct=0.0))
-    db_session.commit()
+    make_stock(db_session, "TST", target_weight_pct=0.0)
 
     df = _fake_price_df(10)
     data_ingestion.upsert_prices(db_session, "TST", df)

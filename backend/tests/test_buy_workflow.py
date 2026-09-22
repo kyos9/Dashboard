@@ -1,8 +1,9 @@
 import datetime as dt
 
-from app.models import BuyExecution, BuyStatus, BuyType, DcaPeriod, Holding, PriceDaily, SignalDaily, Stock
+from app.models import BuyExecution, BuyStatus, BuyType, DcaPeriod, Holding, PriceDaily, SignalDaily
 from app.services import buy_workflow
 from app.services.trading_calendar import period_trading_bounds, trading_days
+from tests.factories import make_buy, make_stock
 
 
 def _make_stock(db, ticker="TST", dca_period=DcaPeriod.monthly, dca_amount=100.0, added_at=None):
@@ -12,16 +13,14 @@ def _make_stock(db, ticker="TST", dca_period=DcaPeriod.monthly, dca_amount=100.0
     "지금"으로 두면 이번 기간의 과거 날짜가 전부 등록 전이 되어, 정작 보려는 것과
     상관없는 이유로 테스트가 통과하거나 실패한다.
     """
-    stock = Stock(
-        ticker=ticker,
+    return make_stock(
+        db,
+        ticker,
         dca_period=dca_period,
         dca_amount=dca_amount,
         target_weight_pct=0.0,
         added_at=added_at or (dt.datetime.utcnow() - dt.timedelta(days=365)),
     )
-    db.add(stock)
-    db.commit()
-    return stock
 
 
 def test_signal_buy_recorded_mid_period(db_session):
@@ -78,16 +77,14 @@ def test_no_duplicate_record_for_same_period(db_session):
     today = dt.date.today()
     period_start, period_end = period_trading_bounds(today, "monthly")
 
-    db_session.add(
-        BuyExecution(
-            ticker=stock.ticker,
-            period_start=period_start,
-            period_end=period_end,
-            exec_date=period_start,
-            type=BuyType.signal,
-            amount=100.0,
-            status=BuyStatus.scheduled,
-        )
+    make_buy(
+        db_session,
+        stock.ticker,
+        period_start=period_start,
+        period_end=period_end,
+        exec_date=period_start,
+        type=BuyType.signal,
+        amount=100.0,
     )
     db_session.add(SignalDaily(ticker=stock.ticker, date=period_end, knee_buy_v2=True, shoulder_sell_ref=False))
     db_session.commit()
@@ -103,17 +100,9 @@ def test_confirm_buy_execution_updates_holding(db_session):
     db_session.add(
         PriceDaily(ticker=stock.ticker, date=exec_date, open=100, high=101, low=99, close=100.0, volume=1000)
     )
-    buy = BuyExecution(
-        ticker=stock.ticker,
-        period_start=exec_date,
-        period_end=exec_date,
-        exec_date=exec_date,
-        type=BuyType.signal,
-        amount=1000.0,
-        status=BuyStatus.scheduled,
+    buy = make_buy(
+        db_session, stock.ticker, period_start=exec_date, type=BuyType.signal, amount=1000.0
     )
-    db_session.add(buy)
-    db_session.commit()
 
     confirmed = buy_workflow.confirm_buy_execution(db_session, buy, apply_to_holding=True)
     assert confirmed.status == BuyStatus.confirmed
@@ -130,17 +119,9 @@ def test_confirm_buy_execution_without_holding_update(db_session):
     db_session.add(
         PriceDaily(ticker=stock.ticker, date=exec_date, open=50, high=51, low=49, close=50.0, volume=1000)
     )
-    buy = BuyExecution(
-        ticker=stock.ticker,
-        period_start=exec_date,
-        period_end=exec_date,
-        exec_date=exec_date,
-        type=BuyType.fallback,
-        amount=500.0,
-        status=BuyStatus.scheduled,
+    buy = make_buy(
+        db_session, stock.ticker, period_start=exec_date, type=BuyType.fallback, amount=500.0
     )
-    db_session.add(buy)
-    db_session.commit()
 
     buy_workflow.confirm_buy_execution(db_session, buy, apply_to_holding=False)
     assert db_session.query(Holding).filter_by(ticker=stock.ticker).first() is None
