@@ -4,6 +4,7 @@ import { ErrorNotice } from '../components/ErrorNotice'
 import { MacroChartModal } from '../components/MacroChartModal'
 import {
   FREQUENCY_LABEL,
+  checkedLabel,
   fearGreedZone,
   macroChange,
   macroValue,
@@ -86,6 +87,13 @@ function MacroCard({ series, onOpen }: { series: MacroSeriesInfo; onOpen: () => 
         {' · '}
         {FREQUENCY_LABEL[series.frequency] ?? series.frequency}
         {series.released_at && ` · ${series.released_at} 발표`}
+      </p>
+      {/* "언제 받아본 것인가"는 "값이 언제 것인가"와 다른 질문이다. 둘 다 없으면
+          날짜가 뒤처져 보일 때 출처 탓인지 우리 탓인지 가릴 수가 없다. */}
+      <p className="hint macro-foot">
+        {checkedLabel(series.last_checked_at)
+          ? `${checkedLabel(series.last_checked_at)} 확인`
+          : '받아본 적 없음'}
         {series.source && ` · ${series.source}`}
       </p>
 

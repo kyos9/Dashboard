@@ -587,12 +587,34 @@ def test_the_startup_job_asks_for_the_retry(db_session, monkeypatch):
         return []
 
     monkeypatch.setattr(macro, "refresh_due", fake_refresh_due)
+    monkeypatch.setattr(macro, "refresh_all", lambda db: [])
 
-    scheduler._macro_refresh_job(after_restart=True)
+    scheduler._macro_refresh_job(startup=True)
     assert seen["after_restart"] is True
 
+
+def test_the_daily_job_does_not_skip_because_something_else_just_ran(db_session, monkeypatch):
+    """**실제로 값이 하루 뒤처졌던 자리다.**
+
+    사용자가 UTC 16시에 키를 넣고 앱을 다시 띄웠다. 켠 직후 작업이 그 시점의 최신값
+    (금요일치)을 받아왔고, 일곱 시간 뒤 23시 정기 갱신이 "아직 20시간이 안 됐다"며
+    통째로 건너뛰었다. 그 사이 올라온 월요일치는 하루를 더 기다렸고, 화면에는 금요일
+    날짜가 그대로 떠 있었다.
+
+    하루에 한 번 도는 것이 이미 주기다. 거기에 "받을 때가 됐나"를 또 물으면 같은 것을
+    두 번 세는 셈이고, 그 대가가 이것이다.
+    """
+    from app.services import scheduler
+
+    called = []
+    monkeypatch.setattr(macro, "refresh_all", lambda db: called.append("all") or [])
+    monkeypatch.setattr(
+        macro, "refresh_due", lambda db, now=None, after_restart=False: called.append("due") or []
+    )
+
     scheduler._macro_refresh_job()
-    assert seen["after_restart"] is False
+
+    assert called == ["all"], "정기 갱신은 거르지 않고 받아야 한다"
 
 
 def test_a_pce_that_has_not_been_published_yet_is_not_stale(db_session):
@@ -740,8 +762,9 @@ def test_an_unexpected_crash_is_recorded_too(db_session, monkeypatch):
     assert "있을 수 없는 일" in series.last_error
 
 
-def test_the_batch_leaves_alone_what_is_not_due_yet(db_session, monkeypatch):
-    """CPI 는 한 달에 한 번 나온다 — 날마다 20년치를 다시 받을 이유가 없다."""
+def test_restarting_leaves_alone_what_was_just_fetched(db_session, monkeypatch):
+    """켠 직후 쪽 얘기다 — 서버는 하루에도 몇 번 다시 뜨고, 그때마다 20년치를 다시
+    받을 수는 없다. (정기 갱신은 이렇게 거르지 않는다. 위 `_macro_refresh_job` 참고.)"""
     macro.ensure_seed(db_session)
     by_code = {s.code: s for s in macro.active_series(db_session)}
     macro.mark_checked(db_session, by_code["PCEPILFE"])  # 방금 받아봤다

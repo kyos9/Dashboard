@@ -63,6 +63,26 @@ export function fearGreedZone(value: number | null): { label: string; tone: stri
   return { label: '극단적 탐욕', tone: 'badge-amber' }
 }
 
+/**
+ * 마지막으로 **받아본** 시각을 "9/22 09:11" 로. 읽을 수 없으면 빈 문자열.
+ *
+ * `as_of`(값이 가리키는 날짜)만 보여주면 "9월 18일"이 두 가지 뜻이 된다 — 출처에 더
+ * 새 것이 없거나, 우리가 18일 이후로 안 받아봤거나. 사용자가 할 일이 정반대다.
+ * 실제로 이것 때문에 "날짜가 최신이 아니다"를 화면만 보고는 가릴 수 없었다.
+ *
+ * **시간대를 안 달고 오면 UTC 로 읽는다.** 서버는 UTC 로 저장하는데 `new Date` 는
+ * 시간대 없는 문자열을 **보는 사람의 지역시**로 읽는다 — 그대로 두면 한국에서 아홉
+ * 시간 어긋나고, 그 어긋남이 하필 "언제 받았나"를 묻는 자리에서 생긴다.
+ */
+export function checkedLabel(checkedAt?: string | null): string {
+  if (!checkedAt) return ''
+  const hasZone = /(?:Z|[+-]\d{2}:?\d{2})$/.test(checkedAt)
+  const when = new Date(hasZone ? checkedAt : `${checkedAt}Z`)
+  if (Number.isNaN(when.getTime())) return ''
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${when.getMonth() + 1}/${when.getDate()} ${pad(when.getHours())}:${pad(when.getMinutes())}`
+}
+
 /** 주기를 사람 말로 (카드 아래 "월간 · 8월분" 처럼 쓴다) */
 export const FREQUENCY_LABEL: Record<string, string> = {
   daily: '일간',

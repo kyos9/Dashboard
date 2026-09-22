@@ -95,6 +95,24 @@ describe('지표 카드', () => {
     expect(screen.getByText(/ReadTimeout/)).toBeInTheDocument()
   })
 
+  it('언제 받아봤는지 같이 보여준다 — 값 날짜만으로는 출처 탓인지 우리 탓인지 모른다', async () => {
+    mockMacro()
+    render(<MacroPanel />)
+
+    await screen.findByText('미 10년물 금리')
+    // 시간대는 보는 사람의 것이라 문자열을 못 박지 않는다. 확인할 것은 "붙었는가"다.
+    expect(screen.getByText(/\d+\/\d+ \d{2}:\d{2} 확인/)).toBeInTheDocument()
+  })
+
+  it('한 번도 안 받아봤으면 그렇다고 말한다', async () => {
+    mockMacro({
+      series: [series({ code: 'FEARGREED', value: null, as_of: null, last_checked_at: null })],
+    })
+    render(<MacroPanel />)
+
+    expect(await screen.findByText(/받아본 적 없음/)).toBeInTheDocument()
+  })
+
   it('한 번도 안 받아본 것과 받았는데 막힌 것을 구분한다', async () => {
     mockMacro({
       series: [

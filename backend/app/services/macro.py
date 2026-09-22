@@ -480,7 +480,11 @@ def refresh_all(
 def refresh_due(
     db: Session, now: dt.datetime | None = None, after_restart: bool = False
 ) -> list[dict]:
-    """배치가 부르는 자리 — 받을 때가 된 지표만 받는다.
+    """**켠 직후** 도는 자리 — 방금 받은 지표는 건너뛴다.
+
+    정기 갱신(하루 한 번)은 이쪽이 아니라 `refresh_all` 을 부른다. 하루에 한 번이라는
+    것이 이미 주기인데 여기서 또 거르면, 그 사이에 다른 이유로 한 번 받았을 때 정기
+    갱신이 통째로 건너뛰어진다 (`scheduler._macro_refresh_job` 에 실제 사례를 적어뒀다).
 
     `after_restart` 는 켠 직후 한 번 도는 쪽에서 준다 (`is_due` 의 설명 참고).
     """

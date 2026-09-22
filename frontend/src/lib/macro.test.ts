@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fearGreedZone, macroChange, macroValue, statusOf } from './macro'
+import { checkedLabel, fearGreedZone, macroChange, macroValue, statusOf } from './macro'
 import type { MacroSeriesInfo } from '../types'
 
 function series(overrides: Partial<MacroSeriesInfo>): MacroSeriesInfo {
@@ -82,5 +82,29 @@ describe('지표 상태', () => {
 
   it('실패가 우선이다 — 못 받았는데 "오래됨"만 뜨면 기다리면 되는 줄 안다', () => {
     expect(statusOf(series({ stale: true, last_error: '막힘' }))!.text).toBe('받지 못했습니다')
+  })
+})
+
+describe('마지막 확인 시각', () => {
+  it('시간대를 안 달고 오면 UTC로 읽는다 — 그냥 두면 한국에서 아홉 시간 어긋난다', () => {
+    // 같은 순간을 두 가지로 적어주고 같은 결과가 나오는지 본다.
+    // (시간대는 보는 사람의 것이므로 문자열을 못 박지 않는다.)
+    expect(checkedLabel('2026-09-21T16:00:00Z')).not.toBe('')  // 빈 문자열끼리 비교하면 아무것도 확인 못 한다
+    expect(checkedLabel('2026-09-21T16:00:00')).toBe(checkedLabel('2026-09-21T16:00:00Z'))
+    expect(checkedLabel('2026-09-21T16:00:00.123456')).toBe(checkedLabel('2026-09-21T16:00:00Z'))
+  })
+
+  it('시간대가 붙어 오면 그대로 존중한다', () => {
+    expect(checkedLabel('2026-09-21T16:00:00+00:00')).toBe(checkedLabel('2026-09-21T16:00:00Z'))
+    expect(checkedLabel('2026-09-22T01:00:00+09:00')).toBe(checkedLabel('2026-09-21T16:00:00Z'))
+  })
+
+  it('한 번도 안 받아봤으면 빈 문자열', () => {
+    expect(checkedLabel(null)).toBe('')
+    expect(checkedLabel(undefined)).toBe('')
+  })
+
+  it('읽을 수 없는 값은 아예 안 붙인다 — Invalid Date 는 없는 것보다 나쁘다', () => {
+    expect(checkedLabel('그런 시각 없음')).toBe('')
   })
 })

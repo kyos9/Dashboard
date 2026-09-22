@@ -14,9 +14,9 @@
 위 시각 대부분에 꺼져 있다. 그래서 시세·백업 둘 다 **켠 직후에 한 번 더 보되, 이미
 최신이면 넘어간다.** 앱을 여닫을 때마다 다시 받아오면 그것대로 못 쓴다.
 
-매크로 지표는 UTC 23:00 — 미국 갱신 뒤, 백업 앞이다. 다만 여기서 **모든 지표를 매일
-받지는 않는다.** CPI 는 한 달에 한 번 나오는데 날마다 20년치를 다시 받을 이유가 없어서,
-받을 때가 됐는지는 `macro.is_due` 가 판정한다.
+매크로 지표는 UTC 23:00 — 미국 갱신 뒤, 백업 앞이다. **하루 한 번 도는 이 작업은
+조건 없이 받는다.** 하루에 한 번이라는 것이 곧 주기이므로, 거기에 다시 "받을 때가
+됐는가"를 물으면 같은 것을 두 번 세는 셈이 된다 (아래 `_macro_refresh_job` 참고).
 
 여기에 더해 한국거래소 상장목록도 주기적으로 받아둔다. 내장 목록은 주요 종목
 위주라 중소형주가 이름으로 검색되지 않는데, 사용자가 "거래소 목록 갱신" 버튼의
@@ -96,11 +96,21 @@ def _startup_backup_job() -> None:
     run_backup_if_stale()
 
 
-def _macro_refresh_job(after_restart: bool = False) -> None:
-    """매크로 지표 갱신. **받을 때가 된 것만** 받는다 (macro.is_due).
+def _macro_refresh_job(startup: bool = False) -> None:
+    """매크로 지표 갱신. 정해진 시각에 도는 쪽과 켠 직후 도는 쪽이 **다르게 움직인다.**
 
-    `after_restart` 는 켠 직후 도는 쪽에서 준다 — 다시 띄웠다는 건 보통 뭔가 고쳤다는
-    뜻이므로, 실패했던 지표는 재시도 간격을 기다리지 않고 바로 다시 해본다.
+    정해진 시각(하루 한 번)에는 **조건 없이 받는다.** 하루에 한 번 도는 것 자체가
+    주기인데 거기에 "마지막으로 받은 지 20시간 지났나"를 또 물으면, 그 사이에 다른
+    이유로 한 번 받았을 때 **정작 정기 갱신이 통째로 건너뛰어진다.**
+
+    실제로 그 일이 있었다. 사용자가 밤 늦게 FRED 키를 넣고 앱을 다시 띄웠고(그때가
+    UTC 16시), 켠 직후 작업이 그 시점의 최신값(금요일치)을 받아왔다. 일곱 시간 뒤
+    23시 정기 갱신은 "아직 20시간이 안 됐다"며 건너뛰었고, 그 사이 올라온 월요일치는
+    **하루를 통째로 기다렸다.** 화면에는 금요일 날짜가 그대로 떠 있었다.
+
+    켠 직후에는 반대로 걸러야 한다 — 서버는 하루에도 몇 번 다시 뜨고, 그때마다
+    20년치를 다시 받을 수는 없다. 대신 실패했던 지표는 시간과 무관하게 다시 해본다
+    (다시 띄웠다는 건 보통 뭔가 고쳤다는 뜻이다).
 
     실패해도 조용히 넘어간다 — 매크로는 맥락이지 시그널이 아니다. 여기서 시끄럽게
     굴면 정작 시세 갱신 실패가 묻힌다. 어느 지표가 왜 막혔는지는 지표 행에 남고
@@ -110,7 +120,9 @@ def _macro_refresh_job(after_restart: bool = False) -> None:
 
     db = SessionLocal()
     try:
-        results = macro.refresh_due(db, after_restart=after_restart)
+        results = (
+            macro.refresh_due(db, after_restart=True) if startup else macro.refresh_all(db)
+        )
         done = [r for r in results if r.get("ok") and not r.get("skipped")]
         failed = [r for r in results if not r.get("ok")]
         if done or failed:
@@ -200,7 +212,7 @@ def start_scheduler() -> BackgroundScheduler | None:
     # 백업(60초) 앞에 둔다. 셋 다 네트워크를 쓰므로 겹치지 않게 벌려놓는다.
     scheduler.add_job(
         _macro_refresh_job, "date", run_date=_soon(45), id="macro_refresh_startup",
-        args=[True],  # 고치고 다시 띄운 경우를 위해 실패했던 지표는 바로 다시 해본다
+        args=[True],  # 켠 직후 쪽 — 방금 받은 것은 건너뛰고, 실패했던 것만 다시 해본다
     )
     # 백업: 미국 갱신(22:30)이 끝난 뒤. 그날 받은 시세까지 들어간다.
     scheduler.add_job(
