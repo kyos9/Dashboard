@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ChartModal } from '../components/ChartModal'
+import { MacroStrip } from '../components/MacroStrip'
 import { NumberInput } from '../components/NumberInput'
 import { dropSide, moveOne, placeAt } from '../lib/reorder'
 import { useReorderAnimation } from '../lib/flip'
@@ -568,6 +569,9 @@ export function Dashboard() {
       </datalist>
 
       <ErrorNotice error={error} onDismiss={() => setError(null)} />
+
+      {/* 매크로는 한 줄만. 홈의 주인공은 종목이다 (components/MacroStrip.tsx) */}
+      <MacroStrip />
 
       <div className="kpi-grid">
         <div className="kpi">

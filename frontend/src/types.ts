@@ -288,6 +288,30 @@ export interface MacroPoint {
   value: number
 }
 
+/**
+ * 값이 어느 구간인가.
+ *
+ * 경계를 **서버가 들고 있다.** 화면 둘(매크로 탭과 홈)이 각자 25/45/55/75를 들고 있으면
+ * 언젠가 한쪽만 고쳐져서 같은 숫자를 놓고 둘이 다른 이름을 말한다.
+ */
+export interface MacroZone {
+  label: string
+  /** 화면에 같이 적는 범위 ("25~44") — 이름만 적으면 33.7이 왜 공포인지 알 수 없다 */
+  range: string
+  /** 양 끝 구간인가 — 국면 배지로 올라갈지를 이걸로 고른다 */
+  extreme: boolean
+}
+
+/** 국면 배지 하나. 규칙 하나가 배지 하나다 — 합성 점수는 만들지 않는다 */
+export interface MacroBadge {
+  key: string
+  label: string
+  /** 왜 떴는지. 이름만으로는 −0.02와 −1.5가 같아 보인다 */
+  detail: string
+  tone: string
+  as_of: string | null
+}
+
 /** 카드 한 장에 필요한 것 전부 */
 export interface MacroSeriesInfo {
   code: string
@@ -306,6 +330,8 @@ export interface MacroSeriesInfo {
   change: number | null
   released_at: string | null
   source: string | null
+  /** 값이 어느 구간인가. **구간을 정해서 발표하는 지표에만** 있다 (지금은 공포·탐욕 하나) */
+  zone: MacroZone | null
   stale: boolean
   last_checked_at: string | null
   last_ok_at: string | null
@@ -323,6 +349,18 @@ export interface TermSpread {
 export interface MacroOverview {
   series: MacroSeriesInfo[]
   term_spread: TermSpread | null
+  /** 지금 걸리는 규칙들. 비어 있으면 "눈에 띄는 국면 없음"이고 그것도 정보다 */
+  badges: MacroBadge[]
+  /** 홈에 띄우기로 고른 코드 — 카드의 ☆ 가 켜졌는지를 이걸로 판단한다 */
+  pinned: string[]
+}
+
+/** 홈 화면 한 줄 */
+export interface MacroPinned {
+  /** 고른 코드. 꺼지거나 없어진 지표도 여기엔 남아 있다 */
+  codes: string[]
+  /** 그 중 실제로 보여줄 수 있는 것들, 고른 순서대로 */
+  series: MacroSeriesInfo[]
 }
 
 export interface MacroHistory {

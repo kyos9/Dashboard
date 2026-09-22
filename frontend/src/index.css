@@ -1929,6 +1929,8 @@ table.data-table tr.dirty:hover td {
   flex-direction: column;
   min-width: 0;
   gap: 2px;
+  /* 이름이 남는 자리를 먹어야 배지와 ☆ 가 오른쪽 끝에 붙는다 */
+  flex: 1 1 auto;
 }
 
 /* 이름을 누르면 차트가 뜬다 — 종목 화면에서 종목명을 누르는 것과 같은 동작이라
@@ -1978,4 +1980,141 @@ table.data-table tr.dirty:hover td {
   margin: 0;
   /* 날짜·주기·출처가 이어 붙으므로 좁은 화면에서 자연스럽게 접히게 둔다 */
   line-height: 1.55;
+}
+
+/* ---------- 국면 배지 ---------- */
+
+.regime-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: var(--gap);
+}
+
+/* 배지 이름 아래에 왜 떴는지가 같이 붙는다 — 이름만으로는 −0.02와 −1.5가 같아 보인다 */
+.regime-badge {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 7px 11px;
+  font-size: 13px;
+}
+
+.regime-detail {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+.regime-quiet {
+  margin: 0 0 var(--gap);
+}
+
+/* ---------- 홈에 올리는 ☆ ---------- */
+
+.pin-btn {
+  flex: 0 0 auto;
+  padding: 2px 4px;
+  min-width: 0;
+  border: none;
+  background: none;
+  font-size: 17px;
+  line-height: 1;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+
+.pin-btn:hover {
+  color: var(--amber);
+}
+
+.pin-btn.on {
+  color: var(--amber);
+}
+
+/* ---------- 구간 이름 (공포·탐욕) ---------- */
+
+/* 색은 `.badge-amber` / `.badge-grey` 가 준다 — 극단인지 아닌지만 말하고, 공포를 초록
+   탐욕을 빨강으로 칠하지 않는다 (그러면 화면이 사라/팔아라를 말하는 셈이다). */
+.macro-zone {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-self: flex-start;
+  margin: 0;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.macro-zone-range {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  opacity: 0.8;
+}
+
+/* ---------- 홈 화면 매크로 한 줄 ---------- */
+
+/* 폰에서는 가로로 밀어서 본다. 줄바꿈으로 두면 지표 셋이 세 줄을 차지해서 종목 표를
+   화면 밖으로 밀어내는데, 홈의 주인공은 여전히 종목이다. */
+.macro-strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  margin-bottom: var(--gap);
+  scrollbar-width: thin;
+}
+
+.macro-chip {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  text-decoration: none;
+  color: inherit;
+}
+
+.macro-chip:hover {
+  border-color: var(--border-strong);
+}
+
+.macro-chip-name {
+  font-size: 11.5px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.macro-chip-value {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 15px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.macro-chip-change {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-dim);
+}
+
+/* 칩 안에서는 배지 테두리까지 그리면 상자 안의 상자가 된다 — 글자색만 쓴다 */
+.macro-chip-zone {
+  font-size: 11.5px;
+  font-weight: 700;
+  background: none !important;
+  border: none !important;
+  padding: 0;
+  white-space: nowrap;
 }

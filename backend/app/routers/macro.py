@@ -7,6 +7,7 @@
 import datetime as dt
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -14,6 +15,8 @@ from app.models import MacroSeries
 from app.schemas import (
     MacroHistoryOut,
     MacroOverviewOut,
+    MacroPinnedOut,
+    MacroPinnedUpdate,
     MacroPointOut,
     MacroRefreshResult,
 )
@@ -30,6 +33,32 @@ RANGE_DAYS = {"1y": 365, "5y": 365 * 5, "10y": 365 * 10, "max": None}
 def get_overview(db: Session = Depends(get_db)):
     """지표 목록 + 최신값 + 갱신 상태, 그리고 금리차."""
     return macro.overview(db)
+
+
+# **`/{code}` 보다 먼저 있어야 한다.** 아래로 내려가면 `/pinned` 요청이 "PINNED 라는
+# 지표를 달라"로 잡혀서 404 가 된다 — FastAPI 는 먼저 등록된 경로를 먼저 본다.
+@router.get("/pinned", response_model=MacroPinnedOut)
+def get_pinned(db: Session = Depends(get_db)):
+    """홈 화면에 띄울 지표들. 고른 게 없으면 기본 셋이 온다."""
+    return macro.pinned_overview(db)
+
+
+@router.put("/pinned", response_model=MacroPinnedOut)
+def put_pinned(payload: MacroPinnedUpdate, db: Session = Depends(get_db)):
+    """홈에 띄울 지표를 정한다.
+
+    **없는 코드는 400 으로 돌려준다.** 조용히 버리면 별을 눌렀는데 홈에 안 뜨는 이유를
+    사용자가 알 수 없고, 오타 하나가 영영 저장된 채로 남는다.
+    """
+    wanted = macro.normalize_codes(payload.codes)
+    if wanted:
+        known = set(db.scalars(select(MacroSeries.code).where(MacroSeries.code.in_(wanted))).all())
+        missing = [code for code in wanted if code not in known]
+        if missing:
+            raise HTTPException(status_code=400, detail=f"unknown macro code: {', '.join(missing)}")
+
+    macro.set_pinned(db, wanted)
+    return macro.pinned_overview(db)
 
 
 @router.get("/{code}", response_model=MacroHistoryOut)

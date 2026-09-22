@@ -309,6 +309,31 @@ class MacroPointOut(BaseModel):
     value: float
 
 
+class MacroZoneOut(BaseModel):
+    """값이 어느 구간인가. **구간을 정해서 발표하는 지표에만** 붙는다.
+
+    금리 4.2%가 어느 구간인지는 아무도 정해놓지 않았고, 우리가 정하면 그건 출처 없는
+    판정이 된다. 지금은 공포·탐욕 지수 하나뿐이다 (`services/regime.py`).
+    """
+
+    label: str
+    # 화면에 같이 적는 범위 ("25~44"). 이름만 적으면 33.7이 왜 공포인지 알 수 없다
+    range: str
+    # 양 끝 구간인가 — 국면 배지로 올릴지를 이걸로 고른다
+    extreme: bool = False
+
+
+class MacroBadgeOut(BaseModel):
+    """국면 배지 하나. 규칙 하나가 배지 하나다 — **합성 점수는 만들지 않는다.**"""
+
+    key: str
+    label: str
+    # 왜 떴는지. 배지 이름만으로는 "얼마나"가 안 보인다
+    detail: str
+    tone: str
+    as_of: Optional[dt.date] = None
+
+
 class MacroSeriesOut(BaseModel):
     """카드 한 장에 필요한 것 전부.
 
@@ -334,6 +359,7 @@ class MacroSeriesOut(BaseModel):
     change: Optional[float] = None
     released_at: Optional[dt.date] = None
     source: Optional[str] = None
+    zone: Optional[MacroZoneOut] = None
 
     stale: bool = False
     last_checked_at: Optional[dt.datetime] = None
@@ -353,6 +379,24 @@ class TermSpreadOut(BaseModel):
 class MacroOverviewOut(BaseModel):
     series: list[MacroSeriesOut]
     term_spread: Optional[TermSpreadOut] = None
+    # 지금 걸리는 규칙들. 아무것도 안 걸리면 빈 목록이다 (그것도 정보다)
+    badges: list[MacroBadgeOut] = []
+    # 홈 화면에 띄우기로 고른 코드. 카드의 ☆ 가 켜졌는지를 이걸로 판단한다
+    pinned: list[str] = []
+
+
+class MacroPinnedOut(BaseModel):
+    """홈 화면 한 줄. 고른 코드와, 그 중 실제로 살아있는 지표들."""
+
+    codes: list[str]
+    series: list[MacroSeriesOut]
+
+
+class MacroPinnedUpdate(BaseModel):
+    """**빈 목록은 "다 껐다"는 뜻이다** — 기본값으로 되돌리라는 말이 아니다
+    (`models.PortfolioSettings.pinned_macro` 참고)."""
+
+    codes: list[str]
 
 
 class MacroHistoryOut(BaseModel):

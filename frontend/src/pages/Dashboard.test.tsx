@@ -146,6 +146,8 @@ function mockApi(cards = CARDS, rebalance = REBALANCE) {
   vi.spyOn(api, 'getDashboard').mockResolvedValue(cards)
   vi.spyOn(api, 'getRebalanceCurrent').mockResolvedValue(rebalance)
   vi.spyOn(api, 'listStocks').mockResolvedValue(cards.map(stockOf))
+  // 홈 위쪽 매크로 한 줄 (components/MacroStrip.tsx) — 기본은 빈 줄로 둔다
+  vi.spyOn(api, 'getMacroPinned').mockResolvedValue({ codes: [], series: [] })
   vi.spyOn(api, 'getHealth').mockResolvedValue({
     status: 'ok',
     version: 'test',

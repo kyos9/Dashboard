@@ -1,4 +1,4 @@
-import type { MacroSeriesInfo } from '../types'
+import type { MacroSeriesInfo, MacroZone } from '../types'
 
 /* 매크로 값을 화면 글자로 바꾸는 자리.
  *
@@ -46,21 +46,18 @@ export function macroChange(change: number | null | undefined, unit: string): st
 }
 
 /**
- * 공포·탐욕 지수의 구간 이름. CNN이 쓰는 경계 그대로다.
+ * 구간 배지의 색.
  *
- * 이 지표에만 붙는다 — 0~100 점수를 구간으로 읽는 것이 이 지수의 정의이고, 다른
- * 지표에는 그런 경계가 없다. (지표 전반의 "국면 배지"는 따로 할 일이다.)
+ * **극단인지 아닌지만 말한다.** 공포를 초록으로 칠하면 "지금 사라"가 되고 탐욕을
+ * 빨강으로 칠하면 "지금 팔아라"가 되는데, 이 화면은 그 말을 하지 않는다
+ * (`services/macro.py` 맨 앞의 결정이 화면에도 그대로 적용된다).
  *
- * 색은 **극단인지 아닌지**만 말한다. 공포를 초록으로 칠하면 "지금 사라"가 되고
- * 탐욕을 빨강으로 칠하면 "지금 팔아라"가 되는데, 이 화면은 그 말을 하지 않는다.
+ * 구간 **이름과 경계는 여기 없다** — 서버가 들고 있다 (`services/regime.py`). 어느
+ * 구간인지는 화면이 정하는 것이 아니라 지수를 발표하는 쪽이 정해둔 것이고, 화면 둘이
+ * 각자 경계를 들고 있으면 언젠가 같은 숫자를 놓고 둘이 다른 이름을 말한다.
  */
-export function fearGreedZone(value: number | null): { label: string; tone: string } | null {
-  if (value === null || Number.isNaN(value)) return null
-  if (value < 25) return { label: '극단적 공포', tone: 'badge-amber' }
-  if (value < 45) return { label: '공포', tone: 'badge-grey' }
-  if (value <= 55) return { label: '중립', tone: 'badge-grey' }
-  if (value <= 75) return { label: '탐욕', tone: 'badge-grey' }
-  return { label: '극단적 탐욕', tone: 'badge-amber' }
+export function zoneTone(zone: MacroZone | null | undefined): string {
+  return zone?.extreme ? 'badge-amber' : 'badge-grey'
 }
 
 /**

@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { checkedLabel, fearGreedZone, macroChange, macroValue, statusOf } from './macro'
+import { checkedLabel, macroChange, macroValue, statusOf, zoneTone } from './macro'
 import type { MacroSeriesInfo } from '../types'
 
 function series(overrides: Partial<MacroSeriesInfo>): MacroSeriesInfo {
   return {
     code: 'DGS10', name: '10년물', note: null, unit: 'percent', transform: 'none',
     transform_label: null, frequency: 'daily', as_of: '2026-09-21', value: 4.11,
-    previous: 4.05, change: 0.06, released_at: null, source: 'fred_api', stale: false,
+    previous: 4.05, change: 0.06, released_at: null, source: 'fred_api', zone: null, stale: false,
     last_checked_at: '2026-09-21T23:00:00', last_ok_at: '2026-09-21T23:00:00',
     last_error: null, ...overrides,
   }
@@ -46,25 +46,16 @@ describe('변화폭', () => {
   })
 })
 
-describe('공포·탐욕 구간', () => {
-  it.each([
-    [5, '극단적 공포'],
-    [24.9, '극단적 공포'],
-    [25, '공포'],
-    [50, '중립'],
-    [55, '중립'],
-    [56, '탐욕'],
-    [75, '탐욕'],
-    [76, '극단적 탐욕'],
-    [100, '극단적 탐욕'],
-  ])('%s점은 %s', (value, label) => {
-    expect(fearGreedZone(value)!.label).toBe(label)
+describe('구간 배지 색', () => {
+  /* 구간 **이름과 경계는 서버가 들고 있다** (`services/regime.py`, `tests/test_regime.py`).
+     화면이 정하는 것은 색뿐이고, 색은 극단인지 아닌지만 말한다. */
+  it('양 극단만 눈에 띄게 한다 — 공포를 초록으로 칠하면 "사라"가 된다', () => {
+    expect(zoneTone({ label: '극단적 공포', range: '0~24', extreme: true })).toBe('badge-amber')
+    expect(zoneTone({ label: '중립', range: '45~55', extreme: false })).toBe('badge-grey')
   })
 
-  it('양 극단만 눈에 띄게 한다 — 공포를 초록으로 칠하면 "사라"가 된다', () => {
-    expect(fearGreedZone(10)!.tone).toBe('badge-amber')
-    expect(fearGreedZone(90)!.tone).toBe('badge-amber')
-    expect(fearGreedZone(50)!.tone).toBe('badge-grey')
+  it('구간이 없는 지표도 색을 물어볼 수 있다', () => {
+    expect(zoneTone(null)).toBe('badge-grey')
   })
 })
 

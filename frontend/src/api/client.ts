@@ -15,6 +15,7 @@ import type {
   LogsResponse,
   MacroHistory,
   MacroOverview,
+  MacroPinned,
   MacroRefreshResult,
   Stock,
   StockCreateInput,
@@ -159,6 +160,12 @@ export const api = {
     request<MacroHistory>(`/macro/${encodeURIComponent(code)}?range=${range}`),
   /** 사람이 누르는 갱신 — 배치와 달리 "받을 때가 됐는지"를 따지지 않는다 */
   refreshMacro: () => request<MacroRefreshResult[]>('/macro/refresh', { method: 'POST' }),
+
+  /** 홈에 띄울 지표. 홈은 고른 것만 읽는다 — 셋 보여주려고 아홉 개를 계산할 이유가 없다 */
+  getMacroPinned: () => request<MacroPinned>('/macro/pinned'),
+
+  setMacroPinned: (codes: string[]) =>
+    request<MacroPinned>('/macro/pinned', { method: 'PUT', body: JSON.stringify({ codes }) }),
 
   getLogs: (level: 'warning' | 'all' = 'warning') =>
     request<LogsResponse>(`/logs?level=${level}`),

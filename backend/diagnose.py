@@ -291,7 +291,7 @@ if app_modules:
     import datetime as dt
     import time
 
-    from app.services import macro, providers
+    from app.services import macro, regime, providers
     from app.services.providers import fred
 
     print("  9-1) FRED API 키")
@@ -392,6 +392,34 @@ if app_modules:
     except Exception as exc:
         fail(brief(exc, 300))
         info("→ 앱을 한 번 띄우면 표가 만들어지고 목록이 채워집니다.")
+
+    # 9-5 가 "값이 들어와 있나"라면 이쪽은 **"화면이 그 값으로 무슨 말을 하나"**다.
+    # 둘은 따로 틀릴 수 있다 — 값은 멀쩡한데 배지가 안 뜨거나(경계가 잘못됐거나),
+    # 값이 없어서 안 뜨거나. 화면만 보고는 이 둘을 가릴 수 없다.
+    print("\n  9-6) 지금 화면에 뜰 국면 배지")
+    try:
+        from app.db import SessionLocal
+
+        db = SessionLocal()
+        try:
+            view = macro.overview(db)
+            if view["badges"]:
+                for badge in view["badges"]:
+                    ok(f"{badge['label']} — {badge['detail']}")
+            else:
+                info("걸리는 규칙이 없습니다 (화면에도 '눈에 띄는 국면 없음'으로 뜹니다).")
+                info(f"→ 기준: 금리차 < 0 · VIX > {regime.VIX_FEAR:.0f} · 공포·탐욕 지수가 양 극단")
+
+            zones = [c for c in view["series"] if c.get("zone")]
+            for card in zones:
+                print(f"         {card['code']:10s} {card['value']} → {card['zone']['label']} 구간 ({card['zone']['range']})")
+
+            pinned = view["pinned"]
+            print(f"         홈 화면: {', '.join(pinned) if pinned else '(다 꺼둠)'}")
+        finally:
+            db.close()
+    except Exception as exc:
+        fail(brief(exc, 300))
 
 
 # ── 10. 공포·탐욕 지수 ───────────────────────────────────────────────

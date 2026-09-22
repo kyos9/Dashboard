@@ -28,6 +28,8 @@ from app.models import (
     MacroValue,
     PortfolioSettings,
 )
+from app.services import regime
+from app.services import settings as settings_service
 from app.services.providers import AllMacroProvidersFailed, fetch_macro_points
 
 logger = logging.getLogger(__name__)
@@ -712,6 +714,10 @@ def snapshot(db: Session, series: MacroSeries, today: dt.date | None = None) -> 
         "value": latest[1] if latest else None,
         "previous": previous[1] if previous else None,
         "change": (latest[1] - previous[1]) if latest and previous else None,
+        # 구간 이름이 있는 지표(공포·탐욕)만 채워진다. 어느 구간인지는 화면이 정하는
+        # 것이 아니라 발표하는 쪽이 정해둔 것이라 서버에서 붙인다 — 화면 둘(매크로 탭과
+        # 홈)이 각자 경계를 들고 있으면 언젠가 둘이 다른 이름을 말한다.
+        "zone": regime.zone_of(series.code, latest[1] if latest else None),
         # 발표일과 출처는 **원본 행**에서 온다. 변환은 날짜를 안 바꾸므로 같은 날 것이다.
         "released_at": raw.released_at if raw else None,
         "source": raw.source if raw else None,
@@ -730,11 +736,72 @@ def overview(db: Session, today: dt.date | None = None) -> dict:
     """
     series_list = active_series(db)
     spread = term_spread_point(db)
+    term = (
+        {"as_of": spread[0], "value": spread[1], "long_code": "DGS10", "short_code": "DGS2"}
+        if spread
+        else None
+    )
+    snapshots = [snapshot(db, series, today=today) for series in series_list]
     return {
-        "series": [snapshot(db, series, today=today) for series in series_list],
-        "term_spread": (
-            {"as_of": spread[0], "value": spread[1], "long_code": "DGS10", "short_code": "DGS2"}
-            if spread
-            else None
-        ),
+        "series": snapshots,
+        "term_spread": term,
+        # 배지는 **방금 만든 스냅샷을 보고** 만든다. DB 를 다시 읽지 않으므로 쿼리가 늘지
+        # 않고, 배지와 카드가 같은 값을 말하는 것이 보장된다 (`services/regime.py` 참고).
+        "badges": regime.badges(snapshots, term),
+        "pinned": pinned_codes(settings_service.get_settings(db)),
     }
+
+
+def pinned_overview(db: Session, today: dt.date | None = None) -> dict:
+    """홈 화면 한 줄. **고른 지표만** 읽는다.
+
+    매크로 탭의 `overview` 를 그대로 홈에서 부르면 홈을 열 때마다 지표 아홉 개를 전부
+    계산하게 된다. 홈의 주인공은 종목이고 매크로는 한 줄이라, 세 개 보여주려고 아홉 개를
+    읽을 이유가 없다.
+
+    고른 코드 중 없어졌거나 꺼진 지표는 **조용히 빠진다.** 지표를 끄고 나서 홈이
+    비어 보이는 것보다, 홈에서 그것만 사라지는 쪽이 덜 놀랍다.
+    """
+    codes = pinned_codes(settings_service.get_settings(db))
+    if not codes:
+        return {"codes": [], "series": []}
+
+    rows = {
+        series.code: series
+        for series in db.scalars(
+            select(MacroSeries).where(MacroSeries.code.in_(codes), MacroSeries.active.is_(True))
+        ).all()
+    }
+    # 고른 **순서대로** 돌려준다. `IN` 질의가 돌려주는 순서는 아무 의미가 없다.
+    return {
+        "codes": codes,
+        "series": [snapshot(db, rows[code], today=today) for code in codes if code in rows],
+    }
+
+
+def normalize_codes(codes: list[str]) -> list[str]:
+    """받은 코드 목록을 저장할 모양으로. 대소문자를 맞추고 중복은 **처음 것만** 남긴다.
+
+    저장하는 쪽(`set_pinned`)과 검사하는 쪽(라우터)이 **같은 함수를 쓴다.** 각자
+    다듬으면 한쪽만 대문자로 바꾸는 날이 오고, 그때 "vix"는 검사에서 통과했다가
+    저장은 "VIX"로 되거나 그 반대가 된다.
+    """
+    seen: list[str] = []
+    for code in codes:
+        code = str(code).strip().upper()
+        if code and code not in seen:
+            seen.append(code)
+    return seen
+
+
+def set_pinned(db: Session, codes: list[str]) -> list[str]:
+    """홈에 띄울 지표를 정한다.
+
+    없는 코드는 여기 오기 전에 걸러져야 한다 (라우터가 400 으로 돌려준다) — 조용히
+    버리면 사용자는 별을 눌렀는데 홈에 안 뜨는 이유를 알 수 없다.
+    """
+    wanted = normalize_codes(codes)
+    settings = settings_service.get_settings(db)
+    settings.pinned_macro = wanted
+    db.commit()
+    return wanted
