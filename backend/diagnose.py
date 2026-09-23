@@ -23,6 +23,7 @@ import platform
 import socket
 import sys
 import traceback
+import warnings
 
 # 앱과 yfinance의 로그는 끈다 — 이 스크립트가 직접 정리해서 출력하므로 중복이면 읽기 어렵다.
 logging.getLogger("app").setLevel(logging.CRITICAL)
@@ -151,10 +152,18 @@ try:
 
     print("\n  5-2) Ticker.history(raise_errors=True) — 진짜 원인이 나오는 방식")
     try:
-        df = yf.Ticker(TICKER).history(
-            period="1mo", interval="1d", auto_adjust=False, actions=False,
-            timeout=30, raise_errors=True,
-        )
+        # yfinance 1.7부터 `raise_errors`에 "곧 없어진다" 경고가 붙는다. 권하는 대체
+        # (`yf.config.debug.hide_exceptions = False`)는 **전역 스위치**라 켜는 순간 위
+        # 5-1(예외를 안 내는 방식)까지 예외를 내게 되어 두 방식을 비교하는 뜻이 사라진다.
+        # 고정해둔 1.7.0에서는 그대로 동작하므로 이 경고만 가린다.
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore", message="'raise_errors' deprecated", category=DeprecationWarning
+            )
+            df = yf.Ticker(TICKER).history(
+                period="1mo", interval="1d", auto_adjust=False, actions=False,
+                timeout=30, raise_errors=True,
+            )
         if df is None or df.empty:
             fail("예외는 없지만 행이 0개 — 티커가 상장폐지됐거나 야후에 데이터가 없습니다.")
         else:
