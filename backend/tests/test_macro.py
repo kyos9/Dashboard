@@ -13,6 +13,7 @@ import pytest
 
 from app.models import MacroSeries, MacroValue
 from app.services import macro
+from app.services.users import LOCAL_USER_ID
 from tests.factories import build_settings
 from app.services.providers import (
     AllMacroProvidersFailed,
@@ -953,7 +954,7 @@ def test_the_spread_is_not_in_the_list_of_indicators(db_session):
         db_session.add(MacroValue(code=code, as_of=dt.date(2026, 9, 21), value=value))
     db_session.commit()
 
-    view = macro.overview(db_session, today=dt.date(2026, 9, 21))
+    view = macro.overview(db_session, LOCAL_USER_ID, today=dt.date(2026, 9, 21))
 
     assert [card["code"] for card in view["series"]] == ["DGS10", "DGS2"]
     assert view["term_spread"]["value"] == pytest.approx(-0.25)
@@ -965,7 +966,7 @@ def test_no_spread_when_the_two_rates_are_not_from_the_same_day(db_session):
     db_session.add(MacroValue(code="DGS10", as_of=dt.date(2026, 9, 21), value=4.11))
     db_session.commit()
 
-    assert macro.overview(db_session)["term_spread"] is None
+    assert macro.overview(db_session, LOCAL_USER_ID)["term_spread"] is None
 
 
 # ---------------------------------------------------------------------------

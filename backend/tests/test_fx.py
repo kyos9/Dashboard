@@ -14,7 +14,8 @@ import pytest
 from app.markets import Currency
 from app.models import FxRate
 from app.services import fx
-from tests.factories import make_settings
+from app.services.users import LOCAL_USER_ID
+from tests.factories import make_settings, make_user
 
 
 def store(db, currency: Currency, rate: float, updated_at: dt.datetime | None = None) -> None:
@@ -37,7 +38,7 @@ def override(db, **by_code: float) -> None:
 
 
 def test_falls_back_when_nothing_is_known(db_session):
-    rates = fx.get_rates(db_session)
+    rates = fx.get_rates(db_session, LOCAL_USER_ID)
     assert rates.krw_rate(Currency.USD) == fx.FALLBACK_KRW[Currency.USD]
     assert rates.krw_rate(Currency.JPY) == fx.FALLBACK_KRW[Currency.JPY]
     assert rates.quote(Currency.USD).source == "fallback"
@@ -49,7 +50,7 @@ def test_stored_rate_beats_fallback(db_session):
     store(db_session, Currency.USD, 1400.0)
     store(db_session, Currency.JPY, 9.4)
 
-    rates = fx.get_rates(db_session)
+    rates = fx.get_rates(db_session, LOCAL_USER_ID)
     assert rates.krw_rate(Currency.USD) == 1400.0
     assert rates.krw_rate(Currency.JPY) == 9.4
     assert rates.quote(Currency.JPY).source == "stored"
@@ -60,7 +61,7 @@ def test_manual_override_beats_everything(db_session):
     store(db_session, Currency.USD, 1400.0)
     override(db_session, USD=1300.0)
 
-    rates = fx.get_rates(db_session)
+    rates = fx.get_rates(db_session, LOCAL_USER_ID)
     assert rates.krw_rate(Currency.USD) == 1300.0
     assert rates.quote(Currency.USD).source == "override"
 
@@ -70,7 +71,7 @@ def test_one_currency_can_be_manual_while_the_other_is_automatic(db_session):
     store(db_session, Currency.USD, 1400.0)
     override(db_session, JPY=9.9)
 
-    rates = fx.get_rates(db_session)
+    rates = fx.get_rates(db_session, LOCAL_USER_ID)
     assert rates.quote(Currency.USD).source == "stored"
     assert rates.quote(Currency.JPY).source == "override"
     assert rates.krw_rate(Currency.JPY) == 9.9
@@ -79,7 +80,7 @@ def test_one_currency_can_be_manual_while_the_other_is_automatic(db_session):
 def test_a_currency_with_no_rate_still_leaves_the_others_alone(db_session):
     store(db_session, Currency.USD, 1400.0)
 
-    rates = fx.get_rates(db_session)
+    rates = fx.get_rates(db_session, LOCAL_USER_ID)
     assert rates.quote(Currency.USD).source == "stored"
     assert rates.quote(Currency.JPY).source == "fallback"
     # 하나라도 추정치면 화면에 알린다
@@ -90,11 +91,19 @@ def test_a_currency_with_no_rate_still_leaves_the_others_alone(db_session):
 
 
 def test_refresh_does_not_overwrite_manual_override(db_session, monkeypatch):
-    """사용자가 직접 넣은 환율을 자동 조회가 덮어쓰면 안 된다."""
+    """사용자가 직접 넣은 환율을 자동 조회가 덮어쓰면 안 된다.
+
+    받아온 값은 공용 한 벌에 들어가고(그래서 직접 넣은 통화도 받는다), 직접 넣은 값은
+    **그 사람의 화면에서만** 그 위에 얹힌다.
+    """
     override(db_session, USD=1300.0)
     monkeypatch.setattr(fx, "fetch_krw_rate", lambda currency, timeout=15: 9999.0)
 
-    rates = fx.refresh_rates(db_session, force=True)
+    shared = fx.refresh_rates(db_session, force=True)
+    assert shared.krw_rate(Currency.USD) == 9999.0
+    assert shared.quote(Currency.USD).source == "stored"
+
+    rates = fx.get_rates(db_session, LOCAL_USER_ID)
     assert rates.krw_rate(Currency.USD) == 1300.0
     assert rates.quote(Currency.USD).source == "override"
     # 엔은 직접 넣지 않았으니 조회값이 들어온다
@@ -111,7 +120,7 @@ def test_refresh_stores_fetched_rate(db_session, monkeypatch):
     assert rates.krw_rate(Currency.JPY) == 9.3
 
     # 다음 조회부터는 저장값으로 읽힌다 (네트워크 없이)
-    assert fx.get_rates(db_session).krw_rate(Currency.USD) == 1387.5
+    assert fx.get_rates(db_session, LOCAL_USER_ID).krw_rate(Currency.USD) == 1387.5
 
 
 def test_refresh_keeps_previous_rate_when_fetch_fails(db_session, monkeypatch):
@@ -138,14 +147,32 @@ def test_a_fresh_rate_is_not_refetched(db_session, monkeypatch):
     assert called == []
 
 
+def test_one_persons_override_does_not_reach_another(db_session, monkeypatch):
+    """직접 넣은 환율은 설정에 있고, 설정은 사람마다 따로다.
+
+    한 사람이 달러를 1300으로 박아둬도 다른 사람은 받아온 환율을 그대로 본다.
+    예전처럼 "직접 넣은 통화는 조회하지 않는다"였다면 그 사람 때문에 전원의 달러
+    환율이 멈췄을 것이다.
+    """
+    other = make_user(db_session, id=2)
+    override(db_session, USD=1300.0)
+    monkeypatch.setattr(fx, "fetch_krw_rate", lambda currency, timeout=15: 1450.0)
+    fx.refresh_rates(db_session, force=True)
+
+    assert fx.get_rates(db_session, LOCAL_USER_ID).krw_rate(Currency.USD) == 1300.0
+    theirs = fx.get_rates(db_session, other.id)
+    assert theirs.krw_rate(Currency.USD) == 1450.0
+    assert theirs.quote(Currency.USD).source == "stored"
+
+
 def test_setting_an_override_then_clearing_it(db_session):
     store(db_session, Currency.JPY, 9.4)
 
-    fx.set_override(db_session, Currency.JPY, 10.0)
-    assert fx.get_rates(db_session).quote(Currency.JPY).source == "override"
+    fx.set_override(db_session, LOCAL_USER_ID, Currency.JPY, 10.0)
+    assert fx.get_rates(db_session, LOCAL_USER_ID).quote(Currency.JPY).source == "override"
 
-    fx.set_override(db_session, Currency.JPY, None)
-    assert fx.get_rates(db_session).quote(Currency.JPY).source == "stored"
+    fx.set_override(db_session, LOCAL_USER_ID, Currency.JPY, None)
+    assert fx.get_rates(db_session, LOCAL_USER_ID).quote(Currency.JPY).source == "stored"
 
 
 # ── 조회 구현 (네트워크는 가짜로) ────────────────────────────────────
@@ -263,4 +290,4 @@ def test_convert_between_two_foreign_currencies_goes_through_krw():
 
 
 def test_base_currency_defaults_to_krw(db_session):
-    assert fx.base_currency(db_session) == Currency.KRW
+    assert fx.base_currency(db_session, LOCAL_USER_ID) == Currency.KRW

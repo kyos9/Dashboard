@@ -15,17 +15,17 @@ from tests.factories import make_settings
 
 
 def test_creates_the_row_when_there_is_none(db_session):
-    settings = get_settings(db_session)
+    settings = get_settings(db_session, LOCAL_USER_ID)
     assert settings.user_id == LOCAL_USER_ID
     assert db_session.query(UserSettings).count() == 1
 
 
 def test_returns_the_same_row_next_time(db_session):
-    first = get_settings(db_session)
+    first = get_settings(db_session, LOCAL_USER_ID)
     first.default_rebalance_band_pct = 7.5
     db_session.commit()
 
-    assert get_settings(db_session).default_rebalance_band_pct == 7.5
+    assert get_settings(db_session, LOCAL_USER_ID).default_rebalance_band_pct == 7.5
     assert db_session.query(UserSettings).count() == 1
 
 
@@ -46,7 +46,7 @@ def test_losing_the_race_is_not_an_error(db_session, monkeypatch):
 
     monkeypatch.setattr(db_session, "get", blind_first_look)
 
-    settings = get_settings(db_session)
+    settings = get_settings(db_session, LOCAL_USER_ID)
     assert settings.default_rebalance_band_pct == 3.0  # 먼저 넣은 쪽 값이 살아 있다
     assert db_session.query(UserSettings).count() == 1
 
@@ -60,7 +60,7 @@ def test_other_integrity_errors_are_not_swallowed(db_session, monkeypatch):
     monkeypatch.setattr(db_session, "commit", boom)
 
     with pytest.raises(IntegrityError):
-        get_settings(db_session)
+        get_settings(db_session, LOCAL_USER_ID)
 
 
 def test_first_screen_load_does_not_500(api):

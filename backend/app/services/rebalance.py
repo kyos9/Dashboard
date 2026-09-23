@@ -16,13 +16,13 @@ import datetime as dt
 from sqlalchemy.orm import Session
 
 from app.markets import Currency, currency_of_stock, market_of_stock
-from app.models import Holding, SignalDaily, UserSettings, UserStock, stock_order
+from app.models import Holding, SignalDaily, UserSettings, UserStock
 from app.services import fx, queries
 from app.services.trading_calendar import market_today, period_trading_bounds
-from app.services.users import LOCAL_USER_ID
+from app.services.users import ordered_user_stocks
 
 
-def get_default_band_pct(db: Session, user_id: int = LOCAL_USER_ID) -> float:
+def get_default_band_pct(db: Session, user_id: int) -> float:
     settings = db.get(UserSettings, user_id)
     return settings.default_rebalance_band_pct if settings else 5.0
 
@@ -83,25 +83,30 @@ def shoulder_fired_in_current_period(db: Session, stock: UserStock, today: dt.da
 
 def compute_positions(
     db: Session,
+    user_id: int,
     stocks: list[UserStock],
     rate: fx.FxRates | None = None,
     base: Currency | None = None,
 ) -> dict[str, dict]:
-    """종목별 보유수량/최신 종가/평가금액을 한 번에 계산한다.
+    """그 사람의 종목별 보유수량/최신 종가/평가금액을 한 번에 계산한다.
 
     `value`는 종목의 거래 통화 기준, `value_base`는 기준통화로 환산한 값이다.
     비중 계산에는 반드시 `value_base`를 써야 한다.
+
+    종가는 공용이고 보유수량은 사람마다 다르다 — 같은 VOO라도 A와 B의 수량은 따로다.
     """
     if rate is None:
-        rate = fx.get_rates(db)
+        rate = fx.get_rates(db, user_id)
     if base is None:
-        base = fx.base_currency(db)
+        base = fx.base_currency(db, user_id)
 
     tickers = [stock.ticker for stock in stocks]
     closes = queries.latest_closes(db, tickers)
     quantities = {
         holding.ticker: holding.quantity
-        for holding in db.query(Holding).filter(Holding.ticker.in_(tickers)).all()
+        for holding in db.query(Holding)
+        .filter(Holding.user_id == user_id, Holding.ticker.in_(tickers))
+        .all()
     }
 
     positions: dict[str, dict] = {}
@@ -120,9 +125,9 @@ def compute_positions(
     return positions
 
 
-def compute_actual_weights(db: Session, stocks: list[UserStock]) -> dict[str, float]:
+def compute_actual_weights(db: Session, user_id: int, stocks: list[UserStock]) -> dict[str, float]:
     """기준통화로 환산한 평가금액 기준 실제비중(%). 보유가 전혀 없으면 전 종목 0.0."""
-    positions = compute_positions(db, stocks)
+    positions = compute_positions(db, user_id, stocks)
     total = sum(pos["value_base"] for pos in positions.values())
     if total <= 0:
         return {ticker: 0.0 for ticker in positions}
@@ -142,20 +147,20 @@ def compute_rebalance_signal(
     return (len(reasons) > 0, reasons)
 
 
-def compute_rebalance_current(db: Session, today: dt.date | None = None) -> dict:
-    """리밸런싱 현황 전체. 기준통화·환율과 종목별 행을 함께 돌려준다."""
-    stocks = db.query(UserStock).filter(UserStock.active.is_(True)).order_by(*stock_order()).all()
+def compute_rebalance_current(db: Session, user_id: int, today: dt.date | None = None) -> dict:
+    """그 사람의 리밸런싱 현황 전체. 기준통화·환율과 종목별 행을 함께 돌려준다."""
+    stocks = ordered_user_stocks(db, user_id, active_only=True)
 
-    rate = fx.get_rates(db)
-    base = fx.base_currency(db)
-    default_band = get_default_band_pct(db)
+    rate = fx.get_rates(db, user_id)
+    base = fx.base_currency(db, user_id)
+    default_band = get_default_band_pct(db, user_id)
 
     # "오늘"은 시장 현지 기준으로 판단한다 (호출자가 명시하면 그 값을 그대로 쓴다)
     today_by_ticker = {
         stock.ticker: today or market_today(market_of_stock(stock)) for stock in stocks
     }
 
-    positions = compute_positions(db, stocks, rate=rate, base=base)
+    positions = compute_positions(db, user_id, stocks, rate=rate, base=base)
     shoulder_flags = _shoulder_flags(db, stocks, today_by_ticker)
 
     total_base = sum(pos["value_base"] for pos in positions.values())

@@ -191,14 +191,15 @@ def fetch_krw_rate(currency: Currency, timeout: int = 15) -> float | None:
 # ---------------------------------------------------------------------------
 
 
-def _settings(db: Session):
+def _settings(db: Session, user_id: int):
     from app.services.settings import get_settings
 
-    return get_settings(db)
+    return get_settings(db, user_id)
 
 
-def _overrides(db: Session) -> dict[str, float]:
-    raw = _settings(db).fx_overrides or {}
+def _overrides(db: Session, user_id: int) -> dict[str, float]:
+    """그 사람이 직접 넣은 환율. **받아온 환율은 공용이고, 이것만 사람마다 다르다.**"""
+    raw = _settings(db, user_id).fx_overrides or {}
     if not isinstance(raw, dict):
         return {}
     out: dict[str, float] = {}
@@ -219,11 +220,14 @@ def _stored(db: Session) -> dict[str, tuple[float, dt.datetime]]:
     }
 
 
-def get_rates(db: Session) -> FxRates:
-    """지금 적용할 환율. **네트워크를 쓰지 않는다.**"""
-    overrides = _overrides(db)
+def get_rates(db: Session, user_id: int | None) -> FxRates:
+    """그 사람에게 지금 적용할 환율. **네트워크를 쓰지 않는다.**
+
+    받아둔 공용 환율 위에 그 사람이 직접 넣은 값을 얹는다. `user_id` 가 None 이면 얹지
+    않은 공용 값 그대로다 (공용 갱신이 결과를 돌려줄 때).
+    """
+    overrides = _overrides(db, user_id) if user_id is not None else {}
     stored = _stored(db)
-    settings = _settings(db)
 
     quotes: dict[Currency, Quote] = {}
     for currency in tracked_currencies():
@@ -236,8 +240,6 @@ def get_rates(db: Session) -> FxRates:
         else:
             quotes[currency] = Quote(currency, FALLBACK_KRW.get(currency, 1.0), "fallback", None)
 
-    # settings 를 읽어둔 것은 첫 실행에 설정 한 줄을 만들어두기 위해서다
-    _ = settings
     return FxRates(quotes)
 
 
@@ -258,17 +260,18 @@ def _save(db: Session, currency: Currency, rate: float) -> dt.datetime:
 
 
 def refresh_rates(db: Session, timeout: int = 15, force: bool = False) -> FxRates:
-    """환율을 조회해 저장한다. 실패한 통화는 기존 값을 그대로 둔다.
+    """공용 환율을 조회해 저장한다. 실패한 통화는 기존 값을 그대로 둔다.
 
-    사용자가 직접 지정한 통화는 조회 자체를 하지 않는다 — 덮어쓰면 안 되므로.
+    **누가 직접 넣은 환율이 있어도 받는다.** 받아온 값은 모두가 같이 쓰는 한 벌이고,
+    직접 넣은 값은 그 사람의 화면에서만 그 위에 얹힌다(`get_rates`). 예전에는 직접
+    넣은 통화를 아예 조회하지 않았는데, 사람이 여럿이면 한 사람의 수동 입력 때문에
+    나머지 전원의 환율이 멈춘다.
+
+    돌려주는 것은 공용 값이다 — 한 사람의 화면이 필요하면 `get_rates(db, user_id)`.
     """
-    overrides = _overrides(db)
     stored = _stored(db)
 
     for currency in tracked_currencies():
-        if currency.value in overrides:
-            continue
-
         if not force and currency.value in stored:
             _, updated_at = stored[currency.value]
             if updated_at and dt.datetime.utcnow() - updated_at < STALE_AFTER:
@@ -280,20 +283,20 @@ def refresh_rates(db: Session, timeout: int = 15, force: bool = False) -> FxRate
             continue
         _save(db, currency, rate)
 
-    return get_rates(db)
+    return get_rates(db, None)
 
 
-def base_currency(db: Session) -> Currency:
-    settings = _settings(db)
+def base_currency(db: Session, user_id: int) -> Currency:
+    settings = _settings(db, user_id)
     try:
         return Currency(settings.base_currency)
     except (ValueError, TypeError):
         return Currency.KRW
 
 
-def set_override(db: Session, currency: Currency, rate: float | None) -> None:
-    """직접 입력한 환율을 저장한다. `None`이면 해제하고 자동 조회값으로 돌아간다."""
-    settings = _settings(db)
+def set_override(db: Session, user_id: int, currency: Currency, rate: float | None) -> None:
+    """직접 입력한 환율을 그 사람 설정에 저장한다. `None`이면 해제하고 자동 조회값으로 돌아간다."""
+    settings = _settings(db, user_id)
     overrides = dict(settings.fx_overrides or {})
     if rate:
         overrides[currency.value] = float(rate)

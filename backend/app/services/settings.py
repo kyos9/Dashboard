@@ -16,10 +16,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models import UserSettings
-from app.services.users import LOCAL_USER_ID
 
 
-def get_settings(db: Session, user_id: int = LOCAL_USER_ID) -> UserSettings:
+def get_settings(db: Session, user_id: int) -> UserSettings:
     """그 사람의 설정 행을 돌려준다. 없으면 만든다. 동시에 불려도 안전하다."""
     settings = db.get(UserSettings, user_id)
     if settings is not None:

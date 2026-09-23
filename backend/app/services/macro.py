@@ -822,7 +822,7 @@ def snapshot(db: Session, series: MacroSeries, today: dt.date | None = None) -> 
     }
 
 
-def overview(db: Session, today: dt.date | None = None) -> dict:
+def overview(db: Session, user_id: int, today: dt.date | None = None) -> dict:
     """매크로 화면 한 장.
 
     금리차를 지표 목록과 **따로** 내려준다. 저장된 지표가 아니라 두 지표에서 계산한
@@ -842,11 +842,12 @@ def overview(db: Session, today: dt.date | None = None) -> dict:
         # 배지는 **방금 만든 스냅샷을 보고** 만든다. DB 를 다시 읽지 않으므로 쿼리가 늘지
         # 않고, 배지와 카드가 같은 값을 말하는 것이 보장된다 (`services/regime.py` 참고).
         "badges": regime.badges(snapshots, term),
-        "pinned": pinned_codes(settings_service.get_settings(db)),
+        # 지표는 공용이고 **홈에 무엇을 둘지만** 그 사람 것이다
+        "pinned": pinned_codes(settings_service.get_settings(db, user_id)),
     }
 
 
-def pinned_overview(db: Session, today: dt.date | None = None) -> dict:
+def pinned_overview(db: Session, user_id: int, today: dt.date | None = None) -> dict:
     """홈 화면 한 줄. **고른 지표만** 읽는다.
 
     매크로 탭의 `overview` 를 그대로 홈에서 부르면 홈을 열 때마다 지표 아홉 개를 전부
@@ -856,7 +857,7 @@ def pinned_overview(db: Session, today: dt.date | None = None) -> dict:
     고른 코드 중 없어졌거나 꺼진 지표는 **조용히 빠진다.** 지표를 끄고 나서 홈이
     비어 보이는 것보다, 홈에서 그것만 사라지는 쪽이 덜 놀랍다.
     """
-    codes = pinned_codes(settings_service.get_settings(db))
+    codes = pinned_codes(settings_service.get_settings(db, user_id))
     if not codes:
         # 지표를 다 껐어도 배지는 남는다 — 껐다는 것은 "숫자를 늘 보고 있진 않겠다"이지
         # "이상한 일이 생겨도 알리지 말라"가 아니다.
@@ -928,14 +929,14 @@ def badges(db: Session, today: dt.date | None = None) -> list[dict]:
     )
 
 
-def set_pinned(db: Session, codes: list[str]) -> list[str]:
+def set_pinned(db: Session, user_id: int, codes: list[str]) -> list[str]:
     """홈에 띄울 지표를 정한다.
 
     없는 코드는 여기 오기 전에 걸러져야 한다 (라우터가 400 으로 돌려준다) — 조용히
     버리면 사용자는 별을 눌렀는데 홈에 안 뜨는 이유를 알 수 없다.
     """
     wanted = normalize_codes(codes)
-    settings = settings_service.get_settings(db)
+    settings = settings_service.get_settings(db, user_id)
     settings.pinned_macro = wanted
     db.commit()
     return wanted

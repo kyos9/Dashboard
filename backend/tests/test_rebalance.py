@@ -5,6 +5,7 @@ import pytest
 from app.markets import Market
 from app.models import PriceDaily, RebalancePeriod, SignalDaily
 from app.services import rebalance
+from app.services.users import LOCAL_USER_ID
 from app.services.trading_calendar import period_trading_bounds
 from tests.factories import make_holding, make_settings, make_stock
 
@@ -31,14 +32,14 @@ def test_actual_weight_computation(db_session):
     _set_price_and_holding(db_session, "AAA", close=100.0, quantity=3)  # value 300
     _set_price_and_holding(db_session, "BBB", close=100.0, quantity=1)  # value 100
 
-    weights = rebalance.compute_actual_weights(db_session, [a, b])
+    weights = rebalance.compute_actual_weights(db_session, LOCAL_USER_ID, [a, b])
     assert weights["AAA"] == 75.0
     assert weights["BBB"] == 25.0
 
 
 def test_no_holdings_returns_zero_weights(db_session):
     a = _make_stock(db_session, "AAA", target_weight_pct=50.0)
-    weights = rebalance.compute_actual_weights(db_session, [a])
+    weights = rebalance.compute_actual_weights(db_session, LOCAL_USER_ID, [a])
     assert weights["AAA"] == 0.0
 
 
@@ -92,7 +93,7 @@ def test_review_date_auto_computed_when_no_override(db_session):
 def test_band_falls_back_to_global_default(db_session):
     make_settings(db_session, default_rebalance_band_pct=7.5)
     stock = _make_stock(db_session, "AAA", target_weight_pct=50.0, band=None)
-    default_band = rebalance.get_default_band_pct(db_session)
+    default_band = rebalance.get_default_band_pct(db_session, LOCAL_USER_ID)
     assert rebalance.band_for_stock(stock, default_band) == 7.5
 
 
@@ -130,7 +131,7 @@ def test_mixed_currency_weights_are_converted_to_base(db_session):
     _set_price_and_holding(db_session, "005930.KS", close=80_000.0, quantity=10)  # 800,000원
     _set_price_and_holding(db_session, "VOO", close=500.0, quantity=2)  # 1,000달러
 
-    weights = rebalance.compute_actual_weights(db_session, [kr, us])
+    weights = rebalance.compute_actual_weights(db_session, LOCAL_USER_ID, [kr, us])
     assert weights["005930.KS"] == pytest.approx(800_000 / 2_100_000 * 100)
     assert weights["VOO"] == pytest.approx(1_300_000 / 2_100_000 * 100)
     assert weights["005930.KS"] + weights["VOO"] == pytest.approx(100.0)
@@ -151,7 +152,7 @@ def test_three_currencies_add_up_to_a_hundred_percent(db_session):
     _set_price_and_holding(db_session, "VOO", close=500.0, quantity=2)  # 1,300,000원
     _set_price_and_holding(db_session, "7203.T", close=3_000.0, quantity=100)  # 2,700,000원
 
-    weights = rebalance.compute_actual_weights(db_session, [kr, us, jp])
+    weights = rebalance.compute_actual_weights(db_session, LOCAL_USER_ID, [kr, us, jp])
     total = 800_000 + 1_300_000 + 2_700_000
     assert weights["7203.T"] == pytest.approx(2_700_000 / total * 100)
     assert sum(weights.values()) == pytest.approx(100.0)
@@ -163,7 +164,7 @@ def test_japanese_rows_keep_yen_amounts(db_session):
     _make_stock(db_session, "7203.T", target_weight_pct=100.0)
     _set_price_and_holding(db_session, "7203.T", close=3_000.0, quantity=100)
 
-    result = rebalance.compute_rebalance_current(db_session)
+    result = rebalance.compute_rebalance_current(db_session, LOCAL_USER_ID)
     row = result["rows"][0]
     assert row["currency"] == "JPY"
     assert row["current_value"] == pytest.approx(300_000.0)  # 엔 그대로
@@ -176,7 +177,7 @@ def test_rows_keep_native_currency_amounts_alongside_converted(db_session):
     _make_stock(db_session, "VOO", target_weight_pct=100.0)
     _set_price_and_holding(db_session, "VOO", close=500.0, quantity=2)
 
-    result = rebalance.compute_rebalance_current(db_session)
+    result = rebalance.compute_rebalance_current(db_session, LOCAL_USER_ID)
     row = result["rows"][0]
     assert row["currency"] == "USD"
     assert row["current_value"] == pytest.approx(1_000.0)  # 달러 그대로
@@ -190,7 +191,7 @@ def test_base_currency_usd_converts_the_other_way(db_session):
     _make_stock(db_session, "005930.KS", target_weight_pct=100.0)
     _set_price_and_holding(db_session, "005930.KS", close=65_000.0, quantity=2)  # 130,000원
 
-    result = rebalance.compute_rebalance_current(db_session)
+    result = rebalance.compute_rebalance_current(db_session, LOCAL_USER_ID)
     row = result["rows"][0]
     assert row["current_value"] == pytest.approx(130_000.0)
     assert row["current_value_base"] == pytest.approx(100.0)  # 130,000 / 1300
@@ -212,7 +213,7 @@ def test_korean_review_date_uses_korean_trading_calendar(db_session):
 def test_compute_rebalance_current_end_to_end(db_session):
     _make_stock(db_session, "AAA", target_weight_pct=50.0, band=1.0)
     _set_price_and_holding(db_session, "AAA", close=100.0, quantity=10)
-    result = rebalance.compute_rebalance_current(db_session)
+    result = rebalance.compute_rebalance_current(db_session, LOCAL_USER_ID)
     assert len(result["rows"]) == 1
     row = result["rows"][0]
     assert row["ticker"] == "AAA"

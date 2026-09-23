@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.markets import Market, currency_of_stock, market_of_stock
-from app.models import BuyExecution, IndicatorDaily, SignalDaily, UserStock, stock_order
+from app.models import BuyExecution, IndicatorDaily, UserStock
 from app.schemas import (
     DashboardCard,
     KneeConditions,
@@ -15,6 +15,7 @@ from app.schemas import (
 )
 from app.services import queries, rebalance
 from app.services.trading_calendar import market_today, period_trading_bounds
+from app.services.users import current_user_id, ordered_user_stocks
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
@@ -62,8 +63,13 @@ def _knee_conditions(
     )
 
 
-def _current_period_buys(db: Session, stocks: list[UserStock], latest_signal_dates: dict[str, dt.date]):
-    """종목별 "이번 기간" 매수 예정을 한 번의 쿼리로 모아온다.
+def _current_period_buys(
+    db: Session,
+    user_id: int,
+    stocks: list[UserStock],
+    latest_signal_dates: dict[str, dt.date],
+):
+    """그 사람의 종목별 "이번 기간" 매수 예정을 한 번의 쿼리로 모아온다.
 
     기간 경계는 종목이 속한 시장의 거래일 캘린더로 계산한다 (한국/미국 휴장일이 다름).
     """
@@ -81,7 +87,12 @@ def _current_period_buys(db: Session, stocks: list[UserStock], latest_signal_dat
     if not wanted:
         return {}
 
-    rows = db.query(BuyExecution).filter(BuyExecution.ticker.in_(list(wanted))).all()
+    # 같은 VOO라도 매수 기록은 사람마다 따로다 — 티커만으로 고르면 남의 기록이 뜬다
+    rows = (
+        db.query(BuyExecution)
+        .filter(BuyExecution.user_id == user_id, BuyExecution.ticker.in_(list(wanted)))
+        .all()
+    )
     return {
         row.ticker: row
         for row in rows
@@ -90,12 +101,13 @@ def _current_period_buys(db: Session, stocks: list[UserStock], latest_signal_dat
 
 
 @router.get("", response_model=list[DashboardCard])
-def get_dashboard(db: Session = Depends(get_db)):
-    stocks = db.query(UserStock).filter(UserStock.active.is_(True)).order_by(*stock_order()).all()
+def get_dashboard(db: Session = Depends(get_db), user_id: int = Depends(current_user_id)):
+    stocks = ordered_user_stocks(db, user_id, active_only=True)
     tickers = [stock.ticker for stock in stocks]
 
     rebalance_rows = {
-        row["ticker"]: row for row in rebalance.compute_rebalance_current(db)["rows"]
+        row["ticker"]: row
+        for row in rebalance.compute_rebalance_current(db, user_id)["rows"]
     }
 
     # 종목마다 따로 조회하면 종목 수에 비례해 쿼리가 늘어난다. 테이블당 한 번만 읽는다.
@@ -108,7 +120,7 @@ def get_dashboard(db: Session = Depends(get_db)):
     latest_signal_dates = {
         ticker: rows[0].date for ticker, rows in signals_by_ticker.items() if rows
     }
-    buys_by_ticker = _current_period_buys(db, stocks, latest_signal_dates)
+    buys_by_ticker = _current_period_buys(db, user_id, stocks, latest_signal_dates)
 
     cards = []
     # "오늘"은 시장마다 다르다. 서버 시계로 재면 한국 종목은 미국이 아직 어제일 때

@@ -23,6 +23,7 @@ from app.schemas import (
     MacroSeriesOut,
 )
 from app.services import macro
+from app.services.users import current_user_id
 
 router = APIRouter(prefix="/api/macro", tags=["macro"])
 
@@ -32,21 +33,25 @@ RANGE_DAYS = {"1y": 365, "5y": 365 * 5, "10y": 365 * 10, "max": None}
 
 
 @router.get("", response_model=MacroOverviewOut)
-def get_overview(db: Session = Depends(get_db)):
+def get_overview(db: Session = Depends(get_db), user_id: int = Depends(current_user_id)):
     """지표 목록 + 최신값 + 갱신 상태, 그리고 금리차."""
-    return macro.overview(db)
+    return macro.overview(db, user_id)
 
 
 # **`/{code}` 보다 먼저 있어야 한다.** 아래로 내려가면 `/pinned` 요청이 "PINNED 라는
 # 지표를 달라"로 잡혀서 404 가 된다 — FastAPI 는 먼저 등록된 경로를 먼저 본다.
 @router.get("/pinned", response_model=MacroPinnedOut)
-def get_pinned(db: Session = Depends(get_db)):
+def get_pinned(db: Session = Depends(get_db), user_id: int = Depends(current_user_id)):
     """홈 화면에 띄울 지표들. 고른 게 없으면 기본 셋이 온다."""
-    return macro.pinned_overview(db)
+    return macro.pinned_overview(db, user_id)
 
 
 @router.put("/pinned", response_model=MacroPinnedOut)
-def put_pinned(payload: MacroPinnedUpdate, db: Session = Depends(get_db)):
+def put_pinned(
+    payload: MacroPinnedUpdate,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(current_user_id),
+):
     """홈에 띄울 지표를 정한다.
 
     **없는 코드는 400 으로 돌려준다.** 조용히 버리면 별을 눌렀는데 홈에 안 뜨는 이유를
@@ -62,8 +67,8 @@ def put_pinned(payload: MacroPinnedUpdate, db: Session = Depends(get_db)):
         if missing:
             raise HTTPException(status_code=400, detail=f"unknown macro code: {', '.join(missing)}")
 
-    macro.set_pinned(db, wanted)
-    return macro.pinned_overview(db)
+    macro.set_pinned(db, user_id, wanted)
+    return macro.pinned_overview(db, user_id)
 
 
 # --- 예측치 ---------------------------------------------------------------

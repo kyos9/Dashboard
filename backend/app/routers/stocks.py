@@ -11,7 +11,6 @@ from app.models import (
     PriceDaily,
     SignalDaily,
     UserStock,
-    stock_order,
 )
 from app.schemas import (
     RefreshResult,
@@ -24,7 +23,12 @@ from app.schemas import (
 from app.services import data_ingestion, symbols
 from app.services.instruments import ensure_instrument
 from app.services.pipeline import refresh_all_active_stocks, refresh_and_evaluate_stock
-from app.services.users import LOCAL_USER_ID
+from app.services.users import (
+    current_user_id,
+    find_user_stock,
+    ordered_user_stocks,
+    user_stocks,
+)
 
 router = APIRouter(prefix="/api/stocks", tags=["stocks"])
 
@@ -43,19 +47,23 @@ def _failure_detail(exc: data_ingestion.DataIngestionError) -> dict:
 
 
 @router.get("", response_model=list[StockOut])
-def list_stocks(db: Session = Depends(get_db)):
-    return db.query(UserStock).order_by(*stock_order()).all()
+def list_stocks(db: Session = Depends(get_db), user_id: int = Depends(current_user_id)):
+    return ordered_user_stocks(db, user_id)
 
 
 @router.put("/order", response_model=list[StockOut])
-def update_stock_order(payload: StockOrderUpdate, db: Session = Depends(get_db)):
+def update_stock_order(
+    payload: StockOrderUpdate,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(current_user_id),
+):
     """화면에 보여줄 순서를 저장한다. 받은 목록의 차례가 곧 순서다.
 
     목록에 없는 종목은 건드리지 않고 뒤로 밀린다 — 비활성 종목까지 매번 보내게
     하면 화면이 모르는 사이에 순서를 덮어쓸 수 있다.
     """
     wanted = [normalize_ticker(t) for t in payload.tickers]
-    by_ticker = {s.ticker: s for s in db.query(UserStock).all()}
+    by_ticker = {s.ticker: s for s in user_stocks(db, user_id).all()}
 
     unknown = [t for t in wanted if t not in by_ticker]
     if unknown:
@@ -68,7 +76,7 @@ def update_stock_order(payload: StockOrderUpdate, db: Session = Depends(get_db))
         if stock.ticker not in wanted:
             stock.sort_order = len(wanted)
     db.commit()
-    return db.query(UserStock).order_by(*stock_order()).all()
+    return ordered_user_stocks(db, user_id)
 
 
 def _resolve_ticker(db: Session, raw: str) -> tuple[str, str | None, str | None]:
@@ -103,9 +111,14 @@ def _resolve_ticker(db: Session, raw: str) -> tuple[str, str | None, str | None]
 
 
 @router.post("", response_model=StockCreateResult)
-def create_stock(payload: StockCreate, db: Session = Depends(get_db)):
+def create_stock(
+    payload: StockCreate,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(current_user_id),
+):
     ticker, resolved_name, resolved_from = _resolve_ticker(db, payload.ticker)
-    if db.query(UserStock).filter_by(ticker=ticker).first():
+    # **내 목록에** 이미 있을 때만 막는다. 남이 담은 종목을 내가 담는 건 당연히 된다.
+    if find_user_stock(db, user_id, ticker):
         raise HTTPException(status_code=409, detail=f"{ticker} already exists")
 
     # 해석된 종목명은 공용 행에, 화면에 보일 이름은 내 행에 둔다.
@@ -116,7 +129,7 @@ def create_stock(payload: StockCreate, db: Session = Depends(get_db)):
     # 시장/통화는 공용 행이 티커에서 직접 채운다 (models.Instrument._sync_market_and_currency)
     instrument = ensure_instrument(db, ticker, name=official_name)
     stock = UserStock(
-        user_id=LOCAL_USER_ID,
+        user_id=user_id,
         ticker=instrument.ticker,
         instrument=instrument,
         name=name,
@@ -151,8 +164,13 @@ def create_stock(payload: StockCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/{ticker}", response_model=StockOut)
-def update_stock(ticker: str, payload: StockUpdate, db: Session = Depends(get_db)):
-    stock = db.query(UserStock).filter_by(ticker=ticker.upper()).first()
+def update_stock(
+    ticker: str,
+    payload: StockUpdate,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(current_user_id),
+):
+    stock = find_user_stock(db, user_id, ticker.upper())
     if stock is None:
         raise HTTPException(status_code=404, detail="stock not found")
 
@@ -172,8 +190,10 @@ def update_stock(ticker: str, payload: StockUpdate, db: Session = Depends(get_db
 
 
 @router.delete("/{ticker}", response_model=StockOut)
-def deactivate_stock(ticker: str, db: Session = Depends(get_db)):
-    stock = db.query(UserStock).filter_by(ticker=ticker.upper()).first()
+def deactivate_stock(
+    ticker: str, db: Session = Depends(get_db), user_id: int = Depends(current_user_id)
+):
+    stock = find_user_stock(db, user_id, ticker.upper())
     if stock is None:
         raise HTTPException(status_code=404, detail="stock not found")
     stock.active = False
@@ -183,7 +203,9 @@ def deactivate_stock(ticker: str, db: Session = Depends(get_db)):
 
 
 @router.delete("/{ticker}/purge", status_code=204)
-def purge_stock(ticker: str, db: Session = Depends(get_db)):
+def purge_stock(
+    ticker: str, db: Session = Depends(get_db), user_id: int = Depends(current_user_id)
+):
     """종목과 그 종목에 딸린 기록을 전부 지운다. 되돌릴 수 없다.
 
     비활성화(`DELETE /{ticker}`)와 일부러 나눠뒀다. 대부분의 경우 원하는 건
@@ -191,7 +213,7 @@ def purge_stock(ticker: str, db: Session = Depends(get_db)):
     전부 새로 받아야 한다. 정말 지우려는 사람만 이 경로로 오게 한다.
     """
     normalized = normalize_ticker(ticker)
-    stock = db.query(UserStock).filter_by(ticker=normalized).first()
+    stock = find_user_stock(db, user_id, normalized)
     if stock is None:
         raise HTTPException(status_code=404, detail="stock not found")
 
@@ -232,7 +254,12 @@ def refresh_all_stocks(db: Session = Depends(get_db)):
 
 
 @router.post("/{ticker}/refresh")
-def refresh_stock(ticker: str, full: bool = False, db: Session = Depends(get_db)):
+def refresh_stock(
+    ticker: str,
+    full: bool = False,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(current_user_id),
+):
     """이 종목의 시세를 다시 받는다.
 
     평소 갱신은 최근 2년만 받는다 — 매일 돌리는 일에 10년치를 매번 내려받을 이유가 없다.
@@ -240,7 +267,7 @@ def refresh_stock(ticker: str, full: bool = False, db: Session = Depends(get_db)
     (그때는 기록이 비어 있다) 차트에서 5년·전체를 눌렀는데 앞부분이 비어 있을 때 쓴다 —
     이 경로가 없으면 등록 이후로는 2년보다 앞선 시세를 채울 방법이 아예 없었다.
     """
-    stock = db.query(UserStock).filter_by(ticker=ticker.upper()).first()
+    stock = find_user_stock(db, user_id, ticker.upper())
     if stock is None:
         raise HTTPException(status_code=404, detail="stock not found")
     try:

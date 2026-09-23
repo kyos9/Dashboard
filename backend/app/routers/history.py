@@ -5,8 +5,9 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models import PriceDaily, SignalDaily, UserStock
+from app.models import PriceDaily, SignalDaily
 from app.schemas import HistoryCoverage, HistoryMarker, HistoryPoint, HistoryResponse
+from app.services.users import current_user_id, find_user_stock
 
 router = APIRouter(prefix="/api/history", tags=["history"])
 
@@ -26,11 +27,19 @@ def _coverage(db: Session, ticker: str) -> HistoryCoverage:
 
 
 @router.get("/{ticker}", response_model=HistoryResponse)
-def get_history(ticker: str, range: str = Query("1y", alias="range"), db: Session = Depends(get_db)):
+def get_history(
+    ticker: str,
+    range: str = Query("1y", alias="range"),
+    db: Session = Depends(get_db),
+    user_id: int = Depends(current_user_id),
+):
     ticker = ticker.upper()
     if range not in RANGE_DAYS:
         raise HTTPException(status_code=400, detail=f"invalid range: {range}")
-    if not db.query(UserStock).filter_by(ticker=ticker).first():
+    # **내가 담은 종목의 차트만 연다.** 시세는 공용이지만 공용인 것은 저장과 수집이지
+    # 열람 범위가 아니다 — 남이 담은 종목을 티커만 알면 열 수 있으면 "여기서 남들이
+    # 뭘 보는지 들여다볼 수 있나"가 된다 (ROADMAP 4단계 7번).
+    if find_user_stock(db, user_id, ticker) is None:
         raise HTTPException(status_code=404, detail="stock not found")
 
     query = db.query(PriceDaily).filter(PriceDaily.ticker == ticker)

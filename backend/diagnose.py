@@ -301,6 +301,7 @@ if app_modules:
     import time
 
     from app.services import macro, regime, providers
+    from app.services.users import LOCAL_USER_ID
     from app.services.providers import fred
 
     print("  9-1) FRED API 키")
@@ -411,7 +412,8 @@ if app_modules:
 
         db = SessionLocal()
         try:
-            view = macro.overview(db)
+            # 배지는 공용 지표로만 정해진다. 누구 화면으로 보든 같으니 주인(1번)으로 본다.
+            view = macro.overview(db, LOCAL_USER_ID)
             if view["badges"]:
                 for badge in view["badges"]:
                     ok(f"{badge['label']} — {badge['detail']}")
