@@ -60,6 +60,13 @@ services:
       # 매크로 지표용. **비워도 된다** — 키가 없으면 키가 필요 없는 경로로 받는다.
       # 위 둘과 달리 `:?` 를 안 붙인 이유가 그것이다. 없다고 앱이 안 뜨면 안 된다.
       FRED_API_KEY: ${FRED_API_KEY:-}
+      # 구글 로그인. 전부 **비워도 된다** — 비우면 위 비밀번호 문 그대로다 (DEPLOY.md 12번).
+      # 채우면 비밀번호 문은 닫히고 계정마다 자기 데이터가 보인다.
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      OWNER_GOOGLE_EMAIL: ${OWNER_GOOGLE_EMAIL:-}
+      ALLOWED_GOOGLE_EMAILS: ${ALLOWED_GOOGLE_EMAILS:-}
+      PUBLIC_URL: ${PUBLIC_URL:-}
     depends_on:
       db:
         condition: service_healthy

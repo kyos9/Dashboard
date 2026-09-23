@@ -1,10 +1,10 @@
 """사용자.
 
-로그인이 붙기 전까지(4-3) **모든 요청은 1번 사용자로 들어온다** — 개인 PC도, 비밀번호
-하나로 잠근 서버도 같다 (ROADMAP 4단계 0번). 비밀번호 잠금은 "들어올 수 있나"만 가르고
-"누구인가"는 모른다.
+잠금 없는 개인 PC와 비밀번호 하나로 잠근 서버에서는 **모든 요청이 1번 사용자로
+들어온다** (ROADMAP 4단계 0번). 비밀번호 잠금은 "들어올 수 있나"만 가르고 "누구인가"는
+모른다. 구글 로그인을 켜면 계정마다 다른 사용자다 (`services/google_login.py`).
 
-그래도 코드는 이미 **요청마다 사용자가 정해지는 모양**이다(4-2). 라우터는 사용자를
+코드는 **요청마다 사용자가 정해지는 모양**이다(4-2). 라우터는 사용자를
 `current_user_id` 에서 받아 서비스에 넘기고, 사용자별 서비스는 `user_id` 를 **기본값 없이**
 받는다. 기본값이 있으면 넘기는 걸 잊어도 1번으로 조용히 돌아가고, 그건 사람이 둘이 된
 날 남의 데이터가 보이는 것으로 드러난다. 없으면 잊은 자리가 그 자리에서 터진다.
@@ -16,6 +16,8 @@
 
 import datetime as dt
 
+from fastapi import HTTPException, Request
+from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Query, Session
 
@@ -25,14 +27,24 @@ from app.models import User, UserStock, stock_order
 LOCAL_USER_ID = 1
 
 
-def current_user_id() -> int:
+def current_user_id(request: Request) -> int:
     """요청을 보낸 사람. 라우터가 `Depends(current_user_id)` 로 받는다.
 
-    지금은 늘 1번이다. 4-3에서 세션 쪽지에서 꺼내도록 **이 함수만** 바뀌고, 라우터와
-    서비스는 그대로다. 테스트는 이 자리를 갈아끼워 A·B 두 사람으로 요청을 보낸다
-    (`tests/test_isolation.py`).
+    누구인지는 문지기(`routers.auth.guard`)가 쪽지를 보고 정해 `request.state` 에 둔다 —
+    잠금 없는 PC·비밀번호 문에서는 1번, 구글 로그인에서는 그 계정.
+
+    **정해지지 않았으면 1번으로 넘어가지 않고 401이다.** 여기서 "없으면 1번"을 하면,
+    문지기를 거치지 않는 경로가 하나라도 생기는 날 그 경로는 주인의 데이터를 연다.
+
+    테스트는 이 자리를 갈아끼워 A·B 두 사람으로 요청을 보낸다 (`tests/test_isolation.py`).
     """
-    return LOCAL_USER_ID
+    user_id = getattr(request.state, "user_id", None)
+    if user_id is None:
+        raise HTTPException(
+            status_code=401,
+            detail={"hint": "로그인이 필요합니다.", "message": "authentication required"},
+        )
+    return user_id
 
 
 def user_stocks(db: Session, user_id: int) -> Query:
@@ -75,4 +87,17 @@ def ensure_local_owner(db: Session) -> User:
         user = db.get(User, LOCAL_USER_ID)
         if user is None:
             raise
+        return user
+
+    # 번호를 직접 정해 넣으면 Postgres 의 번호표는 그걸 모른다. 그대로 두면 다음 사람
+    # (구글로 처음 들어온 친구)이 1번을 받으려다 부딪힌다. 마이그레이션 0005 가 하는
+    # 것과 같은 일이다. SQLite 는 가장 큰 번호 다음을 주므로 할 일이 없다.
+    if db.get_bind().dialect.name == "postgresql":
+        db.execute(
+            text(
+                "SELECT setval(pg_get_serial_sequence('users', 'id'),"
+                " (SELECT MAX(id) FROM users))"
+            )
+        )
+        db.commit()
     return user

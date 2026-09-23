@@ -243,11 +243,27 @@ export interface RefreshResult {
 }
 
 /** 백엔드가 알려주는 실행 중인 버전 — 업데이트가 반영됐는지 확인용 */
+/** 어느 문인가 — 잠금 없음(개인 PC) · 비밀번호 하나 · 구글 계정 */
+export type AuthMode = 'open' | 'password' | 'google'
+
+export interface AuthUser {
+  email: string | null
+  name: string | null
+  /** 주인(1번). 주인은 탈퇴할 수 없다 */
+  is_owner: boolean
+}
+
 export interface AuthStatus {
-  /** 서버가 비밀번호로 잠겨 있는지. 개인 PC에서는 false */
+  /** 서버가 잠겨 있는지 (비밀번호든 구글이든). 개인 PC에서는 false */
   locked: boolean
   /** 지금 들어와 있는지 (잠겨 있지 않으면 항상 true) */
   authenticated: boolean
+  /** 옛 서버는 보내지 않는다 — 없으면 locked 로 비밀번호/잠금 없음을 가른다 */
+  mode?: AuthMode
+  /** 구글 모드에서 들어와 있을 때만 */
+  user?: AuthUser | null
+  /** 구글 모드인데 서버 설정이 덜 됐으면 그 설명 */
+  config_problem?: string | null
 }
 
 export interface HealthInfo {

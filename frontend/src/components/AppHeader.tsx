@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom'
 import { useAppState } from '../AppState'
 import { api } from '../api/client'
 import { useAuth } from './AuthGate'
+import { ConfirmDialog } from './ConfirmDialog'
 import { DiagnosticsModal } from './DiagnosticsModal'
 import { InstallButton } from './InstallButton'
 import type { HealthInfo } from '../types'
@@ -49,7 +50,21 @@ const TABS = [
 
 export function AppHeader() {
   const { refreshAll, refreshing, lastSync, refreshError } = useAppState()
-  const { locked, logout } = useAuth()
+  const { locked, mode, user, logout, withdraw } = useAuth()
+  const [confirmWithdraw, setConfirmWithdraw] = useState(false)
+  const [withdrawing, setWithdrawing] = useState(false)
+  const [withdrawError, setWithdrawError] = useState<string | null>(null)
+
+  async function doWithdraw() {
+    setWithdrawing(true)
+    setWithdrawError(null)
+    try {
+      await withdraw()
+    } catch (e) {
+      setWithdrawError(e instanceof Error ? e.message : String(e))
+      setWithdrawing(false)
+    }
+  }
   const [theme, setTheme] = useState<Theme>(readStoredTheme)
   const [health, setHealth] = useState<HealthInfo | null>(null)
   const [showDiagnostics, setShowDiagnostics] = useState(false)
@@ -135,10 +150,24 @@ export function AppHeader() {
           </button>
           {/* 설치할 수 있을 때만 나온다 (이미 설치했거나 PC 크롬이 아니면 숨는다) */}
           <InstallButton />
+          {/* 누구로 들어와 있는지 — 계정이 여럿인 폰에서 "내 종목이 없어졌다"가 사실은
+              다른 계정으로 들어온 것일 때가 있다. 그걸 한눈에 가릴 수 있어야 한다. */}
+          {mode === 'google' && user && (
+            <span className="account-chip" title={user.email ?? undefined}>
+              <span className="account-name">{user.name || user.email}</span>
+              {user.is_owner && <span className="badge badge-grey">주인</span>}
+            </span>
+          )}
           {/* 잠긴 서버에서만 나온다 — 개인 PC에서는 나갈 문이 애초에 없다 */}
           {locked && (
             <button className="ghost" onClick={() => void logout()} title="로그아웃">
               나가기
+            </button>
+          )}
+          {/* 주인은 탈퇴할 수 없다 (공용 데이터를 돌볼 사람이 사라진다) */}
+          {mode === 'google' && user && !user.is_owner && (
+            <button className="ghost" onClick={() => setConfirmWithdraw(true)}>
+              탈퇴
             </button>
           )}
           <button
@@ -173,6 +202,29 @@ export function AppHeader() {
       </nav>
 
       {showDiagnostics && <DiagnosticsModal onClose={() => setShowDiagnostics(false)} />}
+
+      {confirmWithdraw && (
+        <ConfirmDialog
+          title="탈퇴할까요?"
+          confirmLabel="탈퇴"
+          busyLabel="지우는 중…"
+          busy={withdrawing}
+          onConfirm={() => void doWithdraw()}
+          onCancel={() => {
+            setConfirmWithdraw(false)
+            setWithdrawError(null)
+          }}
+        >
+          <p>
+            내 종목 목록·보유수량·매수 기록·설정이 전부 지워집니다. <strong>되돌릴 수 없습니다.</strong>
+          </p>
+          <p className="hint">
+            다시 들어오면 빈 화면에서 새로 시작합니다. 시세·매크로 같은 공용 데이터는 남고,
+            거기에는 나를 가리키는 것이 없습니다.
+          </p>
+          {withdrawError && <p className="error-text">{withdrawError}</p>}
+        </ConfirmDialog>
+      )}
     </>
   )
 }

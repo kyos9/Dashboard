@@ -26,6 +26,9 @@ import type {
 
 const BASE = '/api'
 
+/** 구글 로그인 시작 주소. fetch 가 아니라 **화면 이동**으로 가야 한다 (구글 화면을 거친다) */
+export const GOOGLE_LOGIN_URL = `${BASE}/auth/google/start`
+
 /**
  * 열쇠가 풀렸다는 신호 — 세션이 만료됐거나 서버에서 잠금이 켜졌다.
  * 로그인 화면(AuthGate)이 이걸 듣고 다시 뜬다. 화면마다 401을 따로 처리하면
@@ -92,6 +95,8 @@ export const api = {
   login: (password: string) =>
     request<AuthStatus>('/auth/login', { method: 'POST', body: JSON.stringify({ password }) }),
   logout: () => request<AuthStatus>('/auth/logout', { method: 'POST' }),
+  /** 탈퇴 — 내 종목·보유수량·매수 기록·설정과 계정을 지운다 */
+  withdraw: () => request<void>('/auth/me', { method: 'DELETE' }),
 
   /** 종목명/코드로 후보를 찾는다 — 사용자가 고른 뒤에 등록한다 */
   searchSymbols: (q: string, limit = 8) =>

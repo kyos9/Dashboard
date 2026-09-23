@@ -58,6 +58,9 @@ ENDPOINTS: dict[tuple[str, str], tuple[str, str]] = {
     ("GET", "/api/auth/status"): (PUBLIC, ANYONE),
     ("POST", "/api/auth/login"): (PUBLIC, ANYONE),
     ("POST", "/api/auth/logout"): (PUBLIC, ANYONE),
+    ("GET", "/api/auth/google/start"): (PUBLIC, ANYONE),
+    ("GET", "/api/auth/google/callback"): (PUBLIC, ANYONE),
+    ("DELETE", "/api/auth/me"): (MINE, USER),  # 탈퇴 — 내 기록만 지운다
     ("GET", "/api/health"): (PUBLIC, ANYONE),
     # 내 종목
     ("GET", "/api/stocks"): (MINE, USER),
@@ -150,6 +153,7 @@ class World:
     client: object
     Session: object
     buys: dict  # (사용자, 티커) → 매수 기록 id
+    monkeypatch: object
 
     def as_user(self, user_id: int):
         """이후 요청을 그 사람으로 보낸다 (4-3 전까지 로그인이 하는 일을 대신한다)."""
@@ -182,7 +186,7 @@ def _this_period_buy(db, stock: UserStock, market: Market, amount: float) -> int
 
 
 @pytest.fixture()
-def world(api) -> World:
+def world(api, monkeypatch) -> World:
     client, Session = api
     buys = {}
     with Session() as db:
@@ -214,7 +218,7 @@ def world(api) -> World:
         buys[(A, "QQQ")] = _this_period_buy(db, qqq_a, Market.US, 222.0)
         buys[(B, "QQQ")] = _this_period_buy(db, qqq_b, Market.US, 333.0)
         buys[(B, SAMSUNG)] = _this_period_buy(db, samsung, Market.KR, 444.0)
-    return World(client=client, Session=Session, buys=buys)
+    return World(client=client, Session=Session, buys=buys, monkeypatch=monkeypatch)
 
 
 def _a_is_untouched(w: World) -> None:
@@ -430,7 +434,39 @@ def check_update_pinned(w: World):
     _a_is_untouched(w)
 
 
+def check_withdraw(w: World):
+    """탈퇴는 구글 모드에서만 된다. 여기서는 **진짜 쪽지**로 부른다 — 문지기까지 지나야
+    "B의 쪽지로 지운 것이 B의 것뿐인가"가 확인된다."""
+    from app.models import User
+    from app.services import auth as auth_service
+
+    w.monkeypatch.setenv(auth_service.GOOGLE_CLIENT_ID_ENV, "test-client")
+    main_module.app.dependency_overrides.pop(current_user_id, None)
+    with w.Session() as db:
+        b = db.get(User, B)
+        b.google_sub = "google-sub-b"
+        db.commit()
+        cookie = auth_service.issue_user_token(B, b.session_epoch, b.google_sub)
+
+    client = w.client
+    client.cookies.set(auth_service.COOKIE_NAME, cookie)
+    assert client.get("/api/stocks").status_code == 200  # 쪽지가 통한다
+    assert client.delete("/api/auth/me").status_code == 204
+
+    with w.Session() as db:
+        assert db.get(User, B) is None
+        for model in (UserStock, Holding, BuyExecution, UserSettings):
+            assert db.query(model).filter_by(user_id=B).count() == 0
+        # 공용 시세는 남는다 — B만 담았던 삼성전자도
+        assert db.query(PriceDaily).filter_by(ticker=SAMSUNG).count() == 2
+    # 탈퇴한 사람의 쪽지는 더 이상 통하지 않는다
+    client.cookies.set(auth_service.COOKIE_NAME, cookie)
+    assert client.get("/api/stocks").status_code == 401
+    _a_is_untouched(w)
+
+
 CHECKS = {
+    ("DELETE", "/api/auth/me"): check_withdraw,
     ("GET", "/api/stocks"): check_list_stocks,
     ("PUT", "/api/stocks/order"): check_order,
     ("POST", "/api/stocks"): check_create,

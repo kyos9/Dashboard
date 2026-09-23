@@ -181,6 +181,25 @@ h4 {
   margin-left: auto;
 }
 
+/* 누구로 들어와 있는지. 이메일이 길어도 헤더를 밀어내지 않게 줄인다 (전체는 마우스를 올리면) */
+.account-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 240px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+/* 말줄임은 글자를 담은 칸에 걸어야 먹는다 (flex 칸 자체에 걸면 안 줄어든다) */
+.account-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .status-pill {
   display: inline-flex;
   align-items: center;

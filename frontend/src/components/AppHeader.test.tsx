@@ -1,11 +1,12 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppStateProvider } from '../AppState'
-import { api } from '../api/client'
+import { ApiError, api } from '../api/client'
 import type { RefreshResult } from '../types'
 import { AppHeader } from './AppHeader'
+import { AuthGate } from './AuthGate'
 
 function refreshResult(overrides: Partial<RefreshResult> & { ticker: string }): RefreshResult {
   return { ok: true, rows_upserted: 10, error: null, hint: null, ...overrides }
@@ -165,5 +166,65 @@ describe('전체 새로고침', () => {
 
     await user.click(screen.getByRole('button', { name: '전체 새로고침' }))
     expect(await screen.findByText(/백엔드가 응답하지 않습니다/)).toBeInTheDocument()
+  })
+})
+
+// ---------------------------------------------------------------------------
+//  계정 (구글 로그인)
+// ---------------------------------------------------------------------------
+
+describe('구글 계정', () => {
+  function renderSignedIn(user: { email: string; name: string | null; is_owner: boolean }) {
+    mockHealth()
+    vi.spyOn(api, 'getAuthStatus').mockResolvedValue({
+      locked: true, authenticated: true, mode: 'google', user, config_problem: null,
+    })
+    return render(
+      <MemoryRouter>
+        <AuthGate>
+          <AppStateProvider>
+            <AppHeader />
+          </AppStateProvider>
+        </AuthGate>
+      </MemoryRouter>,
+    )
+  }
+
+  it('누구로 들어와 있는지 보여준다 — 계정이 여럿인 폰에서 헷갈리지 않게', async () => {
+    renderSignedIn({ email: 'friend@example.com', name: '친구', is_owner: false })
+    const chip = await screen.findByText('친구')
+    expect(chip.closest('.account-chip')).toHaveAttribute('title', 'friend@example.com')
+  })
+
+  it('주인에게는 탈퇴 버튼이 없다', async () => {
+    renderSignedIn({ email: 'me@example.com', name: '나', is_owner: true })
+    await screen.findByText('나')
+    expect(screen.getByText('주인')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '탈퇴' })).not.toBeInTheDocument()
+  })
+
+  it('탈퇴는 한 번 더 묻고, 지우면 로그인 화면으로 돌아간다', async () => {
+    const withdraw = vi.spyOn(api, 'withdraw').mockResolvedValue(undefined)
+    renderSignedIn({ email: 'friend@example.com', name: '친구', is_owner: false })
+
+    await userEvent.click(await screen.findByRole('button', { name: '탈퇴' }))
+    expect(withdraw).not.toHaveBeenCalled()
+    expect(screen.getByRole('alertdialog', { name: '탈퇴할까요?' })).toBeInTheDocument()
+
+    await userEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: '탈퇴' }))
+    expect(withdraw).toHaveBeenCalledOnce()
+    expect(await screen.findByRole('button', { name: '구글 계정으로 로그인' })).toBeInTheDocument()
+  })
+
+  it('탈퇴에 실패하면 창에 사유를 남기고 그대로 둔다', async () => {
+    vi.spyOn(api, 'withdraw').mockRejectedValue(new ApiError(500, '서버 오류', 'boom'))
+    renderSignedIn({ email: 'friend@example.com', name: '친구', is_owner: false })
+
+    await userEvent.click(await screen.findByRole('button', { name: '탈퇴' }))
+    await userEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: '탈퇴' }))
+
+    expect(await screen.findByText('서버 오류')).toBeInTheDocument()
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument()
+    expect(screen.getByText('친구')).toBeInTheDocument()
   })
 })

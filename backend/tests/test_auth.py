@@ -65,7 +65,9 @@ def test_the_right_password_opens_it(api, locked):
     client, _ = api
     assert login(client).status_code == 200
     assert client.get("/api/stocks").status_code == 200
-    assert client.get("/api/auth/status").json() == {"locked": True, "authenticated": True}
+    assert client.get("/api/auth/status").json() == {
+        "locked": True, "authenticated": True, "mode": "password",
+    }
 
 
 def test_the_wrong_password_does_not(api, locked):
