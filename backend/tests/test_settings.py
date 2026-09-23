@@ -1,4 +1,4 @@
-"""포트폴리오 설정 한 줄을 만드는 자리.
+"""포트폴리오 설정(사람마다 한 줄)을 만드는 자리.
 
 처음 켠 사람만 겪는 오류였다. 대시보드는 열리면서 여러 API를 동시에 부르는데, DB가
 비어 있으면 그 요청들이 전부 "설정이 없네, 만들자"에 도착한다. 먼저 넣은 하나만
@@ -8,15 +8,16 @@
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from app.models import PortfolioSettings
-from app.services.settings import SINGLETON_ID, get_settings
+from app.models import UserSettings
+from app.services.settings import get_settings
+from app.services.users import LOCAL_USER_ID
 from tests.factories import make_settings
 
 
 def test_creates_the_row_when_there_is_none(db_session):
     settings = get_settings(db_session)
-    assert settings.id == SINGLETON_ID
-    assert db_session.query(PortfolioSettings).count() == 1
+    assert settings.user_id == LOCAL_USER_ID
+    assert db_session.query(UserSettings).count() == 1
 
 
 def test_returns_the_same_row_next_time(db_session):
@@ -25,7 +26,7 @@ def test_returns_the_same_row_next_time(db_session):
     db_session.commit()
 
     assert get_settings(db_session).default_rebalance_band_pct == 7.5
-    assert db_session.query(PortfolioSettings).count() == 1
+    assert db_session.query(UserSettings).count() == 1
 
 
 def test_losing_the_race_is_not_an_error(db_session, monkeypatch):
@@ -47,7 +48,7 @@ def test_losing_the_race_is_not_an_error(db_session, monkeypatch):
 
     settings = get_settings(db_session)
     assert settings.default_rebalance_band_pct == 3.0  # 먼저 넣은 쪽 값이 살아 있다
-    assert db_session.query(PortfolioSettings).count() == 1
+    assert db_session.query(UserSettings).count() == 1
 
 
 def test_other_integrity_errors_are_not_swallowed(db_session, monkeypatch):

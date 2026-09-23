@@ -5,7 +5,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models import PriceDaily, SignalDaily, Stock
+from app.models import PriceDaily, SignalDaily, UserStock
 from app.schemas import HistoryCoverage, HistoryMarker, HistoryPoint, HistoryResponse
 
 router = APIRouter(prefix="/api/history", tags=["history"])
@@ -30,7 +30,7 @@ def get_history(ticker: str, range: str = Query("1y", alias="range"), db: Sessio
     ticker = ticker.upper()
     if range not in RANGE_DAYS:
         raise HTTPException(status_code=400, detail=f"invalid range: {range}")
-    if not db.query(Stock).filter_by(ticker=ticker).first():
+    if not db.query(UserStock).filter_by(ticker=ticker).first():
         raise HTTPException(status_code=404, detail="stock not found")
 
     query = db.query(PriceDaily).filter(PriceDaily.ticker == ticker)

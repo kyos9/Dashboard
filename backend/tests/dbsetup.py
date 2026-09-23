@@ -28,6 +28,14 @@ def reset_database(engine) -> None:
     매번 비우고 시작한다. `alembic_version`까지 지워야 한다. 남아 있으면 다음 테스트가
     "이미 최신"으로 보고 테이블을 하나도 만들지 않는다.
     """
+    if engine.dialect.name == "postgresql":
+        # 스키마째 비운다. 모델에 없는 표도 지워야 한다 — 마이그레이션 테스트는 옛
+        # 모양의 표(`stocks`)와 Enum 타입을 남기고 가는데, `drop_all`은 지금 모델이
+        # 아는 표만 지운다. 남은 것은 다음 테스트의 "이미 있다"가 된다.
+        with engine.begin() as conn:
+            conn.execute(text("DROP SCHEMA public CASCADE"))
+            conn.execute(text("CREATE SCHEMA public"))
+        return
     Base.metadata.drop_all(bind=engine)
     with engine.begin() as conn:
         conn.execute(text("DROP TABLE IF EXISTS alembic_version"))

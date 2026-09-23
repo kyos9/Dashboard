@@ -188,6 +188,28 @@ def _rename_buy_status(bind) -> None:
         )
 
 
+def _schema_at_0001():
+    """0001 리비전이 만드는 스키마를 그대로 읽어온다.
+
+    모양을 여기 다시 적지 않고 빈 메모리 DB에 0001을 실제로 돌려서 읽는다 — 옮겨 적은
+    사본은 언젠가 원본과 어긋난다. 옛 파일은 언제나 SQLite라 SQLite로 읽으면 된다.
+    """
+    from alembic import command
+    from sqlalchemy import MetaData
+
+    from app.migrate import INITIAL_REVISION, _config
+
+    scratch = create_engine("sqlite://")
+    try:
+        with scratch.begin() as conn:
+            command.upgrade(_config(conn), INITIAL_REVISION)
+        schema = MetaData()
+        schema.reflect(bind=scratch)
+        return schema
+    finally:
+        scratch.dispose()
+
+
 def adopt_pre_alembic_database(bind=None) -> None:
     """Alembic을 모르는 DB 파일을 0001 상태까지 데려온다.
 
@@ -200,12 +222,13 @@ def adopt_pre_alembic_database(bind=None) -> None:
     # 옛 파일에는 아예 없던 테이블(krx_listing 등)이 있다. 0001은 도장만 찍고 넘어갈
     # 참이라 여기서 만들어두지 않으면 영영 안 만들어진다.
     #
-    # **0001이 아는 테이블만 만든다.** 모델 전체를 만들면 그 뒤 리비전이 만들 테이블까지
-    # 미리 생겨서, 이어지는 업그레이드가 "이미 있다"에서 멈춘다. 이 경로가 하는 일은
-    # 어디까지나 "옛 파일을 0001까지 데려오기"다.
-    Base.metadata.create_all(
-        bind=bind,
-        tables=[Base.metadata.tables[name] for name in TABLES_AT_0001 if name in Base.metadata.tables],
+    # **0001이 아는 테이블만, 0001 때의 모양으로 만든다.** 모델 전체를 만들면 그 뒤
+    # 리비전이 만들 테이블까지 미리 생겨서 이어지는 업그레이드가 "이미 있다"에서 멈춘다.
+    # 그리고 지금 모델의 모양으로 만들어도 안 된다 — 0005 이후 `holding`은 사용자 칸이
+    # 있는 표라, 그 모양으로 만들면 0005가 옮길 옛 표가 없다.
+    schema = _schema_at_0001()
+    schema.create_all(
+        bind=bind, tables=[schema.tables[name] for name in TABLES_AT_0001 if name in schema.tables]
     )
     _backfill_stock_markets(bind)
     _rename_buy_status(bind)

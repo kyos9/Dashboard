@@ -429,7 +429,7 @@ class MacroPinnedOut(BaseModel):
 
 class MacroPinnedUpdate(BaseModel):
     """**빈 목록은 "다 껐다"는 뜻이다** — 기본값으로 되돌리라는 말이 아니다
-    (`models.PortfolioSettings.pinned_macro` 참고)."""
+    (`models.UserSettings.pinned_macro` 참고)."""
 
     codes: list[str]
 

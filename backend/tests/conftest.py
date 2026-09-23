@@ -6,6 +6,7 @@ from sqlalchemy.pool import StaticPool
 import app.main as main_module
 import app.models  # noqa: F401  (모든 테이블이 Base.metadata에 등록되도록)
 from app.db import Base, get_db
+from app.services.users import ensure_local_owner
 from tests import dbsetup
 
 
@@ -65,6 +66,8 @@ def db_session():
     Base.metadata.create_all(bind=engine)
     Session = sessionmaker(bind=engine)
     session = Session()
+    # 앱에서는 마이그레이션 0005가 1번 사용자를 만든다. 표만 만드는 여기서는 직접 넣는다.
+    ensure_local_owner(session)
     try:
         yield session
     finally:
@@ -90,6 +93,8 @@ def api(monkeypatch):
     engine = dbsetup.make_engine(poolclass=StaticPool)
     Base.metadata.create_all(bind=engine)
     TestingSessionLocal = sessionmaker(bind=engine)
+    with TestingSessionLocal() as session:
+        ensure_local_owner(session)
 
     def override_get_db():
         db = TestingSessionLocal()

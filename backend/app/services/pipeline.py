@@ -10,7 +10,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.markets import Market
-from app.models import PriceDaily, Stock
+from app.models import Instrument, PriceDaily, UserStock
 from app.services import buy_workflow, data_ingestion, fx
 from app.services.trading_calendar import last_closed_trading_day
 
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 def refresh_and_evaluate_stock(
     db: Session,
-    stock: Stock,
+    stock: UserStock,
     full_backfill: bool = False,
     price_df: pd.DataFrame | None = None,
 ) -> dict:
@@ -39,9 +39,9 @@ def refresh_all_active_stocks(db: Session, market: Market | None = None) -> list
     환율도 함께 갱신한다 — 통화가 섞인 포트폴리오에서는 환율이 낡으면 비중이 틀어지는데,
     화면에서는 시세만 갱신된 것처럼 보여 눈치채기 어렵다.
     """
-    query = db.query(Stock).filter(Stock.active.is_(True))
+    query = db.query(UserStock).filter(UserStock.active.is_(True))
     if market is not None:
-        query = query.filter(Stock.market == market.value)
+        query = query.join(UserStock.instrument).filter(Instrument.market == market.value)
     stocks = query.all()
 
     # 지금까지 이 종목을 받아온 제공자를 먼저 시도한다 (여러 곳에서 받아 섞이지 않게)
@@ -78,11 +78,12 @@ def stale_markets(db: Session) -> list[Market]:
     받아올 이유는 없다.
     """
     rows = (
-        db.query(Stock.market, func.max(PriceDaily.date))
-        .select_from(Stock)
-        .outerjoin(PriceDaily, PriceDaily.ticker == Stock.ticker)
-        .filter(Stock.active.is_(True))
-        .group_by(Stock.market)
+        db.query(Instrument.market, func.max(PriceDaily.date))
+        .select_from(UserStock)
+        .join(Instrument, Instrument.ticker == UserStock.ticker)
+        .outerjoin(PriceDaily, PriceDaily.ticker == UserStock.ticker)
+        .filter(UserStock.active.is_(True))
+        .group_by(Instrument.market)
         .all()
     )
 

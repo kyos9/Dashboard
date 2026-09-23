@@ -16,7 +16,7 @@ import datetime as dt
 from sqlalchemy.orm import Session
 
 from app.markets import market_of_stock
-from app.models import BuyExecution, BuyStatus, BuyType, Holding, SignalDaily, Stock
+from app.models import BuyExecution, BuyStatus, BuyType, Holding, SignalDaily, UserStock
 from app.services.trading_calendar import market_date, period_trading_bounds
 
 
@@ -52,14 +52,14 @@ def first_knee_date(db: Session, ticker: str, start: dt.date, end: dt.date) -> d
     return row[0] if row else None
 
 
-def tracking_start(stock: Stock) -> dt.date:
+def tracking_start(stock: UserStock) -> dt.date:
     """이 종목을 추적하기 시작한 날 (시장 현지 기준)."""
     if stock.added_at is None:
         return dt.date.min
     return market_date(stock.added_at, market_of_stock(stock))
 
 
-def evaluate_buy_workflow(db: Session, stock: Stock) -> BuyExecution | None:
+def evaluate_buy_workflow(db: Session, stock: UserStock) -> BuyExecution | None:
     """현재 열려있는 기간에 대해 매수 예정일을 판정/기록한다. 이미 기록이 있으면 아무 것도 하지 않는다."""
     latest = latest_signal_date(db, stock.ticker)
     if latest is None:
@@ -73,7 +73,12 @@ def evaluate_buy_workflow(db: Session, stock: Stock) -> BuyExecution | None:
 
     existing = (
         db.query(BuyExecution)
-        .filter_by(ticker=stock.ticker, period_start=period_start, period_end=period_end)
+        .filter_by(
+            user_id=stock.user_id,
+            ticker=stock.ticker,
+            period_start=period_start,
+            period_end=period_end,
+        )
         .first()
     )
     if existing is not None:
@@ -87,6 +92,7 @@ def evaluate_buy_workflow(db: Session, stock: Stock) -> BuyExecution | None:
     record = None
     if signal_date is not None:
         record = BuyExecution(
+            user_id=stock.user_id,
             ticker=stock.ticker,
             period_start=period_start,
             period_end=period_end,
@@ -97,6 +103,7 @@ def evaluate_buy_workflow(db: Session, stock: Stock) -> BuyExecution | None:
         )
     elif latest >= period_end:
         record = BuyExecution(
+            user_id=stock.user_id,
             ticker=stock.ticker,
             period_start=period_start,
             period_end=period_end,
@@ -130,9 +137,12 @@ def confirm_buy_execution(db: Session, buy_execution: BuyExecution, apply_to_hol
         )
         if price_row is not None and price_row.close:
             added_qty = buy_execution.amount / price_row.close
-            holding = db.query(Holding).filter_by(ticker=buy_execution.ticker).first()
+            # 매수 기록의 주인이 곧 보유수량의 주인이다
+            holding = db.get(Holding, (buy_execution.user_id, buy_execution.ticker))
             if holding is None:
-                holding = Holding(ticker=buy_execution.ticker, quantity=0.0)
+                holding = Holding(
+                    user_id=buy_execution.user_id, ticker=buy_execution.ticker, quantity=0.0
+                )
                 db.add(holding)
             holding.quantity += added_qty
             holding.updated_at = dt.datetime.utcnow()

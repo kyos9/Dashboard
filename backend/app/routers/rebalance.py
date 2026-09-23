@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.markets import Currency
-from app.models import Holding, PortfolioSettings, Stock, stock_order
+from app.models import Holding, UserSettings, UserStock, stock_order
 from app.schemas import (
     FxOut,
     HoldingOut,
@@ -23,8 +23,8 @@ from app.services import settings as settings_service
 router = APIRouter(prefix="/api/rebalance", tags=["rebalance"])
 
 
-def _get_stock_or_404(db: Session, ticker: str) -> Stock:
-    stock = db.query(Stock).filter_by(ticker=ticker.upper()).first()
+def _get_stock_or_404(db: Session, ticker: str) -> UserStock:
+    stock = db.query(UserStock).filter_by(ticker=ticker.upper()).first()
     if stock is None:
         raise HTTPException(status_code=404, detail="stock not found")
     return stock
@@ -32,7 +32,7 @@ def _get_stock_or_404(db: Session, ticker: str) -> Stock:
 
 @router.get("/targets", response_model=list[RebalanceTargetOut])
 def list_targets(db: Session = Depends(get_db)):
-    stocks = db.query(Stock).order_by(*stock_order()).all()
+    stocks = db.query(UserStock).order_by(*stock_order()).all()
     return [
         RebalanceTargetOut(
             ticker=s.ticker,
@@ -63,7 +63,7 @@ def update_target(ticker: str, payload: RebalanceTargetUpdate, db: Session = Dep
 
 @router.get("/holdings", response_model=list[HoldingOut])
 def list_holdings(db: Session = Depends(get_db)):
-    stocks = db.query(Stock).order_by(*stock_order()).all()
+    stocks = db.query(UserStock).order_by(*stock_order()).all()
     holdings_by_ticker = {h.ticker: h for h in db.query(Holding).all()}
     out = []
     for s in stocks:
@@ -78,9 +78,9 @@ def list_holdings(db: Session = Depends(get_db)):
 @router.put("/holdings/{ticker}", response_model=HoldingOut)
 def update_holding(ticker: str, payload: HoldingUpdate, db: Session = Depends(get_db)):
     stock = _get_stock_or_404(db, ticker)
-    holding = db.query(Holding).filter_by(ticker=stock.ticker).first()
+    holding = db.get(Holding, (stock.user_id, stock.ticker))
     if holding is None:
-        holding = Holding(ticker=stock.ticker, quantity=payload.quantity)
+        holding = Holding(user_id=stock.user_id, ticker=stock.ticker, quantity=payload.quantity)
         db.add(holding)
     else:
         holding.quantity = payload.quantity
@@ -90,7 +90,7 @@ def update_holding(ticker: str, payload: HoldingUpdate, db: Session = Depends(ge
     return HoldingOut(ticker=holding.ticker, quantity=holding.quantity, updated_at=holding.updated_at)
 
 
-def _settings_out(db: Session, settings: PortfolioSettings) -> SettingsOut:
+def _settings_out(db: Session, settings: UserSettings) -> SettingsOut:
     return SettingsOut(
         default_rebalance_band_pct=settings.default_rebalance_band_pct,
         base_currency=fx_service.base_currency(db),

@@ -11,8 +11,9 @@
 import re
 from pathlib import Path
 
-# 4단계에서 사용자가 붙는 표들. 시세·지표·시그널은 모두가 같이 쓰므로 여기 없다.
-PER_USER_MODELS = ("Stock", "Holding", "PortfolioSettings", "BuyExecution")
+# 사용자가 붙는 표들(+ 그 밑에 깔리는 공용 종목 행). 시세·지표·시그널은 모두가 같이
+# 쓰고 사용자와 무관하므로 여기 없다.
+PER_USER_MODELS = ("User", "UserStock", "Instrument", "Holding", "UserSettings", "BuyExecution")
 
 TESTS_DIR = Path(__file__).resolve().parent
 

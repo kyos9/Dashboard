@@ -11,6 +11,10 @@
 
 시세(`PriceDaily`)·지표·시그널은 여기 없다. 그건 **모든 사용자가 같이 쓰는** 데이터라
 사용자가 붙지 않는다 — 4단계에서 바뀌지 않는 것을 미리 감쌀 이유가 없다.
+
+**4-1에서 실제로 바뀐 곳이 여기다.** 종목은 공용 행(`Instrument`)과 내 행(`UserStock`)
+두 줄이 됐고, 보유·매수·설정에는 `user_id`가 붙었다. 사용자를 안 주면 1번 사용자다 —
+앱이 로그인 전까지 모든 요청을 1번으로 받는 것과 같다.
 """
 
 from __future__ import annotations
@@ -19,45 +23,96 @@ import datetime as dt
 
 from sqlalchemy.orm import Session
 
-from app.models import BuyExecution, BuyStatus, BuyType, Holding, PortfolioSettings, Stock
-from app.services.settings import SINGLETON_ID
+from app.markets import normalize_ticker
+from app.models import (
+    BuyExecution,
+    BuyStatus,
+    BuyType,
+    Holding,
+    Instrument,
+    User,
+    UserSettings,
+    UserStock,
+)
+from app.services.users import LOCAL_USER_ID
 
 
-def make_stock(db: Session, ticker: str = "TST", *, commit: bool = True, **fields) -> Stock:
-    """종목 하나를 만들어 DB에 넣는다.
+def _ensure_user(db: Session, user_id: int) -> None:
+    """그 사용자 행이 없으면 넣는다.
+
+    앱에서는 마이그레이션이 1번을 만들어두지만, 테스트는 `create_all`로 표만 만든다.
+    종목·보유·설정이 전부 사용자를 가리키므로 여기서 채워준다.
+    """
+    if db.get(User, user_id) is None:
+        db.add(User(id=user_id, is_owner=user_id == LOCAL_USER_ID))
+        db.flush()
+
+
+def make_user(db: Session, *, commit: bool = True, **fields) -> User:
+    """사용자 한 명. `id`를 안 주면 DB가 번호를 매긴다 (번호표가 제자리인지 볼 때 쓴다)."""
+    user = User(**fields)
+    db.add(user)
+    if commit:
+        db.commit()
+    return user
+
+
+def make_stock(
+    db: Session,
+    ticker: str = "TST",
+    *,
+    user_id: int = LOCAL_USER_ID,
+    commit: bool = True,
+    **fields,
+) -> UserStock:
+    """종목 하나를 만들어 DB에 넣는다 — 공용 행(`Instrument`)과 내 행(`UserStock`) 둘 다.
 
     나머지 칸(`target_weight_pct`, `dca_period`, `added_at` …)은 부르는 쪽이 필요한
     것만 넘긴다. 여기서 기본값을 따로 정하지 않는 이유는 모델의 기본값과 다른 값을
     숨겨두면, 테스트가 왜 그렇게 도는지 이 파일을 열어봐야만 알 수 있기 때문이다.
+
+    `name`은 두 행에 같이 넣는다. 마이그레이션이 옛 `stocks.name`을 옮기는 방식과 같다.
     """
-    stock = Stock(ticker=ticker, **fields)
+    _ensure_user(db, user_id)
+    ticker = normalize_ticker(ticker)
+    instrument = db.get(Instrument, ticker)
+    if instrument is None:
+        instrument = Instrument(ticker=ticker, name=fields.get("name"))
+        db.add(instrument)
+    stock = UserStock(user_id=user_id, ticker=ticker, instrument=instrument, **fields)
     db.add(stock)
     if commit:
         db.commit()
     return stock
 
 
-def make_holding(db: Session, ticker: str, quantity: float, *, commit: bool = True) -> Holding:
+def make_holding(
+    db: Session,
+    ticker: str,
+    quantity: float,
+    *,
+    user_id: int = LOCAL_USER_ID,
+    commit: bool = True,
+) -> Holding:
     """보유수량 한 줄."""
-    holding = Holding(ticker=ticker, quantity=quantity)
+    holding = Holding(user_id=user_id, ticker=ticker, quantity=quantity)
     db.add(holding)
     if commit:
         db.commit()
     return holding
 
 
-def build_settings(**fields) -> PortfolioSettings:
+def build_settings(**fields) -> UserSettings:
     """DB에 넣지 않는 설정 객체 — 순수 함수를 검증할 때 쓴다."""
-    return PortfolioSettings(**fields)
+    return UserSettings(**fields)
 
 
-def make_settings(db: Session, *, commit: bool = True, **fields) -> PortfolioSettings:
-    """포트폴리오 설정(한 줄짜리 표)을 DB에 넣는다.
-
-    `id` 를 받지 않는다. 설정은 싱글턴이고, 테스트마다 다른 id로 넣으면 서비스가
-    읽는 행과 테스트가 쓴 행이 어긋난다.
-    """
-    settings = PortfolioSettings(id=SINGLETON_ID, **fields)
+def make_settings(
+    db: Session, *, user_id: int = LOCAL_USER_ID, commit: bool = True, **fields
+) -> UserSettings:
+    """그 사용자의 포트폴리오 설정(사람마다 한 줄)을 DB에 넣는다."""
+    _ensure_user(db, user_id)
+    settings = UserSettings(user_id=user_id, **fields)
     db.add(settings)
     if commit:
         db.commit()
@@ -74,10 +129,12 @@ def make_buy(
     type: BuyType = BuyType.signal,
     amount: float = 100.0,
     status: BuyStatus = BuyStatus.scheduled,
+    user_id: int = LOCAL_USER_ID,
     commit: bool = True,
 ) -> BuyExecution:
     """매수 기록 한 줄. 기간 끝·실행일을 안 주면 기간 시작과 같은 날로 둔다."""
     buy = BuyExecution(
+        user_id=user_id,
         ticker=ticker,
         period_start=period_start,
         period_end=period_end or period_start,

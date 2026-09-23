@@ -141,7 +141,7 @@ def build_krx_ticker(code: str, board: Board) -> str:
 
 
 def market_of_stock(stock) -> Market:
-    """Stock 레코드의 시장.
+    """종목 행(`UserStock`)의 시장.
 
     저장된 값을 쓰되, 비어 있거나 알 수 없는 값이면 티커에서 다시 판별한다 —
     티커가 언제나 정답이므로 옛 DB에서 올라온 행도 안전하게 다룰 수 있다.

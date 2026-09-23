@@ -7,9 +7,10 @@ from app.models import (
     BuyExecution,
     Holding,
     IndicatorDaily,
+    Instrument,
     PriceDaily,
     SignalDaily,
-    Stock,
+    UserStock,
     stock_order,
 )
 from app.schemas import (
@@ -21,7 +22,9 @@ from app.schemas import (
     StockUpdate,
 )
 from app.services import data_ingestion, symbols
+from app.services.instruments import ensure_instrument
 from app.services.pipeline import refresh_all_active_stocks, refresh_and_evaluate_stock
+from app.services.users import LOCAL_USER_ID
 
 router = APIRouter(prefix="/api/stocks", tags=["stocks"])
 
@@ -41,7 +44,7 @@ def _failure_detail(exc: data_ingestion.DataIngestionError) -> dict:
 
 @router.get("", response_model=list[StockOut])
 def list_stocks(db: Session = Depends(get_db)):
-    return db.query(Stock).order_by(*stock_order()).all()
+    return db.query(UserStock).order_by(*stock_order()).all()
 
 
 @router.put("/order", response_model=list[StockOut])
@@ -52,7 +55,7 @@ def update_stock_order(payload: StockOrderUpdate, db: Session = Depends(get_db))
     하면 화면이 모르는 사이에 순서를 덮어쓸 수 있다.
     """
     wanted = [normalize_ticker(t) for t in payload.tickers]
-    by_ticker = {s.ticker: s for s in db.query(Stock).all()}
+    by_ticker = {s.ticker: s for s in db.query(UserStock).all()}
 
     unknown = [t for t in wanted if t not in by_ticker]
     if unknown:
@@ -65,7 +68,7 @@ def update_stock_order(payload: StockOrderUpdate, db: Session = Depends(get_db))
         if stock.ticker not in wanted:
             stock.sort_order = len(wanted)
     db.commit()
-    return db.query(Stock).order_by(*stock_order()).all()
+    return db.query(UserStock).order_by(*stock_order()).all()
 
 
 def _resolve_ticker(db: Session, raw: str) -> tuple[str, str | None, str | None]:
@@ -102,15 +105,20 @@ def _resolve_ticker(db: Session, raw: str) -> tuple[str, str | None, str | None]
 @router.post("", response_model=StockCreateResult)
 def create_stock(payload: StockCreate, db: Session = Depends(get_db)):
     ticker, resolved_name, resolved_from = _resolve_ticker(db, payload.ticker)
-    if db.query(Stock).filter_by(ticker=ticker).first():
+    if db.query(UserStock).filter_by(ticker=ticker).first():
         raise HTTPException(status_code=409, detail=f"{ticker} already exists")
 
-    # 사용자가 이름을 직접 적었으면 그 값을 존중하고, 아니면 해석된 종목명을 쓴다
-    name = payload.name or (resolved_name if resolved_name != ticker else None)
+    # 해석된 종목명은 공용 행에, 화면에 보일 이름은 내 행에 둔다.
+    # 사용자가 이름을 직접 적었으면 그 값을 존중하고, 아니면 해석된 종목명을 쓴다.
+    official_name = resolved_name if resolved_name != ticker else None
+    name = payload.name or official_name
 
-    # 시장/통화는 Stock이 티커에서 직접 채운다 (models.Stock._sync_market_and_currency)
-    stock = Stock(
-        ticker=ticker,
+    # 시장/통화는 공용 행이 티커에서 직접 채운다 (models.Instrument._sync_market_and_currency)
+    instrument = ensure_instrument(db, ticker, name=official_name)
+    stock = UserStock(
+        user_id=LOCAL_USER_ID,
+        ticker=instrument.ticker,
+        instrument=instrument,
         name=name,
         category=payload.category,
         dca_amount=payload.dca_amount,
@@ -144,7 +152,7 @@ def create_stock(payload: StockCreate, db: Session = Depends(get_db)):
 
 @router.put("/{ticker}", response_model=StockOut)
 def update_stock(ticker: str, payload: StockUpdate, db: Session = Depends(get_db)):
-    stock = db.query(Stock).filter_by(ticker=ticker.upper()).first()
+    stock = db.query(UserStock).filter_by(ticker=ticker.upper()).first()
     if stock is None:
         raise HTTPException(status_code=404, detail="stock not found")
 
@@ -165,7 +173,7 @@ def update_stock(ticker: str, payload: StockUpdate, db: Session = Depends(get_db
 
 @router.delete("/{ticker}", response_model=StockOut)
 def deactivate_stock(ticker: str, db: Session = Depends(get_db)):
-    stock = db.query(Stock).filter_by(ticker=ticker.upper()).first()
+    stock = db.query(UserStock).filter_by(ticker=ticker.upper()).first()
     if stock is None:
         raise HTTPException(status_code=404, detail="stock not found")
     stock.active = False
@@ -183,14 +191,27 @@ def purge_stock(ticker: str, db: Session = Depends(get_db)):
     전부 새로 받아야 한다. 정말 지우려는 사람만 이 경로로 오게 한다.
     """
     normalized = normalize_ticker(ticker)
-    stock = db.query(Stock).filter_by(ticker=normalized).first()
+    stock = db.query(UserStock).filter_by(ticker=normalized).first()
     if stock is None:
         raise HTTPException(status_code=404, detail="stock not found")
 
-    # 외래키가 stocks.ticker를 가리키므로 딸린 행을 먼저 지운다
-    for model in (PriceDaily, IndicatorDaily, SignalDaily, BuyExecution, Holding):
-        db.query(model).filter(model.ticker == normalized).delete(synchronize_session=False)
+    # 내 기록(매수·보유)이 내 종목 행을 가리키므로 먼저 지운다
+    for model in (BuyExecution, Holding):
+        db.query(model).filter(
+            model.user_id == stock.user_id, model.ticker == normalized
+        ).delete(synchronize_session=False)
     db.delete(stock)
+
+    # 시세·지표·시그널은 공용이다. 지금은 사람이 한 명이라 예전처럼 같이 지우되,
+    # **아무도 안 담은 종목일 때만** 지운다 — 남이 담은 종목의 시세를 지우면 그 사람의
+    # 화면이 비는 것이다. (사람이 늘면 이 자리는 "내 목록에서만 뺀다"로 바뀐다: 4-4)
+    db.flush()
+    if db.query(UserStock).filter(UserStock.ticker == normalized).first() is None:
+        for model in (PriceDaily, IndicatorDaily, SignalDaily):
+            db.query(model).filter(model.ticker == normalized).delete(synchronize_session=False)
+        db.query(Instrument).filter(Instrument.ticker == normalized).delete(
+            synchronize_session=False
+        )
     db.commit()
 
 
@@ -219,7 +240,7 @@ def refresh_stock(ticker: str, full: bool = False, db: Session = Depends(get_db)
     (그때는 기록이 비어 있다) 차트에서 5년·전체를 눌렀는데 앞부분이 비어 있을 때 쓴다 —
     이 경로가 없으면 등록 이후로는 2년보다 앞선 시세를 채울 방법이 아예 없었다.
     """
-    stock = db.query(Stock).filter_by(ticker=ticker.upper()).first()
+    stock = db.query(UserStock).filter_by(ticker=ticker.upper()).first()
     if stock is None:
         raise HTTPException(status_code=404, detail="stock not found")
     try:

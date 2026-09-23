@@ -9,11 +9,12 @@ from sqlalchemy import (
     Enum,
     Float,
     ForeignKey,
+    ForeignKeyConstraint,
     Integer,
     String,
     UniqueConstraint,
 )
-from sqlalchemy.orm import Mapped, mapped_column, validates
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from app.db import Base
 from app.markets import Currency, Market, currency_of, market_of, normalize_ticker
@@ -42,18 +43,79 @@ class BuyStatus(str, enum.Enum):
     confirmed = "confirmed"
 
 
-class Stock(Base):
-    __tablename__ = "stocks"
+class User(Base):
+    """이 앱을 쓰는 사람.
+
+    **요청에는 언제나 사용자가 있다.** 로그인이 없는 개인 PC에서도 1번 사용자로
+    들어온다 (ROADMAP 4단계 0번). `user_id`가 비어 있을 수 있게 두면 모든 쿼리가
+    "없으면 전체"라는 분기를 갖게 되고, 그 분기 하나하나가 남의 데이터가 새는 자리다.
+
+    표 이름이 `user`가 아닌 이유: Postgres 예약어라 쓸 때마다 따옴표로 감싸야 한다.
+    """
+
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    # 구글이 주는 계정 식별자. **이메일이 아니라 이것이 키다** — 이메일은 바뀌고,
+    # 조직 계정은 회수돼 다른 사람에게 간다. 로컬 계정(1번)은 비어 있다.
+    google_sub: Mapped[str | None] = mapped_column(String, unique=True, nullable=True)
+    # 화면에 이름을 띄우기 위해서만 둔다. 식별에 쓰지 않는다.
+    email: Mapped[str | None] = mapped_column(String, nullable=True)
+    name: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow, nullable=False)
+    last_login_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
+    # 올리면 그 사람에게 나간 세션 쪽지가 전부 무효가 된다 (탈퇴·강제 로그아웃).
+    session_epoch: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # 공용 데이터(매크로·환율·상장목록·전체 갱신)를 고칠 수 있는 사람.
+    is_owner: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+
+class Instrument(Base):
+    """종목 그 자체. **공용 데이터다.**
+
+    VOO가 어느 시장의 무슨 통화 종목인지는 누가 보든 같다. 시세·지표·시그널은 이
+    표에 매달린다 — 백 명이 VOO를 담아도 시세는 한 벌만 받는다.
+    """
+
+    __tablename__ = "instrument"
 
     ticker: Mapped[str] = mapped_column(String, primary_key=True)
+    # 처음 등록될 때 해석된 종목명. 화면에 보이는 이름은 사람마다 고쳐 쓸 수 있어서
+    # `UserStock.name`에 따로 있다 — 여기는 그 사람이 이름을 안 적었을 때의 출발점이다.
+    name: Mapped[str | None] = mapped_column(String, nullable=True)
+    # 시장/통화는 티커에서 유도되지만(app.markets), 조회할 때마다 파싱하지 않도록 저장해둔다.
+    market: Mapped[str] = mapped_column(String, default=Market.US.value, nullable=False)
+    currency: Mapped[str] = mapped_column(String, default=Currency.USD.value, nullable=False)
+
+    @validates("ticker")
+    def _sync_market_and_currency(self, key: str, value: str) -> str:
+        """티커가 정해지면 시장/통화도 함께 정한다.
+
+        둘을 따로 세팅하게 두면 언젠가 한쪽만 채워진 행이 생기고, 그러면 원화 종목이
+        달러로 잡혀 비중이 조용히 틀어진다. 티커가 유일한 진실이므로 여기서 묶어둔다.
+        """
+        ticker = normalize_ticker(value)
+        self.market = market_of(ticker).value
+        self.currency = currency_of(ticker).value
+        return ticker
+
+
+class UserStock(Base):
+    """한 사람이 담아둔 종목과 그 사람의 설정.
+
+    예전 `stocks` 표는 공용(종목이 무엇인가)과 사용자별(얼마씩, 몇 %로 담나)이 한 줄에
+    섞여 있었다. 공용 절반은 `Instrument`로 가고, 여기에는 사람마다 다른 것만 남는다.
+    """
+
+    __tablename__ = "user_stock"
+
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), primary_key=True)
+    ticker: Mapped[str] = mapped_column(String, ForeignKey("instrument.ticker"), primary_key=True)
+    # 화면에 보여줄 이름. 사용자가 고쳐 쓸 수 있다 — 야후가 주는 영문 이름 대신 한글로
+    # 부르고 싶은 사람이 있고, 그건 남의 화면까지 바꿀 일이 아니다. 비우면 티커로 보인다.
     name: Mapped[str | None] = mapped_column(String, nullable=True)
     # 포트폴리오상 역할 구분(예: 지수/알파/안전자산). 자유 입력이며 대시보드 필터로만 쓰인다.
     category: Mapped[str | None] = mapped_column(String, nullable=True)
-    # 시장/통화는 티커에서 유도되지만(app.markets), 조회할 때마다 파싱하지 않도록 저장해둔다.
-    # Enum이 아니라 String인 이유: 기존 DB 파일에 ALTER TABLE ADD COLUMN으로 붙여야 해서
-    # CHECK 제약이 따라붙지 않는 단순 타입이 필요하다.
-    market: Mapped[str] = mapped_column(String, default=Market.US.value, nullable=False)
-    currency: Mapped[str] = mapped_column(String, default=Currency.USD.value, nullable=False)
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     added_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow, nullable=False)
 
@@ -71,17 +133,20 @@ class Stock(Base):
     # 아무 상관이 없다. 값이 같으면 티커순으로 떨어지므로 새 종목은 뒤에 붙는다.
     sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
-    @validates("ticker")
-    def _sync_market_and_currency(self, key: str, value: str) -> str:
-        """티커가 정해지면 시장/통화도 함께 정한다.
+    # 시장·통화를 읽을 때마다 쿼리가 하나씩 늘지 않게 같이 읽어온다.
+    instrument: Mapped[Instrument] = relationship(lazy="joined", innerjoin=True)
 
-        둘을 따로 세팅하게 두면 언젠가 한쪽만 채워진 행이 생기고, 그러면 원화 종목이
-        달러로 잡혀 비중이 조용히 틀어진다. 티커가 유일한 진실이므로 여기서 묶어둔다.
-        """
-        ticker = normalize_ticker(value)
-        self.market = market_of(ticker).value
-        self.currency = currency_of(ticker).value
-        return ticker
+    @validates("ticker")
+    def _normalize_ticker(self, key: str, value: str) -> str:
+        return normalize_ticker(value)
+
+    @property
+    def market(self) -> str:
+        return self.instrument.market
+
+    @property
+    def currency(self) -> str:
+        return self.instrument.currency
 
 
 class PriceDaily(Base):
@@ -89,7 +154,7 @@ class PriceDaily(Base):
     __table_args__ = (UniqueConstraint("ticker", "date", name="uq_price_ticker_date"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    ticker: Mapped[str] = mapped_column(String, ForeignKey("stocks.ticker"), nullable=False, index=True)
+    ticker: Mapped[str] = mapped_column(String, ForeignKey("instrument.ticker"), nullable=False, index=True)
     date: Mapped[dt.date] = mapped_column(Date, nullable=False, index=True)
     open: Mapped[float] = mapped_column(Float, nullable=False)
     high: Mapped[float] = mapped_column(Float, nullable=False)
@@ -109,7 +174,7 @@ class IndicatorDaily(Base):
     __table_args__ = (UniqueConstraint("ticker", "date", name="uq_indicator_ticker_date"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    ticker: Mapped[str] = mapped_column(String, ForeignKey("stocks.ticker"), nullable=False, index=True)
+    ticker: Mapped[str] = mapped_column(String, ForeignKey("instrument.ticker"), nullable=False, index=True)
     date: Mapped[dt.date] = mapped_column(Date, nullable=False, index=True)
 
     ma5: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -132,17 +197,27 @@ class SignalDaily(Base):
     __table_args__ = (UniqueConstraint("ticker", "date", name="uq_signal_ticker_date"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    ticker: Mapped[str] = mapped_column(String, ForeignKey("stocks.ticker"), nullable=False, index=True)
+    ticker: Mapped[str] = mapped_column(String, ForeignKey("instrument.ticker"), nullable=False, index=True)
     date: Mapped[dt.date] = mapped_column(Date, nullable=False, index=True)
     knee_buy_v2: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     shoulder_sell_ref: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
 
 class BuyExecution(Base):
+    """기간별 매수 기록. **사용자별이다** — DCA 금액·주기가 사람마다 다르다.
+
+    외래키가 `(user_id, ticker)` → `user_stock`인 이유: 내 목록에 없는 종목의 매수
+    기록은 뜻이 없다. 종목을 목록에서 빼려면 이 기록을 먼저 치워야 한다.
+    """
+
     __tablename__ = "buy_execution"
+    __table_args__ = (
+        ForeignKeyConstraint(["user_id", "ticker"], ["user_stock.user_id", "user_stock.ticker"]),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    ticker: Mapped[str] = mapped_column(String, ForeignKey("stocks.ticker"), nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    ticker: Mapped[str] = mapped_column(String, nullable=False, index=True)
     period_start: Mapped[dt.date] = mapped_column(Date, nullable=False)
     period_end: Mapped[dt.date] = mapped_column(Date, nullable=False)
     exec_date: Mapped[dt.date] = mapped_column(Date, nullable=False)
@@ -153,17 +228,25 @@ class BuyExecution(Base):
 
 
 class Holding(Base):
-    __tablename__ = "holding"
+    """보유수량. **사용자별이다.** 외래키는 `BuyExecution`과 같은 이유로 `user_stock`."""
 
-    ticker: Mapped[str] = mapped_column(String, ForeignKey("stocks.ticker"), primary_key=True)
+    __tablename__ = "holding"
+    __table_args__ = (
+        ForeignKeyConstraint(["user_id", "ticker"], ["user_stock.user_id", "user_stock.ticker"]),
+    )
+
+    user_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ticker: Mapped[str] = mapped_column(String, primary_key=True)
     quantity: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     updated_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow, nullable=False)
 
 
-class PortfolioSettings(Base):
-    __tablename__ = "portfolio_settings"
+class UserSettings(Base):
+    """한 사람의 포트폴리오 설정. 예전 `portfolio_settings`(한 줄짜리)가 사람마다 한 줄이 됐다."""
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    __tablename__ = "user_settings"
+
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), primary_key=True)
     default_rebalance_band_pct: Mapped[float] = mapped_column(Float, default=5.0, nullable=False)
 
     # 통화가 섞인 포트폴리오의 비중을 계산할 기준통화. 평가금액은 모두 이 통화로 환산한 뒤
@@ -286,7 +369,7 @@ class MacroSeries(Base):
     #
     # 같은 표에 두는 이유: 지표 하나에 상태도 하나라 1:1 이고, 따로 표를 만들면 화면을
     # 그릴 때마다 조인이 하나 는다. (사용자별 상태였다면 얘기가 다르다 — 그건 공용
-    # 표에 섞으면 안 되고, 그래서 `pinned_macro` 는 `portfolio_settings` 로 갔다.)
+    # 표에 섞으면 안 되고, 그래서 `pinned_macro` 는 `user_settings` 로 갔다.)
     #
     # **`MacroValue.fetched_at` 으로는 이걸 대신할 수 없다.** 그쪽은 값이 실제로
     # 바뀌었을 때만 갱신된다 — 값이 그대로면 아무 흔적이 안 남아서, "받아봤는데 새 게
@@ -385,4 +468,4 @@ def stock_order():
     사용자가 정한 순서를 먼저 쓰고, 같은 값이면 티커순으로 떨어뜨린다. 정렬 기준을
     한 곳에 모아두지 않으면 화면마다 순서가 달라져 같은 포트폴리오가 다르게 보인다.
     """
-    return (Stock.sort_order.asc(), Stock.ticker.asc())
+    return (UserStock.sort_order.asc(), UserStock.ticker.asc())

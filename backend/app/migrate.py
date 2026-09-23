@@ -40,6 +40,11 @@ SCRIPT_LOCATION = BACKEND_DIR / "migrations"
 # 새 리비전은 이 뒤에 쌓이지, 이 자리를 대신하지 않는다.
 INITIAL_REVISION = "0001"
 
+# 되돌릴 수 없는 리비전. 이걸 지나가는 업그레이드는 **백업에 성공해야만** 시작한다.
+# 0005는 한 사람의 표를 사용자별로 쪼갠다 — 사용자가 둘이 된 뒤에는 원래 모양으로
+# 되돌릴 방법이 없고, 앱이 뜨면서 자동으로 돈다.
+IRREVERSIBLE = frozenset({"0005"})
+
 
 def _config(connection) -> Config:
     """마이그레이션을 돌릴 설정. **ini 파일을 읽지 않는다.**
@@ -76,6 +81,14 @@ def head_revision() -> str | None:
     return ScriptDirectory(str(SCRIPT_LOCATION)).get_current_head()
 
 
+def pending_revisions(stamped: str | None) -> list[str]:
+    """`stamped`에서 head까지 올라가며 실행될 리비전들."""
+    from alembic.script import ScriptDirectory
+
+    script = ScriptDirectory(str(SCRIPT_LOCATION))
+    return [rev.revision for rev in script.iterate_revisions("heads", stamped or "base")]
+
+
 def upgrade_to_head(bind=None) -> str | None:
     """DB를 최신 스키마로 올리고, 올라간 자리를 돌려준다."""
     bind = bind or engine
@@ -89,7 +102,8 @@ def upgrade_to_head(bind=None) -> str | None:
     # 빈 DB를 처음 만드는 건 잃을 게 없다. 그 외에 실제로 바꿀 게 있을 때만 떠둔다 —
     # 앱을 켤 때마다 뜨면 정작 필요한 "바꾸기 직전"의 백업이 밀려나 사라진다.
     if tables and (adopting or stamped != head_revision()):
-        backup.snapshot_before_migration(bind)
+        required = bool(IRREVERSIBLE & set(pending_revisions(stamped)))
+        backup.snapshot_before_migration(bind, required=required)
 
     if adopting:
         logger.info("Alembic 이전에 만들어진 DB를 이어받습니다")

@@ -265,9 +265,75 @@ ARM(A1.Flex)이라면 `compose pull` 대신 `--build` 입니다 — 6번 참고:
 사라지는 경우는 그 백업도 같이 사라지므로** 가끔 내 PC로 가져옵니다.
 
 ```bash
-docker compose cp app:/data/backups ./backups   # 서버 안에서
-scp -r ubuntu@<서버IP>:~/Dashboard/backups .    # 내 PC에서
+# 1) 서버에서 — 지금 한 벌 뜨고, 볼륨 밖으로 꺼낸다
+cd ~/Dashboard
+docker compose exec app python -m app.services.backup
+mkdir -p ~/dashboard-backups
+docker compose cp app:/data/backups ~/dashboard-backups/   # -> ~/dashboard-backups/backups/
 ```
+
+```powershell
+# 2) 내 PC에서 (윈도우 PowerShell도 됩니다) — 서버에 접속할 때 쓰는 키 파일을 그대로
+scp -i <키파일> -r ubuntu@<서버IP>:~/dashboard-backups/backups .
+```
+
+폴더를 먼저 만드는 이유: `docker compose cp`는 받을 폴더가 없으면 그 이름으로 만들고, 있으면
+그 *안에* 넣습니다. 먼저 만들어두면 몇 번을 돌려도 같은 자리(`backups/`)에 쌓입니다.
+
+꺼내는 자리를 `~/Dashboard` 밖으로 둡니다 — 저장소 폴더 안에 두면 `git pull` 할 때마다
+모르는 파일로 걸리고, 실수로 커밋될 수도 있습니다.
+
+**1)의 `python -m app.services.backup` 이 성공하면, 마이그레이션 직전 백업도 됩니다.** 둘은 같은 길(`pg_dump`)을
+씁니다. 되돌릴 수 없는 업데이트(아래 10-2) 앞에서는 앱이 이 백업에 성공해야만
+업그레이드를 시작하므로, 올리기 전에 한 번 돌려 확인해두면 당일에 막히지 않습니다.
+
+## 10-1. 백업에서 되돌리기
+
+**한 번도 되돌려보지 않은 백업은 백업이 아닙니다.** 아래 순서는 그대로 실제로 해보고
+적었습니다 (Postgres 16, 0005 직전 백업 → 0005 적용 → 되돌리기 → 0004 · 데이터 그대로).
+
+```bash
+cd ~/Dashboard
+ls ~/dashboard-backups/backups/            # 되돌릴 파일 고르기 (10번으로 꺼내둔 것)
+#   signalboard-20260923-143502-premigrate.sql  ← 업데이트 직전에 앱이 뜬 것
+
+# 1) 앱을 멈춘다 (DB는 켜둔다)
+docker compose stop app
+
+# 2) 그 백업을 만든 버전으로 돌아갈 거면 먼저 이미지를 되돌린다 (9번의 IMAGE_TAG).
+#    안 되돌리면 앱이 켜지면서 같은 마이그레이션을 다시 돌린다.
+echo 'IMAGE_TAG=sha-1234abc' >> .env
+
+# 3) DB를 비우고 백업을 붓는다
+docker compose exec db psql -U signal -d signal -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+docker compose exec -T db psql -U signal -d signal -v ON_ERROR_STOP=1 \
+  < ~/dashboard-backups/backups/signalboard-20260923-143502-premigrate.sql
+
+# 4) 다시 켠다
+docker compose --profile https up -d
+```
+
+`ON_ERROR_STOP=1`을 빼지 마세요 — 없으면 중간에 한 줄이 실패해도 끝까지 가서 "끝났다"고
+합니다. 3)에서 오류가 나면 DB는 비어 있는 상태이니, 앱을 켜지 말고 원인부터 봅니다.
+
+**되돌리면 그 시점 이후의 기록은 사라집니다** — 그 뒤에 입력한 보유수량, 확정한 매수,
+(로그인이 붙은 뒤라면) 그 사이 가입한 사람까지. 혼자일 때는 내 기록이지만 사람이
+늘면 남의 기록입니다.
+
+개인 PC(SQLite)는 더 간단합니다 — `stop.bat`으로 끈 뒤 `backend\backups\`의 `.db` 파일을
+`backend\signal_dashboard.db`로 덮어쓰면 됩니다.
+
+## 10-2. 되돌릴 수 없는 업데이트 (v0.17.0 — 사용자 분리)
+
+v0.17.0은 표를 사용자별로 쪼갭니다(마이그레이션 0005). 쓰던 데이터는 전부 1번 사용자
+(나)의 것이 되고, 화면은 그대로입니다. 다만 **사람이 둘이 된 뒤에는 이전 모양으로
+되돌릴 방법이 없어서**, 앱이 이 업데이트만은 조심해서 다룹니다.
+
+- **직전 백업에 실패하면 업그레이드를 시작하지 않습니다.** 앱이 안 뜨고 로그에
+  "마이그레이션 전 백업에 실패해 업그레이드를 멈춥니다"가 남습니다. DB는 그대로입니다.
+  원인(디스크 공간, `pg_dump`)을 고치거나 9번의 `IMAGE_TAG`로 이전 버전에 머무르세요.
+- 올리기 전에 하는 일은 둘입니다: 10번 1)로 **한 벌 떠서 내 PC로 받아두기**, 그리고
+  그게 성공했는지 보기(= 당일 백업도 된다는 뜻).
 
 ## 11. 내 PC의 데이터는?
 

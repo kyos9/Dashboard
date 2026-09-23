@@ -148,7 +148,7 @@ def test_a_snapshot_is_taken_before_the_schema_changes(tmp_path):
 
         original = backup.snapshot_before_migration
         migrate_module.backup.snapshot_before_migration = (
-            lambda bind: original(bind, backup_dir=directory)
+            lambda bind, **kw: original(bind, backup_dir=directory, **kw)
         )
         try:
             migrate.upgrade_to_head(engine)

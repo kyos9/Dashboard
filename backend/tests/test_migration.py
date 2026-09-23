@@ -94,7 +94,11 @@ def upgraded(tmp_path):
 def test_existing_rows_survive_upgrade(upgraded):
     conn = upgraded
     rows = conn.execute(
-        text("SELECT ticker, name, target_weight_pct, rebalance_band_pct FROM stocks ORDER BY ticker")
+        # 0005 이후 종목 설정은 사용자별 표에 있고, 쓰던 것은 전부 1번 사용자의 것이다
+        text(
+            "SELECT ticker, name, target_weight_pct, rebalance_band_pct FROM user_stock"
+            " WHERE user_id = 1 ORDER BY ticker"
+        )
     ).fetchall()
 
     assert rows == [
@@ -107,12 +111,12 @@ def test_existing_rows_survive_upgrade(upgraded):
 def test_holdings_and_settings_survive_upgrade(upgraded):
     conn = upgraded
     holdings = dict(
-        conn.execute(text("SELECT ticker, quantity FROM holding")).fetchall()
+        conn.execute(text("SELECT ticker, quantity FROM holding WHERE user_id = 1")).fetchall()
     )
     assert holdings == {"VOO": 12.5, "005930.KS": 100.0}
 
     band = conn.execute(
-        text("SELECT default_rebalance_band_pct FROM portfolio_settings")
+        text("SELECT default_rebalance_band_pct FROM user_settings WHERE user_id = 1")
     ).scalar()
     assert band == 7.5
 
@@ -122,7 +126,8 @@ def test_market_and_currency_are_backfilled_from_ticker(upgraded):
     conn = upgraded
     rows = {
         r[0]: (r[1], r[2])
-        for r in conn.execute(text("SELECT ticker, market, currency FROM stocks")).fetchall()
+        # 시장/통화는 공용 종목 행에 있다
+        for r in conn.execute(text("SELECT ticker, market, currency FROM instrument")).fetchall()
     }
 
     assert rows["005930.KS"] == ("KR", "KRW")
@@ -133,7 +138,7 @@ def test_market_and_currency_are_backfilled_from_ticker(upgraded):
 def test_new_currency_settings_get_defaults(upgraded):
     conn = upgraded
     row = conn.execute(
-        text("SELECT base_currency, fx_overrides FROM portfolio_settings")
+        text("SELECT base_currency, fx_overrides FROM user_settings WHERE user_id = 1")
     ).fetchone()
     # 기준통화는 원, 직접 입력한 환율은 없음 (자동 조회값을 쓴다)
     assert row == ("KRW", None)
@@ -164,10 +169,11 @@ def test_upgrade_is_idempotent(tmp_path):
         for _ in range(3):
             init_db(bind=engine)
         with engine.connect() as conn:
-            assert conn.execute(text("SELECT count(*) FROM stocks")).scalar() == 3
+            assert conn.execute(text("SELECT count(*) FROM user_stock")).scalar() == 3
             assert conn.execute(text("SELECT count(*) FROM holding")).scalar() == 2
+            assert conn.execute(text("SELECT count(*) FROM users")).scalar() == 1
             columns = [
-                r[1] for r in conn.execute(text("PRAGMA table_info(stocks)")).fetchall()
+                r[1] for r in conn.execute(text("PRAGMA table_info(user_stock)")).fetchall()
             ]
             # 같은 컬럼이 두 번 붙지 않았다
             assert len(columns) == len(set(columns))
@@ -183,10 +189,15 @@ def test_fresh_database_starts_with_full_schema(tmp_path):
     try:
         init_db(bind=engine)
         with engine.connect() as conn:
-            columns = {
-                r[1] for r in conn.execute(text("PRAGMA table_info(stocks)")).fetchall()
-            }
-            assert {"market", "currency", "category"} <= columns
+            def columns(table):
+                return {
+                    r[1] for r in conn.execute(text(f"PRAGMA table_info({table})")).fetchall()
+                }
+
+            assert {"market", "currency"} <= columns("instrument")
+            assert {"user_id", "category"} <= columns("user_stock")
+            # 새로 시작해도 1번 사용자는 있다 — 요청은 언제나 누군가의 것이다
+            assert conn.execute(text("SELECT id, is_owner FROM users")).fetchall() == [(1, 1)]
     finally:
         engine.dispose()
 

@@ -177,7 +177,13 @@ def run_backup_if_stale(max_age_hours: float = 12, backup_dir: Path | None = Non
     return run_backup()
 
 
-def snapshot_before_migration(bind, backup_dir: Path | None = None) -> Path | None:
+class MigrationBackupFailed(RuntimeError):
+    """되돌릴 수 없는 마이그레이션 앞에서 백업을 못 떴다. 업그레이드를 시작하지 않는다."""
+
+
+def snapshot_before_migration(
+    bind, backup_dir: Path | None = None, *, required: bool = False
+) -> Path | None:
     """스키마를 바꾸기 **직전에** 한 벌 떠둔다.
 
     마이그레이션이 잘못 돌면 되돌릴 자리가 여기밖에 없다. 그래서 이 백업만은 정기
@@ -185,6 +191,11 @@ def snapshot_before_migration(bind, backup_dir: Path | None = None) -> Path | No
     쓸모가 있다.
 
     `bind`에서 주소를 꺼낸다. 전역 설정이 아니라 **지금 고치려는 그 DB**를 떠야 한다.
+
+    **실패하면 어떻게 하나는 `required`가 정한다.** 컬럼을 더하는 보통의 리비전은
+    경고만 남기고 진행한다 — 백업 때문에 앱이 안 뜨는 게 더 나쁘다. 하지만 되돌릴 수
+    없는 리비전(`migrate.IRREVERSIBLE`) 앞에서는 멈춘다. 디스크가 찼거나 `pg_dump`가
+    없는 날 그대로 실행되면 돌아갈 자리가 없다.
     """
     url = bind.url.render_as_string(hide_password=False)
     if sqlite_file(url) is None and not url.startswith("postgres"):
@@ -192,6 +203,14 @@ def snapshot_before_migration(bind, backup_dir: Path | None = None) -> Path | No
     try:
         return create_backup(url=url, backup_dir=backup_dir, label="premigrate")
     except Exception as exc:
+        if required:
+            raise MigrationBackupFailed(
+                f"마이그레이션 전 백업에 실패해 업그레이드를 멈춥니다: {exc}\n"
+                "이번 업데이트는 되돌릴 수 없는 스키마 변경이 들어 있어, 백업 없이는 "
+                "시작하지 않습니다. DB는 그대로입니다.\n"
+                "- 원인(디스크 공간, pg_dump 설치)을 고친 뒤 다시 켜거나\n"
+                "- 이전 버전으로 돌아가세요 (DEPLOY.md 9번의 IMAGE_TAG)."
+            ) from exc
         # 백업에 실패했다고 업데이트를 막지는 않는다. 다만 조용히 넘어가지도 않는다.
         logger.warning("마이그레이션 전 백업에 실패했습니다: %s", exc)
         return None

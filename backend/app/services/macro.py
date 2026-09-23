@@ -27,7 +27,7 @@ from app.models import (
     MacroTransform,
     MacroUnit,
     MacroValue,
-    PortfolioSettings,
+    UserSettings,
 )
 from app.services import regime
 from app.services import settings as settings_service
@@ -671,7 +671,7 @@ def term_spread_snapshot(db: Session, today: dt.date | None = None) -> dict | No
 # ---------------------------------------------------------------------------
 
 
-def pinned_codes(settings: PortfolioSettings | None) -> list[str]:
+def pinned_codes(settings: UserSettings | None) -> list[str]:
     """홈 화면에 띄울 지표 코드.
 
     **`None` 과 `[]` 는 다른 뜻이다.** `None` 은 "아직 안 골랐다"라서 기본값을 보여주고,

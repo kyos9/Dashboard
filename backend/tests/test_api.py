@@ -543,7 +543,7 @@ def test_purge_removes_the_stock_and_everything_attached(api):
     """정말 지울 때는 딸린 기록까지 같이 지운다 (외래키가 남으면 다시 못 넣는다)."""
     import datetime as dt
 
-    from app.models import PriceDaily, Stock
+    from app.models import Instrument, PriceDaily, UserStock
 
     client, Session = api
     client.post("/api/stocks", json={"ticker": "VOO", "target_weight_pct": 0})
@@ -558,8 +558,10 @@ def test_purge_removes_the_stock_and_everything_attached(api):
     assert client.delete("/api/stocks/VOO/purge").status_code == 204
 
     with Session() as session:
-        assert session.query(Stock).filter_by(ticker="VOO").first() is None
+        assert session.query(UserStock).filter_by(ticker="VOO").first() is None
         assert session.query(PriceDaily).filter_by(ticker="VOO").count() == 0
+        # 아무도 안 담은 종목이 됐으니 공용 행도 같이 사라진다
+        assert session.get(Instrument, "VOO") is None
 
     # 같은 티커를 다시 넣을 수 있어야 한다
     assert client.post("/api/stocks", json={"ticker": "VOO", "target_weight_pct": 0}).status_code == 200

@@ -87,7 +87,8 @@ def test_old_database_is_adopted_not_rebuilt(adopted):
 
     with adopted.connect() as conn:
         tickers = [
-            r[0] for r in conn.execute(text("SELECT ticker FROM stocks ORDER BY ticker")).fetchall()
+            r[0]
+            for r in conn.execute(text("SELECT ticker FROM user_stock ORDER BY ticker")).fetchall()
         ]
     assert tickers == ["005930.KS", "247540.KQ", "VOO"]
 
@@ -106,7 +107,7 @@ def test_running_again_is_a_no_op(adopted):
     assert migrate.current_revision(adopted) == before
 
     with adopted.connect() as conn:
-        assert conn.execute(text("SELECT count(*) FROM stocks")).scalar() == 3
+        assert conn.execute(text("SELECT count(*) FROM user_stock")).scalar() == 3
         assert conn.execute(text("SELECT count(*) FROM holding")).scalar() == 2
 
 
@@ -194,7 +195,8 @@ def test_a_hand_entered_rate_survives_the_move_to_per_currency():
     migrate.upgrade_to_head(engine)
 
     with engine.connect() as conn:
-        raw = conn.execute(text("SELECT fx_overrides FROM portfolio_settings")).scalar()
+        # 0005 이후 설정은 사용자별 표에 있다
+        raw = conn.execute(text("SELECT fx_overrides FROM user_settings")).scalar()
         stored = conn.execute(
             text("SELECT krw_rate FROM fx_rate WHERE currency = 'USD'")
         ).scalar()

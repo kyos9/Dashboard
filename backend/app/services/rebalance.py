@@ -16,30 +16,31 @@ import datetime as dt
 from sqlalchemy.orm import Session
 
 from app.markets import Currency, currency_of_stock, market_of_stock
-from app.models import Holding, PortfolioSettings, SignalDaily, Stock, stock_order
+from app.models import Holding, SignalDaily, UserSettings, UserStock, stock_order
 from app.services import fx, queries
 from app.services.trading_calendar import market_today, period_trading_bounds
+from app.services.users import LOCAL_USER_ID
 
 
-def get_default_band_pct(db: Session) -> float:
-    settings = db.query(PortfolioSettings).first()
+def get_default_band_pct(db: Session, user_id: int = LOCAL_USER_ID) -> float:
+    settings = db.get(UserSettings, user_id)
     return settings.default_rebalance_band_pct if settings else 5.0
 
 
-def band_for_stock(stock: Stock, default_band_pct: float) -> float:
+def band_for_stock(stock: UserStock, default_band_pct: float) -> float:
     if stock.rebalance_band_pct is not None:
         return stock.rebalance_band_pct
     return default_band_pct
 
 
-def next_review_date(stock: Stock, today: dt.date) -> dt.date | None:
+def next_review_date(stock: UserStock, today: dt.date) -> dt.date | None:
     if stock.review_date_override is not None:
         return stock.review_date_override
     _, end = period_trading_bounds(today, stock.rebalance_period.value, market_of_stock(stock))
     return end
 
 
-def _shoulder_flags(db: Session, stocks: list[Stock], today_by_ticker: dict[str, dt.date]) -> dict[str, bool]:
+def _shoulder_flags(db: Session, stocks: list[UserStock], today_by_ticker: dict[str, dt.date]) -> dict[str, bool]:
     """종목별 "현재 리뷰 기간 안에 어깨매도가 떴는가"를 한 번의 쿼리로 판정한다."""
     if not stocks:
         return {}
@@ -75,14 +76,14 @@ def _shoulder_flags(db: Session, stocks: list[Stock], today_by_ticker: dict[str,
     return flags
 
 
-def shoulder_fired_in_current_period(db: Session, stock: Stock, today: dt.date) -> bool:
+def shoulder_fired_in_current_period(db: Session, stock: UserStock, today: dt.date) -> bool:
     """이 종목의 현재 리뷰 기간 안에 어깨매도(참고)가 떴는지."""
     return _shoulder_flags(db, [stock], {stock.ticker: today}).get(stock.ticker, False)
 
 
 def compute_positions(
     db: Session,
-    stocks: list[Stock],
+    stocks: list[UserStock],
     rate: fx.FxRates | None = None,
     base: Currency | None = None,
 ) -> dict[str, dict]:
@@ -119,7 +120,7 @@ def compute_positions(
     return positions
 
 
-def compute_actual_weights(db: Session, stocks: list[Stock]) -> dict[str, float]:
+def compute_actual_weights(db: Session, stocks: list[UserStock]) -> dict[str, float]:
     """기준통화로 환산한 평가금액 기준 실제비중(%). 보유가 전혀 없으면 전 종목 0.0."""
     positions = compute_positions(db, stocks)
     total = sum(pos["value_base"] for pos in positions.values())
@@ -143,7 +144,7 @@ def compute_rebalance_signal(
 
 def compute_rebalance_current(db: Session, today: dt.date | None = None) -> dict:
     """리밸런싱 현황 전체. 기준통화·환율과 종목별 행을 함께 돌려준다."""
-    stocks = db.query(Stock).filter(Stock.active.is_(True)).order_by(*stock_order()).all()
+    stocks = db.query(UserStock).filter(UserStock.active.is_(True)).order_by(*stock_order()).all()
 
     rate = fx.get_rates(db)
     base = fx.base_currency(db)
