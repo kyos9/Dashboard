@@ -10,7 +10,10 @@ API가 34개다. 그중 사용자별인 것에서 `WHERE user_id` 하나만 빠�
    `MINE`으로 적고 확인을 안 붙이면 그것도 실패한다.
 
 **남의 자원은 404다, 403이 아니다.** 403은 "그런 게 있긴 하다"를 알려준다.
-(반대로 주인 전용 동작은 4-4에서 403으로 잠근다 — 그 기능이 있다는 건 비밀이 아니다.)
+(반대로 관리자(주인) 전용 동작은 403으로 잠근다 — 그 기능이 있다는 건 비밀이 아니다.)
+
+3. *누가 쓰는가* 도 표대로인지 본다 — 관리자 전용은 사용자에게 403, 손님(로그인 전)은
+   `손님` 칸만 지나가고 나머지는 401.
 
 두 사람은 이렇게 둔다.
 
@@ -34,7 +37,8 @@ from app.markets import Market
 from app.models import BuyExecution, BuyStatus, Holding, PriceDaily, SignalDaily, UserSettings, UserStock
 from app.services import macro
 from app.services.trading_calendar import period_trading_bounds
-from app.services.users import LOCAL_USER_ID, current_user_id
+from app.services import auth as auth_service
+from app.services.users import LOCAL_USER_ID, current_user_id, require_owner, viewer_user_id
 from tests.factories import make_buy, make_holding, make_settings, make_stock, make_user
 
 # ---------------------------------------------------------------------------
@@ -45,14 +49,14 @@ MINE = "사용자별"    # 응답이나 바꾸는 대상이 그 사람 것
 SHARED = "공용"      # 누가 불러도 같은 값 (시세·매크로·환율·상장목록·로그)
 PUBLIC = "공개"      # 로그인 전에도 열려 있다
 
-OWNER = "주인"
-USER = "사용자"
-ANYONE = "누구나"
+OWNER = "주인"     # 관리자. 사용자 계정은 403
+USER = "사용자"    # 로그인한 사람 누구나 (자기 것만)
+GUEST = "손님"     # 로그인 전에도 읽힌다 (구글 모드). 공용이고 읽기뿐인 것만
+ANYONE = "누구나"  # 로그인 화면이 쓰는 것
 
 # (메서드, 경로) → (누구 것인가, 누가 쓰는가)
 #
-# "누가 쓰는가"의 주인 전용 8개는 4-4에서 실제로 잠근다. 지금은 표에 적어만 둔다 —
-# 적어두지 않으면 4-4에서 무엇을 잠가야 하는지를 다시 찾아야 한다.
+# 주인 전용 8개는 `require_owner` 로 잠겨 있다 — 표와 라우터가 어긋나면 아래 테스트가 잡는다.
 ENDPOINTS: dict[tuple[str, str], tuple[str, str]] = {
     # 로그인
     ("GET", "/api/auth/status"): (PUBLIC, ANYONE),
@@ -85,10 +89,11 @@ ENDPOINTS: dict[tuple[str, str], tuple[str, str]] = {
     ("GET", "/api/rebalance/current"): (MINE, USER),
     ("POST", "/api/rebalance/fx/refresh"): (SHARED, OWNER),
     # 매크로 — 지표는 공용이고, 홈에 무엇을 둘지만 그 사람 것이다
-    ("GET", "/api/macro"): (MINE, USER),  # 응답에 내 즐겨찾기가 들어 있다
-    ("GET", "/api/macro/pinned"): (MINE, USER),
+    # 손님은 즐겨찾기가 없어 기본 셋을 본다
+    ("GET", "/api/macro"): (MINE, GUEST),  # 응답에 내 즐겨찾기가 들어 있다
+    ("GET", "/api/macro/pinned"): (MINE, GUEST),
     ("PUT", "/api/macro/pinned"): (MINE, USER),
-    ("GET", "/api/macro/{code}"): (SHARED, USER),
+    ("GET", "/api/macro/{code}"): (SHARED, GUEST),
     ("PUT", "/api/macro/{code}/forecast"): (SHARED, OWNER),
     ("DELETE", "/api/macro/{code}/forecast"): (SHARED, OWNER),
     ("POST", "/api/macro/refresh"): (SHARED, OWNER),
@@ -156,8 +161,14 @@ class World:
     monkeypatch: object
 
     def as_user(self, user_id: int):
-        """이후 요청을 그 사람으로 보낸다 (4-3 전까지 로그인이 하는 일을 대신한다)."""
-        main_module.app.dependency_overrides[current_user_id] = lambda: user_id
+        """이후 요청을 그 사람으로 보낸다 (로그인이 하는 일을 대신한다).
+
+        손님에게도 열린 API는 `viewer_user_id` 로 사람을 받는다 — 둘 다 바꿔야 한다.
+        하나만 바꾸면 그 API들은 문지기가 정한 1번으로 불려, B의 확인이 A를 보게 된다.
+        """
+        overrides = main_module.app.dependency_overrides
+        overrides[current_user_id] = lambda: user_id
+        overrides[viewer_user_id] = lambda: user_id
         return self.client
 
     def get(self, model, *key):
@@ -442,6 +453,7 @@ def check_withdraw(w: World):
 
     w.monkeypatch.setenv(auth_service.GOOGLE_CLIENT_ID_ENV, "test-client")
     main_module.app.dependency_overrides.pop(current_user_id, None)
+    main_module.app.dependency_overrides.pop(viewer_user_id, None)
     with w.Session() as db:
         b = db.get(User, B)
         b.google_sub = "google-sub-b"
@@ -500,3 +512,132 @@ def test_every_per_user_api_has_a_check():
 @pytest.mark.parametrize("endpoint", sorted(CHECKS), ids=lambda e: f"{e[0]} {e[1]}")
 def test_b_cannot_see_or_touch_what_is_a(world, endpoint):
     CHECKS[endpoint](world)
+
+
+# ---------------------------------------------------------------------------
+#  누가 쓰는가 — 관리자 전용과 손님
+# ---------------------------------------------------------------------------
+
+
+def _dependency_calls(dependant) -> set:
+    """라우트가 거치는 의존성 함수 전부 (안쪽까지)."""
+    calls = set()
+    for sub in dependant.dependencies:
+        calls.add(sub.call)
+        calls |= _dependency_calls(sub)
+    return calls
+
+
+def test_owner_lock_matches_the_table():
+    """표에 주인 전용으로 적은 것만, 전부 `require_owner` 를 거친다.
+
+    잠금을 빠뜨리면 사용자가 전원의 시세 갱신을 돌리고 남의 오류 로그를 본다. 반대로
+    사용자 API에 잘못 붙으면 친구가 자기 종목을 못 바꾼다. 둘 다 여기서 걸린다.
+    """
+    locked = set()
+    for route in main_module.app.routes:
+        if isinstance(route, APIRoute) and require_owner in _dependency_calls(route.dependant):
+            locked |= {(method, route.path) for method in route.methods}
+    owner_only = {key for key, (_, who) in ENDPOINTS.items() if who == OWNER}
+    assert sorted(owner_only - locked) == [], "주인 전용인데 잠기지 않았습니다"
+    assert sorted(locked - owner_only) == [], "표에서는 주인 전용이 아닌데 잠겼습니다"
+
+
+# 주인 전용을 부를 때의 본문 — 잠금이 본문 검사보다 먼저인지도 같이 본다
+OWNER_CALLS = {
+    ("POST", "/api/stocks/refresh-all"): {},
+    ("POST", "/api/rebalance/fx/refresh"): {},
+    ("PUT", "/api/macro/{code}/forecast"): {"json": {"as_of": "2026-09-01", "value": 3.0}},
+    ("DELETE", "/api/macro/{code}/forecast"): {"params": {"as_of": "2026-09-01"}},
+    ("POST", "/api/macro/refresh"): {},
+    ("POST", "/api/symbols/refresh-listing"): {},
+    ("GET", "/api/logs"): {},
+    ("GET", "/api/logs/download"): {},
+}
+
+
+def _url(path: str) -> str:
+    return (path.replace("{ticker}", "QQQ").replace("{code}", "CPIAUCSL")
+            .replace("{buy_id}", "1"))
+
+
+def test_user_is_refused_every_owner_api(world):
+    """사용자 계정은 주인 전용 8개 모두 403. 아무것도 받아오지 않는다."""
+    assert set(OWNER_CALLS) == {key for key, (_, who) in ENDPOINTS.items() if who == OWNER}
+    client = world.as_user(B)
+    for (method, path), kwargs in OWNER_CALLS.items():
+        res = client.request(method, _url(path), **kwargs)
+        assert res.status_code == 403, (method, path, res.status_code)
+        assert res.json()["detail"]["hint"] == "관리자만 쓸 수 있는 기능입니다."
+
+
+def test_owner_passes_the_lock(world):
+    """관리자는 지나간다. 받아오는 API는 부르지 않고(네트워크), 로그·예측치로 본다."""
+    client = world.as_user(A)
+    assert client.get("/api/logs").status_code == 200
+    assert client.get("/api/logs/download").status_code != 403
+    # 없는 지표 — 잠금은 지났고, 그 다음 검사에서 404
+    res = client.put("/api/macro/NOPE/forecast", json={"as_of": "2026-09-01", "value": 1.0})
+    assert res.status_code == 404
+
+
+def test_guest_passes_only_guest_apis(world):
+    """구글 모드에서 로그인 전 손님: 표의 `손님`·`누구나` 만 지나가고 나머지는 401."""
+    world.monkeypatch.setenv(auth_service.GOOGLE_CLIENT_ID_ENV, "test-client")
+    overrides = main_module.app.dependency_overrides
+    overrides.pop(current_user_id, None)
+    overrides.pop(viewer_user_id, None)
+    client = world.client
+    client.cookies.clear()
+
+    for (method, path), (_, who) in sorted(ENDPOINTS.items()):
+        res = client.request(method, _url(path), follow_redirects=False)
+        if who in (GUEST, ANYONE):
+            assert res.status_code != 401, (method, path)
+        else:
+            assert res.status_code == 401, (method, path, res.status_code)
+
+
+def test_guest_sees_default_pins_not_the_owners(world):
+    """손님에게 1번의 즐겨찾기를 빌려주지 않는다 — 기본 셋이다. 설정 행도 안 생긴다."""
+    world.monkeypatch.setenv(auth_service.GOOGLE_CLIENT_ID_ENV, "test-client")
+    overrides = main_module.app.dependency_overrides
+    overrides.pop(current_user_id, None)
+    overrides.pop(viewer_user_id, None)
+    client = world.client
+    client.cookies.clear()
+
+    assert client.get("/api/macro").json()["pinned"] == list(macro.DEFAULT_PINNED)
+    assert client.get("/api/macro/pinned").json()["codes"] == list(macro.DEFAULT_PINNED)
+    assert client.put("/api/macro/pinned", json={"codes": []}).status_code == 401
+    with world.Session() as db:
+        assert db.query(UserSettings).count() == 2  # A·B 것뿐
+    _a_is_untouched(world)
+
+
+def test_password_door_has_no_guests(world):
+    """비밀번호 문은 한 사람의 서버다 — 문 앞에서 보여줄 것이 없다. 매크로도 401."""
+    world.monkeypatch.setenv(auth_service.PASSWORD_ENV, "correct horse battery staple")
+    overrides = main_module.app.dependency_overrides
+    overrides.pop(current_user_id, None)
+    overrides.pop(viewer_user_id, None)
+    client = world.client
+    client.cookies.clear()
+    assert client.get("/api/macro").status_code == 401
+    assert client.get("/api/macro/pinned").status_code == 401
+
+
+def test_guest_door_is_read_only_by_itself(monkeypatch):
+    """문지기 단계에서 이미 읽기만 연다 — 라우트 쪽 잠금(`current_user_id`·`require_owner`)과
+    **둘 다** 막는다. 한쪽만 믿으면, 나중에 사람을 안 받는 쓰기 API가 `/api/macro` 아래
+    생기는 날 손님이 그걸 부른다."""
+    from app.routers.auth import guest_can_read
+
+    monkeypatch.setenv(auth_service.GOOGLE_CLIENT_ID_ENV, "test-client")
+    assert guest_can_read("GET", "/api/macro")
+    assert guest_can_read("GET", "/api/macro/DGS10")
+    for method in ("PUT", "POST", "DELETE", "PATCH"):
+        assert not guest_can_read(method, "/api/macro/pinned")
+    # 이름만 비슷한 주소는 아니다
+    assert not guest_can_read("GET", "/api/macroeconomics")
+    assert not guest_can_read("GET", "/api/stocks")

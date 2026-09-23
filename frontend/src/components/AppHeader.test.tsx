@@ -3,10 +3,10 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppStateProvider } from '../AppState'
-import { ApiError, api } from '../api/client'
+import { ApiError, GOOGLE_LOGIN_URL, api } from '../api/client'
 import type { RefreshResult } from '../types'
 import { AppHeader } from './AppHeader'
-import { AuthGate } from './AuthGate'
+import { AuthGate, browser } from './AuthGate'
 
 function refreshResult(overrides: Partial<RefreshResult> & { ticker: string }): RefreshResult {
   return { ok: true, rows_upserted: 10, error: null, hint: null, ...overrides }
@@ -196,15 +196,51 @@ describe('구글 계정', () => {
     expect(chip.closest('.account-chip')).toHaveAttribute('title', 'friend@example.com')
   })
 
-  it('주인에게는 탈퇴 버튼이 없다', async () => {
+  it('관리자에게는 탈퇴 버튼이 없고, 관리자 버튼(전체 새로고침·진단)이 있다', async () => {
     renderSignedIn({ email: 'me@example.com', name: '나', is_owner: true })
     await screen.findByText('나')
-    expect(screen.getByText('주인')).toBeInTheDocument()
+    expect(screen.getByText('관리자')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '탈퇴' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '전체 새로고침' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '진단' })).toBeInTheDocument()
   })
 
-  it('탈퇴는 한 번 더 묻고, 지우면 로그인 화면으로 돌아간다', async () => {
+  it('사용자에게는 관리자 버튼이 없다 — 전원의 시세 갱신·남의 로그', async () => {
+    renderSignedIn({ email: 'friend@example.com', name: '친구', is_owner: false })
+    await screen.findByText('친구')
+    expect(screen.queryByText('관리자')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '전체 새로고침' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '진단' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '나가기' })).toBeInTheDocument()
+  })
+
+  it('손님에게는 로그인 버튼만 — 나가기·탈퇴·관리자 버튼은 없다', async () => {
+    mockHealth()
+    vi.spyOn(api, 'getAuthStatus').mockResolvedValue({
+      locked: true, authenticated: false, mode: 'google', user: null, config_problem: null,
+    })
+    const go = vi.spyOn(browser, 'go').mockImplementation(() => {})
+    render(
+      <MemoryRouter>
+        <AuthGate>
+          <AppStateProvider>
+            <AppHeader />
+          </AppStateProvider>
+        </AuthGate>
+      </MemoryRouter>,
+    )
+    await userEvent.click(await screen.findByRole('button', { name: '로그인' }))
+    expect(go).toHaveBeenCalledWith(GOOGLE_LOGIN_URL)
+    for (const name of ['나가기', '탈퇴', '전체 새로고침', '진단']) {
+      expect(screen.queryByRole('button', { name })).not.toBeInTheDocument()
+    }
+    // 탭은 그대로 다 보인다 — 무엇이 있는지는 보여준다
+    expect(screen.getByRole('link', { name: '종목 관리' })).toBeInTheDocument()
+  })
+
+  it('탈퇴는 한 번 더 묻고, 지우면 첫 화면을 새로 연다', async () => {
     const withdraw = vi.spyOn(api, 'withdraw').mockResolvedValue(undefined)
+    const go = vi.spyOn(browser, 'go').mockImplementation(() => {})
     renderSignedIn({ email: 'friend@example.com', name: '친구', is_owner: false })
 
     await userEvent.click(await screen.findByRole('button', { name: '탈퇴' }))
@@ -213,7 +249,7 @@ describe('구글 계정', () => {
 
     await userEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: '탈퇴' }))
     expect(withdraw).toHaveBeenCalledOnce()
-    expect(await screen.findByRole('button', { name: '구글 계정으로 로그인' })).toBeInTheDocument()
+    await waitFor(() => expect(go).toHaveBeenCalledWith('/'))
   })
 
   it('탈퇴에 실패하면 창에 사유를 남기고 그대로 둔다', async () => {

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '../api/client'
+import { useAuth } from '../components/AuthGate'
 import { ErrorNotice } from '../components/ErrorNotice'
 import { MacroChartModal } from '../components/MacroChartModal'
 import { NumberInput } from '../components/NumberInput'
@@ -33,7 +34,8 @@ export function TermSpreadLine({
 }: {
   spread: TermSpread | null
   pinned: boolean
-  onTogglePin: () => void
+  /** 없으면 별을 안 띄운다 (손님 — 즐겨찾기를 저장할 자리가 없다) */
+  onTogglePin?: () => void
 }) {
   if (!spread) {
     return (
@@ -62,15 +64,17 @@ export function TermSpreadLine({
         </span>
       </div>
       {/* 받아온 지표가 아니라 계산값이지만 홈에서는 지표 하나처럼 켜고 끌 수 있다 */}
-      <button
-        className={`pin-btn${pinned ? ' on' : ''}`}
-        onClick={onTogglePin}
-        aria-pressed={pinned}
-        title={pinned ? '홈 화면에서 내리기' : '홈 화면에 올리기'}
-        aria-label="장단기 금리차 홈 화면에 올리기"
-      >
-        {pinned ? '★' : '☆'}
-      </button>
+      {onTogglePin && (
+        <button
+          className={`pin-btn${pinned ? ' on' : ''}`}
+          onClick={onTogglePin}
+          aria-pressed={pinned}
+          title={pinned ? '홈 화면에서 내리기' : '홈 화면에 올리기'}
+          aria-label="장단기 금리차 홈 화면에 올리기"
+        >
+          {pinned ? '★' : '☆'}
+        </button>
+      )}
     </div>
   )
 }
@@ -103,10 +107,13 @@ function defaultMonth(series: MacroSeriesInfo): string {
  */
 function ForecastBox({
   series,
+  editable,
   onSave,
   onClear,
 }: {
   series: MacroSeriesInfo
+  /** 예상치는 전원이 같이 보는 값이라 관리자만 넣는다. 나머지는 읽기만 */
+  editable: boolean
   onSave: (code: string, month: string, value: number) => Promise<boolean>
   onClear: (code: string, month: string) => Promise<boolean>
 }) {
@@ -199,7 +206,7 @@ function ForecastBox({
             </button>
           </div>
         </form>
-      ) : (
+      ) : editable ? (
         <button
           className="link-btn forecast-open"
           onClick={() => {
@@ -210,7 +217,7 @@ function ForecastBox({
         >
           예상치 입력
         </button>
-      )}
+      ) : null}
     </>
   )
 }
@@ -218,6 +225,7 @@ function ForecastBox({
 function MacroCard({
   series,
   pinned,
+  canEditForecast,
   onOpen,
   onTogglePin,
   onSaveForecast,
@@ -225,8 +233,10 @@ function MacroCard({
 }: {
   series: MacroSeriesInfo
   pinned: boolean
+  canEditForecast: boolean
   onOpen: () => void
-  onTogglePin: () => void
+  /** 없으면 별을 안 띄운다 (손님) */
+  onTogglePin?: () => void
   onSaveForecast: (code: string, month: string, value: number) => Promise<boolean>
   onClearForecast: (code: string, month: string) => Promise<boolean>
 }) {
@@ -250,15 +260,17 @@ function MacroCard({
         </div>
         {/* 홈에 올릴지. 켜고 끄는 자리를 지표 옆에 둔다 — 설정 화면으로 보내면 어떤
             지표가 있는지 보면서 고를 수가 없다. */}
-        <button
-          className={`pin-btn${pinned ? ' on' : ''}`}
-          onClick={onTogglePin}
-          aria-pressed={pinned}
-          title={pinned ? '홈 화면에서 내리기' : '홈 화면에 올리기'}
-          aria-label={`${series.name} 홈 화면에 올리기`}
-        >
-          {pinned ? '★' : '☆'}
-        </button>
+        {onTogglePin && (
+          <button
+            className={`pin-btn${pinned ? ' on' : ''}`}
+            onClick={onTogglePin}
+            aria-pressed={pinned}
+            title={pinned ? '홈 화면에서 내리기' : '홈 화면에 올리기'}
+            aria-label={`${series.name} 홈 화면에 올리기`}
+          >
+            {pinned ? '★' : '☆'}
+          </button>
+        )}
       </div>
 
       <div className="macro-figure">
@@ -278,7 +290,12 @@ function MacroCard({
       {/* 예상치는 발표되는 지표에만 있다. VIX·금리는 매일 시장에서 나오는 값이라
           "예상 대비"라는 개념 자체가 없어서 입력칸도 안 띄운다. */}
       {series.forecastable && (
-        <ForecastBox series={series} onSave={onSaveForecast} onClear={onClearForecast} />
+        <ForecastBox
+          series={series}
+          editable={canEditForecast}
+          onSave={onSaveForecast}
+          onClear={onClearForecast}
+        />
       )}
 
       <p className="hint macro-foot">
@@ -309,6 +326,8 @@ function MacroCard({
 export function MacroPanel() {
   // 별을 켜고 끄면 홈의 매크로 줄이 달라진다. 홈이 그걸 알아야 다음에 열릴 때 다시 읽는다.
   const { notifyDataChanged } = useAppState()
+  // 손님은 둘러보기만, 사용자는 별(내 홈)까지, 관리자는 받아오기·예상치(전원 것)까지
+  const { guest, isAdmin } = useAuth()
   const [data, setData] = useState<MacroOverview | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -415,9 +434,11 @@ export function MacroPanel() {
             들어가지 않습니다.
           </p>
         </div>
-        <button className="primary" onClick={() => void refresh()} disabled={refreshing}>
-          {refreshing ? '받는 중…' : '지금 받아오기'}
-        </button>
+        {isAdmin && (
+          <button className="primary" onClick={() => void refresh()} disabled={refreshing}>
+            {refreshing ? '받는 중…' : '지금 받아오기'}
+          </button>
+        )}
       </div>
 
       <ErrorNotice error={error} onDismiss={() => setError(null)} />
@@ -445,7 +466,7 @@ export function MacroPanel() {
           <TermSpreadLine
             spread={data?.term_spread ?? null}
             pinned={pinned.includes(TERM_SPREAD_CODE)}
-            onTogglePin={() => void togglePin(TERM_SPREAD_CODE)}
+            onTogglePin={guest ? undefined : () => void togglePin(TERM_SPREAD_CODE)}
           />
           <div className="card-grid">
             {series.map((item) => (
@@ -453,8 +474,9 @@ export function MacroPanel() {
                 key={item.code}
                 series={item}
                 pinned={pinned.includes(item.code)}
+                canEditForecast={isAdmin}
                 onOpen={() => setOpen(item)}
-                onTogglePin={() => void togglePin(item.code)}
+                onTogglePin={guest ? undefined : () => void togglePin(item.code)}
                 onSaveForecast={saveForecast}
                 onClearForecast={clearForecast}
               />

@@ -16,11 +16,12 @@
 
 import datetime as dt
 
-from fastapi import HTTPException, Request
+from fastapi import Depends, HTTPException, Request
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Query, Session
 
+from app.db import get_db
 from app.models import User, UserStock, stock_order
 
 # 로그인 전까지 모든 요청의 주인. 마이그레이션 0005가 만든 로컬 계정이다.
@@ -43,6 +44,36 @@ def current_user_id(request: Request) -> int:
         raise HTTPException(
             status_code=401,
             detail={"hint": "로그인이 필요합니다.", "message": "authentication required"},
+        )
+    return user_id
+
+
+def viewer_user_id(request: Request) -> int | None:
+    """보는 사람. **로그인 전 손님이면 `None`** — 1번으로 넘어가지 않는다.
+
+    손님에게 열어둔 API(공용 매크로 읽기, `routers.auth.guest_can_read`)만 이걸 쓴다.
+    `None` 을 받은 서비스는 "아무의 것도 아닌" 기본값을 보여준다.
+    """
+    return getattr(request.state, "user_id", None)
+
+
+def require_owner(
+    user_id: int = Depends(current_user_id), db: Session = Depends(get_db)
+) -> int:
+    """관리자(주인)만 지나간다. 사용자 계정은 403.
+
+    관리자 전용은 **공용 자원을 건드리는 것**이다 — 전원의 시세·매크로·환율을 다시 받거나,
+    남의 종목과 오류가 찍힌 로그를 보거나. 사용자는 자기 것만 바꾼다.
+
+    남의 *자원* 은 404지만 이건 403이다. 기능이 있다는 건 비밀이 아니다.
+
+    잠금 없는 PC와 비밀번호 문은 늘 1번이고, 1번은 관리자다 — 혼자 쓰는 동안은 달라지는 게 없다.
+    """
+    user = db.get(User, user_id)
+    if user is None or not user.is_owner:
+        raise HTTPException(
+            status_code=403,
+            detail={"hint": "관리자만 쓸 수 있는 기능입니다.", "message": "owner only"},
         )
     return user_id
 

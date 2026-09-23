@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.schemas import SymbolMatchOut
 from app.services import symbols
+from app.services.users import require_owner
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,7 @@ def listing_status(db: Session = Depends(get_db)):
     return symbols.listing_status(db)
 
 
-@router.post("/refresh-listing")
+@router.post("/refresh-listing", dependencies=[Depends(require_owner)])
 def refresh_listing(db: Session = Depends(get_db)):
     """한국거래소 상장목록을 다시 받아 캐시한다.
 

@@ -19,7 +19,12 @@ from app.schemas import (
 from app.services import fx as fx_service
 from app.services import rebalance as rebalance_service
 from app.services import settings as settings_service
-from app.services.users import current_user_id, find_user_stock, ordered_user_stocks
+from app.services.users import (
+    current_user_id,
+    find_user_stock,
+    ordered_user_stocks,
+    require_owner,
+)
 
 router = APIRouter(prefix="/api/rebalance", tags=["rebalance"])
 
@@ -151,7 +156,7 @@ def update_settings(
     return _settings_out(db, settings)
 
 
-@router.post("/fx/refresh", response_model=FxOut)
+@router.post("/fx/refresh", response_model=FxOut, dependencies=[Depends(require_owner)])
 def refresh_fx(db: Session = Depends(get_db), user_id: int = Depends(current_user_id)):
     """환율을 지금 다시 조회한다. 실패한 통화는 기존 값을 유지한 채 그대로 돌려준다.
 

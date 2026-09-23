@@ -23,7 +23,7 @@ from app.schemas import (
     MacroSeriesOut,
 )
 from app.services import macro
-from app.services.users import current_user_id
+from app.services.users import current_user_id, require_owner, viewer_user_id
 
 router = APIRouter(prefix="/api/macro", tags=["macro"])
 
@@ -33,16 +33,16 @@ RANGE_DAYS = {"1y": 365, "5y": 365 * 5, "10y": 365 * 10, "max": None}
 
 
 @router.get("", response_model=MacroOverviewOut)
-def get_overview(db: Session = Depends(get_db), user_id: int = Depends(current_user_id)):
-    """지표 목록 + 최신값 + 갱신 상태, 그리고 금리차."""
+def get_overview(db: Session = Depends(get_db), user_id: int | None = Depends(viewer_user_id)):
+    """지표 목록 + 최신값 + 갱신 상태, 그리고 금리차. 손님(로그인 전)도 본다."""
     return macro.overview(db, user_id)
 
 
 # **`/{code}` 보다 먼저 있어야 한다.** 아래로 내려가면 `/pinned` 요청이 "PINNED 라는
 # 지표를 달라"로 잡혀서 404 가 된다 — FastAPI 는 먼저 등록된 경로를 먼저 본다.
 @router.get("/pinned", response_model=MacroPinnedOut)
-def get_pinned(db: Session = Depends(get_db), user_id: int = Depends(current_user_id)):
-    """홈 화면에 띄울 지표들. 고른 게 없으면 기본 셋이 온다."""
+def get_pinned(db: Session = Depends(get_db), user_id: int | None = Depends(viewer_user_id)):
+    """홈 화면에 띄울 지표들. 고른 게 없으면(손님 포함) 기본 셋이 온다."""
     return macro.pinned_overview(db, user_id)
 
 
@@ -97,7 +97,7 @@ def _forecast_card(db: Session, series: MacroSeries) -> dict:
     return macro.attach_forecasts(db, [macro.snapshot(db, series)])[0]
 
 
-@router.put("/{code}/forecast", response_model=MacroSeriesOut)
+@router.put("/{code}/forecast", response_model=MacroSeriesOut, dependencies=[Depends(require_owner)])
 def put_forecast(code: str, payload: MacroForecastUpdate, db: Session = Depends(get_db)):
     """예상치를 직접 넣는다 (Investing 에서 본 숫자를 옮겨 적는 자리).
 
@@ -117,7 +117,7 @@ def put_forecast(code: str, payload: MacroForecastUpdate, db: Session = Depends(
     return _forecast_card(db, series)
 
 
-@router.delete("/{code}/forecast", response_model=MacroSeriesOut)
+@router.delete("/{code}/forecast", response_model=MacroSeriesOut, dependencies=[Depends(require_owner)])
 def delete_forecast(
     code: str,
     as_of: dt.date = Query(..., description="지울 예상치가 가리키는 달 (그 달 아무 날)"),
@@ -165,7 +165,7 @@ def get_history(
     )
 
 
-@router.post("/refresh", response_model=list[MacroRefreshResult])
+@router.post("/refresh", response_model=list[MacroRefreshResult], dependencies=[Depends(require_owner)])
 def refresh(db: Session = Depends(get_db)):
     """사람이 누르는 갱신.
 

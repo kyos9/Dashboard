@@ -3,7 +3,8 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, GOOGLE_LOGIN_URL, UNAUTHORIZED_EVENT, api } from '../api/client'
 import type { AuthStatus } from '../types'
-import { AuthGate, LOGIN_ERRORS, browser } from './AuthGate'
+import { AuthGate, LOGIN_ERRORS, browser, useAuth } from './AuthGate'
+import { GuestNotice, LoginButton } from './LoginPrompt'
 
 function renderGate() {
   return render(
@@ -92,7 +93,7 @@ describe('세션 만료', () => {
 //  구글 로그인 (4-3)
 // ---------------------------------------------------------------------------
 
-describe('구글 로그인 서버', () => {
+describe('구글 로그인 서버 — 문 없이 손님으로 둘러본다', () => {
   afterEach(() => {
     window.history.replaceState(null, '', '/')
   })
@@ -101,31 +102,61 @@ describe('구글 로그인 서버', () => {
     return { locked: true, authenticated: false, mode: 'google', user: null, config_problem: null, ...extra }
   }
 
-  it('비밀번호 칸 대신 구글 버튼을 보여주고, 누르면 구글로 간다', async () => {
+  /** 화면 대신 — 지금 누구로 보이는지와, 손님일 때의 로그인 버튼·안내 */
+  function Probe() {
+    const { guest, isAdmin, logout } = useAuth()
+    return (
+      <>
+        <GuestNotice />
+        <p>대시보드 내용</p>
+        <p>{`${guest ? '손님' : '들어옴'} / ${isAdmin ? '관리자' : '사용자'}`}</p>
+        {guest ? (
+          <LoginButton />
+        ) : (
+          <button onClick={() => void logout()}>나가기</button>
+        )}
+      </>
+    )
+  }
+
+  function renderProbe() {
+    return render(
+      <AuthGate>
+        <Probe />
+      </AuthGate>,
+    )
+  }
+
+  it('로그인 전에도 화면에 들어오고, 버튼을 누르면 구글로 간다', async () => {
     vi.spyOn(api, 'getAuthStatus').mockResolvedValue(googleStatus())
     const go = vi.spyOn(browser, 'go').mockImplementation(() => {})
-    renderGate()
+    renderProbe()
 
-    await userEvent.click(await screen.findByRole('button', { name: '구글 계정으로 로그인' }))
-    expect(go).toHaveBeenCalledWith(GOOGLE_LOGIN_URL)
+    expect(await screen.findByText('대시보드 내용')).toBeInTheDocument()
+    expect(screen.getByText('손님 / 사용자')).toBeInTheDocument()
     expect(screen.queryByLabelText('비밀번호')).not.toBeInTheDocument()
-    expect(screen.queryByText('대시보드 내용')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: '구글 계정으로 로그인' }))
+    expect(go).toHaveBeenCalledWith(GOOGLE_LOGIN_URL)
   })
 
-  it('거절당해 돌아오면 누구에게 무엇을 부탁해야 하는지 알려준다', async () => {
+  it('거절당해 돌아오면 누구에게 무엇을 부탁해야 하는지 알려주고, 닫을 수 있다', async () => {
     window.history.replaceState(null, '', '/?login_error=not_allowed')
     vi.spyOn(api, 'getAuthStatus').mockResolvedValue(googleStatus())
-    renderGate()
+    renderProbe()
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('주인에게')
+    expect(await screen.findByRole('alert')).toHaveTextContent('관리자에게')
     // 주소에서는 지운다 — 새로고침할 때마다 다시 뜨면 안 된다
     expect(window.location.search).toBe('')
+
+    await userEvent.click(screen.getByRole('button', { name: '안내 닫기' }))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('모르는 사유는 일반 안내로 보여준다', async () => {
     window.history.replaceState(null, '', '/?login_error=something-new')
     vi.spyOn(api, 'getAuthStatus').mockResolvedValue(googleStatus())
-    renderGate()
+    renderProbe()
     expect(await screen.findByRole('alert')).toHaveTextContent(LOGIN_ERRORS.failed)
   })
 
@@ -133,29 +164,67 @@ describe('구글 로그인 서버', () => {
     vi.spyOn(api, 'getAuthStatus').mockResolvedValue(
       googleStatus({ config_problem: '.env 에 OWNER_GOOGLE_EMAIL 를 넣어주세요' }),
     )
-    renderGate()
+    renderProbe()
     expect(await screen.findByRole('button', { name: '구글 계정으로 로그인' })).toBeDisabled()
     expect(screen.getByRole('alert')).toHaveTextContent('OWNER_GOOGLE_EMAIL')
   })
 
-  it('이미 들어와 있으면 바로 화면을 연다', async () => {
+  it('관리자(주인)로 들어와 있으면 관리자다', async () => {
     vi.spyOn(api, 'getAuthStatus').mockResolvedValue(
-      googleStatus({
-        authenticated: true,
-        user: { email: 'me@example.com', name: '나', is_owner: true },
-      }),
+      googleStatus({ authenticated: true, user: { email: 'me@example.com', name: '나', is_owner: true } }),
     )
-    renderGate()
-    expect(await screen.findByText('대시보드 내용')).toBeInTheDocument()
+    renderProbe()
+    expect(await screen.findByText('들어옴 / 관리자')).toBeInTheDocument()
   })
 
-  it('세션이 끊기면 구글 버튼 화면으로 돌아온다', async () => {
+  it('다른 계정은 사용자다', async () => {
     vi.spyOn(api, 'getAuthStatus').mockResolvedValue(
       googleStatus({ authenticated: true, user: { email: 'a@b.c', name: null, is_owner: false } }),
     )
-    renderGate()
-    await screen.findByText('대시보드 내용')
+    renderProbe()
+    expect(await screen.findByText('들어옴 / 사용자')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('세션이 끊기면 손님으로 돌아온다 — 화면은 그대로 열려 있다', async () => {
+    vi.spyOn(api, 'getAuthStatus').mockResolvedValue(
+      googleStatus({ authenticated: true, user: { email: 'a@b.c', name: null, is_owner: false } }),
+    )
+    renderProbe()
+    await screen.findByText('들어옴 / 사용자')
     window.dispatchEvent(new Event(UNAUTHORIZED_EVENT))
-    expect(await screen.findByRole('button', { name: '구글 계정으로 로그인' })).toBeInTheDocument()
+    expect(await screen.findByText('손님 / 사용자')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '구글 계정으로 로그인' })).toBeInTheDocument()
+  })
+
+  it('나가면 첫 화면을 새로 연다 — 앞 사람의 종목이 화면에 남지 않게', async () => {
+    vi.spyOn(api, 'getAuthStatus').mockResolvedValue(
+      googleStatus({ authenticated: true, user: { email: 'a@b.c', name: null, is_owner: false } }),
+    )
+    vi.spyOn(api, 'logout').mockResolvedValue({ locked: true, authenticated: false })
+    const go = vi.spyOn(browser, 'go').mockImplementation(() => {})
+    renderProbe()
+
+    await userEvent.click(await screen.findByRole('button', { name: '나가기' }))
+    expect(go).toHaveBeenCalledWith('/')
+  })
+})
+
+describe('혼자 쓰는 서버는 늘 관리자다', () => {
+  function Role() {
+    const { guest, isAdmin } = useAuth()
+    return <p>{`${guest ? '손님' : '들어옴'} / ${isAdmin ? '관리자' : '사용자'}`}</p>
+  }
+
+  it('잠금 없는 PC', async () => {
+    vi.spyOn(api, 'getAuthStatus').mockResolvedValue({ locked: false, authenticated: true, mode: 'open' })
+    render(<AuthGate><Role /></AuthGate>)
+    expect(await screen.findByText('들어옴 / 관리자')).toBeInTheDocument()
+  })
+
+  it('비밀번호 문', async () => {
+    vi.spyOn(api, 'getAuthStatus').mockResolvedValue({ locked: true, authenticated: true, mode: 'password' })
+    render(<AuthGate><Role /></AuthGate>)
+    expect(await screen.findByText('들어옴 / 관리자')).toBeInTheDocument()
   })
 })

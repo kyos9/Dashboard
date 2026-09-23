@@ -5,18 +5,19 @@
 이상만 걸러도 나온다. 그래서 기본은 경고·오류만 보여주고, 전체가 필요하면 파일을
 내려받게 한다.
 
-주의: 여기에는 티커·에러·내부 경로가 찍힌다. 다중 사용자가 되면 **반드시 인증 뒤로
-옮겨야 한다** (ROADMAP 4단계).
+여기에는 티커·에러·내부 경로가 찍히고, 사람이 여럿이면 남의 종목도 섞인다. 그래서
+**관리자만 본다** (`require_owner`, ROADMAP 4-4).
 """
 
 import datetime as dt
 import re
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 
 from app.logging_setup import LOG_FILE
 from app.schemas import LogEntry, LogsOut
+from app.services.users import require_owner
 
 router = APIRouter(prefix="/api/logs", tags=["logs"])
 
@@ -72,7 +73,7 @@ def parse_lines(text: str) -> list[LogEntry]:
     return entries
 
 
-@router.get("", response_model=LogsOut)
+@router.get("", response_model=LogsOut, dependencies=[Depends(require_owner)])
 def read_logs(
     level: str = Query("warning", pattern="^(warning|all)$"),
     limit: int = Query(200, ge=1, le=2000),
@@ -114,7 +115,7 @@ def read_logs(
     )
 
 
-@router.get("/download")
+@router.get("/download", dependencies=[Depends(require_owner)])
 def download_logs() -> FileResponse:
     """로그 파일 원본. 화면에서 못 알아볼 때 통째로 받아 보라고 둔다."""
     if not LOG_FILE.is_file():

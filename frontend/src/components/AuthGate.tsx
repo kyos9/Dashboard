@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type FormEvent,
   type ReactNode,
@@ -16,8 +17,15 @@ import type { AuthMode, AuthUser } from '../types'
  *
  * 문은 셋 중 하나다 — 서버가 정한다.
  * - 잠금 없음 (개인 PC): 아무 일도 하지 않고 화면을 넘긴다.
- * - 비밀번호 하나: 비밀번호 칸.
- * - 구글 계정: "구글 계정으로 로그인" 버튼. 들어오면 계정마다 자기 데이터가 보인다.
+ * - 비밀번호 하나: 비밀번호 칸. 맞춰야 화면이 열린다.
+ * - 구글 계정: **문을 세우지 않는다.** 손님(로그인 전)도 화면에 들어와 둘러보고, 헤더의
+ *   "로그인" 버튼으로 들어온다. 손님은 공용 매크로만 보고, 내 종목 화면들은 로그인
+ *   안내로 바뀐다 (`RequireLogin`). 들어오면 계정마다 자기 데이터가 보인다.
+ *
+ * 누가 무엇을 하는지:
+ * - 관리자(주인) — 전원의 시세·매크로 갱신, 진단 로그, 예상치 입력
+ * - 사용자 — 자기 종목·보유·설정
+ * - 손님 — 매크로 보기
  */
 interface AuthValue {
   /** 서버가 잠겨 있는지. 개인 PC에서는 false */
@@ -25,8 +33,19 @@ interface AuthValue {
   mode: AuthMode
   /** 구글 모드에서 들어와 있는 사람 */
   user: AuthUser | null
+  /** 구글 모드에서 로그인 전. 공용 매크로만 본다 */
+  guest: boolean
+  /** 관리자 전용 버튼(전체 새로고침·진단·예상치 입력 등)을 보여줄지. 혼자 쓰는 서버는 늘 관리자다 */
+  isAdmin: boolean
+  /** 구글 로그인으로 보낸다 */
+  login: () => void
+  /** 로그인을 못 하는 이유 (서버 설정이 덜 됐다). 있으면 로그인 버튼을 막는다 */
+  configProblem: string | null
+  /** 구글에서 돌아왔는데 못 들어온 이유 (`?login_error=`) */
+  loginError: string | null
+  dismissLoginError: () => void
   logout: () => Promise<void>
-  /** 탈퇴. 성공하면 로그인 화면으로 돌아간다 */
+  /** 탈퇴. 성공하면 손님 화면으로 돌아간다 */
   withdraw: () => Promise<void>
 }
 
@@ -34,6 +53,12 @@ const Ctx = createContext<AuthValue>({
   locked: false,
   mode: 'open',
   user: null,
+  guest: false,
+  isAdmin: true,
+  login: () => {},
+  configProblem: null,
+  loginError: null,
+  dismissLoginError: () => {},
   logout: async () => {},
   withdraw: async () => {},
 })
@@ -51,14 +76,18 @@ export function useAuth(): AuthValue {
  */
 export const LOGIN_ERRORS: Record<string, string> = {
   not_allowed:
-    '이 구글 계정은 아직 들어올 수 없습니다. 주인에게 쓰시는 구글 이메일 주소를 알려주고 추가해 달라고 해주세요.',
+    '이 구글 계정은 아직 들어올 수 없습니다. 관리자에게 쓰시는 구글 이메일 주소를 알려주고 추가해 달라고 해주세요.',
   cancelled: '구글 화면에서 로그인을 취소했습니다.',
   expired: '로그인이 중간에 끊겼습니다 (시간이 지났거나 다른 창에서 시작했습니다). 다시 눌러주세요.',
   failed: '구글 로그인을 확인하지 못했습니다. 잠시 뒤 다시 시도해 주세요.',
-  config: '서버의 구글 로그인 설정이 덜 됐습니다. 주인에게 알려주세요.',
+  config: '서버의 구글 로그인 설정이 덜 됐습니다. 관리자에게 알려주세요.',
 }
 
-/** 화면 이동. 테스트가 바꿔 끼운다 (jsdom 은 실제로 이동하지 못한다). */
+/** 화면 이동. 테스트가 바꿔 끼운다 (jsdom 은 실제로 이동하지 못한다).
+ *
+ * 로그아웃·탈퇴 뒤에도 이걸로 첫 화면을 **새로 연다.** 화면마다 앞 사람의 종목을 들고
+ * 있으므로, 하나라도 비우는 걸 잊으면 다음 사람(같은 폰의 가족)에게 보인다. 새로
+ * 여는 것은 빠뜨릴 곳이 없다. */
 export const browser = {
   go: (url: string) => window.location.assign(url),
 }
@@ -85,6 +114,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(takeLoginError)
   const [busy, setBusy] = useState(false)
+  // 401 신호는 한 번 달아둔 듣는 함수가 받는다 — 그 안에서 지금 문이 무엇인지 읽으려고
+  const modeRef = useRef<AuthMode>('open')
 
   useEffect(() => {
     let cancelled = false
@@ -94,10 +125,13 @@ export function AuthGate({ children }: { children: ReactNode }) {
         if (cancelled) return
         setLocked(status.locked)
         // 옛 서버는 mode 를 안 보낸다 — 그때는 잠겼으면 비밀번호 문이다
-        setMode(status.mode ?? (status.locked ? 'password' : 'open'))
+        const current = status.mode ?? (status.locked ? 'password' : 'open')
+        modeRef.current = current
+        setMode(current)
         setUser(status.user ?? null)
         setConfigProblem(status.config_problem ?? null)
-        setPhase(status.locked && !status.authenticated ? 'locked' : 'open')
+        // 구글 모드는 로그인 전에도 연다 — 손님으로 둘러본다
+        setPhase(status.locked && !status.authenticated && current !== 'google' ? 'locked' : 'open')
       })
       .catch(() => {
         // 서버에 못 닿는 것과 잠긴 것은 다른 문제다. 여기서 막아버리면 "백엔드가 안 떴다"는
@@ -110,39 +144,63 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
-    // 세션이 만료되면 어느 화면에서 무슨 요청을 하고 있었든 여기로 돌아온다
+    // 세션이 만료되면 어느 화면에서 무슨 요청을 하고 있었든 여기로 돌아온다.
+    // 구글 모드는 문이 없으니 손님으로 돌아간다 (내 종목 화면이 로그인 안내로 바뀐다).
     const onUnauthorized = () => {
       setLocked(true)
       setUser(null)
-      setPhase('locked')
+      if (modeRef.current !== 'google') setPhase('locked')
     }
     window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized)
     return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized)
+  }, [])
+
+  /** 나간 뒤. 구글 모드는 첫 화면을 새로 열어 손님으로, 비밀번호 문은 비밀번호 칸으로. */
+  const leave = useCallback(() => {
+    setPassword('')
+    setError(null)
+    setUser(null)
+    if (modeRef.current === 'google') browser.go('/')
+    else setPhase('locked')
   }, [])
 
   const logout = useCallback(async () => {
     try {
       await api.logout()
     } finally {
-      setPassword('')
-      setError(null)
-      setUser(null)
-      setPhase('locked')
+      leave()
     }
-  }, [])
+  }, [leave])
 
   const withdraw = useCallback(async () => {
     // 실패하면 그대로 던진다 — 확인 창이 사유를 보여준다. 여기서 삼키면 "눌렀는데
     // 그대로"가 되고, 탈퇴가 됐는지 안 됐는지 알 수 없다.
     await api.withdraw()
-    setUser(null)
-    setError(null)
-    setPhase('locked')
-  }, [])
+    leave()
+  }, [leave])
+
+  const login = useCallback(() => browser.go(GOOGLE_LOGIN_URL), [])
+  const dismissLoginError = useCallback(() => setError(null), [])
+
+  const guest = mode === 'google' && user === null
+  // 혼자 쓰는 서버(잠금 없음·비밀번호)는 들어온 사람이 곧 1번 — 관리자다
+  const isAdmin = mode === 'google' ? user?.is_owner === true : true
 
   const value = useMemo(
-    () => ({ locked, mode, user, logout, withdraw }),
-    [locked, mode, user, logout, withdraw],
+    () => ({
+      locked,
+      mode,
+      user,
+      guest,
+      isAdmin,
+      login,
+      configProblem,
+      loginError: mode === 'google' ? error : null,
+      dismissLoginError,
+      logout,
+      withdraw,
+    }),
+    [locked, mode, user, guest, isAdmin, login, configProblem, error, dismissLoginError, logout, withdraw],
   )
 
   async function submit(event: FormEvent) {
@@ -163,40 +221,6 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   if (phase === 'checking') {
     return <div className="login-shell" aria-busy="true" />
-  }
-
-  if (phase === 'locked' && mode === 'google') {
-    return (
-      <div className="login-shell">
-        <div className="panel login-panel">
-          <div className="login-brand">
-            <span aria-hidden="true">📈</span>
-            <h1>신호판</h1>
-          </div>
-          <p className="hint">구글 계정으로 들어갑니다. 계정마다 자기 종목과 포트폴리오가 따로 보입니다.</p>
-
-          {error && (
-            <p className="error-text" role="alert">
-              {error}
-            </p>
-          )}
-          {configProblem && (
-            <p className="error-text" role="alert">
-              {LOGIN_ERRORS.config} ({configProblem})
-            </p>
-          )}
-
-          <button
-            type="button"
-            className="primary"
-            disabled={configProblem !== null}
-            onClick={() => browser.go(GOOGLE_LOGIN_URL)}
-          >
-            구글 계정으로 로그인
-          </button>
-        </div>
-      </div>
-    )
   }
 
   if (phase === 'locked') {

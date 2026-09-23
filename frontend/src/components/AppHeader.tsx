@@ -6,6 +6,7 @@ import { useAuth } from './AuthGate'
 import { ConfirmDialog } from './ConfirmDialog'
 import { DiagnosticsModal } from './DiagnosticsModal'
 import { InstallButton } from './InstallButton'
+import { GuestNotice, LoginButton } from './LoginPrompt'
 import type { HealthInfo } from '../types'
 
 type Theme = 'dark' | 'light'
@@ -50,7 +51,7 @@ const TABS = [
 
 export function AppHeader() {
   const { refreshAll, refreshing, lastSync, refreshError } = useAppState()
-  const { locked, mode, user, logout, withdraw } = useAuth()
+  const { locked, mode, user, guest, isAdmin, logout, withdraw } = useAuth()
   const [confirmWithdraw, setConfirmWithdraw] = useState(false)
   const [withdrawing, setWithdrawing] = useState(false)
   const [withdrawError, setWithdrawError] = useState<string | null>(null)
@@ -133,21 +134,30 @@ export function AppHeader() {
         </div>
 
         <div className="header-right">
-          <span className="status-pill">
-            <span className={`status-dot ${status.dot}`} aria-hidden="true" />
-            {status.text}
-            {lastSync && <span className="mono">갱신 {lastSync.toLocaleTimeString('ko-KR')}</span>}
-          </span>
-          <button onClick={() => void refreshAll()} disabled={refreshing} className="primary">
-            {refreshing ? '갱신 중…' : '전체 새로고침'}
-          </button>
-          <button
-            className="ghost"
-            onClick={() => setShowDiagnostics(true)}
-            title="서버가 남긴 경고·오류 보기"
-          >
-            진단
-          </button>
+          {/* 관리자만. 전체 새로고침은 **전원의** 종목 시세를 다시 받고, 진단에는 남의 종목과
+              오류가 찍혀 있다. 사용자의 시세는 장 마감 뒤 서버가 알아서 받는다. */}
+          {isAdmin && (
+            <>
+              <span className="status-pill">
+                <span className={`status-dot ${status.dot}`} aria-hidden="true" />
+                {status.text}
+                {lastSync && (
+                  <span className="mono">갱신 {lastSync.toLocaleTimeString('ko-KR')}</span>
+                )}
+              </span>
+              <button onClick={() => void refreshAll()} disabled={refreshing} className="primary">
+                {refreshing ? '갱신 중…' : '전체 새로고침'}
+              </button>
+              <button
+                className="ghost"
+                onClick={() => setShowDiagnostics(true)}
+                title="서버가 남긴 경고·오류 보기"
+              >
+                진단
+              </button>
+            </>
+          )}
+          {guest && <LoginButton label="로그인" />}
           {/* 설치할 수 있을 때만 나온다 (이미 설치했거나 PC 크롬이 아니면 숨는다) */}
           <InstallButton />
           {/* 누구로 들어와 있는지 — 계정이 여럿인 폰에서 "내 종목이 없어졌다"가 사실은
@@ -155,16 +165,16 @@ export function AppHeader() {
           {mode === 'google' && user && (
             <span className="account-chip" title={user.email ?? undefined}>
               <span className="account-name">{user.name || user.email}</span>
-              {user.is_owner && <span className="badge badge-grey">주인</span>}
+              {user.is_owner && <span className="badge badge-grey">관리자</span>}
             </span>
           )}
-          {/* 잠긴 서버에서만 나온다 — 개인 PC에서는 나갈 문이 애초에 없다 */}
-          {locked && (
+          {/* 잠긴 서버에서 들어와 있을 때만 — 개인 PC와 손님에게는 나갈 문이 없다 */}
+          {locked && !guest && (
             <button className="ghost" onClick={() => void logout()} title="로그아웃">
               나가기
             </button>
           )}
-          {/* 주인은 탈퇴할 수 없다 (공용 데이터를 돌볼 사람이 사라진다) */}
+          {/* 관리자는 탈퇴할 수 없다 (공용 데이터를 돌볼 사람이 사라진다) */}
           {mode === 'google' && user && !user.is_owner && (
             <button className="ghost" onClick={() => setConfirmWithdraw(true)}>
               탈퇴
@@ -187,6 +197,8 @@ export function AppHeader() {
           <span>{refreshError}</span>
         </div>
       )}
+
+      <GuestNotice />
 
       <nav className="tabs">
         {TABS.map((tab) => (

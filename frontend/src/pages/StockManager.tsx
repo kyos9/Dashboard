@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAppState } from '../AppState'
 import { api } from '../api/client'
+import { useAuth } from '../components/AuthGate'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ErrorNotice } from '../components/ErrorNotice'
 import { NumberInput } from '../components/NumberInput'
@@ -209,6 +210,7 @@ function listingHint(listing: ListingStatus | null): string {
 
 export function StockManager() {
   const { refreshKey, notifyDataChanged } = useAppState()
+  const { isAdmin } = useAuth()
   const [stocks, setStocks] = useState<Stock[]>([])
   const [form, setForm] = useState<StockCreateInput>(emptyForm)
   const [error, setError] = useState<unknown>(null)
@@ -361,9 +363,12 @@ export function StockManager() {
       <div className="panel">
         <div className="section-head">
           <h3>관심 종목 추가</h3>
-          <button className="ghost sm" onClick={() => void refreshListing()} disabled={listingBusy}>
-            {listingBusy ? '받는 중…' : '거래소 목록 갱신'}
-          </button>
+          {/* 상장 목록은 전원이 같이 쓴다 — 받아오는 건 관리자만 */}
+          {isAdmin && (
+            <button className="ghost sm" onClick={() => void refreshListing()} disabled={listingBusy}>
+              {listingBusy ? '받는 중…' : '거래소 목록 갱신'}
+            </button>
+          )}
           <span className="hint">{listingHint(listing)}</span>
         </div>
         <div className="form-grid">

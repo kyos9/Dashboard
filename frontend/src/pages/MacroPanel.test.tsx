@@ -4,7 +4,8 @@ import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../api/client'
 import { AppStateProvider } from '../AppState'
-import type { MacroOverview, MacroSeriesInfo } from '../types'
+import { AuthGate } from '../components/AuthGate'
+import type { AuthStatus, MacroOverview, MacroSeriesInfo } from '../types'
 import { MacroPanel } from './MacroPanel'
 
 /** 별을 켜고 끄면 홈에 알려야 하므로 이 화면은 AppState 안에서 산다 */
@@ -567,5 +568,55 @@ describe('예상치', () => {
     expect(await screen.findByText(/너무 먼 미래입니다/)).toBeInTheDocument()
     // 닫아버리면 방금 친 숫자를 다시 쳐야 한다
     expect(screen.getByLabelText('CPI 예상치')).toBeInTheDocument()
+  })
+})
+
+// ---------------------------------------------------------------------------
+//  누가 무엇을 누를 수 있나 (4-4)
+// ---------------------------------------------------------------------------
+
+describe('손님·사용자·관리자', () => {
+  function renderAs(auth: Partial<AuthStatus>) {
+    vi.spyOn(api, 'getAuthStatus').mockResolvedValue({
+      locked: true, authenticated: false, mode: 'google', user: null, config_problem: null, ...auth,
+    })
+    mockMacro({
+      series: [series({ code: 'CPIAUCSL', name: 'CPI', frequency: 'monthly', forecastable: true })],
+      term_spread: { as_of: '2026-09-21', value: 0.5, long_code: 'DGS10', short_code: 'DGS2' },
+    })
+    return render(
+      <MemoryRouter>
+        <AuthGate>
+          <AppStateProvider>
+            <MacroPanel />
+          </AppStateProvider>
+        </AuthGate>
+      </MemoryRouter>,
+    )
+  }
+
+  it('손님은 둘러보기만 — 별도 받아오기도 예상치 입력도 없다', async () => {
+    renderAs({})
+    expect(await screen.findByText('CPI')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /홈 화면에 올리기/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '지금 받아오기' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '예상치 입력' })).not.toBeInTheDocument()
+  })
+
+  it('사용자는 내 홈의 별까지 — 전원이 보는 받아오기·예상치는 관리자 몫이다', async () => {
+    renderAs({ authenticated: true, user: { email: 'f@x.y', name: '친구', is_owner: false } })
+    expect(await screen.findByText('CPI')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'CPI 홈 화면에 올리기' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '장단기 금리차 홈 화면에 올리기' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '지금 받아오기' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '예상치 입력' })).not.toBeInTheDocument()
+  })
+
+  it('관리자는 전부', async () => {
+    renderAs({ authenticated: true, user: { email: 'me@x.y', name: '나', is_owner: true } })
+    expect(await screen.findByText('CPI')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'CPI 홈 화면에 올리기' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '지금 받아오기' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '예상치 입력' })).toBeInTheDocument()
   })
 })

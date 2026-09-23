@@ -1,6 +1,7 @@
 """로그인 · 로그아웃 · 잠금 상태, 그리고 나머지 API를 막아서는 문지기.
 
-문지기(`guard`)가 `/api/` 전부를 지키고, 아래 `PUBLIC_PATHS` 만 통과시킨다. 그리고
+문지기(`guard`)가 `/api/` 전부를 지키고, 아래 `PUBLIC_PATHS` 만 통과시킨다 — 구글
+모드에서는 공용 매크로 읽기도 손님에게 열어둔다(`guest_can_read`). 그리고
 **누가 보냈는지를 정해 `request.state.user_id` 에 둔다** — 라우터는 거기서 사용자를 받는다
 (`services.users.current_user_id`).
 
@@ -41,6 +42,26 @@ PUBLIC_PATHS = frozenset(
         "/api/health",
     }
 )
+
+
+# 로그인 전 손님이 볼 수 있는 것 (구글 모드만). **공용이고 읽기뿐인 것**만 둔다.
+#
+# 페이지에 먼저 들어와 둘러보고, 자기 포트폴리오를 만들 때 로그인한다. 손님에게 보여줄
+# 수 있는 건 누구 것도 아닌 데이터 — 매크로 지표뿐이다. 시세·시그널은 공용이어도 "누가
+# 어떤 종목을 담았나"가 드러나므로 열지 않는다.
+GUEST_PREFIX = "/api/macro"
+
+
+def guest_can_read(method: str, path: str) -> bool:
+    """손님(로그인 전)에게 열린 요청인가.
+
+    비밀번호 문은 해당 없다 — 그 서버는 한 사람 것이고, 문 앞에서 보여줄 것이 없다.
+    """
+    return (
+        auth.mode() == auth.MODE_GOOGLE
+        and method == "GET"
+        and (path == GUEST_PREFIX or path.startswith(GUEST_PREFIX + "/"))
+    )
 
 
 class LoginRequest(BaseModel):
@@ -321,7 +342,7 @@ def withdraw(
     if user.is_owner:
         raise HTTPException(
             status_code=403,
-            detail={"hint": "주인 계정은 탈퇴할 수 없습니다.", "message": "owner cannot withdraw"},
+            detail={"hint": "관리자 계정은 탈퇴할 수 없습니다.", "message": "owner cannot withdraw"},
         )
 
     # 매수·보유가 내 종목 행을 가리키므로 먼저 지운다
@@ -339,7 +360,10 @@ def withdraw(
 
 
 async def guard(request: Request, call_next):
-    """누가 보냈는지 정하고, 열쇠 없는 사람의 `/api/` 요청은 401로 돌려보낸다."""
+    """누가 보냈는지 정하고, 열쇠 없는 사람의 `/api/` 요청은 401로 돌려보낸다.
+
+    손님에게 열린 요청(`guest_can_read`)은 `user_id = None` 인 채로 지나간다.
+    """
     path = request.url.path
     if path.startswith("/api/"):
         token = request.cookies.get(auth.COOKIE_NAME)
@@ -347,7 +371,11 @@ async def guard(request: Request, call_next):
         request.state.user_id = await run_in_threadpool(
             resolve_user_id, _db_factory(request), token
         )
-        if request.state.user_id is None and path not in PUBLIC_PATHS:
+        if (
+            request.state.user_id is None
+            and path not in PUBLIC_PATHS
+            and not guest_can_read(request.method, path)
+        ):
             return JSONResponse(
                 status_code=401,
                 content={

@@ -27,6 +27,7 @@ from app.services.users import (
     current_user_id,
     find_user_stock,
     ordered_user_stocks,
+    require_owner,
     user_stocks,
 )
 
@@ -237,7 +238,7 @@ def purge_stock(
     db.commit()
 
 
-@router.post("/refresh-all", response_model=list[RefreshResult])
+@router.post("/refresh-all", response_model=list[RefreshResult], dependencies=[Depends(require_owner)])
 def refresh_all_stocks(db: Session = Depends(get_db)):
     """활성 종목 전체를 한 번에 갱신한다. 일부 종목이 실패해도 나머지는 계속 진행한다."""
     results = refresh_all_active_stocks(db)

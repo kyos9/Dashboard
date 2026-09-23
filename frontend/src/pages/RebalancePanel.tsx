@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAppState } from '../AppState'
 import { api } from '../api/client'
+import { useAuth } from '../components/AuthGate'
 import { ErrorNotice } from '../components/ErrorNotice'
 import { NumberInput } from '../components/NumberInput'
 import { amount, CURRENCY_META, num, price, qty, signed, signedAmount } from '../lib/display'
@@ -95,6 +96,7 @@ function SettingsRow({ row, onSaved, onError }: { row: Row; onSaved: () => void;
 
 export function RebalancePanel() {
   const { refreshKey, notifyDataChanged } = useAppState()
+  const { isAdmin } = useAuth()
   const [rows, setRows] = useState<Row[]>([])
   const [settings, setSettings] = useState<Settings | null>(null)
   const [bandInput, setBandInput] = useState('')
@@ -348,11 +350,14 @@ export function RebalancePanel() {
                   </div>
                 )
               })}
-              <div className="btn-group tight">
-                <button className="sm ghost" onClick={() => void refreshFx()} disabled={fxBusy}>
-                  전체 조회
-                </button>
-              </div>
+              {/* 환율은 전원이 같이 쓴다 — 다시 받는 건 관리자만. 직접 넣는 칸은 내 것이라 누구나 */}
+              {isAdmin && (
+                <div className="btn-group tight">
+                  <button className="sm ghost" onClick={() => void refreshFx()} disabled={fxBusy}>
+                    전체 조회
+                  </button>
+                </div>
+              )}
               <p className="kpi-foot">비워두고 적용하면 자동 조회값으로 돌아갑니다.</p>
             </>
           )}

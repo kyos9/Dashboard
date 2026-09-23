@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 
 from app import logging_setup
 from app.routers import logs
+from app.services.users import LOCAL_USER_ID, require_owner
 
 SAMPLE = """\
 2026-09-17 03:00:01 INFO app.services.scheduler: daily refresh completed: 5 ok
@@ -25,15 +26,20 @@ ValueError: 시세가 비었습니다
 """
 
 
+def _logs_client() -> TestClient:
+    app = FastAPI()
+    app.include_router(logs.router)
+    # 여기서는 로그를 읽는 법만 본다. 관리자만 보는지는 test_isolation 이 본다.
+    app.dependency_overrides[require_owner] = lambda: LOCAL_USER_ID
+    return TestClient(app)
+
+
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
     log_file = tmp_path / "app.log"
     log_file.write_text(SAMPLE, encoding="utf-8")
     monkeypatch.setattr(logs, "LOG_FILE", log_file)
-
-    app = FastAPI()
-    app.include_router(logs.router)
-    return TestClient(app)
+    return _logs_client()
 
 
 def test_warnings_only_by_default(client):
@@ -64,9 +70,7 @@ def test_limit_applies(client):
 def test_no_log_file_is_not_an_error(tmp_path, monkeypatch):
     """로그가 아직 없다고 진단 화면이 깨지면 곤란하다."""
     monkeypatch.setattr(logs, "LOG_FILE", tmp_path / "없음.log")
-    app = FastAPI()
-    app.include_router(logs.router)
-    client = TestClient(app)
+    client = _logs_client()
 
     body = client.get("/api/logs").json()
     assert body["available"] is False and body["entries"] == []
@@ -96,9 +100,7 @@ def test_tail_only_reads_the_end(tmp_path, monkeypatch):
     # 가장 최근 기록은 그대로 들어 있다
     assert "다음 일정에 재시도" in text
 
-    app = FastAPI()
-    app.include_router(logs.router)
-    body = TestClient(app).get("/api/logs?level=all").json()
+    body = _logs_client().get("/api/logs?level=all").json()
     assert body["size_bytes"] > 1_000_000
     assert body["entries"][0]["time"] == "2026-09-17 03:00:04"
 

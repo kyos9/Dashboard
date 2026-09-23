@@ -822,8 +822,16 @@ def snapshot(db: Session, series: MacroSeries, today: dt.date | None = None) -> 
     }
 
 
-def overview(db: Session, user_id: int, today: dt.date | None = None) -> dict:
-    """매크로 화면 한 장.
+def _viewer_settings(db: Session, user_id: int | None) -> UserSettings | None:
+    """보는 사람의 설정. **손님(`None`, 로그인 전)은 설정이 없다** — 기본 즐겨찾기를 본다.
+
+    손님에게 1번의 설정을 빌려주지 않는다. 그러면 관리자가 고른 즐겨찾기가 바깥에 보인다.
+    """
+    return settings_service.get_settings(db, user_id) if user_id is not None else None
+
+
+def overview(db: Session, user_id: int | None, today: dt.date | None = None) -> dict:
+    """매크로 화면 한 장. `user_id` 가 `None` 이면 손님(로그인 전)이다.
 
     금리차를 지표 목록과 **따로** 내려준다. 저장된 지표가 아니라 두 지표에서 계산한
     값이라 `macro_series` 행이 없고, 목록에 섞으면 "이건 왜 갱신 상태가 없나"가 된다.
@@ -843,12 +851,12 @@ def overview(db: Session, user_id: int, today: dt.date | None = None) -> dict:
         # 않고, 배지와 카드가 같은 값을 말하는 것이 보장된다 (`services/regime.py` 참고).
         "badges": regime.badges(snapshots, term),
         # 지표는 공용이고 **홈에 무엇을 둘지만** 그 사람 것이다
-        "pinned": pinned_codes(settings_service.get_settings(db, user_id)),
+        "pinned": pinned_codes(_viewer_settings(db, user_id)),
     }
 
 
-def pinned_overview(db: Session, user_id: int, today: dt.date | None = None) -> dict:
-    """홈 화면 한 줄. **고른 지표만** 읽는다.
+def pinned_overview(db: Session, user_id: int | None, today: dt.date | None = None) -> dict:
+    """홈 화면 한 줄. **고른 지표만** 읽는다. `user_id` 가 `None` 이면 손님이다.
 
     매크로 탭의 `overview` 를 그대로 홈에서 부르면 홈을 열 때마다 지표 아홉 개를 전부
     계산하게 된다. 홈의 주인공은 종목이고 매크로는 한 줄이라, 세 개 보여주려고 아홉 개를
@@ -857,7 +865,7 @@ def pinned_overview(db: Session, user_id: int, today: dt.date | None = None) -> 
     고른 코드 중 없어졌거나 꺼진 지표는 **조용히 빠진다.** 지표를 끄고 나서 홈이
     비어 보이는 것보다, 홈에서 그것만 사라지는 쪽이 덜 놀랍다.
     """
-    codes = pinned_codes(settings_service.get_settings(db, user_id))
+    codes = pinned_codes(_viewer_settings(db, user_id))
     if not codes:
         # 지표를 다 껐어도 배지는 남는다 — 껐다는 것은 "숫자를 늘 보고 있진 않겠다"이지
         # "이상한 일이 생겨도 알리지 말라"가 아니다.
