@@ -84,6 +84,7 @@ for host in (
     "stooq.com",
     "api.finance.naver.com",  # 국내주식 시세
     "kind.krx.co.kr",  # 국내 상장목록(종목명 검색)
+    "finance.naver.com",  # 국내 ETF 목록(ETF 이름 검색)
 ):
     try:
         ok(f"{host} → {socket.gethostbyname(host)}")
@@ -261,6 +262,20 @@ if app_modules and market is Market.KR:
     except Exception as exc:
         fail(brief(exc, 300))
         info("→ 실패해도 내장 목록(주요 종목)으로는 검색됩니다. 중소형주만 못 찾게 됩니다.")
+
+    print("\n  7-3) 국내 ETF 목록 받기 (네이버 — ETF를 한글 이름으로 찾는 데 쓴다)")
+    try:
+        from app.services import krx
+
+        etfs = krx.fetch_etfs(timeout=30)
+        ok(f"ETF {len(etfs):,}개")
+        by_code = {item["code"]: item["name"] for item in etfs}
+        for probe in dict.fromkeys([code, "379800", "069500"]):
+            if probe in by_code:
+                ok(f"{probe} → {by_code[probe]}")
+    except Exception as exc:
+        fail(brief(exc, 300))
+        info("→ 실패하면 ETF는 내장 목록(19개)과 야후 검색으로만 찾습니다. 야후는 영문 이름을 줍니다.")
 
 
 # ── 8. 환율 ──────────────────────────────────────────────────────────

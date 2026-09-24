@@ -170,6 +170,12 @@ def test_listing_refresh_is_skipped_while_cache_is_fresh(db_session, monkeypatch
     db_session.add(
         KrxListing(code="005930", name="삼성전자", board="KOSPI", updated_at=dt.datetime.utcnow())
     )
+    # ETF까지 받은 캐시여야 "최신"이다 — ETF가 없는 캐시는 날짜와 상관없이 다시 받는다
+    # (test_krx_etf.py::test_cache_without_etfs_is_refetched_even_if_recent)
+    db_session.add(
+        KrxListing(code="379800", name="KODEX 미국S&P500", board="KOSPI", instrument="ETF",
+                   updated_at=dt.datetime.utcnow())
+    )
     db_session.commit()
 
     def should_not_run(timeout=30):

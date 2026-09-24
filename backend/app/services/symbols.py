@@ -406,9 +406,22 @@ def refresh_krx_listing_if_stale(db: Session, timeout: int = 30) -> int | None:
     누르기를 기다리는 대신, 앱이 알아서 한 번 채워둔다.
     """
     updated_at = krx_listing_updated_at(db)
-    if updated_at is not None and dt.datetime.utcnow() - updated_at < LISTING_STALE_AFTER:
+    fresh = updated_at is not None and dt.datetime.utcnow() - updated_at < LISTING_STALE_AFTER
+    if fresh and _has_etfs(db):
         return None
+    # ETF가 한 줄도 없으면 날짜와 상관없이 다시 받는다 — ETF 목록을 받기 전(0.20.1까지)에
+    # 채운 캐시는 날짜로는 "최신"이라, 기다리면 최대 일주일 동안 ETF를 이름으로 못 찾는다.
     return refresh_krx_listing(db, timeout=timeout)
+
+
+def _has_etfs(db: Session) -> bool:
+    from app.models import KrxListing
+
+    try:
+        return db.query(KrxListing.code).filter(KrxListing.instrument == "ETF").first() is not None
+    except Exception:
+        logger.exception("KRX 캐시 ETF 조회 실패")
+        return True  # 모르면 평소 주기대로 둔다
 
 
 def refresh_krx_listing(db: Session, timeout: int = 30) -> int:
@@ -428,7 +441,35 @@ def refresh_krx_listing(db: Session, timeout: int = 30) -> int:
         row.board = item["board"]
         row.instrument = item.get("instrument", "STOCK")
     db.commit()
+    _adopt_official_names(db, {item["code"]: item["name"] for item in listings})
     return len(listings)
+
+
+def _adopt_official_names(db: Session, official: dict[str, str]) -> None:
+    """이미 담긴 국내 종목의 이름을 거래소 정식 이름으로 맞춘다.
+
+    목록에 없던 종목(대부분 ETF)은 야후 검색으로 들어와 영문 이름("Samsung KODEX ...")이
+    붙었거나, 코드로 들어와 이름 자리에 코드가 들어가 있다. 증권사 앱과 이름이 달라
+    알아보기 어렵다. **사람이 직접 고친 이름은 건드리지 않는다** — 내 행의 이름이 공용
+    행의 옛 이름과 같을 때(= 등록할 때 자동으로 붙은 이름 그대로일 때)만 바꾼다.
+    """
+    from app.models import Instrument, UserStock
+
+    changed = 0
+    for instrument in db.query(Instrument).filter(Instrument.market == Market.KR.value).all():
+        parsed = parse_krx_ticker(instrument.ticker)
+        name = official.get(parsed[0]) if parsed else None
+        if not name or instrument.name == name:
+            continue
+        old = instrument.name
+        for stock in db.query(UserStock).filter(UserStock.ticker == instrument.ticker).all():
+            if stock.name is None or stock.name == old:
+                stock.name = name
+        instrument.name = name
+        changed += 1
+    if changed:
+        db.commit()
+        logger.info("국내 종목 %d개의 이름을 거래소 정식 이름으로 맞췄습니다", changed)
 
 
 def _search_yahoo(query: str, limit: int, timeout: int = 10) -> list[SymbolMatch]:
