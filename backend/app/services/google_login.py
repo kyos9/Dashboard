@@ -108,6 +108,19 @@ def _emails(raw: str) -> set[str]:
     return {part.strip().lower() for part in raw.replace(";", ",").split(",") if part.strip()}
 
 
+OPERATOR_CONTACT_ENV = "OPERATOR_CONTACT"
+
+
+def operator_contact() -> str | None:
+    """사용자가 관리자에게 연락할 곳 (`.env` 의 `OPERATOR_CONTACT`). 없으면 None.
+
+    **주인 이메일을 대신 내보내지 않는다.** 로그인 설정에 적은 이메일은 공개하려고 적은 것이
+    아니다 — 문의처는 주인이 따로, 일부러 적은 것만 쓴다.
+    """
+    value = " ".join(os.environ.get(OPERATOR_CONTACT_ENV, "").split())
+    return value[:200] or None
+
+
 def owner_email() -> str | None:
     found = _emails(os.environ.get(OWNER_EMAIL_ENV, ""))
     return next(iter(found)) if len(found) == 1 else None

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { POLICY_PATH } from '../lib/policy'
 import { LOGIN_ERRORS, browser, useAuth } from './AuthGate'
 
 /**
@@ -8,6 +9,13 @@ import { LOGIN_ERRORS, browser, useAuth } from './AuthGate'
  * 로그인부터 하라는 화면을 만나면 대개 돌아간다. 그래서 들어와서 매크로를 둘러보고,
  * 자기 포트폴리오가 필요해지는 자리(대시보드·리밸런싱·종목 관리)에서 로그인을 권한다.
  */
+
+/** 관리자에게 연락할 곳 한 줄. 주인이 적어둔 게 없으면 아무것도 그리지 않는다. */
+export function ContactLine() {
+  const { contact } = useAuth()
+  if (!contact) return null
+  return <span className="contact-line">문의: {contact}</span>
+}
 
 /** "구글 계정으로 로그인". 서버 설정이 덜 됐으면 막고 이유를 툴팁에 둔다. */
 export function LoginButton({ className = 'primary', label = '구글 계정으로 로그인' }: {
@@ -41,7 +49,7 @@ export function GuestNotice() {
     <div className="header-alert" role="alert">
       <span aria-hidden="true">⚠</span>
       <span>
-        {loginError ?? `${LOGIN_ERRORS.config} (${configProblem})`}
+        {loginError ?? `${LOGIN_ERRORS.config} (${configProblem})`} {loginError && <ContactLine />}
       </span>
       {loginError && (
         <button className="ghost sm" onClick={dismissLoginError} aria-label="안내 닫기">
@@ -67,7 +75,7 @@ export function PendingPrompt() {
       </p>
       <p className="hint">
         승인을 기다리는 동안에도 <b>매크로</b> 탭은 볼 수 있습니다. 승인된 뒤에는 다시 로그인할 필요 없이
-        아래 버튼이나 새로고침으로 바로 들어옵니다.
+        아래 버튼이나 새로고침으로 바로 들어옵니다. <ContactLine />
       </p>
       <button type="button" className="primary" onClick={() => browser.go('/')}>
         승인됐는지 확인
@@ -89,6 +97,10 @@ export function LoginPrompt({ title, children }: { title: string; children?: Rea
         없이도 <b>매크로</b> 탭은 볼 수 있습니다.
       </p>
       <LoginButton />
+      <p className="hint consent-line">
+        로그인하면 <a href={POLICY_PATH}>개인정보처리방침·이용약관</a>에 동의하는 것으로 봅니다. 시그널은 참고용이며
+        투자 권유가 아닙니다.
+      </p>
     </div>
   )
 }

@@ -556,11 +556,28 @@ export function Dashboard() {
 
   if (cards.length === 0) {
     return (
-      <div className="empty-state">
-        <h3>아직 등록된 종목이 없습니다</h3>
-        <p>
-          <Link to="/stocks">종목 관리</Link>에서 티커를 추가하면 전체 히스토리를 내려받아 지표와 시그널을
-          계산합니다. 예: VOO, QQQ, NVDA
+      // 처음 들어온 사람의 첫 화면이다. 빈 표만 두면 무엇을 해야 하는지 모른다 (ROADMAP 4단계 8-2)
+      <div className="empty-state first-steps">
+        <h3>아직 담은 종목이 없습니다 — 세 단계면 시작합니다</h3>
+        <ol>
+          <li>
+            <b>종목 담기</b> — <Link to="/stocks">종목 관리</Link>에서 이름이나 티커로 찾아 추가합니다 (예:
+            삼성전자, VOO). 시세와 지표는 알아서 받습니다.
+          </li>
+          <li>
+            <b>보유수량 적기</b> — 추가할 때나 <Link to="/rebalance">리밸런싱</Link>에서 수량·평단가·목표 비중을
+            적으면 비중이 얼마나 벗어났는지 알려줍니다.
+          </li>
+          <li>
+            <b>시그널 보기</b> — 이 화면에 종목마다 매수·매도 시그널이 뜹니다. 시세는 장 마감 뒤 매일 새로
+            받습니다.
+          </li>
+        </ol>
+        <Link to="/stocks" className="link-button">
+          종목 추가하러 가기
+        </Link>
+        <p className="hint">
+          종목은 30개까지 담을 수 있습니다. 시그널은 참고용이며 투자 권유가 아닙니다.
         </p>
       </div>
     )

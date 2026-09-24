@@ -319,11 +319,17 @@ describe('대시보드 · 다음 리뷰', () => {
 })
 
 describe('대시보드 · 상태 표시', () => {
-  it('종목이 없으면 안내를 보여준다', async () => {
+  it('종목이 없으면 처음 온 사람에게 무엇부터 할지 알려준다', async () => {
+    // 첫 로그인은 빈 화면이다 — 빈 표만 두면 무엇을 해야 하는지 모른다 (ROADMAP 4단계 8-2)
     mockApi([], { ...REBALANCE, rows: [], total_value_base: 0 })
     renderDashboard()
 
-    expect(await screen.findByText(/등록된 종목이 없습니다/)).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /아직 담은 종목이 없습니다/ })).toBeInTheDocument()
+    const steps = screen.getAllByRole('listitem').map((li) => li.textContent)
+    expect(steps).toHaveLength(3)
+    expect(steps[0]).toMatch(/^종목 담기/)
+    expect(screen.getByRole('link', { name: '종목 추가하러 가기' })).toHaveAttribute('href', '/stocks')
+    expect(screen.getByText(/30개까지/)).toBeInTheDocument()
   })
 
   it('시세가 오래된 종목은 판정에서 제외됐다고 알린다', async () => {

@@ -369,6 +369,8 @@ export interface AuthStatus {
   config_problem?: string | null
   /** 관리자에게만 — 기다리는 가입 신청 수 */
   pending_count?: number
+  /** 관리자에게 연락할 곳 (`.env` 의 OPERATOR_CONTACT). 적지 않았으면 없다 */
+  contact?: string
 }
 
 export interface HealthInfo {

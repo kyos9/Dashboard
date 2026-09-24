@@ -187,6 +187,11 @@ def status(request: Request, db: Session = Depends(get_db)) -> dict:
         # 설정이 덜 됐으면 로그인 버튼을 누르기 **전에** 알려준다 — 누르고 나서야 안 되는
         # 것을 알면 구글 쪽 문제로 보인다.
         body["config_problem"] = google.config_problem()
+        # 문의처 — 신청이 거절·차단된 사람과 방침 화면이 "누구에게 묻나"를 보여준다.
+        # 적은 것만 내보낸다 (이메일이든 오픈채팅 주소든 주인이 공개하기로 한 것)
+        contact = google.operator_contact()
+        if contact:
+            body["contact"] = contact
     return body
 
 

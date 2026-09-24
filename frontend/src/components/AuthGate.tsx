@@ -43,6 +43,8 @@ interface AuthValue {
   recountPending: () => void
   /** 관리자 전용 버튼(전체 새로고침·진단·예상치 입력 등)을 보여줄지. 혼자 쓰는 서버는 늘 관리자다 */
   isAdmin: boolean
+  /** 관리자에게 연락할 곳. 주인이 적지 않았으면 null — 그때는 "관리자에게 문의"라고만 쓴다 */
+  contact: string | null
   /** 구글 로그인으로 보낸다 */
   login: () => void
   /** 로그인을 못 하는 이유 (서버 설정이 덜 됐다). 있으면 로그인 버튼을 막는다 */
@@ -64,6 +66,7 @@ const Ctx = createContext<AuthValue>({
   pendingCount: 0,
   recountPending: () => {},
   isAdmin: true,
+  contact: null,
   login: () => {},
   configProblem: null,
   loginError: null,
@@ -124,6 +127,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [configProblem, setConfigProblem] = useState<string | null>(null)
   const [pendingCount, setPendingCount] = useState(0)
+  const [contact, setContact] = useState<string | null>(null)
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(takeLoginError)
   const [busy, setBusy] = useState(false)
@@ -144,6 +148,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
         setUser(status.user ?? null)
         setConfigProblem(status.config_problem ?? null)
         setPendingCount(status.pending_count ?? 0)
+        setContact(status.contact ?? null)
         // 구글 모드는 로그인 전에도 연다 — 손님으로 둘러본다
         setPhase(status.locked && !status.authenticated && current !== 'google' ? 'locked' : 'open')
       })
@@ -219,6 +224,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       pendingCount,
       recountPending,
       isAdmin,
+      contact,
       login,
       configProblem,
       loginError: mode === 'google' ? error : null,
@@ -227,7 +233,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       withdraw,
     }),
     [
-      locked, mode, user, guest, pending, pendingCount, recountPending, isAdmin, login,
+      locked, mode, user, guest, pending, pendingCount, recountPending, isAdmin, contact, login,
       configProblem, error, dismissLoginError, logout, withdraw,
     ],
   )

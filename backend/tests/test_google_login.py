@@ -95,6 +95,7 @@ def google_on(monkeypatch):
     monkeypatch.setenv(google.OWNER_EMAIL_ENV, OWNER)
     monkeypatch.setenv(google.ALLOWED_EMAILS_ENV, FRIEND)
     monkeypatch.delenv(google.PUBLIC_URL_ENV, raising=False)
+    monkeypatch.delenv(google.OPERATOR_CONTACT_ENV, raising=False)
     monkeypatch.setattr(google, "_transport", lambda: fake_transport)
 
 

@@ -7,9 +7,11 @@ import { RequireLogin } from './components/LoginPrompt'
 import { Dashboard } from './pages/Dashboard'
 import { GuestHome } from './pages/GuestHome'
 import { MacroPanel } from './pages/MacroPanel'
+import { Policy } from './pages/Policy'
 import { RebalancePanel } from './pages/RebalancePanel'
 import { StockManager } from './pages/StockManager'
 import { lazyChunk } from './lib/lazyChunk'
+import { POLICY_PATH } from './lib/policy'
 
 // 차트 라이브러리(lightweight-charts)는 번들의 3분의 1이다. 차트를 열 때만 받는다 —
 // 첫 화면은 표와 숫자뿐이라, 폰에서 처음 여는 사람이 차트 코드까지 기다릴 이유가 없다.
@@ -43,6 +45,8 @@ function App() {
                 }
               />
               <Route path="/macro" element={<MacroPanel />} />
+              {/* 방침은 로그인 전에도 열린다 — 구글 동의 화면이 이 주소를 가리킨다 */}
+              <Route path={POLICY_PATH} element={<Policy />} />
               <Route
                 path="/rebalance"
                 element={
@@ -61,6 +65,10 @@ function App() {
               />
             </Routes>
           </main>
+          <footer className="site-footer">
+            <a href={POLICY_PATH}>개인정보처리방침 · 이용약관</a>
+            <span>시그널은 참고용이며 투자 권유가 아닙니다.</span>
+          </footer>
         </BrowserRouter>
       </AppStateProvider>
     </AuthGate>
