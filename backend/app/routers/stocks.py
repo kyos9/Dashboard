@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.markets import normalize_ticker
+from app.markets import market_of_stock, normalize_ticker
 from app.models import (
     Holding,
     IndicatorDaily,
@@ -22,6 +23,7 @@ from app.schemas import (
 from app.services import data_ingestion, symbols
 from app.services.instruments import ensure_instrument
 from app.services.pipeline import refresh_all_active_stocks, refresh_and_evaluate_stock
+from app.services.trading_calendar import last_closed_trading_day
 from app.services.users import (
     current_user_id,
     find_user_stock,
@@ -110,6 +112,23 @@ def _resolve_ticker(db: Session, raw: str) -> tuple[str, str | None, str | None]
     return match.ticker, match.name, resolved_from
 
 
+def _download_needed(db: Session, stock: UserStock) -> str | None:
+    """등록할 때 시세를 얼마나 받아야 하나 -> "full"(전체 기간), "recent"(최근분), None(안 받음).
+
+    시세는 종목마다 공용이다. 남이 이미 담았거나 예전에 담았다 뺀 종목은 수십 년치가
+    이미 저장돼 있는데, 예전에는 그래도 **전체 기간을 처음부터 다시 받았다** — 등록이
+    오래 걸린 가장 큰 이유였다. 저장된 게 있으면 빠진 최근분만 받고, 마지막 거래일까지
+    이미 있으면 아예 받지 않는다.
+    """
+    latest = db.query(func.max(PriceDaily.date)).filter(PriceDaily.ticker == stock.ticker).scalar()
+    if latest is None:
+        return "full"
+    expected = last_closed_trading_day(market_of_stock(stock))
+    if expected is not None and latest >= expected:
+        return None
+    return "recent"
+
+
 @router.post("", response_model=StockCreateResult)
 def create_stock(
     payload: StockCreate,
@@ -154,7 +173,9 @@ def create_stock(
     db.refresh(stock)
 
     try:
-        refresh_and_evaluate_stock(db, stock, full_backfill=True)
+        download = _download_needed(db, stock)
+        if download is not None:
+            refresh_and_evaluate_stock(db, stock, full_backfill=download == "full")
     except data_ingestion.DataIngestionError as exc:
         # 종목 등록 자체는 유지하고, 데이터 백필은 이후 수동 새로고침으로 재시도 가능
         detail = _failure_detail(exc)

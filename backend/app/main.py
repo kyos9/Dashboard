@@ -1,4 +1,7 @@
+import logging
 import os
+import threading
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -9,14 +12,30 @@ from app.db import init_db
 from app.logging_setup import setup_logging
 from app.routers import auth, dashboard, history, logs, macro, rebalance, stocks, symbols
 from app.services import auth as auth_service
-from app.services import providers
+from app.services import providers, trading_calendar
 from app.services.scheduler import shutdown_scheduler, start_scheduler
+
+
+logger = logging.getLogger(__name__)
+
+
+def _warm_up_calendars() -> None:
+    started = time.perf_counter()
+    try:
+        trading_calendar.warm_up()
+    except Exception:
+        # 미리 못 만들어도 처음 쓸 때 만들어진다 — 느릴 뿐 틀리지 않는다
+        logger.warning("거래일 캘린더를 미리 만들지 못했습니다", exc_info=True)
+        return
+    logger.info("거래일 캘린더 준비 완료 (%.1f초)", time.perf_counter() - started)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging()
     init_db()
+    # 뒤에서 만든다 — 기다리게 하면 그동안 서버가 아예 안 열린다
+    threading.Thread(target=_warm_up_calendars, name="calendar-warm-up", daemon=True).start()
     if os.environ.get("SIGNAL_DASHBOARD_DISABLE_SCHEDULER") != "1":
         start_scheduler()
     yield

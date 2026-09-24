@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Suspense, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ChartModal } from '../components/ChartModal'
 import { MacroStrip } from '../components/MacroStrip'
 import { NumberInput } from '../components/NumberInput'
 import { dropSide, moveOne, placeAt } from '../lib/reorder'
@@ -8,6 +7,10 @@ import { useReorderAnimation } from '../lib/flip'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { useAppState } from '../AppState'
 import { api } from '../api/client'
+import { lazyChunk } from '../lib/lazyChunk'
+
+// 차트는 누를 때 받는다 (App.tsx의 HistoryChart와 같은 이유)
+const ChartModal = lazyChunk(() => import('../components/ChartModal'), 'ChartModal')
 import { ErrorNotice } from '../components/ErrorNotice'
 import {
   amount,
@@ -766,11 +769,13 @@ export function Dashboard() {
       </div>
 
       {chartCard && (
-        <ChartModal
-          ticker={chartCard.ticker}
-          name={stockLabel(chartCard)}
-          onClose={() => setChartCard(null)}
-        />
+        <Suspense fallback={null}>
+          <ChartModal
+            ticker={chartCard.ticker}
+            name={stockLabel(chartCard)}
+            onClose={() => setChartCard(null)}
+          />
+        </Suspense>
       )}
 
       <p className="hint" style={{ marginTop: 14 }}>

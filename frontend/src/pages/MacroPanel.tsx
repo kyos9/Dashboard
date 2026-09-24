@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useState } from 'react'
+import { Suspense, useCallback, useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { useAuth } from '../components/AuthGate'
 import { ErrorNotice } from '../components/ErrorNotice'
-import { MacroChartModal } from '../components/MacroChartModal'
 import { NumberInput } from '../components/NumberInput'
 import { RegimeBadges } from '../components/RegimeBadges'
 import { useAppState } from '../AppState'
+import { lazyChunk } from '../lib/lazyChunk'
 import {
   FREQUENCY_LABEL,
   checkedLabel,
@@ -16,6 +16,9 @@ import {
 } from '../lib/macro'
 import { TERM_SPREAD_CODE } from '../types'
 import type { MacroOverview, MacroSeriesInfo, TermSpread } from '../types'
+
+// 차트는 누를 때 받는다 (App.tsx의 HistoryChart와 같은 이유)
+const MacroChartModal = lazyChunk(() => import('../components/MacroChartModal'), 'MacroChartModal')
 
 /**
  * 장단기 금리차 한 줄.
@@ -486,7 +489,9 @@ export function MacroPanel() {
       )}
 
       {open && (
-        <MacroChartModal code={open.code} name={open.name} onClose={() => setOpen(null)} />
+        <Suspense fallback={null}>
+          <MacroChartModal code={open.code} name={open.name} onClose={() => setOpen(null)} />
+        </Suspense>
       )}
     </>
   )

@@ -80,6 +80,18 @@ def _schedule(market: Market, start: dt.date, end: dt.date):
         return _build_schedule(market, start, end)
 
 
+def warm_up() -> None:
+    """캘린더를 미리 만들어둔다. 서버를 켤 때 뒤에서 한 번 부른다.
+
+    캘린더는 처음 쓸 때 만들어지는데, 한국(XKRX)은 휴장일 표를 짜느라 빠른 PC에서도
+    2초, 서버(1/8 코어)에서는 그 몇 배가 걸린다. 원화 포트폴리오는 리뷰일을 한국
+    캘린더로 재므로, 업데이트하고 나서 **처음 화면을 연 사람이 그 시간을 다 기다렸다.**
+    """
+    for market in Market:
+        _calendar(market)
+        last_closed_trading_day(market)
+
+
 def market_date(moment: dt.datetime, market: Market = Market.US) -> dt.date:
     """어떤 시각을 그 시장 현지 날짜로 바꾼다.
 

@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { AppStateProvider } from './AppState'
 import { AppHeader } from './components/AppHeader'
@@ -5,10 +6,14 @@ import { AuthGate, useAuth } from './components/AuthGate'
 import { RequireLogin } from './components/LoginPrompt'
 import { Dashboard } from './pages/Dashboard'
 import { GuestHome } from './pages/GuestHome'
-import { HistoryChart } from './pages/HistoryChart'
 import { MacroPanel } from './pages/MacroPanel'
 import { RebalancePanel } from './pages/RebalancePanel'
 import { StockManager } from './pages/StockManager'
+import { lazyChunk } from './lib/lazyChunk'
+
+// 차트 라이브러리(lightweight-charts)는 번들의 3분의 1이다. 차트를 열 때만 받는다 —
+// 첫 화면은 표와 숫자뿐이라, 폰에서 처음 여는 사람이 차트 코드까지 기다릴 이유가 없다.
+const HistoryChart = lazyChunk(() => import('./pages/HistoryChart'), 'HistoryChart')
 
 /** 첫 화면. 손님은 매크로 한 줄 + 로그인 안내, 들어온 사람은 내 대시보드. */
 function Home() {
@@ -31,7 +36,9 @@ function App() {
                 path="/history"
                 element={
                   <RequireLogin title="로그인하면 담은 종목의 차트를 볼 수 있습니다">
-                    <HistoryChart />
+                    <Suspense fallback={<p className="hint">차트를 불러오는 중…</p>}>
+                      <HistoryChart />
+                    </Suspense>
                   </RequireLogin>
                 }
               />

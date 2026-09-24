@@ -17,23 +17,22 @@ from app.models import IndicatorDaily, PriceDaily, SignalDaily
 
 T = TypeVar("T", PriceDaily, IndicatorDaily, SignalDaily)
 
+# 최근 몇 행만 필요할 때 먼저 훑어볼 기간. 설·추석 연휴가 길어도 6거래일은 넉넉히 들어간다.
+RECENT_WINDOW = dt.timedelta(days=45)
 
-def _recent_by_ticker(
-    db: Session, model: type[T], tickers: Sequence[str], limit: int
-) -> dict[str, list[T]]:
-    """종목별 최근 `limit`개 행을 날짜 내림차순으로. 행이 없는 종목은 키 자체가 없다."""
-    if not tickers or limit < 1:
-        return {}
 
+def _ranked(db: Session, model: type[T], tickers: Sequence[str], limit: int, since: dt.date | None):
     row_number = (
         func.row_number()
         .over(partition_by=model.ticker, order_by=model.date.desc())
         .label("rn")
     )
-    ranked = select(model, row_number).where(model.ticker.in_(list(tickers))).subquery()
+    inner = select(model, row_number).where(model.ticker.in_(list(tickers)))
+    if since is not None:
+        inner = inner.where(model.date >= since)
+    ranked = inner.subquery()
     entity = aliased(model, ranked)
-
-    rows = (
+    return (
         db.execute(
             select(entity)
             .where(ranked.c.rn <= limit)
@@ -43,9 +42,31 @@ def _recent_by_ticker(
         .all()
     )
 
+
+def _recent_by_ticker(
+    db: Session, model: type[T], tickers: Sequence[str], limit: int
+) -> dict[str, list[T]]:
+    """종목별 최근 `limit`개 행을 날짜 내림차순으로. 행이 없는 종목은 키 자체가 없다.
+
+    **최근 몇 주만 먼저 본다.** 기간 없이 순위를 매기면 30년치 전 종목을 다 줄 세운 뒤
+    맨 앞 몇 개만 남기는 셈이라, 종목 15개에서 쿼리 하나가 0.2초씩 걸렸다(대시보드는 이걸
+    네 번 부른다). 그 기간에 `limit`개가 안 차는 종목 — 오래 갱신이 안 됐거나 막 상장한
+    종목 — 만 전체 기간에서 다시 찾는다. 결과는 기간 없이 찾은 것과 똑같다.
+    """
+    if not tickers or limit < 1:
+        return {}
+
+    since = dt.date.today() - RECENT_WINDOW
     grouped: dict[str, list[T]] = defaultdict(list)
-    for row in rows:
+    for row in _ranked(db, model, tickers, limit, since):
         grouped[row.ticker].append(row)
+
+    short = [t for t in tickers if len(grouped.get(t, ())) < limit]
+    if short:
+        for ticker in short:
+            grouped.pop(ticker, None)
+        for row in _ranked(db, model, short, limit, None):
+            grouped[row.ticker].append(row)
     return dict(grouped)
 
 

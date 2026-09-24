@@ -11,6 +11,7 @@ from pathlib import Path
 
 from app.markets import Market
 from app.services.trading_calendar import period_trading_bounds, trading_days
+from app.services import trading_calendar as tc
 
 
 def test_korea_and_us_close_on_different_days():
@@ -92,3 +93,10 @@ def test_first_screen_load_does_not_break_the_calendar():
         timeout=180,
     )
     assert result.returncode == 0, result.stderr[-2000:]
+
+
+def test_warm_up_builds_every_market_calendar():
+    """서버를 켤 때 미리 만든다 — 안 그러면 처음 화면을 연 사람이 한국 캘린더 짓는 시간을 기다린다."""
+    tc._build_calendar.cache_clear()
+    tc.warm_up()
+    assert tc._build_calendar.cache_info().currsize == len(Market)

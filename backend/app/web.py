@@ -35,6 +35,20 @@ DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
 NO_CACHE = {"index.html", "sw.js", "manifest.webmanifest"}
 
 
+# 이름에 내용 해시가 붙은 파일은 1년 동안 다시 묻지도 않게 한다. 헤더가 없으면 브라우저가
+# 화면을 열 때마다 파일마다 "바뀌었나?"를 서버에 물어본다(304) — 느린 서버에서는 그 왕복이
+# 첫 화면을 늦춘다. 서비스 워커가 없는 브라우저(아이폰 사파리의 일반 탭 등)에서 특히.
+IMMUTABLE = "public, max-age=31536000, immutable"
+
+
+class _HashedAssets(StaticFiles):
+    async def get_response(self, path: str, scope):
+        response = await super().get_response(path, scope)
+        if response.status_code == 200:
+            response.headers["Cache-Control"] = IMMUTABLE
+        return response
+
+
 def frontend_dist() -> Path | None:
     """빌드된 화면이 있으면 그 경로를, 없으면 None."""
     return DIST if (DIST / "index.html").is_file() else None
@@ -53,7 +67,7 @@ def mount_frontend(app: FastAPI) -> bool:
 
     assets = dist / "assets"
     if assets.is_dir():
-        app.mount("/assets", StaticFiles(directory=assets), name="assets")
+        app.mount("/assets", _HashedAssets(directory=assets), name="assets")
 
     @app.get("/{full_path:path}", include_in_schema=False)
     def spa(full_path: str) -> FileResponse:

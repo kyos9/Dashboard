@@ -60,6 +60,14 @@ def test_static_files_are_served(served):
     assert served.get("/assets/app.js").text == "console.log(1)"
 
 
+def test_hashed_assets_are_cached_for_good(served):
+    assert served.get("/assets/app.js").headers["cache-control"] == "public, max-age=31536000, immutable"
+    # 없는 파일의 404까지 1년 캐시되면, 배포 직후 잠깐 없던 파일이 영영 없는 것으로 남는다
+    missing = served.get("/assets/nope.js")
+    assert missing.status_code == 404
+    assert "immutable" not in missing.headers.get("cache-control", "")
+
+
 def test_index_is_not_cached(served):
     """index.html이 캐시되면 새 버전을 올려도 옛 화면이 뜬다."""
     assert served.get("/").headers.get("cache-control") == "no-cache"
