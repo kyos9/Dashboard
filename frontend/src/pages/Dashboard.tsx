@@ -33,6 +33,7 @@ import {
   reviewCountdown,
   signed,
   signedAmount,
+  rowLabel,
   stockLabel,
   trafficLight,
   type MetricKey,
@@ -653,7 +654,7 @@ export function Dashboard() {
                       width: `${w.actual_weight_pct}%`,
                       background: SLICE_COLORS[i % SLICE_COLORS.length],
                     }}
-                    title={`${w.ticker} ${num(w.actual_weight_pct, 1)}%`}
+                    title={`${rowLabel(w)} ${num(w.actual_weight_pct, 1)}%`}
                   />
                 ))}
                 {allocation.cash && allocation.cash.actual_pct > 0 && (
@@ -672,7 +673,7 @@ export function Dashboard() {
                       style={{ background: SLICE_COLORS[i % SLICE_COLORS.length] }}
                       aria-hidden="true"
                     />
-                    {w.ticker} <span className="mono">{num(w.actual_weight_pct, 1)}%</span>
+                    {rowLabel(w)} <span className="mono">{num(w.actual_weight_pct, 1)}%</span>
                   </span>
                 ))}
                 {allocation.cash && allocation.cash.actual_pct > 0 && (
@@ -695,7 +696,7 @@ export function Dashboard() {
                 )}{' '}
                 ·{' '}
                 {allocation.worst && Math.abs(allocation.worst.excess_pct) >= 0.05
-                  ? `목표 대비 최대 이탈: ${allocation.worst.ticker} ${signed(allocation.worst.excess_pct, 1, '%p')}`
+                  ? `목표 대비 최대 이탈: ${rowLabel(allocation.worst)} ${signed(allocation.worst.excess_pct, 1, '%p')}`
                   : '목표 비중과 거의 일치합니다.'}
               </p>
             </>

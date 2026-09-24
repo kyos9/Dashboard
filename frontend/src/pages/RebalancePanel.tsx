@@ -13,6 +13,7 @@ import {
   qty,
   REVIEW_PERIOD_LABEL,
   reviewCountdown,
+  rowLabel,
   signed,
   signedAmount,
 } from '../lib/display'
@@ -931,7 +932,7 @@ export function RebalancePanel() {
           <p className="kpi-foot">
             {signalled.length === 0
               ? '모든 종목이 설정한 밴드 이내입니다.'
-              : signalled.map((r) => `${r.ticker}: ${r.current.rebalance_signal.reasons.join(', ')}`).join(' · ')}
+              : signalled.map((r) => `${rowLabel(r.current)}: ${r.current.rebalance_signal.reasons.join(', ')}`).join(' · ')}
           </p>
         </div>
 

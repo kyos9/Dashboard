@@ -37,6 +37,15 @@ export function stockLabel(stock: { ticker: string; name?: string | null; market
   return name === '' ? stock.ticker : name
 }
 
+/**
+ * 리밸런싱 행(시장 대신 통화를 싣는다)의 표시 이름 — `stockLabel`과 같은 규칙.
+ * 달러 종목은 미국 종목이라 티커, 나머지는 종목명. 예전에는 배분 막대가 `005930.KS` 같은
+ * 티커를 그대로 찍어서, 표에서는 "삼성전자"인 종목이 숫자로 보였다.
+ */
+export function rowLabel(row: { ticker: string; name?: string | null; currency: Currency }): string {
+  return stockLabel({ ticker: row.ticker, name: row.name, market: row.currency === 'USD' ? 'US' : 'KR' })
+}
+
 export function currencyMeta(currency: Currency | null | undefined): CurrencyMeta {
   return CURRENCY_META[currency ?? 'USD'] ?? CURRENCY_META.USD
 }

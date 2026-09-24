@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest'
 import type { DashboardCard, KneeConditions } from '../types'
 import {
   amount,
-  categoryOf,
   CATEGORY_UNSET,
+  categoryOf,
   daysFrom,
   num,
-  providerLabel,
   price,
+  providerLabel,
   readAdx,
   readDi,
   readDisparity,
@@ -15,6 +15,7 @@ import {
   readVolume,
   relativeDay,
   reviewCountdown,
+  rowLabel,
   signed,
   signedAmount,
   stockLabel,
@@ -213,5 +214,14 @@ describe('날짜 — 며칠 전인가', () => {
     expect(reviewCountdown({ next_date: '2026-09-30' }, today)).toBe('D-6')
     expect(reviewCountdown({ next_date: '2026-09-24' }, today)).toBe('오늘')
     expect(reviewCountdown({ next_date: '2026-09-21' }, today)).toBe('3일 지남')
+  })
+})
+
+describe('rowLabel (리밸런싱 행)', () => {
+  it('국내·일본 종목은 종목명, 달러 종목은 티커 — 이름이 없으면 티커', () => {
+    expect(rowLabel({ ticker: '379800.KS', name: 'KODEX 미국S&P500', currency: 'KRW' })).toBe('KODEX 미국S&P500')
+    expect(rowLabel({ ticker: '7203.T', name: '도요타', currency: 'JPY' })).toBe('도요타')
+    expect(rowLabel({ ticker: 'TSM', name: 'Taiwan Semiconductor', currency: 'USD' })).toBe('TSM')
+    expect(rowLabel({ ticker: '005930.KS', name: null, currency: 'KRW' })).toBe('005930.KS')
   })
 })

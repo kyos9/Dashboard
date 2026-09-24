@@ -634,3 +634,23 @@ describe('방금 등록한 종목의 시세를 받는 동안', () => {
     expect(getDashboard.mock.calls.length).toBeGreaterThanOrEqual(3)
   }, 10000)
 })
+
+describe('포트폴리오 배분', () => {
+  it('국내 종목은 종목명, 해외 종목은 티커로 적는다 (표와 같은 규칙)', async () => {
+    const rows = REBALANCE.rows.map((r) =>
+      r.ticker === '005930.KS' ? { ...r, name: '삼성전자', excess_pct: 8.1 } : r,
+    )
+    mockApi(CARDS, { ...REBALANCE, rows })
+    const { container } = renderDashboard()
+
+    const legend = await waitFor(() => {
+      const found = container.querySelector('.weight-legend')
+      expect(found).not.toBeNull()
+      return found as HTMLElement
+    })
+    expect(legend).toHaveTextContent('삼성전자 38.1%')
+    expect(legend).toHaveTextContent('VOO 61.9%')
+    expect(legend).not.toHaveTextContent('005930')
+    expect(screen.getByText(/목표 대비 최대 이탈: 삼성전자/)).toBeInTheDocument()
+  })
+})
