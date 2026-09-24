@@ -45,7 +45,13 @@ export interface Stock {
   rebalance_band_pct: number | null
   /** 화면에 보여줄 순서 — 사용자가 정한다 */
   sort_order: number
+  /** 등록 직후 시세를 뒤에서 받는 중이면 'loading', 받다가 실패했으면 'failed' */
+  data_status?: DataStatus | null
+  /** 실패했을 때 사용자가 할 일 */
+  data_hint?: string | null
 }
+
+export type DataStatus = 'loading' | 'failed'
 
 export interface StockCreateInput {
   ticker: string
@@ -71,6 +77,8 @@ export type StockUpdateInput = Partial<
 export interface StockCreateResult {
   stock: Stock
   data_loaded: boolean
+  /** 시세를 뒤에서 받기 시작했다 — 끝났는지는 종목 목록의 data_status 로 본다 */
+  data_pending?: boolean
   /** 제공자별 기술적 원인 */
   data_error: string | null
   /** 사용자가 다음에 할 일 */
@@ -125,6 +133,8 @@ export interface DashboardCard {
   shoulder_sell_ref: boolean
   /** 무릎매수(v2)가 마지막으로 뜬 날. 한 번도 없으면 null */
   last_buy_signal_date: string | null
+  /** 등록 직후 시세를 뒤에서 받는 중이거나 받다가 실패 */
+  data_status?: DataStatus | null
   rebalance_signal: RebalanceSignal
 }
 

@@ -379,3 +379,62 @@ describe('종목 검색 범위 안내', () => {
     expect(await screen.findByText(/신규 상장이나 사명이 바뀐 종목/)).toBeInTheDocument()
   })
 })
+
+describe('시세를 뒤에서 받는 동안', () => {
+  const samsung = (over: Partial<Stock> = {}) =>
+    stock({ ticker: '005930.KS', name: '삼성전자', market: 'KR', currency: 'KRW', ...over })
+
+  it('등록은 바로 끝나고, 다 받으면 알려준다', async () => {
+    mockApi()
+    vi.spyOn(api, 'listStocks')
+      .mockResolvedValueOnce([]) // 처음 화면
+      .mockResolvedValueOnce([samsung({ data_status: 'loading' })]) // 등록 직후
+      .mockResolvedValue([samsung()]) // 몇 초 뒤 다시 물었을 때 — 다 받음
+    vi.spyOn(api, 'createStock').mockResolvedValue(created({ data_loaded: false, data_pending: true }))
+    const user = userEvent.setup()
+    renderManager()
+
+    await user.type(symbolInput(), '삼성전자')
+    await user.click(await screen.findByText('삼성전자'))
+    await user.click(screen.getByRole('button', { name: /종목 추가/ }))
+
+    expect(await screen.findByText(/추가 완료 — 시세를 받는 중입니다/)).toBeInTheDocument()
+    expect(await screen.findByText('시세 받는 중…')).toBeInTheDocument()
+    expect(
+      await screen.findByText(/삼성전자 시세를 다 받았습니다/, undefined, { timeout: 5000 }),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('시세 받는 중…')).not.toBeInTheDocument()
+  })
+
+  it('받다가 실패하면 이유와 할 일을 보여준다', async () => {
+    mockApi()
+    vi.spyOn(api, 'listStocks')
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([samsung({ data_status: 'loading' })])
+      .mockResolvedValue([samsung({ data_status: 'failed', data_hint: '종목코드를 확인해주세요.' })])
+    vi.spyOn(api, 'createStock').mockResolvedValue(created({ data_loaded: false, data_pending: true }))
+    const user = userEvent.setup()
+    renderManager()
+
+    await user.type(symbolInput(), '삼성전자')
+    await user.click(await screen.findByText('삼성전자'))
+    await user.click(screen.getByRole('button', { name: /종목 추가/ }))
+
+    expect(
+      await screen.findByText(/삼성전자 시세를 받지 못했습니다\. 종목코드를 확인해주세요\./, undefined, {
+        timeout: 5000,
+      }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('시세 못 받음')).toHaveAttribute('title', '종목코드를 확인해주세요.')
+  })
+
+  it('받는 중인 종목이 없으면 다시 묻지 않는다', async () => {
+    mockApi([samsung()])
+    const list = vi.spyOn(api, 'listStocks').mockResolvedValue([samsung()])
+    renderManager()
+    await screen.findByDisplayValue('삼성전자')
+    const calls = list.mock.calls.length
+    await new Promise((r) => setTimeout(r, 3500))
+    expect(list.mock.calls.length).toBe(calls)
+  })
+})

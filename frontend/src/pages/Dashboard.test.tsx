@@ -615,3 +615,22 @@ describe('대시보드 · 설정 모드', () => {
     await waitFor(() => expect(hide).toHaveBeenCalledWith('VOO'))
   })
 })
+
+describe('방금 등록한 종목의 시세를 받는 동안', () => {
+  it('받는 중이라고 알리고, 다 받으면 전체를 다시 그린다', async () => {
+    const loading = card({ ticker: 'TSM', data_status: 'loading' })
+    mockApi([loading])
+    const getDashboard = vi
+      .spyOn(api, 'getDashboard')
+      .mockResolvedValueOnce([loading]) // 처음
+      .mockResolvedValue([card({ ticker: 'TSM' })]) // 다시 물었을 때 — 다 받음
+    renderDashboard()
+
+    expect(await screen.findByText(/TSM 시세를 받는 중입니다/)).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByText(/시세를 받는 중입니다/)).not.toBeInTheDocument(), {
+      timeout: 6000,
+    })
+    // 한 번은 다시 물었고(4초 뒤), 다 받았으니 전체를 새로 받았다
+    expect(getDashboard.mock.calls.length).toBeGreaterThanOrEqual(3)
+  }, 10000)
+})

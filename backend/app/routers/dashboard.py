@@ -10,7 +10,7 @@ from app.schemas import (
     LatestIndicators,
     RebalanceSignal,
 )
-from app.services import queries, rebalance
+from app.services import backfill, queries, rebalance
 from app.services.trading_calendar import market_today
 from app.services.users import current_user_id, ordered_user_stocks
 
@@ -147,6 +147,7 @@ def get_dashboard(db: Session = Depends(get_db), user_id: int = Depends(current_
                 shoulder_sell_ref=bool(signal.shoulder_sell_ref) if signal else False,
                 last_buy_signal_date=last_buy_signals.get(stock.ticker),
                 rebalance_signal=rebalance_signal,
+                data_status=(backfill.status(stock.ticker) or {}).get("state"),
             )
         )
 

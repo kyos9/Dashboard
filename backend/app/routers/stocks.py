@@ -3,7 +3,7 @@ import time
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.db import get_db
 from app.markets import market_of_stock, normalize_ticker
@@ -23,7 +23,7 @@ from app.schemas import (
     StockOut,
     StockUpdate,
 )
-from app.services import data_ingestion, symbols
+from app.services import backfill, data_ingestion, symbols
 from app.services.instruments import ensure_instrument
 from app.services.pipeline import refresh_all_active_stocks, refresh_and_evaluate_stock
 from app.services.trading_calendar import last_closed_trading_day
@@ -55,7 +55,7 @@ def _failure_detail(exc: data_ingestion.DataIngestionError) -> dict:
 
 @router.get("", response_model=list[StockOut])
 def list_stocks(db: Session = Depends(get_db), user_id: int = Depends(current_user_id)):
-    return ordered_user_stocks(db, user_id)
+    return [_stock_out(stock) for stock in ordered_user_stocks(db, user_id)]
 
 
 @router.put("/order", response_model=list[StockOut])
@@ -179,28 +179,52 @@ def create_stock(
     db.commit()
     db.refresh(stock)
 
-    loading = time.perf_counter()
-    download = None
-    try:
-        download = _download_needed(db, stock)
-        if download is not None:
-            refresh_and_evaluate_stock(db, stock, full_backfill=download == "full")
-    except data_ingestion.DataIngestionError as exc:
-        _log_timing(ticker, resolved_in, download, time.perf_counter() - loading, failed=True)
-        # 종목 등록 자체는 유지하고, 데이터 백필은 이후 수동 새로고침으로 재시도 가능
-        detail = _failure_detail(exc)
+    download = _download_needed(db, stock)
+    if download is None:
+        _log_timing(ticker, resolved_in, None, 0.0)
         return StockCreateResult(
-            stock=StockOut.model_validate(stock),
-            data_loaded=False,
-            data_error=detail["message"],
-            data_hint=detail["hint"],
-            resolved_from=resolved_from,
+            stock=_stock_out(stock), data_loaded=True, resolved_from=resolved_from
         )
 
-    _log_timing(ticker, resolved_in, download, time.perf_counter() - loading)
-    return StockCreateResult(
-        stock=StockOut.model_validate(stock), data_loaded=True, resolved_from=resolved_from
+    # 받는 건 뒤에서 — 서버에서는 전체 기간 받기+계산이 종목 하나에 10초를 넘긴다.
+    # 요청 세션은 응답과 함께 닫히므로 뒤의 일은 같은 DB에 새 세션을 연다.
+    session_factory = sessionmaker(bind=db.get_bind())
+    backfill.start(
+        stock.ticker,
+        lambda: _load_in_background(session_factory, user_id, stock.ticker, resolved_in, download),
     )
+    return StockCreateResult(
+        stock=_stock_out(stock), data_loaded=False, data_pending=True, resolved_from=resolved_from
+    )
+
+
+def _load_in_background(session_factory, user_id: int, ticker: str, resolved_in: float, download: str) -> None:
+    started = time.perf_counter()
+    db = session_factory()
+    try:
+        stock = find_user_stock(db, user_id, ticker)
+        if stock is None:  # 받기 전에 지웠다
+            backfill.clear(ticker)
+            return
+        refresh_and_evaluate_stock(db, stock, full_backfill=download == "full")
+    except data_ingestion.DataIngestionError as exc:
+        _log_timing(ticker, resolved_in, download, time.perf_counter() - started, failed=True)
+        detail = _failure_detail(exc)
+        backfill.fail(ticker, hint=detail["hint"], error=detail["message"])
+        return
+    finally:
+        db.close()
+    _log_timing(ticker, resolved_in, download, time.perf_counter() - started)
+
+
+def _stock_out(stock: UserStock) -> StockOut:
+    """종목 + 시세를 뒤에서 받는 중인지 (화면이 다시 물을지 정한다)."""
+    out = StockOut.model_validate(stock)
+    found = backfill.status(stock.ticker)
+    if found:
+        out.data_status = found["state"]
+        out.data_hint = found.get("hint")
+    return out
 
 
 def _log_timing(ticker: str, resolved_in: float, download: str | None, loaded_in: float, failed: bool = False) -> None:
@@ -267,6 +291,7 @@ def purge_stock(
     stock = find_user_stock(db, user_id, normalized)
     if stock is None:
         raise HTTPException(status_code=404, detail="stock not found")
+    backfill.clear(normalized)
 
     # 내 보유가 내 종목 행을 가리키므로 먼저 지운다
     db.query(Holding).filter(
@@ -324,4 +349,5 @@ def refresh_stock(
         result = refresh_and_evaluate_stock(db, stock, full_backfill=full)
     except data_ingestion.DataIngestionError as exc:
         raise HTTPException(status_code=502, detail=_failure_detail(exc)) from exc
+    backfill.clear(stock.ticker)  # 등록 때 실패했던 표시를 지운다
     return result

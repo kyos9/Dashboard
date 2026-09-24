@@ -1,5 +1,5 @@
 import datetime as dt
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -57,6 +57,9 @@ class StockOut(BaseModel):
     target_weight_pct: float
     rebalance_band_pct: Optional[float]
     sort_order: int = 0
+    # 등록 직후 시세를 뒤에서 받는 중이면 "loading", 받다가 실패했으면 "failed" (+ 안내)
+    data_status: Optional[Literal["loading", "failed"]] = None
+    data_hint: Optional[str] = None
 
 
 class StockOrderUpdate(BaseModel):
@@ -74,6 +77,8 @@ class StockCreateResult(BaseModel):
 
     stock: StockOut
     data_loaded: bool
+    # 시세를 뒤에서 받기 시작했다 — 화면은 종목 목록의 data_status 로 끝났는지 본다
+    data_pending: bool = False
     data_error: Optional[str] = None  # 제공자별 기술적 원인
     data_hint: Optional[str] = None  # 사용자가 다음에 할 일
     # 이름으로 등록했을 때 사용자가 입력한 원문 (예: "삼성전자" -> 005930.KS)
@@ -133,6 +138,8 @@ class DashboardCard(BaseModel):
     # 떴나"를 보는 용도 — 기간을 정해 기록을 잡아두던 매수 워크플로우를 대신한다.
     last_buy_signal_date: Optional[dt.date] = None
     rebalance_signal: RebalanceSignal = RebalanceSignal(active=False, reasons=[])
+    # 등록 직후 시세를 뒤에서 받는 중("loading")이거나 받다가 실패("failed")
+    data_status: Optional[Literal["loading", "failed"]] = None
 
 
 class HistoryPoint(BaseModel):

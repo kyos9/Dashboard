@@ -38,7 +38,7 @@ def _stored_until(SessionLocal, ticker: str, last: dt.date) -> None:
 
 def test_a_ticker_nobody_has_gets_its_whole_history(api, downloads):
     client, _ = api
-    assert client.post("/api/stocks", json={"ticker": "VOO"}).json()["data_loaded"] is True
+    assert client.post("/api/stocks", json={"ticker": "VOO"}).json()["data_pending"] is True
     assert downloads == [True]
 
 

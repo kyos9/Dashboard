@@ -87,6 +87,12 @@ def api(monkeypatch):
     monkeypatch.setattr(
         "app.routers.stocks.refresh_and_evaluate_stock", lambda db, stock, full_backfill=False: {}
     )
+    # 등록 뒤 시세 받기는 원래 뒤(스레드)에서 돈다. 테스트에서는 그 자리에서 바로 돌려
+    # 등록 직후의 결과를 그대로 확인한다 (뒤에서 도는 것 자체는 test_backfill.py가 본다).
+    from app.services import backfill
+
+    backfill.reset()
+    monkeypatch.setattr(backfill, "RUNNER", lambda work: work())
 
     # 메모리 SQLite는 연결마다 DB가 따로 생기므로 StaticPool로 하나를 붙들어야 한다
     # (Postgres로 돌 때는 서버가 하나라 해당 없다).

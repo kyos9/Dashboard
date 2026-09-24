@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAppState } from '../AppState'
 import { api } from '../api/client'
 import { useAuth } from '../components/AuthGate'
@@ -8,6 +8,7 @@ import { NumberInput } from '../components/NumberInput'
 import { SymbolSearch } from '../components/SymbolSearch'
 import { CURRENCY_BY_MARKET, CURRENCY_META, MARKET_LABEL, stockLabel } from '../lib/display'
 import type { ListingStatus, Stock, SymbolMatch } from '../types'
+import { useRecheck } from '../lib/recheck'
 
 /** 새 종목 입력칸. 숫자도 글자로 들고 있다 — 비워둔 것과 0을 구분해야 한다 */
 interface NewStockForm {
@@ -103,6 +104,12 @@ function StockRow({
             {stock.currency}
           </span>
           {!stock.active && <span className="badge badge-grey">비활성</span>}
+          {stock.data_status === 'loading' && <span className="badge badge-blue">시세 받는 중…</span>}
+          {stock.data_status === 'failed' && (
+            <span className="badge badge-amber" title={stock.data_hint ?? undefined}>
+              시세 못 받음
+            </span>
+          )}
         </div>
       </td>
       <td>
@@ -183,12 +190,51 @@ export function StockManager() {
   const [purging, setPurging] = useState<Stock | null>(null)
   const [purgeBusy, setPurgeBusy] = useState(false)
 
+  // 시세를 뒤에서 받는 중인 종목. 다음에 목록을 받았을 때 여기서 빠진 종목이 "다 받은" 종목이다.
+  const loadingRef = useRef<string[]>([])
+
+  const applyStocks = useCallback(
+    (next: Stock[]) => {
+      const before = loadingRef.current
+      loadingRef.current = next.filter((s) => s.data_status === 'loading').map((s) => s.ticker)
+      setStocks(next)
+
+      const finished = next.filter((s) => before.includes(s.ticker) && s.data_status !== 'loading')
+      if (finished.length === 0) return
+      const failed = finished.filter((s) => s.data_status === 'failed')
+      setNotice(
+        failed.length > 0
+          ? {
+              tone: 'amber',
+              text:
+                `${failed.map(stockLabel).join(', ')} 시세를 받지 못했습니다. ` +
+                (failed[0].data_hint ?? '아래 "시세 갱신"으로 다시 시도해주세요.'),
+            }
+          : {
+              tone: 'green',
+              text: `${finished.map(stockLabel).join(', ')} 시세를 다 받았습니다 — 지표와 시그널을 계산했습니다.`,
+            },
+      )
+      notifyDataChanged()
+    },
+    [notifyDataChanged],
+  )
+
   useEffect(() => {
     api
       .listStocks()
-      .then(setStocks)
+      .then(applyStocks)
       .catch(setError)
-  }, [refreshKey])
+  }, [refreshKey, applyStocks])
+
+  // 받는 중인 종목이 있는 동안만 몇 초마다 다시 묻는다
+  const recheck = useCallback(() => {
+    api
+      .listStocks()
+      .then(applyStocks)
+      .catch(() => {}) // 한 번 못 물어봐도 다음에 다시 묻는다
+  }, [applyStocks])
+  useRecheck(stocks.some((s) => s.data_status === 'loading'), recheck, stocks)
 
   // 지금 무엇으로 검색되는지는 "왜 이 종목이 안 나오지?"의 답이므로 화면에 띄워둔다.
   // 실패해도 검색 자체는 되므로 오류로 처리하지 않는다.
@@ -245,6 +291,8 @@ export function StockManager() {
       })
       setForm(emptyForm)
       setPicked(null)
+      // 아주 빨리 받아서 목록에 "받는 중"이 한 번도 안 찍혀도 "다 받았다"를 알릴 수 있게
+      if (result.data_pending) loadingRef.current = [...loadingRef.current, result.stock.ticker]
 
       // 이름으로 등록했으면 어떤 티커로 해석됐는지 보여준다
       const label = result.resolved_from
@@ -252,7 +300,12 @@ export function StockManager() {
         : result.stock.ticker
 
       setNotice(
-        result.data_loaded
+        result.data_pending
+          ? {
+              tone: 'green',
+              text: `${label} 추가 완료 — 시세를 받는 중입니다. 다 받으면 지표와 시그널이 저절로 채워집니다.`,
+            }
+          : result.data_loaded
           ? {
               tone: 'green',
               text: `${label} 추가 완료 — 전체 시세를 내려받아 지표와 시그널을 계산했습니다.`,

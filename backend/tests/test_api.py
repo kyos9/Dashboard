@@ -22,11 +22,14 @@ def test_create_list_stock(api):
     body = r.json()
     assert body["stock"]["ticker"] == "VOO"
     assert body["stock"]["active"] is True
-    assert body["data_loaded"] is True
+    # 시세는 뒤에서 받는다 — 등록 응답은 "받기 시작했다"까지만 안다
+    assert (body["data_loaded"], body["data_pending"]) == (False, True)
 
     r2 = client.get("/api/stocks")
     assert r2.status_code == 200
     assert len(r2.json()) == 1
+    # 다 받은 뒤에는 받는 중 표시가 사라진다
+    assert r2.json()[0]["data_status"] is None
 
 
 def test_create_reports_failed_backfill(api, monkeypatch):
@@ -41,9 +44,12 @@ def test_create_reports_failed_backfill(api, monkeypatch):
     body = client.post("/api/stocks", json={"ticker": "ZZZZ"}).json()
     assert body["stock"]["ticker"] == "ZZZZ"
     assert body["data_loaded"] is False
-    assert "no data returned" in body["data_error"]
-    # 등록 자체는 살아 있어야 나중에 수동 갱신으로 재시도할 수 있다
-    assert [s["ticker"] for s in client.get("/api/stocks").json()] == ["ZZZZ"]
+    # 등록 자체는 살아 있어야 나중에 수동 갱신으로 재시도할 수 있다. 실패는 종목 목록에 실린다
+    # (시세는 뒤에서 받으므로 등록 응답이 나갈 때는 아직 실패인지 모른다).
+    (listed,) = client.get("/api/stocks").json()
+    assert listed["ticker"] == "ZZZZ"
+    assert listed["data_status"] == "failed"
+    assert listed["data_hint"]
 
 
 def test_create_duplicate_conflict(api):

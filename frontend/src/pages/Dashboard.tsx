@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useMemo, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { MacroStrip } from '../components/MacroStrip'
 import { NumberInput } from '../components/NumberInput'
@@ -8,6 +8,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { useAppState } from '../AppState'
 import { api } from '../api/client'
 import { lazyChunk } from '../lib/lazyChunk'
+import { useRecheck } from '../lib/recheck'
 
 // 차트는 누를 때 받는다 (App.tsx의 HistoryChart와 같은 이유)
 const ChartModal = lazyChunk(() => import('../components/ChartModal'), 'ChartModal')
@@ -344,10 +345,15 @@ export function Dashboard() {
     typeof window !== 'undefined' && window.innerWidth < 1100 ? 'card' : 'table',
   )
 
+  const fetchAll = useCallback(
+    () => Promise.all([api.getDashboard(), api.getRebalanceCurrent(), api.listStocks()]),
+    [],
+  )
+
   useEffect(() => {
     setLoading(true)
     setError(null)
-    Promise.all([api.getDashboard(), api.getRebalanceCurrent(), api.listStocks()])
+    fetchAll()
       .then(([c, rebalance, stockList]) => {
         setCards(c)
         setWeights(rebalance.rows)
@@ -366,7 +372,21 @@ export function Dashboard() {
       })
       .catch(setError)
       .finally(() => setLoading(false))
-  }, [refreshKey])
+  }, [refreshKey, fetchAll])
+
+  // 방금 등록한 종목의 시세를 서버가 뒤에서 받는 중이면, 다 받을 때까지 몇 초마다 다시 본다.
+  // 다 받으면 전체를 새로 그린다(비중·손익까지 그 종목 시세가 들어가야 맞으므로).
+  const loadingCards = cards.filter((c) => c.data_status === 'loading')
+  const recheck = useCallback(() => {
+    api
+      .getDashboard()
+      .then((next) => {
+        if (next.some((c) => c.data_status === 'loading')) setCards(next)
+        else notifyDataChanged()
+      })
+      .catch(() => {}) // 한 번 못 물어봐도 다음에 다시 묻는다
+  }, [notifyDataChanged])
+  useRecheck(loadingCards.length > 0, recheck, cards, 4000)
 
   const stockByTicker = useMemo(() => new Map(stocks.map((s) => [s.ticker, s])), [stocks])
 
@@ -555,6 +575,16 @@ export function Dashboard() {
       </datalist>
 
       <ErrorNotice error={error} onDismiss={() => setError(null)} />
+
+      {loadingCards.length > 0 && (
+        <div className="callout blue" role="status">
+          <span className="ico">⏳</span>
+          <div>
+            {loadingCards.map(stockLabel).join(', ')} 시세를 받는 중입니다 — 다 받으면 저절로
+            채워집니다.
+          </div>
+        </div>
+      )}
 
       {/* 매크로는 한 줄만. 홈의 주인공은 종목이다 (components/MacroStrip.tsx) */}
       <MacroStrip />
