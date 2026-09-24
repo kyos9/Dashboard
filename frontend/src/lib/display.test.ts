@@ -4,6 +4,7 @@ import {
   amount,
   categoryOf,
   CATEGORY_UNSET,
+  daysFrom,
   num,
   providerLabel,
   price,
@@ -12,6 +13,8 @@ import {
   readDisparity,
   readMa200,
   readVolume,
+  relativeDay,
+  reviewCountdown,
   signed,
   signedAmount,
   stockLabel,
@@ -132,7 +135,7 @@ describe('종합 신호등', () => {
       knee_buy_v2: false,
       knee_conditions: {} as KneeConditions,
       shoulder_sell_ref: false,
-      current_period_buy: null,
+      last_buy_signal_date: null,
       rebalance_signal: { active: false, reasons: [] },
       ...overrides,
     }) as DashboardCard
@@ -178,5 +181,37 @@ describe('시세 출처 표기', () => {
 
   it('처음 보는 제공자는 이름 그대로 보여준다', () => {
     expect(providerLabel('krx')).toBe('krx')
+  })
+})
+
+describe('날짜 — 며칠 전인가', () => {
+  // 달력 날짜끼리 뺀다. 한국 저녁에도 "2026-09-24"는 오늘이어야 한다
+  const today = new Date(2026, 8, 24, 21, 30)
+
+  it('오늘·며칠 전·며칠 뒤', () => {
+    expect(daysFrom('2026-09-24', today)).toBe(0)
+    expect(daysFrom('2026-09-12', today)).toBe(12)
+    expect(daysFrom('2026-09-30', today)).toBe(-6)
+    // 해를 넘겨도 센다
+    expect(daysFrom('2025-12-31', today)).toBe(267)
+  })
+
+  it('읽을 수 없는 값은 null', () => {
+    expect(daysFrom(null, today)).toBeNull()
+    expect(daysFrom('', today)).toBeNull()
+    expect(daysFrom('어제', today)).toBeNull()
+  })
+
+  it('글로 쓴다', () => {
+    expect(relativeDay(0)).toBe('오늘')
+    expect(relativeDay(3)).toBe('3일 전')
+    expect(relativeDay(-5)).toBe('5일 뒤')
+    expect(relativeDay(null)).toBe('—')
+  })
+
+  it('리뷰까지 남은 날', () => {
+    expect(reviewCountdown({ next_date: '2026-09-30' }, today)).toBe('D-6')
+    expect(reviewCountdown({ next_date: '2026-09-24' }, today)).toBe('오늘')
+    expect(reviewCountdown({ next_date: '2026-09-21' }, today)).toBe('3일 지남')
   })
 })

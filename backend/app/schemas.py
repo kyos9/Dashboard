@@ -4,7 +4,7 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.markets import Currency, Market
-from app.models import BuyStatus, BuyType, DcaPeriod, RebalancePeriod
+from app.models import ReviewPeriod
 
 
 class SymbolMatchOut(BaseModel):
@@ -29,24 +29,19 @@ class StockCreate(BaseModel):
     ticker: str
     name: Optional[str] = None
     category: Optional[str] = None
-    dca_amount: float = 0.0
-    dca_period: DcaPeriod = DcaPeriod.monthly
-    rebalance_period: RebalancePeriod = RebalancePeriod.quarterly
-    target_weight_pct: float = 0.0
-    rebalance_band_pct: Optional[float] = None
-    review_date_override: Optional[dt.date] = None
+    target_weight_pct: float = Field(default=0.0, ge=0, le=100)
+    rebalance_band_pct: Optional[float] = Field(default=None, ge=0, le=100)
+    # 이미 들고 있는 종목이면 등록하면서 같이 적는다. 비우면 보유 0으로 시작한다.
+    quantity: Optional[float] = Field(default=None, ge=0)
+    avg_cost: Optional[float] = Field(default=None, ge=0)
 
 
 class StockUpdate(BaseModel):
     name: Optional[str] = None
     category: Optional[str] = None
     active: Optional[bool] = None
-    dca_amount: Optional[float] = None
-    dca_period: Optional[DcaPeriod] = None
-    rebalance_period: Optional[RebalancePeriod] = None
-    target_weight_pct: Optional[float] = None
-    rebalance_band_pct: Optional[float] = None
-    review_date_override: Optional[dt.date] = None
+    target_weight_pct: Optional[float] = Field(default=None, ge=0, le=100)
+    rebalance_band_pct: Optional[float] = Field(default=None, ge=0, le=100)
 
 
 class StockOut(BaseModel):
@@ -59,12 +54,8 @@ class StockOut(BaseModel):
     currency: Currency = Currency.USD
     active: bool
     added_at: dt.datetime
-    dca_amount: float
-    dca_period: DcaPeriod
-    rebalance_period: RebalancePeriod
     target_weight_pct: float
     rebalance_band_pct: Optional[float]
-    review_date_override: Optional[dt.date]
     sort_order: int = 0
 
 
@@ -107,14 +98,6 @@ class LatestIndicators(BaseModel):
     adx: Optional[float] = None
 
 
-class PendingBuy(BaseModel):
-    id: int
-    type: BuyType
-    status: BuyStatus
-    exec_date: dt.date
-    amount: float
-
-
 class RebalanceSignal(BaseModel):
     active: bool
     reasons: list[str] = []
@@ -146,7 +129,9 @@ class DashboardCard(BaseModel):
     knee_buy_v2: bool = False
     knee_conditions: KneeConditions = KneeConditions()
     shoulder_sell_ref: bool = False
-    current_period_buy: Optional[PendingBuy] = None
+    # 무릎매수(v2)가 마지막으로 뜬 날 (저장된 히스토리 전체에서). 적립할 때 "이번 달에 벌써
+    # 떴나"를 보는 용도 — 기간을 정해 기록을 잡아두던 매수 워크플로우를 대신한다.
+    last_buy_signal_date: Optional[dt.date] = None
     rebalance_signal: RebalanceSignal = RebalanceSignal(active=False, reasons=[])
 
 
@@ -178,13 +163,16 @@ class HistoryResponse(BaseModel):
 
 
 class HoldingUpdate(BaseModel):
-    quantity: float
+    quantity: float = Field(ge=0)
+    # 보내지 않으면 그대로 둔다. null을 보내면 지운다(모름).
+    avg_cost: Optional[float] = Field(default=None, ge=0)
 
 
 class HoldingOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     ticker: str
     quantity: float
+    avg_cost: Optional[float] = None
     updated_at: dt.datetime
 
 
@@ -215,6 +203,12 @@ class SettingsUpdate(BaseModel):
     # 통화코드 -> 직접 입력한 환율. 값에 null을 주면 그 통화만 자동 조회로 돌아간다
     # (`{"USD": 1380, "JPY": null}`). 보내지 않은 통화는 건드리지 않는다.
     fx_overrides: Optional[dict[str, Optional[float]]] = None
+    review_period: Optional[ReviewPeriod] = None
+    # null을 보내면 직접 정한 날을 지우고 주기로 돌아간다. 안 보내면 그대로.
+    review_date_override: Optional[dt.date] = None
+    # 통화코드 -> 금액. 값에 null이나 0을 주면 그 통화 현금을 지운다. 안 보낸 통화는 그대로.
+    cash: Optional[dict[str, Optional[float]]] = None
+    cash_target_pct: Optional[float] = Field(default=None, ge=0, le=100)
 
 
 class SettingsOut(BaseModel):
@@ -222,6 +216,10 @@ class SettingsOut(BaseModel):
     base_currency: Currency = Currency.KRW
     fx_overrides: dict[str, float] = {}
     fx: FxOut
+    review_period: ReviewPeriod = ReviewPeriod.quarterly
+    review_date_override: Optional[dt.date] = None
+    cash: dict[str, float] = {}
+    cash_target_pct: float = 0.0
 
 
 class RebalanceRow(BaseModel):
@@ -231,15 +229,40 @@ class RebalanceRow(BaseModel):
     target_weight_pct: float
     actual_weight_pct: float
     excess_pct: float
-    next_review_date: dt.date
+    band_pct: float
     shoulder_signal_fired_in_period: bool
     rebalance_signal: RebalanceSignal
     # 주문 가이드 계산용 — 보유수량 x 최신 종가 (해당 종목의 거래 통화 기준)
     quantity: float = 0.0
+    avg_cost: Optional[float] = None
     last_close: Optional[float] = None
     current_value: float = 0.0
     # 비중 계산에 쓰이는 기준통화 환산 평가금액
     current_value_base: float = 0.0
+    # 손익 — 거래 통화 기준. 평단가를 모르면 비어 있다.
+    cost_value: Optional[float] = None
+    unrealized_pnl: Optional[float] = None
+    return_pct: Optional[float] = None
+
+
+class CashOut(BaseModel):
+    """현금 한 줄. 종목 행과 나란히 비중을 잰다."""
+
+    amounts: dict[str, float] = {}
+    value_base: float = 0.0
+    target_pct: float = 0.0
+    actual_pct: float = 0.0
+    excess_pct: float = 0.0
+
+
+class ReviewOut(BaseModel):
+    """포트폴리오의 리뷰 일정. `due`면 리뷰할 때다."""
+
+    period: ReviewPeriod
+    next_date: dt.date
+    due: bool
+    override: Optional[dt.date] = None
+    last_snapshot_at: Optional[dt.datetime] = None
 
 
 class RebalanceCurrentOut(BaseModel):
@@ -251,8 +274,34 @@ class RebalanceCurrentOut(BaseModel):
 
     base_currency: Currency
     fx: FxOut
+    # 현금까지 더한 전체 자금. 목표비중은 이것 대비다.
     total_value_base: float
+    holdings_value_base: float = 0.0
+    cost_value_base: Optional[float] = None
+    unrealized_pnl_base: Optional[float] = None
+    cash: CashOut = CashOut()
+    # 종목 목표비중 + 현금 목표비중. 100이 아니면 화면이 알려준다.
+    target_sum_pct: float = 0.0
+    review: ReviewOut
     rows: list[RebalanceRow]
+
+
+class SnapshotCreate(BaseModel):
+    note: Optional[str] = Field(default=None, max_length=200)
+
+
+class SnapshotOut(BaseModel):
+    """리밸런싱 기록 한 건. `data`는 그때 모습 그대로다 (종목 행·현금·환율)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    taken_at: dt.datetime
+    review_date: Optional[dt.date] = None
+    base_currency: Currency
+    total_value_base: float
+    note: Optional[str] = None
+    data: dict
 
 
 class RefreshResult(BaseModel):
@@ -271,15 +320,11 @@ class RebalanceTargetOut(BaseModel):
     ticker: str
     target_weight_pct: float
     rebalance_band_pct: Optional[float]
-    rebalance_period: RebalancePeriod
-    review_date_override: Optional[dt.date]
 
 
 class RebalanceTargetUpdate(BaseModel):
-    target_weight_pct: Optional[float] = None
-    rebalance_band_pct: Optional[float] = None
-    rebalance_period: Optional[RebalancePeriod] = None
-    review_date_override: Optional[dt.date] = None
+    target_weight_pct: Optional[float] = Field(default=None, ge=0, le=100)
+    rebalance_band_pct: Optional[float] = Field(default=None, ge=0, le=100)
 
 
 class LogEntry(BaseModel):

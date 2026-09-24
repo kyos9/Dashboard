@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppStateProvider } from '../AppState'
 import { api, ApiError } from '../api/client'
-import type { ListingStatus, Stock, StockCreateResult, SymbolMatch } from '../types'
+import type { ListingStatus, Settings, Stock, StockCreateResult, SymbolMatch } from '../types'
 import { StockManager } from './StockManager'
 
 const SAMSUNG: SymbolMatch = {
@@ -24,12 +24,8 @@ function stock(overrides: Partial<Stock> & { ticker: string }): Stock {
     currency: 'USD',
     active: true,
     added_at: '2026-01-01T00:00:00',
-    dca_amount: 0,
-    dca_period: 'monthly',
-    rebalance_period: 'quarterly',
     target_weight_pct: 0,
     rebalance_band_pct: null,
-    review_date_override: null,
     sort_order: 0,
     ...overrides,
   }
@@ -46,8 +42,23 @@ function created(overrides: Partial<StockCreateResult> = {}): StockCreateResult 
   }
 }
 
-function mockApi(stocks: Stock[] = [], listing: Partial<ListingStatus> = {}) {
+function settings(overrides: Partial<Settings> = {}): Settings {
+  return {
+    default_rebalance_band_pct: 5,
+    base_currency: 'KRW',
+    fx_overrides: {},
+    fx: { rates: {}, is_estimate: false },
+    review_period: 'quarterly',
+    review_date_override: null,
+    cash: {},
+    cash_target_pct: 0,
+    ...overrides,
+  }
+}
+
+function mockApi(stocks: Stock[] = [], listing: Partial<ListingStatus> = {}, cashTarget = 0) {
   vi.spyOn(api, 'listStocks').mockResolvedValue(stocks)
+  vi.spyOn(api, 'getSettings').mockResolvedValue(settings({ cash_target_pct: cashTarget }))
   vi.spyOn(api, 'searchSymbols').mockResolvedValue([SAMSUNG])
   vi.spyOn(api, 'getListingStatus').mockResolvedValue({
     cached_count: 0,
@@ -97,17 +108,64 @@ describe('종목 등록', () => {
     expect(await screen.findByText(/삼성전자 → 005930\.KS 추가 완료/)).toBeInTheDocument()
   })
 
-  it('국내 종목을 고르면 DCA 금액 단위가 원화로 바뀐다', async () => {
+  it('국내 종목을 고르면 평단가 단위가 원화로 바뀐다', async () => {
     mockApi()
     const user = userEvent.setup()
     renderManager()
 
-    expect(screen.getByLabelText(/DCA 금액 \(\$\)/)).toBeInTheDocument()
+    expect(screen.getByLabelText(/평단가 \(\$\)/)).toBeInTheDocument()
 
     await user.type(symbolInput(), '삼성전자')
     await user.click(await screen.findByText('삼성전자'))
 
-    expect(screen.getByLabelText(/DCA 금액 \(₩\)/)).toBeInTheDocument()
+    expect(screen.getByLabelText(/평단가 \(₩\)/)).toBeInTheDocument()
+  })
+
+  it('이미 들고 있는 종목은 수량·평단가·목표 비중을 같이 보낸다', async () => {
+    mockApi()
+    const create = vi.spyOn(api, 'createStock').mockResolvedValue(created())
+    const user = userEvent.setup()
+    renderManager()
+
+    await user.type(symbolInput(), '삼성전자')
+    await user.click(await screen.findByText('삼성전자'))
+    await user.type(screen.getByLabelText('목표 비중 (%)'), '30')
+    await user.type(screen.getByLabelText('보유 수량'), '120')
+    await user.type(screen.getByLabelText(/평단가/), '71500')
+    await user.click(screen.getByRole('button', { name: /종목 추가/ }))
+
+    await waitFor(() => expect(create).toHaveBeenCalled())
+    expect(create.mock.calls[0][0]).toEqual({
+      ticker: '005930.KS',
+      category: null,
+      target_weight_pct: 30,
+      quantity: 120,
+      avg_cost: 71500,
+    })
+  })
+
+  it('수량·평단가를 비워두면 보내지 않는다 — 0원에 샀다고 적히면 안 된다', async () => {
+    mockApi()
+    const create = vi.spyOn(api, 'createStock').mockResolvedValue(created())
+    const user = userEvent.setup()
+    renderManager()
+
+    await user.type(symbolInput(), '삼성전자')
+    await user.click(await screen.findByText('삼성전자'))
+    await user.click(screen.getByRole('button', { name: /종목 추가/ }))
+
+    await waitFor(() => expect(create).toHaveBeenCalled())
+    const sent = create.mock.calls[0][0]
+    expect(sent).not.toHaveProperty('quantity')
+    expect(sent).not.toHaveProperty('avg_cost')
+    expect(sent.target_weight_pct).toBe(0)
+  })
+
+  it('적립 금액·주기 칸은 없다 — 리밸런싱에는 수량과 목표만 있으면 된다', () => {
+    mockApi()
+    renderManager()
+    expect(screen.queryByText(/DCA/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/리뷰 마감일/)).not.toBeInTheDocument()
   })
 
   it('후보를 고르지 않고 티커를 직접 넣어도 등록된다', async () => {
@@ -252,7 +310,18 @@ describe('등록된 종목 목록', () => {
     renderManager()
 
     // 비활성 종목은 합계에서 빠져야 한다
-    expect(await screen.findByText(/활성 종목 목표 비중 합계 100\.0%/)).toBeInTheDocument()
+    expect(await screen.findByText(/목표 비중 합계 100\.0%/)).toBeInTheDocument()
+  })
+
+  it('현금 목표도 합계에 넣는다 — 목표는 전체 자금 기준이다', async () => {
+    mockApi(
+      [stock({ ticker: 'VOO', target_weight_pct: 60 }), stock({ ticker: 'QQQ', target_weight_pct: 30 })],
+      {},
+      10,
+    )
+    renderManager()
+
+    expect(await screen.findByText(/목표 비중 합계 100\.0% \(현금 10\.0% 포함\)/)).toBeInTheDocument()
   })
 })
 

@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
 from app.db import get_db
-from app.models import BuyExecution, Holding, User, UserSettings, UserStock
+from app.models import Holding, RebalanceSnapshot, User, UserSettings, UserStock
 from app.services import auth
 from app.services import google_login as google
 from app.services.users import LOCAL_USER_ID, current_user_id
@@ -326,7 +326,7 @@ def withdraw(
 ):
     """내 계정과 내 기록을 지운다. 되돌릴 수 없다.
 
-    지우는 것: 내 종목 목록·보유수량·매수 기록·설정, 그리고 계정 행. 공용 데이터(시세·
+    지우는 것: 내 종목 목록·보유수량·리밸런싱 기록·설정, 그리고 계정 행. 공용 데이터(시세·
     지표·매크로)는 남는다 — 거기엔 나를 가리키는 게 없다.
 
     **주인은 탈퇴할 수 없다.** 주인이 사라지면 공용 데이터를 돌볼 사람이 없어진다.
@@ -345,8 +345,8 @@ def withdraw(
             detail={"hint": "관리자 계정은 탈퇴할 수 없습니다.", "message": "owner cannot withdraw"},
         )
 
-    # 매수·보유가 내 종목 행을 가리키므로 먼저 지운다
-    for model in (BuyExecution, Holding, UserStock, UserSettings):
+    # 보유가 내 종목 행을, 기록·설정이 계정 행을 가리키므로 그 순서로 지운다
+    for model in (Holding, UserStock, RebalanceSnapshot, UserSettings):
         db.query(model).filter(model.user_id == user_id).delete(synchronize_session=False)
     db.delete(user)
     db.commit()

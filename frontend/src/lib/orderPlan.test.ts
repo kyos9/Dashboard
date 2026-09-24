@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Currency, RebalanceRow } from '../types'
-import { buildOrderPlan, NOISE_THRESHOLD_PCT, parseTotalOverride, toNative } from './orderPlan'
+import { buildOrderPlan, NOISE_THRESHOLD_PCT, parseAmount, toNative } from './orderPlan'
 
 function row(overrides: Partial<RebalanceRow> & { ticker: string; currency: Currency }): RebalanceRow {
   return {
@@ -8,13 +8,17 @@ function row(overrides: Partial<RebalanceRow> & { ticker: string; currency: Curr
     target_weight_pct: 0,
     actual_weight_pct: 0,
     excess_pct: 0,
-    next_review_date: '2026-12-31',
+    band_pct: 5,
     shoulder_signal_fired_in_period: false,
     rebalance_signal: { active: false, reasons: [] },
     quantity: 0,
+    avg_cost: null,
     last_close: null,
     current_value: 0,
     current_value_base: 0,
+    cost_value: null,
+    unrealized_pnl: null,
+    return_pct: null,
     ...overrides,
   }
 }
@@ -55,20 +59,20 @@ describe('세 통화가 섞였을 때', () => {
   })
 })
 
-describe('parseTotalOverride', () => {
+describe('parseAmount', () => {
   it('비어 있으면 null (보유 합계를 쓰라는 뜻)', () => {
-    expect(parseTotalOverride('')).toBeNull()
-    expect(parseTotalOverride('   ')).toBeNull()
+    expect(parseAmount('')).toBeNull()
+    expect(parseAmount('   ')).toBeNull()
   })
 
   it('천단위 쉼표를 붙여넣어도 읽는다', () => {
-    expect(parseTotalOverride('78,061,625')).toBe(78_061_625)
+    expect(parseAmount('78,061,625')).toBe(78_061_625)
   })
 
   it('숫자가 아니거나 0 이하면 무시한다', () => {
-    expect(parseTotalOverride('abc')).toBeNull()
-    expect(parseTotalOverride('0')).toBeNull()
-    expect(parseTotalOverride('-500')).toBeNull()
+    expect(parseAmount('abc')).toBeNull()
+    expect(parseAmount('0')).toBeNull()
+    expect(parseAmount('-500')).toBeNull()
   })
 })
 
@@ -166,23 +170,45 @@ describe('buildOrderPlan', () => {
       ],
       'KRW',
       { USD: 1300 },
-      String(total),
     )
     expect(plan.orders[0].action).toBe('hold')
   })
 
-  it('밴드를 넘으면 방향에 맞는 액션을 준다', () => {
-    const plan = buildOrderPlan(mixed, 'KRW', { USD: 1300 }, '4200000') // 총자산을 두 배로 잡으면 전부 매수
+  it('현금이 목표보다 많으면 종목은 전부 매수, 현금은 재원이 된다', () => {
+    // 주식 210만 + 현금 210만, 현금 목표 0% → 전 종목 목표 금액이 두 배
+    const plan = buildOrderPlan(mixed, 'KRW', { USD: 1300 }, { value_base: 2_100_000, target_pct: 0 })
+    expect(plan.total).toBe(4_200_000)
     expect(plan.orders.every((o) => o.action === 'buy')).toBe(true)
-
-    const shrunk = buildOrderPlan(mixed, 'KRW', { USD: 1300 }, '1000000')
-    expect(shrunk.orders.every((o) => o.action === 'sell')).toBe(true)
+    expect(plan.cash.adjust).toBe(-2_100_000)
   })
 
-  it('총 운용자산을 직접 넣으면 미투자 현금이 잡힌다', () => {
-    const plan = buildOrderPlan(mixed, 'KRW', { USD: 1300 }, '3,000,000')
+  it('목표비중은 현금까지 더한 전체 자금 대비다', () => {
+    // 주식 210만 + 현금 90만 = 300만. 종목 목표(40%·60%)는 그대로 두고 현금 목표 30%를 더하면
+    // 합계가 130% — 나눠 맞춰주지 않고 그대로 돌려줘 화면이 경고하게 한다
+    const plan = buildOrderPlan(mixed, 'KRW', { USD: 1300 }, { value_base: 900_000, target_pct: 30 })
     expect(plan.total).toBe(3_000_000)
-    expect(plan.cash).toBe(900_000)
+    expect(plan.targetSum).toBe(130)
+    expect(plan.cash.targetValue).toBe(900_000)
+    expect(plan.cash.adjust).toBe(0)
+  })
+
+  it('새로 넣을 돈은 현금에 더해 모자란 종목을 채운다', () => {
+    const rows = mixed.map((r) => ({ ...r, target_weight_pct: 50 }))
+    // 210만 + 새 돈 90만 = 300만 → 각 150만. 삼성(80만)은 +70만, VOO(130만)는 +20만
+    const plan = buildOrderPlan(rows, 'KRW', { USD: 1300 }, { value_base: 0, target_pct: 0 }, '900,000')
+    expect(plan.newMoney).toBe(900_000)
+    expect(plan.total).toBe(3_000_000)
+    const [ks, voo] = plan.orders
+    expect(ks.adjust).toBeCloseTo(700_000)
+    expect(voo.adjust).toBeCloseTo(200_000)
+    // 넣은 돈이 전부 주문으로 나간다
+    expect(plan.cash.adjust).toBeCloseTo(-900_000)
+  })
+
+  it('현금을 넘기지 않으면 예전처럼 보유만으로 계산한다', () => {
+    const plan = buildOrderPlan(mixed, 'KRW', { USD: 1300 })
+    expect(plan.total).toBe(2_100_000)
+    expect(plan.cash).toEqual({ current: 0, targetValue: 0, adjust: 0, targetPct: 0 })
   })
 
   it('보유가 전혀 없으면 0으로 나누지 않고 전부 유지', () => {

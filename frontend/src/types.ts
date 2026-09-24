@@ -1,7 +1,5 @@
-export type DcaPeriod = 'monthly' | 'quarterly'
-export type RebalancePeriod = 'quarterly' | 'semiannual'
-export type BuyType = 'signal' | 'fallback'
-export type BuyStatus = 'scheduled' | 'confirmed'
+/** 포트폴리오를 다시 들여다보는 주기 — 종목마다가 아니라 포트폴리오에 하나 */
+export type ReviewPeriod = 'quarterly' | 'semiannual' | 'annual'
 
 /** 거래소 구분 — 통화와 거래일 캘린더가 여기서 갈린다 */
 export type Market = 'US' | 'KR' | 'JP'
@@ -41,12 +39,10 @@ export interface Stock {
   currency: Currency
   active: boolean
   added_at: string
-  dca_amount: number
-  dca_period: DcaPeriod
-  rebalance_period: RebalancePeriod
+  /** 전체 자금(현금 포함) 중 이 종목에 두려는 비중 */
   target_weight_pct: number
+  /** 이 종목만의 허용 오차. null이면 설정의 기본 밴드 */
   rebalance_band_pct: number | null
-  review_date_override: string | null
   /** 화면에 보여줄 순서 — 사용자가 정한다 */
   sort_order: number
 }
@@ -55,15 +51,17 @@ export interface StockCreateInput {
   ticker: string
   name?: string
   category?: string | null
-  dca_amount?: number
-  dca_period?: DcaPeriod
-  rebalance_period?: RebalancePeriod
   target_weight_pct?: number
   rebalance_band_pct?: number | null
-  review_date_override?: string | null
+  /** 이미 들고 있는 종목이면 등록하면서 같이 적는다 */
+  quantity?: number
+  /** 평균 매입단가 (종목의 거래 통화) */
+  avg_cost?: number | null
 }
 
-export type StockUpdateInput = Partial<Omit<StockCreateInput, 'ticker' | 'name'>> & {
+export type StockUpdateInput = Partial<
+  Omit<StockCreateInput, 'ticker' | 'name' | 'quantity' | 'avg_cost'>
+> & {
   active?: boolean
   /** 화면에 보여줄 이름. null이면 지우고 티커로 되돌린다 */
   name?: string | null
@@ -99,14 +97,6 @@ export interface LatestIndicators {
   adx: number | null
 }
 
-export interface PendingBuy {
-  id: number
-  type: BuyType
-  status: BuyStatus
-  exec_date: string
-  amount: number
-}
-
 export interface RebalanceSignal {
   active: boolean
   reasons: string[]
@@ -133,7 +123,8 @@ export interface DashboardCard {
   knee_buy_v2: boolean
   knee_conditions: KneeConditions
   shoulder_sell_ref: boolean
-  current_period_buy: PendingBuy | null
+  /** 무릎매수(v2)가 마지막으로 뜬 날. 한 번도 없으면 null */
+  last_buy_signal_date: string | null
   rebalance_signal: RebalanceSignal
 }
 
@@ -165,6 +156,8 @@ export interface HistoryResponse {
 export interface Holding {
   ticker: string
   quantity: number
+  /** 평균 매입단가 (거래 통화). 모르면 null — 손익만 비고 비중은 그대로 계산된다 */
+  avg_cost: number | null
   updated_at: string
 }
 
@@ -195,16 +188,26 @@ export interface Settings {
   /** 통화코드 -> 직접 입력한 환율 (없는 통화는 자동 조회값을 쓴다) */
   fx_overrides: Partial<Record<Currency, number>>
   fx: FxInfo
+  review_period: ReviewPeriod
+  /** 다음 리뷰일을 직접 정했을 때. 그 무렵 기록을 남기면 다시 주기로 돌아간다 */
+  review_date_override: string | null
+  /** 통화코드 -> 현금 */
+  cash: Partial<Record<Currency, number>>
+  /** 현금으로 둘 비중(%) */
+  cash_target_pct: number
 }
 
-export type SettingsUpdate = Partial<Omit<Settings, 'fx'>>
+export type SettingsUpdate = Partial<Omit<Settings, 'fx' | 'fx_overrides' | 'cash'>> & {
+  /** 값에 null을 주면 그 통화만 자동 조회로 돌아간다 */
+  fx_overrides?: Partial<Record<Currency, number | null>>
+  /** 값에 null·0을 주면 그 통화 현금을 지운다. 안 보낸 통화는 그대로 */
+  cash?: Partial<Record<Currency, number | null>>
+}
 
 export interface RebalanceTarget {
   ticker: string
   target_weight_pct: number
   rebalance_band_pct: number | null
-  rebalance_period: RebalancePeriod
-  review_date_override: string | null
 }
 
 export interface RebalanceRow {
@@ -215,23 +218,89 @@ export interface RebalanceRow {
   target_weight_pct: number
   actual_weight_pct: number
   excess_pct: number
-  next_review_date: string
+  /** 이 종목에 적용되는 허용 오차 (종목별 값 또는 기본 밴드) */
+  band_pct: number
   shoulder_signal_fired_in_period: boolean
   rebalance_signal: RebalanceSignal
   quantity: number
+  avg_cost: number | null
   /** 현지 통화 기준 */
   last_close: number | null
   current_value: number
   /** 기준통화로 환산한 평가금액 — 비중은 이 값으로 계산된다 */
   current_value_base: number
+  /** 손익 — 거래 통화 기준. 평단가를 모르면 null */
+  cost_value: number | null
+  unrealized_pnl: number | null
+  return_pct: number | null
+}
+
+/** 현금 한 줄 — 종목과 나란히 비중을 잰다 */
+export interface CashRow {
+  amounts: Partial<Record<Currency, number>>
+  value_base: number
+  target_pct: number
+  actual_pct: number
+  excess_pct: number
+}
+
+export interface ReviewStatus {
+  period: ReviewPeriod
+  /** 다음 리뷰일. 오늘이 이 날 이후면 due */
+  next_date: string
+  due: boolean
+  override: string | null
+  last_snapshot_at: string | null
 }
 
 /** 리밸런싱 현황 전체. 통화가 섞이면 "전제"(기준통화·환율)까지 알아야 숫자를 읽을 수 있다 */
 export interface RebalanceCurrent {
   base_currency: Currency
   fx: FxInfo
+  /** 현금까지 더한 전체 자금 — 목표비중은 이것 대비 */
   total_value_base: number
+  holdings_value_base: number
+  /** 평단가를 아는 종목끼리의 합계. 하나도 모르면 null */
+  cost_value_base: number | null
+  unrealized_pnl_base: number | null
+  cash: CashRow
+  /** 종목 목표 + 현금 목표. 100이 아니면 알려준다 */
+  target_sum_pct: number
+  review: ReviewStatus
   rows: RebalanceRow[]
+}
+
+/** 리밸런싱 기록에 얼려둔 종목 한 줄 */
+export interface SnapshotRow {
+  ticker: string
+  name: string | null
+  currency: Currency
+  quantity: number
+  avg_cost: number | null
+  last_close: number | null
+  current_value: number
+  current_value_base: number
+  target_weight_pct: number
+  actual_weight_pct: number
+  excess_pct: number
+  return_pct: number | null
+}
+
+/** 리밸런싱 기록 — 리뷰할 때 남긴 모습 그대로 */
+export interface RebalanceSnapshot {
+  id: number
+  taken_at: string
+  review_date: string | null
+  base_currency: Currency
+  total_value_base: number
+  note: string | null
+  data: {
+    rows: SnapshotRow[]
+    cash: CashRow
+    fx: Partial<Record<Currency, number>>
+    holdings_value_base?: number
+    unrealized_pnl_base?: number | null
+  }
 }
 
 export interface RefreshResult {

@@ -4,6 +4,9 @@
 않는다 — 옮길 게 없으면 옮기는 코드는 한 줄도 안 돈다. 여기서는 0004 모양의 DB에
 실제로 쓰던 것 같은 데이터를 넣고 올린 뒤, **하나도 빠짐없이 같은 값으로 읽히는지** 본다.
 
+**0005에서 멈춰서 본다.** 0006이 매수 기록과 적립 칸을 지우므로, 끝까지 올리면 여기서
+보려는 "옮겨졌나"를 볼 수 없다. 끝까지 올린 모습은 `test_migration_0006.py`가 본다.
+
 SQLite와 Postgres 양쪽에서 돈다 (`TEST_DATABASE_URL`). 둘이 가는 길이 다르다 —
 SQLite는 표를 새로 만들어 옮겨 담고(`batch_alter_table`), Postgres는 외래키를 이름으로
 떼고 붙인다. 한쪽만 돌리면 다른 쪽은 사용자의 DB에서 처음 도는 셈이다.
@@ -24,7 +27,7 @@ from app import migrate
 from app.db import get_db
 from app.services import backup
 from tests import dbsetup
-from tests.factories import make_buy, make_user
+from tests.factories import make_user
 
 # ---------------------------------------------------------------------------
 #  0004 모양의 DB — 이 앱을 몇 달 쓴 사람의 것처럼
@@ -146,6 +149,12 @@ def snapshots(monkeypatch):
     return calls
 
 
+def to_0005(engine) -> None:
+    """0005까지만 올린다 (백업은 여기서 보지 않는다 — 아래 백업 절이 본다)."""
+    with engine.begin() as conn:
+        command.upgrade(migrate._config(conn), "0005")
+
+
 def _rows(engine, sql: str, **params):
     with engine.connect() as conn:
         return [tuple(r) for r in conn.execute(text(sql), params).fetchall()]
@@ -162,9 +171,9 @@ def _json(value):
 
 def test_upgrade_moves_every_value(at_0004, snapshots):
     engine = at_0004
-    migrate.upgrade_to_head(engine)
+    to_0005(engine)
 
-    assert migrate.current_revision(engine) == migrate.head_revision()
+    assert migrate.current_revision(engine) == "0005"
 
     # 주인 한 명
     assert _rows(engine, "SELECT id, is_owner, google_sub FROM users") == [(1, True, None)]
@@ -217,7 +226,7 @@ def test_upgrade_moves_every_value(at_0004, snapshots):
 
 def test_old_tables_are_gone_and_prices_hang_off_instrument(at_0004, snapshots):
     engine = at_0004
-    migrate.upgrade_to_head(engine)
+    to_0005(engine)
 
     inspector = inspect(engine)
     tables = set(inspector.get_table_names())
@@ -241,18 +250,28 @@ def test_new_rows_do_not_collide_with_moved_ids(at_0004, snapshots):
     "중복 키"로 실패한다 — 업그레이드 당일에는 멀쩡하다가 며칠 뒤 터지는 종류다.
     """
     engine = at_0004
-    migrate.upgrade_to_head(engine)
+    to_0005(engine)
 
     Session = sessionmaker(bind=engine)
     with Session() as session:
         second = make_user(session, is_owner=False)
-        buy = make_buy(session, "VOO", period_start=dt.date(2026, 9, 1))
         assert second.id == 2
-        assert buy.id > max(b[0] for b in BUYS)
+    # 매수 기록 모델은 0006에서 사라졌다 — 그때 모양대로 SQL로 넣는다
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO buy_execution (user_id, ticker, period_start, period_end,"
+                " exec_date, type, amount, status) VALUES (1, 'VOO', :d, :d, :d,"
+                " 'signal', 100, 'scheduled')"
+            ),
+            {"d": dt.date(2026, 9, 1)},
+        )
+    (new_id,) = _rows(engine, "SELECT max(id) FROM buy_execution")[0]
+    assert new_id > max(b[0] for b in BUYS)
 
 
 def test_the_app_reads_the_moved_data(at_0004, snapshots, monkeypatch):
-    """겉보기 동작이 안 바뀐다 — 화면이 부르는 API가 옮기기 전과 같은 값을 준다."""
+    """화면이 부르는 API가 옮기기 전과 같은 값을 준다 (끝까지 올린 뒤 — 앱은 최신 모양만 안다)."""
     engine = at_0004
     migrate.upgrade_to_head(engine)
 
@@ -279,7 +298,6 @@ def test_the_app_reads_the_moved_data(at_0004, snapshots, monkeypatch):
     assert [(s["ticker"], s["name"], s["market"], s["currency"], s["active"]) for s in stocks] == [
         (t, n, m, cur, a) for t, n, _c, m, cur, a, *_ in STOCKS
     ]
-    assert stocks[1]["review_date_override"] == "2026-12-15"
     assert stocks[1]["rebalance_band_pct"] == 4.0
     assert {h["ticker"]: h["quantity"] for h in holdings} == {
         "VOO": 12.5, "005930.KS": 100.0, "7203.T": 0.0
@@ -314,10 +332,11 @@ def test_a_failed_backup_stops_the_upgrade_and_leaves_the_data(at_0004, monkeypa
     assert _rows(at_0004, "SELECT count(*) FROM stocks") == [(3,)]
 
 
-def test_ordinary_revisions_after_this_one_do_not_demand_a_backup():
-    """0005를 이미 지난 DB가 다음 리비전으로 갈 때는 예전처럼 경고만 한다."""
-    assert migrate.IRREVERSIBLE & set(migrate.pending_revisions("0004")) == {"0005"}
-    assert migrate.IRREVERSIBLE & set(migrate.pending_revisions("0005")) == set()
+def test_only_irreversible_revisions_demand_a_backup():
+    """되돌릴 수 없는 리비전을 지날 때만 멈춘다. 다 지난 DB는 예전처럼 경고만 한다."""
+    assert migrate.IRREVERSIBLE & set(migrate.pending_revisions("0004")) == {"0005", "0006"}
+    assert migrate.IRREVERSIBLE & set(migrate.pending_revisions("0005")) == {"0006"}
+    assert migrate.IRREVERSIBLE & set(migrate.pending_revisions("0006")) == set()
 
 
 # ---------------------------------------------------------------------------
@@ -328,7 +347,7 @@ def test_ordinary_revisions_after_this_one_do_not_demand_a_backup():
 def test_downgrade_restores_the_old_shape_with_one_user(at_0004, snapshots):
     engine = at_0004
     before = _snapshot_0004(engine)
-    migrate.upgrade_to_head(engine)
+    to_0005(engine)
 
     with engine.begin() as conn:
         command.downgrade(migrate._config(conn), "0004")
@@ -337,13 +356,13 @@ def test_downgrade_restores_the_old_shape_with_one_user(at_0004, snapshots):
     assert _snapshot_0004(engine) == before
 
     # 다시 올려도 된다 (왕복)
-    migrate.upgrade_to_head(engine)
+    to_0005(engine)
     assert _rows(engine, "SELECT count(*) FROM user_stock") == [(3,)]
 
 
 def test_downgrade_refuses_when_there_are_two_people(at_0004, snapshots):
     engine = at_0004
-    migrate.upgrade_to_head(engine)
+    to_0005(engine)
     with engine.begin() as conn:
         conn.execute(
             text(
@@ -358,7 +377,7 @@ def test_downgrade_refuses_when_there_are_two_people(at_0004, snapshots):
             command.downgrade(migrate._config(conn), "0004")
 
     # 거절했으니 그대로다
-    assert migrate.current_revision(engine) == migrate.head_revision()
+    assert migrate.current_revision(engine) == "0005"
     assert _rows(engine, "SELECT count(*) FROM users") == [(2,)]
 
 

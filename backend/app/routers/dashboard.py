@@ -1,20 +1,17 @@
-import datetime as dt
-
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.markets import Market, currency_of_stock, market_of_stock
-from app.models import BuyExecution, IndicatorDaily, UserStock
+from app.models import IndicatorDaily
 from app.schemas import (
     DashboardCard,
     KneeConditions,
     LatestIndicators,
-    PendingBuy,
     RebalanceSignal,
 )
 from app.services import queries, rebalance
-from app.services.trading_calendar import market_today, period_trading_bounds
+from app.services.trading_calendar import market_today
 from app.services.users import current_user_id, ordered_user_stocks
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
@@ -63,43 +60,6 @@ def _knee_conditions(
     )
 
 
-def _current_period_buys(
-    db: Session,
-    user_id: int,
-    stocks: list[UserStock],
-    latest_signal_dates: dict[str, dt.date],
-):
-    """그 사람의 종목별 "이번 기간" 매수 예정을 한 번의 쿼리로 모아온다.
-
-    기간 경계는 종목이 속한 시장의 거래일 캘린더로 계산한다 (한국/미국 휴장일이 다름).
-    """
-    wanted: dict[str, tuple[dt.date, dt.date]] = {}
-    for stock in stocks:
-        latest = latest_signal_dates.get(stock.ticker)
-        if latest is None:
-            continue
-        start, end = period_trading_bounds(
-            latest, stock.dca_period.value, market_of_stock(stock)
-        )
-        if start is not None:
-            wanted[stock.ticker] = (start, end)
-
-    if not wanted:
-        return {}
-
-    # 같은 VOO라도 매수 기록은 사람마다 따로다 — 티커만으로 고르면 남의 기록이 뜬다
-    rows = (
-        db.query(BuyExecution)
-        .filter(BuyExecution.user_id == user_id, BuyExecution.ticker.in_(list(wanted)))
-        .all()
-    )
-    return {
-        row.ticker: row
-        for row in rows
-        if wanted.get(row.ticker) == (row.period_start, row.period_end)
-    }
-
-
 @router.get("", response_model=list[DashboardCard])
 def get_dashboard(db: Session = Depends(get_db), user_id: int = Depends(current_user_id)):
     stocks = ordered_user_stocks(db, user_id, active_only=True)
@@ -117,10 +77,7 @@ def get_dashboard(db: Session = Depends(get_db), user_id: int = Depends(current_
     indicators_by_ticker = queries.recent_indicators(db, tickers, limit=6)
     signals_by_ticker = queries.recent_signals(db, tickers, limit=1)
 
-    latest_signal_dates = {
-        ticker: rows[0].date for ticker, rows in signals_by_ticker.items() if rows
-    }
-    buys_by_ticker = _current_period_buys(db, user_id, stocks, latest_signal_dates)
+    last_buy_signals = queries.last_buy_signal_dates(db, tickers)
 
     cards = []
     # "오늘"은 시장마다 다르다. 서버 시계로 재면 한국 종목은 미국이 아직 어제일 때
@@ -168,19 +125,6 @@ def get_dashboard(db: Session = Depends(get_db), user_id: int = Depends(current_
 
         knee_conditions = _knee_conditions(indicator, indicator_5d_ago)
 
-        current_buy = buys_by_ticker.get(stock.ticker)
-        pending_buy = (
-            PendingBuy(
-                id=current_buy.id,
-                type=current_buy.type,
-                status=current_buy.status,
-                exec_date=current_buy.exec_date,
-                amount=current_buy.amount,
-            )
-            if current_buy
-            else None
-        )
-
         rb = rebalance_rows.get(stock.ticker)
         rebalance_signal = (
             RebalanceSignal(active=rb["rebalance_signal"]["active"], reasons=rb["rebalance_signal"]["reasons"])
@@ -201,7 +145,7 @@ def get_dashboard(db: Session = Depends(get_db), user_id: int = Depends(current_
                 knee_buy_v2=bool(signal.knee_buy_v2) if signal else False,
                 knee_conditions=knee_conditions,
                 shoulder_sell_ref=bool(signal.shoulder_sell_ref) if signal else False,
-                current_period_buy=pending_buy,
+                last_buy_signal_date=last_buy_signals.get(stock.ticker),
                 rebalance_signal=rebalance_signal,
             )
         )

@@ -5,7 +5,7 @@ import pytest
 
 from app.models import IndicatorDaily, PriceDaily, SignalDaily
 from app.services import data_ingestion
-from tests.factories import make_buy, make_stock
+from tests.factories import make_stock
 
 
 def test_health(api):
@@ -17,7 +17,7 @@ def test_health(api):
 
 def test_create_list_stock(api):
     client, _ = api
-    r = client.post("/api/stocks", json={"ticker": "voo", "dca_amount": 300, "target_weight_pct": 40})
+    r = client.post("/api/stocks", json={"ticker": "voo", "target_weight_pct": 40})
     assert r.status_code == 200
     body = r.json()
     assert body["stock"]["ticker"] == "VOO"
@@ -232,28 +232,6 @@ def test_rebalance_holdings_and_current(api):
     row = r2.json()["rows"][0]
     assert row["actual_weight_pct"] == 100.0
     assert row["excess_pct"] == 50.0
-
-
-def test_confirm_buy_execution(api):
-    client, SessionLocal = api
-    client.post("/api/stocks", json={"ticker": "VOO", "target_weight_pct": 50, "dca_amount": 500})
-
-    db = SessionLocal()
-    today = dt.date.today()
-    db.add(PriceDaily(ticker="VOO", date=today, open=100, high=101, low=99, close=100.0, volume=1000))
-    from app.models import BuyType
-
-    buy = make_buy(db, "VOO", period_start=today, type=BuyType.signal, amount=500.0)
-    buy_id = buy.id
-    db.close()
-
-    r = client.post(f"/api/buy-executions/{buy_id}/confirm", json={"apply_to_holding": True})
-    assert r.status_code == 200
-    assert r.json()["status"] == "confirmed"
-
-    r2 = client.get("/api/rebalance/holdings")
-    voo = next(h for h in r2.json() if h["ticker"] == "VOO")
-    assert voo["quantity"] == 5.0
 
 
 def test_health_reports_version_and_providers(api):
@@ -658,7 +636,7 @@ def test_refresh_accepts_full_backfill(api, monkeypatch):
 def test_display_name_can_be_changed(api):
     """야후가 주는 이름은 영문이다 — 한글로 부르고 싶으면 고칠 수 있어야 한다."""
     client, _ = api
-    client.post("/api/stocks", json={"ticker": "8766.T", "dca_amount": 0, "target_weight_pct": 0})
+    client.post("/api/stocks", json={"ticker": "8766.T", "target_weight_pct": 0})
 
     updated = client.put("/api/stocks/8766.T", json={"name": " 도쿄해상홀딩스 "}).json()
     assert updated["name"] == "도쿄해상홀딩스"  # 앞뒤 공백은 떼고 저장한다
@@ -670,7 +648,7 @@ def test_display_name_can_be_changed(api):
 
 def test_clearing_the_display_name_falls_back_to_the_ticker(api):
     client, _ = api
-    client.post("/api/stocks", json={"ticker": "8766.T", "dca_amount": 0, "target_weight_pct": 0})
+    client.post("/api/stocks", json={"ticker": "8766.T", "target_weight_pct": 0})
     client.put("/api/stocks/8766.T", json={"name": "도쿄해상홀딩스"})
 
     cleared = client.put("/api/stocks/8766.T", json={"name": "   "}).json()

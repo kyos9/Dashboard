@@ -1,6 +1,6 @@
 """사람끼리 데이터가 섞이지 않는가 (ROADMAP 4단계 7번).
 
-API가 34개다. 그중 사용자별인 것에서 `WHERE user_id` 하나만 빠져도 남의 데이터가 그대로
+API가 40개다(표가 센다). 그중 사용자별인 것에서 `WHERE user_id` 하나만 빠져도 남의 데이터가 그대로
 나간다. 눈으로 막을 수 있는 종류가 아니라서, 사람의 주의력 대신 **표**에 기댄다.
 
 1. `ENDPOINTS` — 앱의 모든 API를 *누구 것인가*와 *누가 쓰는가*로 적은 표. 앱의 라우터
@@ -33,13 +33,18 @@ import pytest
 from fastapi.routing import APIRoute
 
 import app.main as main_module
-from app.markets import Market
-from app.models import BuyExecution, BuyStatus, Holding, PriceDaily, SignalDaily, UserSettings, UserStock
+from app.models import (
+    Holding,
+    PriceDaily,
+    RebalanceSnapshot,
+    SignalDaily,
+    UserSettings,
+    UserStock,
+)
 from app.services import macro
-from app.services.trading_calendar import period_trading_bounds
 from app.services import auth as auth_service
 from app.services.users import LOCAL_USER_ID, current_user_id, require_owner, viewer_user_id
-from tests.factories import make_buy, make_holding, make_settings, make_stock, make_user
+from tests.factories import make_holding, make_settings, make_stock, make_user
 
 # ---------------------------------------------------------------------------
 #  표
@@ -78,7 +83,6 @@ ENDPOINTS: dict[tuple[str, str], tuple[str, str]] = {
     # 화면
     ("GET", "/api/dashboard"): (MINE, USER),
     ("GET", "/api/history/{ticker}"): (MINE, USER),
-    ("POST", "/api/buy-executions/{buy_id}/confirm"): (MINE, USER),
     # 내 포트폴리오
     ("GET", "/api/rebalance/targets"): (MINE, USER),
     ("PUT", "/api/rebalance/targets/{ticker}"): (MINE, USER),
@@ -87,6 +91,9 @@ ENDPOINTS: dict[tuple[str, str], tuple[str, str]] = {
     ("GET", "/api/rebalance/settings"): (MINE, USER),
     ("PUT", "/api/rebalance/settings"): (MINE, USER),
     ("GET", "/api/rebalance/current"): (MINE, USER),
+    ("GET", "/api/rebalance/snapshots"): (MINE, USER),
+    ("POST", "/api/rebalance/snapshots"): (MINE, USER),
+    ("DELETE", "/api/rebalance/snapshots/{snapshot_id}"): (MINE, USER),
     ("POST", "/api/rebalance/fx/refresh"): (SHARED, OWNER),
     # 매크로 — 지표는 공용이고, 홈에 무엇을 둘지만 그 사람 것이다
     # 손님은 즐겨찾기가 없어 기본 셋을 본다
@@ -157,7 +164,7 @@ SAMSUNG = "005930.KS"
 class World:
     client: object
     Session: object
-    buys: dict  # (사용자, 티커) → 매수 기록 id
+    snapshots: dict  # 사용자 → 리밸런싱 기록 id
     monkeypatch: object
 
     def as_user(self, user_id: int):
@@ -187,49 +194,45 @@ def _shared_market_data(db, ticker: str, close: float) -> None:
     db.add(SignalDaily(ticker=ticker, date=DAY, knee_buy_v2=True, shoulder_sell_ref=False))
 
 
-def _this_period_buy(db, stock: UserStock, market: Market, amount: float) -> int:
-    """대시보드가 "이번 기간"으로 읽을 매수 기록 하나."""
-    start, end = period_trading_bounds(DAY, stock.dca_period.value, market)
-    return make_buy(
-        db, stock.ticker, user_id=stock.user_id, period_start=start, period_end=end,
-        exec_date=DAY, amount=amount,
-    ).id
+def _snapshot(db, user_id: int, note: str) -> int:
+    """리밸런싱 기록 하나. 내용은 그 사람 것처럼 보이게 적는다."""
+    row = RebalanceSnapshot(
+        user_id=user_id, base_currency="KRW", total_value_base=1.0, note=note,
+        data={"rows": [], "cash": {}, "fx": {}},
+    )
+    db.add(row)
+    db.commit()
+    return row.id
 
 
 @pytest.fixture()
 def world(api, monkeypatch) -> World:
     client, Session = api
-    buys = {}
     with Session() as db:
         make_user(db, id=B, email="b@example.com", is_owner=False)
 
-        voo = make_stock(db, "VOO", user_id=A, name="A의 VOO", target_weight_pct=60.0)
-        qqq_a = make_stock(db, "QQQ", user_id=A, name="A의 QQQ", target_weight_pct=40.0,
-                           sort_order=1)
-        qqq_b = make_stock(db, "QQQ", user_id=B, name="B의 QQQ", target_weight_pct=30.0,
-                           sort_order=1)
-        samsung = make_stock(db, SAMSUNG, user_id=B, name="삼성전자", target_weight_pct=70.0,
-                             sort_order=0)
+        make_stock(db, "VOO", user_id=A, name="A의 VOO", target_weight_pct=60.0)
+        make_stock(db, "QQQ", user_id=A, name="A의 QQQ", target_weight_pct=40.0, sort_order=1)
+        make_stock(db, "QQQ", user_id=B, name="B의 QQQ", target_weight_pct=30.0, sort_order=1)
+        make_stock(db, SAMSUNG, user_id=B, name="삼성전자", target_weight_pct=70.0, sort_order=0)
 
         _shared_market_data(db, "VOO", 500.0)
         _shared_market_data(db, "QQQ", 400.0)
         _shared_market_data(db, SAMSUNG, 70000.0)
 
-        make_holding(db, "VOO", 10.0, user_id=A)
-        make_holding(db, "QQQ", 10.0, user_id=A)
-        make_holding(db, "QQQ", 3.0, user_id=B)
+        make_holding(db, "VOO", 10.0, user_id=A, avg_cost=450.0)
+        make_holding(db, "QQQ", 10.0, user_id=A, avg_cost=350.0)
+        make_holding(db, "QQQ", 3.0, user_id=B, avg_cost=390.0)
         make_holding(db, SAMSUNG, 5.0, user_id=B)
 
         make_settings(db, user_id=A, default_rebalance_band_pct=7.0, base_currency="KRW",
-                      fx_overrides={"USD": 1300.0}, pinned_macro=["VIX"])
+                      fx_overrides={"USD": 1300.0}, pinned_macro=["VIX"],
+                      cash={"KRW": 1_000_000}, cash_target_pct=10.0, review_period="annual")
         make_settings(db, user_id=B, default_rebalance_band_pct=3.0, base_currency="USD",
-                      pinned_macro=["DGS10"])
+                      pinned_macro=["DGS10"], cash={"USD": 50})
 
-        buys[(A, "VOO")] = _this_period_buy(db, voo, Market.US, 111.0)
-        buys[(A, "QQQ")] = _this_period_buy(db, qqq_a, Market.US, 222.0)
-        buys[(B, "QQQ")] = _this_period_buy(db, qqq_b, Market.US, 333.0)
-        buys[(B, SAMSUNG)] = _this_period_buy(db, samsung, Market.KR, 444.0)
-    return World(client=client, Session=Session, buys=buys, monkeypatch=monkeypatch)
+        snapshots = {A: _snapshot(db, A, "A의 기록"), B: _snapshot(db, B, "B의 기록")}
+    return World(client=client, Session=Session, snapshots=snapshots, monkeypatch=monkeypatch)
 
 
 def _a_is_untouched(w: World) -> None:
@@ -242,13 +245,17 @@ def _a_is_untouched(w: World) -> None:
         assert mine["QQQ"].target_weight_pct == 40.0
         assert mine["QQQ"].sort_order == 1
         assert db.get(Holding, (A, "QQQ")).quantity == 10.0
+        assert db.get(Holding, (A, "QQQ")).avg_cost == 350.0
         assert db.get(Holding, (A, "VOO")).quantity == 10.0
         settings = db.get(UserSettings, A)
         assert settings.default_rebalance_band_pct == 7.0
         assert settings.fx_overrides == {"USD": 1300.0}
         assert settings.pinned_macro == ["VIX"]
-        buy = db.get(BuyExecution, w.buys[(A, "QQQ")])
-        assert buy.status == BuyStatus.scheduled
+        assert settings.cash == {"KRW": 1_000_000}
+        assert settings.review_period == "annual"
+        assert [(r.id, r.note) for r in db.query(RebalanceSnapshot).filter_by(user_id=A)] == [
+            (w.snapshots[A], "A의 기록")
+        ]
         # 공용 시세도 그대로 — A가 아직 QQQ를 담고 있다
         assert db.query(PriceDaily).filter_by(ticker="QQQ").count() == 2
 
@@ -263,7 +270,7 @@ def _a_is_untouched(w: World) -> None:
 #
 #  **읽는 확인은 A와 B 둘 다 본다.** 사용자로 안 거른 코드는 대개 `{티커: 행}` 으로
 #  모으는데, 그러면 둘이 담은 QQQ는 **나중에 읽힌 행이 이긴다.** 한쪽만 보면 반은 우연히
-#  맞는다 — 실제로 B만 봤을 때 보유수량·매수 기록 누수 셋을 못 잡았다.
+#  맞는다 — 실제로 B만 봤을 때 보유수량 누수를 못 잡았다.
 
 
 def check_list_stocks(w: World):
@@ -317,7 +324,8 @@ def check_purge(w: World):
     assert client.delete("/api/stocks/QQQ/purge").status_code == 204
     assert w.get(UserStock, B, "QQQ") is None
     assert w.get(Holding, B, "QQQ") is None
-    assert w.get(BuyExecution, w.buys[(B, "QQQ")]) is None
+    # 기록은 그날의 모습이라 종목을 지워도 남는다
+    assert w.get(RebalanceSnapshot, w.snapshots[B]) is not None
     _a_is_untouched(w)
 
 
@@ -330,13 +338,12 @@ def check_refresh_one(w: World):
 def check_dashboard(w: World):
     cards = {c["ticker"]: c for c in w.as_user(B).get("/api/dashboard").json()}
     assert set(cards) == {SAMSUNG, "QQQ"}
-    # 같은 QQQ라도 이번 기간 매수 기록은 B의 것이어야 한다
-    assert cards["QQQ"]["current_period_buy"]["id"] == w.buys[(B, "QQQ")]
-    assert cards["QQQ"]["current_period_buy"]["amount"] == 333.0
     assert cards["QQQ"]["name"] == "B의 QQQ"
+    # 시그널은 공용이다 — 마지막 매수 시그널 날은 누구에게나 같다
+    assert cards["QQQ"]["last_buy_signal_date"] == DAY.isoformat()
     theirs = {c["ticker"]: c for c in w.as_user(A).get("/api/dashboard").json()}
     assert set(theirs) == {"VOO", "QQQ"}
-    assert theirs["QQQ"]["current_period_buy"]["id"] == w.buys[(A, "QQQ")]
+    assert theirs["QQQ"]["name"] == "A의 QQQ"
 
 
 def check_history(w: World):
@@ -346,19 +353,6 @@ def check_history(w: World):
     res = client.get("/api/history/QQQ?range=max")
     assert res.status_code == 200
     assert len(res.json()["prices"]) == 2
-
-
-def check_confirm(w: World):
-    client = w.as_user(B)
-    res = client.post(f"/api/buy-executions/{w.buys[(A, 'QQQ')]}/confirm",
-                      json={"apply_to_holding": True})
-    assert res.status_code == 404
-    res = client.post(f"/api/buy-executions/{w.buys[(B, 'QQQ')]}/confirm",
-                      json={"apply_to_holding": True})
-    assert res.status_code == 200
-    # 확정한 수량은 **B의** 보유에 더해진다: 333 / 400 = 0.8325주
-    assert w.get(Holding, B, "QQQ").quantity == pytest.approx(3.0 + 333.0 / 400.0)
-    _a_is_untouched(w)
 
 
 def check_targets(w: World):
@@ -378,17 +372,20 @@ def check_update_target(w: World):
 
 
 def check_holdings(w: World):
-    got = {h["ticker"]: h["quantity"] for h in w.as_user(B).get("/api/rebalance/holdings").json()}
-    assert got == {SAMSUNG: 5.0, "QQQ": 3.0}
-    theirs = {h["ticker"]: h["quantity"] for h in w.as_user(A).get("/api/rebalance/holdings").json()}
-    assert theirs == {"VOO": 10.0, "QQQ": 10.0}
+    got = {h["ticker"]: (h["quantity"], h["avg_cost"])
+           for h in w.as_user(B).get("/api/rebalance/holdings").json()}
+    assert got == {SAMSUNG: (5.0, None), "QQQ": (3.0, 390.0)}
+    theirs = {h["ticker"]: (h["quantity"], h["avg_cost"])
+              for h in w.as_user(A).get("/api/rebalance/holdings").json()}
+    assert theirs == {"VOO": (10.0, 450.0), "QQQ": (10.0, 350.0)}
 
 
 def check_update_holding(w: World):
     client = w.as_user(B)
     assert client.put("/api/rebalance/holdings/VOO", json={"quantity": 1}).status_code == 404
-    assert client.put("/api/rebalance/holdings/QQQ", json={"quantity": 99}).status_code == 200
-    assert w.get(Holding, B, "QQQ").quantity == 99.0
+    res = client.put("/api/rebalance/holdings/QQQ", json={"quantity": 99, "avg_cost": 1.0})
+    assert res.status_code == 200
+    assert (w.get(Holding, B, "QQQ").quantity, w.get(Holding, B, "QQQ").avg_cost) == (99.0, 1.0)
     _a_is_untouched(w)
 
 
@@ -396,6 +393,8 @@ def check_settings(w: World):
     got = w.as_user(B).get("/api/rebalance/settings").json()
     assert got["default_rebalance_band_pct"] == 3.0
     assert got["base_currency"] == "USD"
+    assert got["cash"] == {"USD": 50.0}
+    assert got["review_period"] == "quarterly"
     # A가 직접 넣은 달러 환율은 B의 화면에 얹히지 않는다
     assert got["fx_overrides"] == {}
     assert got["fx"]["rates"]["USD"]["source"] != "override"
@@ -409,10 +408,14 @@ def check_update_settings(w: World):
     client = w.as_user(B)
     res = client.put("/api/rebalance/settings", json={
         "default_rebalance_band_pct": 9.0, "fx_overrides": {"USD": 1111.0},
+        "cash": {"KRW": 5}, "cash_target_pct": 20.0, "review_period": "semiannual",
     })
     assert res.status_code == 200, res.text
     with w.Session() as db:
-        assert db.get(UserSettings, B).fx_overrides == {"USD": 1111.0}
+        mine = db.get(UserSettings, B)
+        assert mine.fx_overrides == {"USD": 1111.0}
+        assert mine.cash == {"USD": 50.0, "KRW": 5.0}
+        assert (mine.cash_target_pct, mine.review_period) == (20.0, "semiannual")
     _a_is_untouched(w)
 
 
@@ -422,9 +425,43 @@ def check_current(w: World):
     rows = {r["ticker"]: r for r in got["rows"]}
     assert set(rows) == {SAMSUNG, "QQQ"}
     assert rows["QQQ"]["quantity"] == 3.0
+    assert rows["QQQ"]["avg_cost"] == 390.0
+    assert got["cash"]["amounts"] == {"USD": 50.0}
+    assert got["review"]["period"] == "quarterly"
     theirs = w.as_user(A).get("/api/rebalance/current").json()
     assert theirs["base_currency"] == "KRW"
     assert {r["ticker"]: r["quantity"] for r in theirs["rows"]} == {"VOO": 10.0, "QQQ": 10.0}
+    assert {r["ticker"]: r["avg_cost"] for r in theirs["rows"]} == {"VOO": 450.0, "QQQ": 350.0}
+    assert theirs["cash"]["amounts"] == {"KRW": 1_000_000}
+    assert theirs["review"]["period"] == "annual"
+
+
+def check_list_snapshots(w: World):
+    got = w.as_user(B).get("/api/rebalance/snapshots").json()
+    assert [(s["id"], s["note"]) for s in got] == [(w.snapshots[B], "B의 기록")]
+    theirs = w.as_user(A).get("/api/rebalance/snapshots").json()
+    assert [(s["id"], s["note"]) for s in theirs] == [(w.snapshots[A], "A의 기록")]
+
+
+def check_create_snapshot(w: World):
+    client = w.as_user(B)
+    res = client.post("/api/rebalance/snapshots", json={"note": "B의 새 기록"})
+    assert res.status_code == 201, res.text
+    body = res.json()
+    # B의 포트폴리오로 계산된다 — B의 종목, B의 기준통화
+    assert body["base_currency"] == "USD"
+    assert {r["ticker"] for r in body["data"]["rows"]} == {SAMSUNG, "QQQ"}
+    assert {r["ticker"]: r["quantity"] for r in body["data"]["rows"]}["QQQ"] == 3.0
+    assert w.get(RebalanceSnapshot, body["id"]).user_id == B
+    _a_is_untouched(w)
+
+
+def check_delete_snapshot(w: World):
+    client = w.as_user(B)
+    assert client.delete(f"/api/rebalance/snapshots/{w.snapshots[A]}").status_code == 404
+    assert client.delete(f"/api/rebalance/snapshots/{w.snapshots[B]}").status_code == 204
+    assert w.get(RebalanceSnapshot, w.snapshots[B]) is None
+    _a_is_untouched(w)
 
 
 def check_macro_overview(w: World):
@@ -467,7 +504,7 @@ def check_withdraw(w: World):
 
     with w.Session() as db:
         assert db.get(User, B) is None
-        for model in (UserStock, Holding, BuyExecution, UserSettings):
+        for model in (UserStock, Holding, RebalanceSnapshot, UserSettings):
             assert db.query(model).filter_by(user_id=B).count() == 0
         # 공용 시세는 남는다 — B만 담았던 삼성전자도
         assert db.query(PriceDaily).filter_by(ticker=SAMSUNG).count() == 2
@@ -488,7 +525,6 @@ CHECKS = {
     ("POST", "/api/stocks/{ticker}/refresh"): check_refresh_one,
     ("GET", "/api/dashboard"): check_dashboard,
     ("GET", "/api/history/{ticker}"): check_history,
-    ("POST", "/api/buy-executions/{buy_id}/confirm"): check_confirm,
     ("GET", "/api/rebalance/targets"): check_targets,
     ("PUT", "/api/rebalance/targets/{ticker}"): check_update_target,
     ("GET", "/api/rebalance/holdings"): check_holdings,
@@ -496,6 +532,9 @@ CHECKS = {
     ("GET", "/api/rebalance/settings"): check_settings,
     ("PUT", "/api/rebalance/settings"): check_update_settings,
     ("GET", "/api/rebalance/current"): check_current,
+    ("GET", "/api/rebalance/snapshots"): check_list_snapshots,
+    ("POST", "/api/rebalance/snapshots"): check_create_snapshot,
+    ("DELETE", "/api/rebalance/snapshots/{snapshot_id}"): check_delete_snapshot,
     ("GET", "/api/macro"): check_macro_overview,
     ("GET", "/api/macro/pinned"): check_pinned,
     ("PUT", "/api/macro/pinned"): check_update_pinned,
@@ -558,7 +597,7 @@ OWNER_CALLS = {
 
 def _url(path: str) -> str:
     return (path.replace("{ticker}", "QQQ").replace("{code}", "CPIAUCSL")
-            .replace("{buy_id}", "1"))
+            .replace("{snapshot_id}", "1"))
 
 
 def test_user_is_refused_every_owner_api(world):

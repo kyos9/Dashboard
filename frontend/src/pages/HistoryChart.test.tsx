@@ -37,12 +37,8 @@ function stock(ticker: string, name: string): Stock {
     currency: 'KRW',
     active: true,
     added_at: '2026-01-01T00:00:00',
-    dca_amount: 0,
-    dca_period: 'monthly',
-    rebalance_period: 'quarterly',
     target_weight_pct: 0,
     rebalance_band_pct: null,
-    review_date_override: null,
     sort_order: 0,
   }
 }

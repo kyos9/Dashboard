@@ -6,7 +6,6 @@ from sqlalchemy import (
     Boolean,
     Date,
     DateTime,
-    Enum,
     Float,
     ForeignKey,
     ForeignKeyConstraint,
@@ -20,27 +19,16 @@ from app.db import Base
 from app.markets import Currency, Market, currency_of, market_of, normalize_ticker
 
 
-class DcaPeriod(str, enum.Enum):
-    monthly = "monthly"
-    quarterly = "quarterly"
+class ReviewPeriod(str, enum.Enum):
+    """포트폴리오를 다시 들여다보는 주기. **종목마다가 아니라 포트폴리오 하나에 하나다.**
 
+    예전에는 종목마다 리밸런싱 주기(분기/반기)를 따로 뒀는데, 리밸런싱은 전체 비중을
+    한꺼번에 맞추는 일이라 종목별로 다른 날에 할 수가 없다. 칸만 늘고 뜻은 없었다.
+    """
 
-class RebalancePeriod(str, enum.Enum):
     quarterly = "quarterly"
     semiannual = "semiannual"
-
-
-class BuyType(str, enum.Enum):
-    signal = "signal"
-    fallback = "fallback"
-
-
-class BuyStatus(str, enum.Enum):
-    # 이 앱은 종목을 고르지도, 사라고 권하지도 않는다. 사용자가 정해둔 금액·주기와
-    # 사용자가 정한 조건이 맞아떨어진 날을 잡아둘 뿐이라 "예정(scheduled)"이라 부른다.
-    # (예전 이름은 recommended였다 — db._rename_buy_status가 옛 DB 값을 바꿔준다.)
-    scheduled = "scheduled"
-    confirmed = "confirmed"
+    annual = "annual"
 
 
 class User(Base):
@@ -119,15 +107,10 @@ class UserStock(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     added_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow, nullable=False)
 
-    dca_amount: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
-    dca_period: Mapped[DcaPeriod] = mapped_column(Enum(DcaPeriod), default=DcaPeriod.monthly, nullable=False)
-
-    rebalance_period: Mapped[RebalancePeriod] = mapped_column(
-        Enum(RebalancePeriod), default=RebalancePeriod.quarterly, nullable=False
-    )
+    # 전체 자금(현금 포함) 중 이 종목에 두려는 비중. 리밸런싱이 맞추려는 값이다.
     target_weight_pct: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    # 이 종목만 허용 오차를 달리 두고 싶을 때. 비우면 설정의 기본 밴드를 쓴다.
     rebalance_band_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
-    review_date_override: Mapped[dt.date | None] = mapped_column(Date, nullable=True)
 
     # 화면에 보여줄 순서. 사용자가 직접 정한다 — 티커 알파벳순은 "무엇을 먼저 보는가"와
     # 아무 상관이 없다. 값이 같으면 티커순으로 떨어지므로 새 종목은 뒤에 붙는다.
@@ -203,32 +186,12 @@ class SignalDaily(Base):
     shoulder_sell_ref: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
 
-class BuyExecution(Base):
-    """기간별 매수 기록. **사용자별이다** — DCA 금액·주기가 사람마다 다르다.
-
-    외래키가 `(user_id, ticker)` → `user_stock`인 이유: 내 목록에 없는 종목의 매수
-    기록은 뜻이 없다. 종목을 목록에서 빼려면 이 기록을 먼저 치워야 한다.
-    """
-
-    __tablename__ = "buy_execution"
-    __table_args__ = (
-        ForeignKeyConstraint(["user_id", "ticker"], ["user_stock.user_id", "user_stock.ticker"]),
-    )
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
-    ticker: Mapped[str] = mapped_column(String, nullable=False, index=True)
-    period_start: Mapped[dt.date] = mapped_column(Date, nullable=False)
-    period_end: Mapped[dt.date] = mapped_column(Date, nullable=False)
-    exec_date: Mapped[dt.date] = mapped_column(Date, nullable=False)
-    type: Mapped[BuyType] = mapped_column(Enum(BuyType), nullable=False)
-    amount: Mapped[float] = mapped_column(Float, nullable=False)
-    status: Mapped[BuyStatus] = mapped_column(Enum(BuyStatus), default=BuyStatus.scheduled, nullable=False)
-    confirmed_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
-
-
 class Holding(Base):
-    """보유수량. **사용자별이다.** 외래키는 `BuyExecution`과 같은 이유로 `user_stock`."""
+    """보유수량과 평단가. **사용자별이다.**
+
+    외래키가 `(user_id, ticker)` → `user_stock`인 이유: 내 목록에 없는 종목의 보유는
+    뜻이 없다. 종목을 목록에서 빼려면 이 행을 먼저 치워야 한다.
+    """
 
     __tablename__ = "holding"
     __table_args__ = (
@@ -238,6 +201,9 @@ class Holding(Base):
     user_id: Mapped[int] = mapped_column(Integer, primary_key=True)
     ticker: Mapped[str] = mapped_column(String, primary_key=True)
     quantity: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    # 평균 매입단가 (종목의 거래 통화 기준). **리밸런싱에는 쓰이지 않는다** — 비중은 수량 ×
+    # 현재가로 정해진다. 평가손익·수익률을 보여주는 데만 쓴다. 모르면 비워둔다.
+    avg_cost: Mapped[float | None] = mapped_column(Float, nullable=True)
     updated_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow, nullable=False)
 
 
@@ -274,6 +240,44 @@ class UserSettings(Base):
     # 누구에게나 같은 공용 데이터지만, 그 중 무엇을 홈에 둘지는 사용자별 선택이다.
     # 공용 테이블에 사용자별 상태를 섞는 것이 ROADMAP 1절이 지적한 `stocks` 의 실수다.
     pinned_macro: Mapped[list | None] = mapped_column(JSON, nullable=True)
+
+    # 포트폴리오를 다시 들여다보는 주기 (ReviewPeriod). Enum 타입 대신 문자열로 둔다 —
+    # Postgres에서 Enum은 DB에 따로 사는 타입이라, 값 하나 늘릴 때마다 리비전이 그 타입을
+    # 고쳐야 한다(0005가 겪었다). 값은 스키마(pydantic)가 거른다.
+    review_period: Mapped[str] = mapped_column(
+        String, default=ReviewPeriod.quarterly.value, nullable=False
+    )
+    # 다음 리뷰일을 직접 정할 때 (세금 정산일 따위). 그날 무렵 기록을 남기면 다시 주기로 돌아간다.
+    review_date_override: Mapped[dt.date | None] = mapped_column(Date, nullable=True)
+
+    # 현금. 통화코드 -> 금액 (`{"KRW": 3000000, "USD": 1200}`). **목표비중은 전체 자금 중의
+    # 비중**이라 현금이 빠지면 합계가 틀린다 — 주식만 더하면 "100% 투자"가 된다.
+    cash: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # 현금으로 남겨둘 비중(%). 종목 목표비중과 합쳐 100이 되게 맞춘다.
+    cash_target_pct: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+
+
+class RebalanceSnapshot(Base):
+    """리밸런싱 기록 — 리뷰할 때 남긴 포트폴리오의 모습. **사용자별이고, 다시 만들 수 없다.**
+
+    지금 비중은 언제나 실시간 계산이고 보유수량은 덮어쓰기라, 기록을 남기지 않으면 지난
+    분기에 어땠는지 복원할 방법이 없다 (ROADMAP 2-1). 그래서 계산 결과를 **그대로 얼려서**
+    둔다 — 종목·수량·가격·비중·목표·환율을 한 덩어리로. 나중에 종목을 지우거나 목표를
+    바꿔도 이 기록은 그때 모습 그대로여야 하므로 다른 표를 가리키지 않는다.
+    """
+
+    __tablename__ = "rebalance_snapshot"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    taken_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow, nullable=False)
+    # 이 기록이 어느 리뷰(마감일)를 위한 것이었나. 그때 화면에 떠 있던 다음 리뷰일이다.
+    review_date: Mapped[dt.date | None] = mapped_column(Date, nullable=True)
+    base_currency: Mapped[str] = mapped_column(String, nullable=False)
+    total_value_base: Mapped[float] = mapped_column(Float, nullable=False)
+    note: Mapped[str | None] = mapped_column(String, nullable=True)
+    # 종목 행·현금·환율. 한 번 쓰고 고치지 않는다.
+    data: Mapped[dict] = mapped_column(JSON, nullable=False)
 
 
 class FxRate(Base):

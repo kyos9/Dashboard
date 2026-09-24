@@ -4,7 +4,6 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.markets import normalize_ticker
 from app.models import (
-    BuyExecution,
     Holding,
     IndicatorDaily,
     Instrument,
@@ -135,14 +134,22 @@ def create_stock(
         instrument=instrument,
         name=name,
         category=payload.category,
-        dca_amount=payload.dca_amount,
-        dca_period=payload.dca_period,
-        rebalance_period=payload.rebalance_period,
         target_weight_pct=payload.target_weight_pct,
         rebalance_band_pct=payload.rebalance_band_pct,
-        review_date_override=payload.review_date_override,
     )
     db.add(stock)
+    # 이미 들고 있는 종목이면 수량·평단가를 같이 받는다 — 등록하고 리밸런싱 탭으로 가서
+    # 한 번 더 적게 하면, 대개 그 두 번째를 잊고 비중이 0%로 보인다.
+    if payload.quantity or payload.avg_cost is not None:
+        db.flush()
+        db.add(
+            Holding(
+                user_id=user_id,
+                ticker=stock.ticker,
+                quantity=payload.quantity or 0.0,
+                avg_cost=payload.avg_cost,
+            )
+        )
     db.commit()
     db.refresh(stock)
 
@@ -210,19 +217,20 @@ def purge_stock(
     """종목과 그 종목에 딸린 기록을 전부 지운다. 되돌릴 수 없다.
 
     비활성화(`DELETE /{ticker}`)와 일부러 나눠뒀다. 대부분의 경우 원하는 건
-    "화면에서 치우기"이고, 그때 시세·지표·매수 기록까지 날리면 나중에 다시 넣었을 때
+    "화면에서 치우기"이고, 그때 시세·지표·보유수량까지 날리면 나중에 다시 넣었을 때
     전부 새로 받아야 한다. 정말 지우려는 사람만 이 경로로 오게 한다.
+
+    리밸런싱 기록은 지우지 않는다 — 그날의 모습을 얼려둔 것이라 종목을 가리키지 않는다.
     """
     normalized = normalize_ticker(ticker)
     stock = find_user_stock(db, user_id, normalized)
     if stock is None:
         raise HTTPException(status_code=404, detail="stock not found")
 
-    # 내 기록(매수·보유)이 내 종목 행을 가리키므로 먼저 지운다
-    for model in (BuyExecution, Holding):
-        db.query(model).filter(
-            model.user_id == stock.user_id, model.ticker == normalized
-        ).delete(synchronize_session=False)
+    # 내 보유가 내 종목 행을 가리키므로 먼저 지운다
+    db.query(Holding).filter(
+        Holding.user_id == stock.user_id, Holding.ticker == normalized
+    ).delete(synchronize_session=False)
     db.delete(stock)
 
     # 시세·지표·시그널은 공용이다. 지금은 사람이 한 명이라 예전처럼 같이 지우되,

@@ -5,6 +5,7 @@ import type {
   Holding,
   HistoryResponse,
   RebalanceCurrent,
+  RebalanceSnapshot,
   RebalanceTarget,
   RefreshResult,
   Settings,
@@ -132,12 +133,6 @@ export const api = {
   getHistory: (ticker: string, range: string = '1y') =>
     request<HistoryResponse>(`/history/${ticker}?range=${range}`),
 
-  confirmBuy: (id: number, applyToHolding: boolean) =>
-    request<{ id: number; status: string }>(`/buy-executions/${id}/confirm`, {
-      method: 'POST',
-      body: JSON.stringify({ apply_to_holding: applyToHolding }),
-    }),
-
   listRebalanceTargets: () => request<RebalanceTarget[]>('/rebalance/targets'),
   updateRebalanceTarget: (ticker: string, payload: Partial<RebalanceTarget>) =>
     request<RebalanceTarget>(`/rebalance/targets/${ticker}`, {
@@ -146,10 +141,11 @@ export const api = {
     }),
 
   listHoldings: () => request<Holding[]>('/rebalance/holdings'),
-  updateHolding: (ticker: string, quantity: number) =>
+  /** 평단가(`avgCost`)는 넘겼을 때만 바뀐다. null이면 "모름"으로 지운다 */
+  updateHolding: (ticker: string, quantity: number, avgCost?: number | null) =>
     request<Holding>(`/rebalance/holdings/${ticker}`, {
       method: 'PUT',
-      body: JSON.stringify({ quantity }),
+      body: JSON.stringify(avgCost === undefined ? { quantity } : { quantity, avg_cost: avgCost }),
     }),
 
   getSettings: () => request<Settings>('/rebalance/settings'),
@@ -158,6 +154,17 @@ export const api = {
   refreshFx: () => request<FxInfo>('/rebalance/fx/refresh', { method: 'POST' }),
 
   getRebalanceCurrent: () => request<RebalanceCurrent>('/rebalance/current'),
+
+  /** 리밸런싱 기록 — 최근 것부터 */
+  listSnapshots: () => request<RebalanceSnapshot[]>('/rebalance/snapshots'),
+  /** 지금 모습을 기록으로 남긴다. 남기면 다음 리뷰일이 다음 기간으로 넘어간다 */
+  createSnapshot: (note?: string) =>
+    request<RebalanceSnapshot>('/rebalance/snapshots', {
+      method: 'POST',
+      body: JSON.stringify({ note: note || null }),
+    }),
+  deleteSnapshot: (id: number) =>
+    request<void>(`/rebalance/snapshots/${id}`, { method: 'DELETE' }),
 
   /** 지표 목록 + 최신값 + 갱신 상태, 그리고 금리차 */
   getMacro: () => request<MacroOverview>('/macro'),

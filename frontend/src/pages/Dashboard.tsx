@@ -15,7 +15,7 @@ import {
   categoryOf,
   conditionMark,
   CONDITION_BY_METRIC,
-  CURRENCY_META,
+  daysFrom,
   num,
   price,
   providerLabel,
@@ -24,19 +24,23 @@ import {
   readDisparity,
   readMa200,
   readVolume,
+  relativeDay,
+  REVIEW_PERIOD_LABEL,
+  reviewCountdown,
   signed,
+  signedAmount,
   stockLabel,
   trafficLight,
   type MetricKey,
   type Traffic,
 } from '../lib/display'
 import type {
+  CashRow,
   Currency,
   DashboardCard,
-  DcaPeriod,
   KneeConditions,
-  RebalancePeriod,
   RebalanceRow,
+  ReviewStatus,
   Stock,
   StockUpdateInput,
 } from '../types'
@@ -196,19 +200,6 @@ function Metric({
   )
 }
 
-/**
- * 통화별 금액을 나란히 적는다 ("₩1,500,000 · $300").
- *
- * 환율로 합쳐서 한 숫자로 보여줄 수도 있지만, 실제로 주문할 금액은 통화별로 따로이므로
- * 나눠서 보여주는 쪽이 바로 쓰인다.
- */
-function formatAmountsByCurrency(amounts: Partial<Record<Currency, number>>): string {
-  const parts = (Object.entries(amounts) as [Currency, number][])
-    .filter(([, value]) => value > 0)
-    .map(([currency, value]) => amount(value, currency))
-  return parts.length > 0 ? parts.join(' · ') : '—'
-}
-
 function PriceCell({ card }: { card: DashboardCard }) {
   const change = card.indicators.change_pct
   const dir = change === null ? '' : change > 0 ? 'up' : change < 0 ? 'down' : ''
@@ -222,39 +213,21 @@ function PriceCell({ card }: { card: DashboardCard }) {
   )
 }
 
-function BuyCell({
-  card,
-  busyId,
-  onConfirm,
-}: {
-  card: DashboardCard
-  busyId: number | null
-  onConfirm: (id: number) => void
-}) {
-  const buy = card.current_period_buy
-  if (!buy) return <span className="hint">이번 기간 해당일 없음</span>
-
+/**
+ * 무릎매수(v2)가 마지막으로 뜬 날.
+ *
+ * 적립할 때 "이번 달에 벌써 떴나"를 보는 자리다. 예전에는 기간(월/분기)을 정해 매수 예정을
+ * 기록으로 잡아두고 "매수완료"를 눌러야 했는데, 리밸런싱에는 수량만 있으면 돼서 그 기록을
+ * 걷어냈다. 날짜만 보여주면 판단은 사람이 한다.
+ */
+function LastBuySignal({ card }: { card: DashboardCard }) {
+  const date = card.last_buy_signal_date
+  if (!date) return <span className="hint">저장된 기간에 없음</span>
+  const days = daysFrom(date)
   return (
-    <div className="metric">
-      <div className="badge-row">
-        <span
-          className={`badge ${buy.type === 'signal' ? 'badge-green' : 'badge-blue'}`}
-          title={buy.type === 'signal' ? '매수 시그널이 떠서 잡힌 매수' : '기간 내 시그널이 없어 마지막 거래일에 잡힌 정기 매수'}
-        >
-          {buy.type === 'signal' ? '시그널' : '정기'} {amount(buy.amount, card.currency)}
-        </span>
-        {buy.status === 'confirmed' && <span className="badge badge-grey">확정됨</span>}
-      </div>
-      {buy.status === 'scheduled' && (
-        <button
-          className="success sm"
-          disabled={busyId === buy.id}
-          title={`${buy.exec_date}이 조건에 맞는 날입니다 — 실제로 샀다면 눌러서 기록하세요`}
-          onClick={() => onConfirm(buy.id)}
-        >
-          {busyId === buy.id ? '처리 중…' : '매수완료 확인'}
-        </button>
-      )}
+    <div className="metric-line" title="매수 시그널(무릎매수 v2)이 마지막으로 뜬 날">
+      <span className="metric-value mono">{date}</span>
+      <span className={`metric-note ${days !== null && days <= 7 ? 'up' : ''}`}>{relativeDay(days)}</span>
     </div>
   )
 }
@@ -265,23 +238,15 @@ function BuyCell({
 
 interface Draft {
   category: string
-  dca_amount: string
-  dca_period: DcaPeriod
-  rebalance_period: RebalancePeriod
   target_weight_pct: string
   rebalance_band_pct: string
-  review_date_override: string
 }
 
 function draftOf(stock: Stock): Draft {
   return {
     category: stock.category ?? '',
-    dca_amount: String(stock.dca_amount),
-    dca_period: stock.dca_period,
-    rebalance_period: stock.rebalance_period,
     target_weight_pct: String(stock.target_weight_pct),
     rebalance_band_pct: stock.rebalance_band_pct === null ? '' : String(stock.rebalance_band_pct),
-    review_date_override: stock.review_date_override ?? '',
   }
 }
 
@@ -292,12 +257,8 @@ function draftsFrom(stocks: Stock[]): Record<string, Draft> {
 function toUpdate(draft: Draft): StockUpdateInput {
   return {
     category: draft.category.trim() === '' ? null : draft.category.trim(),
-    dca_amount: Number(draft.dca_amount || 0),
-    dca_period: draft.dca_period,
-    rebalance_period: draft.rebalance_period,
     target_weight_pct: Number(draft.target_weight_pct || 0),
     rebalance_band_pct: draft.rebalance_band_pct === '' ? null : Number(draft.rebalance_band_pct),
-    review_date_override: draft.review_date_override === '' ? null : draft.review_date_override,
   }
 }
 
@@ -307,12 +268,50 @@ export function isDirty(stock: Stock, draft: Draft | undefined): boolean {
   const next = toUpdate(draft)
   return (
     next.category !== (stock.category ?? null) ||
-    next.dca_amount !== stock.dca_amount ||
-    next.dca_period !== stock.dca_period ||
-    next.rebalance_period !== stock.rebalance_period ||
     next.target_weight_pct !== stock.target_weight_pct ||
-    next.rebalance_band_pct !== stock.rebalance_band_pct ||
-    next.review_date_override !== (stock.review_date_override ?? null)
+    next.rebalance_band_pct !== stock.rebalance_band_pct
+  )
+}
+
+/** 대시보드가 리밸런싱 현황에서 빌려 쓰는 것 — 전체 자금·현금·손익·리뷰 일정 */
+interface Portfolio {
+  total: number
+  cash: CashRow
+  pnl: number | null
+  cost: number | null
+  review: ReviewStatus
+}
+
+/** 다음 리뷰까지 — 리뷰할 때면 리밸런싱 화면으로 부른다 */
+function ReviewKpi({ review }: { review: ReviewStatus | null }) {
+  return (
+    <div className="kpi">
+      <div className="kpi-head">
+        <span className="kpi-title">
+          다음 리뷰{review && ` · ${REVIEW_PERIOD_LABEL[review.period]}`}
+        </span>
+        <Link to="/rebalance" className="hint">
+          리밸런싱 →
+        </Link>
+      </div>
+      {review ? (
+        <>
+          <div className="kpi-figure">
+            <span className="big">{review.due ? '리뷰할 때' : reviewCountdown(review)}</span>
+            <span className="hint mono">{review.next_date}</span>
+          </div>
+          <p className="kpi-foot">
+            {review.due
+              ? '비중을 확인하고 정리한 뒤 리밸런싱 화면에서 기록을 남기세요.'
+              : review.last_snapshot_at
+                ? `마지막 기록 ${review.last_snapshot_at.slice(0, 10)}`
+                : '아직 남긴 리밸런싱 기록이 없습니다.'}
+          </p>
+        </>
+      ) : (
+        <p className="kpi-foot">—</p>
+      )}
+    </div>
   )
 }
 
@@ -320,10 +319,10 @@ export function Dashboard() {
   const { refreshKey, notifyDataChanged } = useAppState()
   const [cards, setCards] = useState<DashboardCard[]>([])
   const [weights, setWeights] = useState<RebalanceRow[]>([])
+  const [portfolio, setPortfolio] = useState<Portfolio | null>(null)
   const [baseCurrency, setBaseCurrency] = useState<Currency>('KRW')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<unknown>(null)
-  const [busyId, setBusyId] = useState<number | null>(null)
   const [chartCard, setChartCard] = useState<DashboardCard | null>(null)
   const [stocks, setStocks] = useState<Stock[]>([])
   const [reordering, setReordering] = useState(false)
@@ -349,6 +348,13 @@ export function Dashboard() {
       .then(([c, rebalance, stockList]) => {
         setCards(c)
         setWeights(rebalance.rows)
+        setPortfolio({
+          total: rebalance.total_value_base,
+          cash: rebalance.cash,
+          pnl: rebalance.unrealized_pnl_base,
+          cost: rebalance.cost_value_base,
+          review: rebalance.review,
+        })
         setBaseCurrency(rebalance.base_currency)
         setStocks(stockList)
         // 편집 중이던 값은 서버에서 다시 받은 값으로 맞춘다 (저장 직후에 온다)
@@ -412,18 +418,6 @@ export function Dashboard() {
     if (shown) void applyOrder(shown)
   }
 
-  const handleConfirm = async (buyId: number) => {
-    setBusyId(buyId)
-    try {
-      await api.confirmBuy(buyId, true)
-      notifyDataChanged()
-    } catch (e) {
-      setError(e)
-    } finally {
-      setBusyId(null)
-    }
-  }
-
   const dirtyTickers = useMemo(
     () => stocks.filter((s) => isDirty(s, drafts[s.ticker])).map((s) => s.ticker),
     [stocks, drafts],
@@ -460,24 +454,12 @@ export function Dashboard() {
 
   const summary = useMemo(() => {
     const lights = cards.map(trafficLight)
-    const buys = cards.map((c) => c.current_period_buy).filter((b) => b !== null)
-    const scheduled = buys.filter((b) => b!.status === 'scheduled')
     const reasons = cards.flatMap((c) => (c.rebalance_signal.active ? c.rebalance_signal.reasons : []))
     return {
       buy: lights.filter((l) => l.state === 'buy').length,
       watch: lights.filter((l) => l.state === 'watch').length,
       hot: lights.filter((l) => l.state === 'hot').length,
       stale: lights.filter((l) => l.state === 'stale').length,
-      scheduledCount: scheduled.length,
-      // 통화가 섞이면 그냥 더할 수 없다 — 통화별로 나눠서 보여준다
-      scheduledAmounts: cards.reduce<Partial<Record<Currency, number>>>((acc, card) => {
-        const buy = card.current_period_buy
-        if (buy && buy.status === 'scheduled') {
-          acc[card.currency] = (acc[card.currency] ?? 0) + buy.amount
-        }
-        return acc
-      }, {}),
-      confirmedCount: buys.length - scheduled.length,
       rebalanceCount: cards.filter((c) => c.rebalance_signal.active).length,
       sellReview: reasons.filter((r) => r.includes('매도')).length,
       buyReview: reasons.filter((r) => r.includes('매수')).length,
@@ -486,15 +468,16 @@ export function Dashboard() {
   }, [cards])
 
   const allocation = useMemo(() => {
-    // 평가금액은 반드시 기준통화 환산값으로 합산한다 (현지 통화끼리 더하면 비중이 틀어진다)
+    // 평가금액은 반드시 기준통화 환산값으로 합산한다 (현지 통화끼리 더하면 비중이 틀어진다).
+    // 비중은 서버가 현금까지 더한 전체 자금 대비로 준다 — 막대도 현금 한 칸을 같이 그린다.
     const invested = weights.filter((w) => w.current_value_base > 0)
-    const total = invested.reduce((s, w) => s + w.current_value_base, 0)
+    const total = portfolio?.total ?? invested.reduce((s, w) => s + w.current_value_base, 0)
     const worst = weights.reduce<RebalanceRow | null>(
       (acc, w) => (acc === null || Math.abs(w.excess_pct) > Math.abs(acc.excess_pct) ? w : acc),
       null,
     )
-    return { invested, total, worst }
-  }, [weights])
+    return { invested, total, worst, cash: portfolio?.cash ?? null }
+  }, [weights, portfolio])
 
   const categories = useMemo(() => {
     const counts = new Map<string, number>()
@@ -600,19 +583,7 @@ export function Dashboard() {
           </p>
         </div>
 
-        <div className="kpi">
-          <div className="kpi-head">
-            <span className="kpi-title">이번 기간 매수</span>
-          </div>
-          <div className="kpi-figure">
-            <span className="big">{summary.scheduledCount}</span>
-            <span className="hint">건 확인 대기</span>
-          </div>
-          <p className="kpi-foot">
-            예정 금액 합계 {formatAmountsByCurrency(summary.scheduledAmounts)} · 확정 완료{' '}
-            {summary.confirmedCount}건
-          </p>
-        </div>
+        <ReviewKpi review={portfolio?.review ?? null} />
 
         <div className="kpi">
           <div className="kpi-head">
@@ -652,6 +623,13 @@ export function Dashboard() {
                     title={`${w.ticker} ${num(w.actual_weight_pct, 1)}%`}
                   />
                 ))}
+                {allocation.cash && allocation.cash.actual_pct > 0 && (
+                  <span
+                    className="cash-slice"
+                    style={{ width: `${allocation.cash.actual_pct}%` }}
+                    title={`현금 ${num(allocation.cash.actual_pct, 1)}%`}
+                  />
+                )}
               </div>
               <div className="weight-legend">
                 {allocation.invested.map((w, i) => (
@@ -664,9 +642,25 @@ export function Dashboard() {
                     {w.ticker} <span className="mono">{num(w.actual_weight_pct, 1)}%</span>
                   </span>
                 ))}
+                {allocation.cash && allocation.cash.actual_pct > 0 && (
+                  <span>
+                    <i className="legend-dot cash-slice" aria-hidden="true" />
+                    현금 <span className="mono">{num(allocation.cash.actual_pct, 1)}%</span>
+                  </span>
+                )}
               </div>
               <p className="kpi-foot">
-                총 {amount(allocation.total, baseCurrency)} ·{' '}
+                총 {amount(allocation.total, baseCurrency)}
+                {portfolio?.pnl !== null && portfolio?.pnl !== undefined && (
+                  <>
+                    {' '}· 평가손익{' '}
+                    <span className={portfolio.pnl > 0 ? 'up' : portfolio.pnl < 0 ? 'down' : ''}>
+                      {signedAmount(portfolio.pnl, baseCurrency)}
+                      {portfolio.cost ? ` (${signed((portfolio.pnl / portfolio.cost) * 100, 1, '%')})` : ''}
+                    </span>
+                  </>
+                )}{' '}
+                ·{' '}
                 {allocation.worst && Math.abs(allocation.worst.excess_pct) >= 0.05
                   ? `목표 대비 최대 이탈: ${allocation.worst.ticker} ${signed(allocation.worst.excess_pct, 1, '%p')}`
                   : '목표 비중과 거의 일치합니다.'}
@@ -674,7 +668,7 @@ export function Dashboard() {
             </>
           ) : (
             <p className="kpi-foot">
-              보유수량이 없습니다. 리밸런싱 화면에서 수량을 입력하면 실제 비중이 계산됩니다.
+              보유수량과 현금이 없습니다. 리밸런싱 화면에서 입력하면 실제 비중이 계산됩니다.
             </p>
           )}
         </div>
@@ -759,16 +753,12 @@ export function Dashboard() {
       ) : view === 'table' ? (
         <SignalMatrix
           cards={visible}
-          busyId={busyId}
-          onConfirm={handleConfirm}
           onChart={setChartCard}
           controls={rowControls}
         />
       ) : (
         <SignalCards
           cards={visible}
-          busyId={busyId}
-          onConfirm={handleConfirm}
           onChart={setChartCard}
           controls={rowControls}
         />
@@ -786,7 +776,7 @@ export function Dashboard() {
       <p className="hint" style={{ marginTop: 14 }}>
         매수 시그널 = -DI &gt; +DI · 이격도 &lt; 0 · (StdDev20 축소 또는 거래량비 &gt; 1.1) · ADX &gt; 20 —
         네 조건을 모두 만족할 때. 각 조건은 해당 지표 칸에 ✓로 표시됩니다. 매도 시그널은 참고용이며 실제
-        매도 실행일은 리밸런싱 리뷰 마감일입니다.
+        매도는 리밸런싱 리뷰 때 비중을 보고 정합니다.
       </p>
     </div>
   )
@@ -840,20 +830,16 @@ function dragProps(ticker: string, controls: RowControlProps) {
 
 function SignalMatrix({
   cards,
-  busyId,
-  onConfirm,
   onChart,
   controls,
 }: {
   cards: DashboardCard[]
-  busyId: number | null
-  onConfirm: (id: number) => void
   onChart: (card: DashboardCard) => void
   controls: RowControlProps
 }) {
   return (
     <div className="table-scroll">
-      <table className="data-table fixed" style={{ minWidth: 1310 }}>
+      <table className="data-table fixed" style={{ minWidth: 1292 }}>
         <thead>
           <tr>
             <th style={{ width: 44 }} aria-label="순서" />
@@ -877,7 +863,9 @@ function SignalMatrix({
               <MetricHead title="200일선" sub="(장기 추세)" />
             </th>
             <th style={{ width: 150 }}>종합 신호등</th>
-            <th style={{ width: 168 }}>이번 기간 매수</th>
+            <th style={{ width: 150 }}>
+              <MetricHead title="마지막 매수" sub="시그널" />
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -959,7 +947,7 @@ function SignalMatrix({
                   </div>
                 </td>
                 <td>
-                  <BuyCell card={card} busyId={busyId} onConfirm={onConfirm} />
+                  <LastBuySignal card={card} />
                 </td>
               </tr>
             )
@@ -1021,33 +1009,17 @@ function SettingsTable({
       </div>
 
       <div className="table-scroll">
-        <table className="data-table fixed" style={{ minWidth: 1204 }}>
+        <table className="data-table fixed" style={{ minWidth: 710 }}>
           <thead>
             <tr>
               <th style={{ width: 44 }} aria-label="순서" />
               <th style={{ width: 150 }}>종목</th>
               <th style={{ width: 112 }}>구분</th>
-              <th style={{ width: 166 }}>DCA 금액</th>
-              <th style={{ width: 84 }}>
-                DCA
-                <br />
-                주기
-              </th>
               <th style={{ width: 112 }}>목표 비중</th>
               <th style={{ width: 112 }}>
                 밴드 임계값
                 <br />
                 (비우면 기본값)
-              </th>
-              <th style={{ width: 92 }}>
-                리밸런싱
-                <br />
-                주기
-              </th>
-              <th style={{ width: 152 }}>
-                리뷰 마감일
-                <br />
-                직접 지정
               </th>
               <th style={{ width: 180 }}>정리</th>
             </tr>
@@ -1057,7 +1029,6 @@ function SettingsTable({
               const stock = stockByTicker.get(card.ticker)
               const draft = drafts[card.ticker]
               if (!stock || !draft) return null
-              const meta = CURRENCY_META[stock.currency]
               const label = stockLabel(card)
               const set = (patch: Partial<Draft>) => onChange(card.ticker, { ...draft, ...patch })
               const drag = dragProps(card.ticker, controls)
@@ -1089,27 +1060,6 @@ function SettingsTable({
                   </td>
                   <td>
                     <div className="input-with-button tight">
-                      <span className="unit">{meta.symbol}</span>
-                      <NumberInput
-                        value={draft.dca_amount}
-                        onChange={(v) => set({ dca_amount: v })}
-                        allowDecimal={stock.currency !== 'KRW'}
-                        aria-label={`${label} DCA 금액`}
-                      />
-                    </div>
-                  </td>
-                  <td>
-                    <select
-                      value={draft.dca_period}
-                      aria-label={`${label} DCA 주기`}
-                      onChange={(e) => set({ dca_period: e.target.value as DcaPeriod })}
-                    >
-                      <option value="monthly">월</option>
-                      <option value="quarterly">분기</option>
-                    </select>
-                  </td>
-                  <td>
-                    <div className="input-with-button tight">
                       <NumberInput
                         value={draft.target_weight_pct}
                         onChange={(v) => set({ target_weight_pct: v })}
@@ -1128,24 +1078,6 @@ function SettingsTable({
                       />
                       <span className="unit">%p</span>
                     </div>
-                  </td>
-                  <td>
-                    <select
-                      value={draft.rebalance_period}
-                      aria-label={`${label} 리밸런싱 주기`}
-                      onChange={(e) => set({ rebalance_period: e.target.value as RebalancePeriod })}
-                    >
-                      <option value="quarterly">분기</option>
-                      <option value="semiannual">반기</option>
-                    </select>
-                  </td>
-                  <td>
-                    <input
-                      type="date"
-                      value={draft.review_date_override}
-                      aria-label={`${label} 리뷰 마감일`}
-                      onChange={(e) => set({ review_date_override: e.target.value })}
-                    />
                   </td>
                   <td>
                     <div className="btn-group tight">
@@ -1178,8 +1110,8 @@ function SettingsTable({
           onCancel={() => onConfirmPurge(null)}
         >
           <p>
-            <strong>{confirmingPurge}</strong>의 시세·지표·매수 기록까지 전부 지웁니다. 되돌릴 수 없고,
-            다시 등록하면 히스토리를 처음부터 새로 받아야 합니다.
+            <strong>{confirmingPurge}</strong>의 보유수량·평단가와 시세·지표까지 전부 지웁니다. 되돌릴 수
+            없고, 다시 등록하면 히스토리를 처음부터 새로 받아야 합니다. 이미 남긴 리밸런싱 기록은 그대로 둡니다.
           </p>
           <p>
             잠시 치워두려는 것이라면 <strong>감추기</strong>를 쓰세요.
@@ -1197,14 +1129,10 @@ function SettingsTable({
 
 function SignalCards({
   cards,
-  busyId,
-  onConfirm,
   onChart,
   controls,
 }: {
   cards: DashboardCard[]
-  busyId: number | null
-  onConfirm: (id: number) => void
   onChart: (card: DashboardCard) => void
   controls: RowControlProps
 }) {
@@ -1309,7 +1237,8 @@ function SignalCards({
             </div>
 
             <div className="card-actions">
-              <BuyCell card={card} busyId={busyId} onConfirm={onConfirm} />
+              <span className="k">마지막 매수 시그널</span>
+              <LastBuySignal card={card} />
             </div>
           </article>
         )

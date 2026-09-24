@@ -1,4 +1,4 @@
-import type { Currency, DashboardCard, KneeConditions, Market } from '../types'
+import type { Currency, DashboardCard, KneeConditions, Market, ReviewPeriod, ReviewStatus } from '../types'
 
 /* ---------- 통화 ----------
    원화와 달러는 자릿수 감각이 다르다. 79,600원을 "79,600.00"으로 쓰면 읽기 어렵고,
@@ -89,6 +89,44 @@ export function signedAmount(value: number | null | undefined, currency: Currenc
 export function qty(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) return '—'
   return Number(value.toFixed(4)).toLocaleString('ko-KR', { maximumFractionDigits: 4 })
+}
+
+/* ---------- 날짜 ----------
+   서버가 주는 날짜는 "YYYY-MM-DD" 글자다. `new Date("2026-09-12")`는 UTC 자정으로 읽혀
+   한국에서는 날짜가 하루 밀릴 수 있어서, 숫자로 쪼개 달력 날짜끼리 뺀다. */
+
+function dayNumber(year: number, month: number, day: number): number {
+  return Math.round(Date.UTC(year, month - 1, day) / 86_400_000)
+}
+
+/** `date`가 오늘부터 며칠 전인가. 앞으로의 날이면 음수. 읽을 수 없으면 null */
+export function daysFrom(date: string | null | undefined, today: Date = new Date()): number | null {
+  const match = date ? /^(\d{4})-(\d{2})-(\d{2})/.exec(date) : null
+  if (!match) return null
+  const then = dayNumber(Number(match[1]), Number(match[2]), Number(match[3]))
+  const now = dayNumber(today.getFullYear(), today.getMonth() + 1, today.getDate())
+  return now - then
+}
+
+/** "오늘" · "3일 전" · "5일 뒤" */
+export function relativeDay(days: number | null): string {
+  if (days === null) return '—'
+  if (days === 0) return '오늘'
+  return days > 0 ? `${days}일 전` : `${-days}일 뒤`
+}
+
+export const REVIEW_PERIOD_LABEL: Record<ReviewPeriod, string> = {
+  quarterly: '분기',
+  semiannual: '반기',
+  annual: '연 1회',
+}
+
+/** 다음 리뷰를 한 마디로 — "D-6", "오늘", "3일 지남" */
+export function reviewCountdown(review: Pick<ReviewStatus, 'next_date'>, today: Date = new Date()): string {
+  const days = daysFrom(review.next_date, today)
+  if (days === null) return '—'
+  if (days === 0) return '오늘'
+  return days < 0 ? `D-${-days}` : `${days}일 지남`
 }
 
 export type Tone = 'green' | 'amber' | 'red' | 'blue' | 'grey'

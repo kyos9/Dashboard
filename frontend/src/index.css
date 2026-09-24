@@ -481,6 +481,15 @@ h4 {
   flex: none;
 }
 
+/* 현금 — 종목 색과 섞이지 않게 무채색 빗금 */
+.cash-slice {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--text-faint) 0 2px,
+    transparent 2px 4px
+  );
+}
+
 /* ---------- 툴바 / 필터 칩 ---------- */
 
 .toolbar {
@@ -2252,4 +2261,146 @@ table.data-table tr.dirty:hover td {
 .callout .pin-btn {
   margin-left: auto;
   align-self: flex-start;
+}
+
+/* ---------- 리밸런싱: 리뷰 · 현금 · 거래 입력 · 기록 ---------- */
+
+.review-panel {
+  margin-bottom: var(--gap);
+}
+
+.review-panel.due {
+  border-color: var(--purple);
+  box-shadow: inset 3px 0 0 var(--purple);
+}
+
+.review-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px 24px;
+}
+
+.review-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  align-items: flex-end;
+}
+
+.review-controls .field > span {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.review-due-text {
+  margin: 10px 0 0;
+  color: var(--text);
+}
+
+.record-row {
+  margin-top: 12px;
+}
+
+.record-row input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.new-money {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin-bottom: 10px;
+}
+
+.new-money > label {
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+
+.new-money .input-with-button {
+  width: 200px;
+  max-width: 100%;
+}
+
+.new-money .hint {
+  flex: 1 1 260px;
+}
+
+.data-table tr.cash-row td {
+  background: var(--panel-soft);
+}
+
+.trade-row td {
+  background: var(--panel-soft);
+}
+
+.trade-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.trade-form .input-with-button {
+  width: 150px;
+}
+
+.trade-title {
+  font-weight: 600;
+}
+
+.trade-form .hint {
+  flex: 1 1 220px;
+}
+
+.snapshot-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.snapshot {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  padding: 10px 12px;
+}
+
+.snapshot > summary {
+  cursor: pointer;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+
+.snapshot[open] > summary {
+  margin-bottom: 10px;
+}
+
+.snapshot-total {
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.snapshot-note {
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+
+.snapshot-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.card-actions > .k {
+  font-size: 11.5px;
+  color: var(--text-faint);
 }

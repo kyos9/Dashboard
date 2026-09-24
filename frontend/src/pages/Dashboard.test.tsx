@@ -48,7 +48,7 @@ function card(overrides: Partial<DashboardCard> & { ticker: string }): Dashboard
       adx_trending: null,
     },
     shoulder_sell_ref: false,
-    current_period_buy: null,
+    last_buy_signal_date: null,
     rebalance_signal: { active: false, reasons: [] },
     ...overrides,
   }
@@ -61,13 +61,17 @@ function weightRow(overrides: Partial<RebalanceRow> & { ticker: string }): Rebal
     target_weight_pct: 0,
     actual_weight_pct: 0,
     excess_pct: 0,
-    next_review_date: '2026-12-31',
+    band_pct: 5,
     shoulder_signal_fired_in_period: false,
     rebalance_signal: { active: false, reasons: [] },
     quantity: 0,
+    avg_cost: null,
     last_close: null,
     current_value: 0,
     current_value_base: 0,
+    cost_value: null,
+    unrealized_pnl: null,
+    return_pct: null,
     ...overrides,
   }
 }
@@ -80,25 +84,12 @@ const CARDS: DashboardCard[] = [
     currency: 'KRW',
     category: '지수',
     indicators: { ...INDICATORS, close: 76_937, change_pct: -0.14 },
-    current_period_buy: {
-      id: 1,
-      type: 'signal',
-      status: 'scheduled',
-      exec_date: '2026-09-16',
-      amount: 500_000,
-    },
+    last_buy_signal_date: '2026-09-12',
   }),
   card({
     ticker: 'VOO',
     category: '지수',
     indicators: { ...INDICATORS, close: 408.03, change_pct: 1.3 },
-    current_period_buy: {
-      id: 2,
-      type: 'signal',
-      status: 'scheduled',
-      exec_date: '2026-09-16',
-      amount: 300,
-    },
   }),
 ]
 
@@ -106,6 +97,18 @@ const REBALANCE: RebalanceCurrent = {
   base_currency: 'KRW',
   fx: { rates: { USD: { currency: 'USD', krw_rate: 1300, source: 'stored', updated_at: null, is_estimate: false } }, is_estimate: false },
   total_value_base: 2_100_000,
+  holdings_value_base: 2_100_000,
+  cost_value_base: null,
+  unrealized_pnl_base: null,
+  cash: { amounts: {}, value_base: 0, target_pct: 0, actual_pct: 0, excess_pct: 0 },
+  target_sum_pct: 100,
+  review: {
+    period: 'quarterly',
+    next_date: '2099-12-31',
+    due: false,
+    override: null,
+    last_snapshot_at: null,
+  },
   rows: [
     weightRow({
       ticker: '005930.KS',
@@ -132,12 +135,8 @@ function stockOf(card: DashboardCard): Stock {
     currency: card.currency,
     active: true,
     added_at: '2026-01-01T00:00:00',
-    dca_amount: 0,
-    dca_period: 'monthly',
-    rebalance_period: 'quarterly',
     target_weight_pct: 0,
     rebalance_band_pct: null,
-    review_date_override: null,
     sort_order: 0,
   }
 }
@@ -240,23 +239,22 @@ describe('대시보드 · 통화 구분', () => {
     expect(kr.textContent).not.toContain('005930.KS')
   })
 
-  it('매수 예정 금액도 해당 종목의 통화로 보여준다', async () => {
+  it('종목마다 매수 시그널이 마지막으로 뜬 날을 보여준다', async () => {
     mockApi()
     renderDashboard()
 
-    expect(within(await cardRow('삼성전자')).getByText(/₩500,000/)).toBeInTheDocument()
-    expect(within(await cardRow('VOO')).getByText(/\$300\.00/)).toBeInTheDocument()
+    expect(within(await cardRow('삼성전자')).getByText('2026-09-12')).toBeInTheDocument()
+    // 한 번도 안 떴으면 빈칸이 아니라 그렇다고 적는다
+    expect(within(await cardRow('VOO')).getByText('저장된 기간에 없음')).toBeInTheDocument()
   })
 
-  it('예정 금액 합계는 통화를 섞어 더하지 않고 나눠서 보여준다', async () => {
+  it('매수 확인 버튼과 이번 기간 매수 칸은 없다', async () => {
     mockApi()
     renderDashboard()
 
-    // 500,000 + 300 = 500,300 처럼 더해버리면 안 된다
-    const foot = await screen.findByText(/예정 금액 합계/)
-    expect(foot.textContent).toContain('₩500,000')
-    expect(foot.textContent).toContain('$300.00')
-    expect(foot.textContent).not.toContain('500,300')
+    await cardRow('VOO')
+    expect(screen.queryByRole('button', { name: /매수완료/ })).not.toBeInTheDocument()
+    expect(screen.queryByText(/이번 기간/)).not.toBeInTheDocument()
   })
 
   it('포트폴리오 총액은 기준통화 환산으로 합산한다', async () => {
@@ -265,6 +263,58 @@ describe('대시보드 · 통화 구분', () => {
 
     // 현지 금액끼리 더했다면 801,000이 나왔을 것이다
     expect(await screen.findByText(/총 ₩2,100,000/)).toBeInTheDocument()
+  })
+
+  it('현금도 배분 막대와 범례에 한 칸으로 들어간다', async () => {
+    mockApi(CARDS, {
+      ...REBALANCE,
+      total_value_base: 3_000_000,
+      cash: { amounts: { KRW: 900_000 }, value_base: 900_000, target_pct: 30, actual_pct: 30, excess_pct: 0 },
+    })
+    renderDashboard()
+
+    expect(await screen.findByText(/총 ₩3,000,000/)).toBeInTheDocument()
+    expect(screen.getByTitle('현금 30.0%')).toBeInTheDocument()
+  })
+
+  it('평단가를 넣었으면 평가손익을 같이 보여준다', async () => {
+    mockApi(CARDS, { ...REBALANCE, cost_value_base: 2_000_000, unrealized_pnl_base: 100_000 })
+    renderDashboard()
+
+    const foot = await screen.findByText(/평가손익/)
+    expect(foot.textContent).toContain('+₩100,000')
+    expect(foot.textContent).toContain('+5.0%')
+  })
+})
+
+describe('대시보드 · 다음 리뷰', () => {
+  it('리뷰할 때가 되면 그렇게 알리고 기록을 남기라고 한다', async () => {
+    mockApi(CARDS, {
+      ...REBALANCE,
+      review: { period: 'quarterly', next_date: '2026-09-30', due: true, override: null, last_snapshot_at: null },
+    })
+    renderDashboard()
+
+    expect(await screen.findByText('리뷰할 때')).toBeInTheDocument()
+    expect(screen.getByText(/기록을 남기세요/)).toBeInTheDocument()
+  })
+
+  it('아직이면 날짜와 마지막 기록을 보여준다', async () => {
+    mockApi(CARDS, {
+      ...REBALANCE,
+      review: {
+        period: 'semiannual',
+        next_date: '2099-12-31',
+        due: false,
+        override: null,
+        last_snapshot_at: '2026-06-30T09:00:00',
+      },
+    })
+    renderDashboard()
+
+    expect(await screen.findByText('2099-12-31')).toBeInTheDocument()
+    expect(screen.getByText(/다음 리뷰 · 반기/)).toBeInTheDocument()
+    expect(screen.getByText('마지막 기록 2026-06-30')).toBeInTheDocument()
   })
 })
 
@@ -489,7 +539,10 @@ describe('대시보드 · 설정 모드', () => {
     // 종목은 그대로 있고, 값만 고칠 수 있게 된다
     expect(await nameOrder()).toEqual(['삼성전자', 'VOO'])
     expect(screen.getByLabelText('삼성전자 목표 비중')).toBeInTheDocument()
-    expect(screen.getByLabelText('VOO DCA 금액')).toBeInTheDocument()
+    expect(screen.getByLabelText('VOO 밴드 임계값')).toBeInTheDocument()
+    // 적립 금액·주기, 종목별 리뷰일은 없어졌다
+    expect(screen.queryByLabelText('VOO DCA 금액')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('VOO 리뷰 마감일')).not.toBeInTheDocument()
   })
 
   it('고친 종목만 저장한다', async () => {
@@ -522,10 +575,10 @@ describe('대시보드 · 설정 모드', () => {
     renderDashboard()
     await openSettings(user)
 
-    await user.type(screen.getByLabelText('VOO DCA 금액'), '300')
+    await user.type(screen.getByLabelText('VOO 목표 비중'), '5')
     await user.click(screen.getByRole('button', { name: '되돌리기' }))
 
-    expect(screen.getByLabelText('VOO DCA 금액')).toHaveValue('0')
+    expect(screen.getByLabelText('VOO 목표 비중')).toHaveValue('0')
     expect(update).not.toHaveBeenCalled()
   })
 

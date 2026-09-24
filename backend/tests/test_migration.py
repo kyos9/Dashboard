@@ -215,19 +215,19 @@ def test_price_source_column_is_added_without_losing_rows(upgraded):
     assert row.source is None
 
 
-def test_old_recommended_status_becomes_scheduled(upgraded):
-    """'추천'이라는 이름을 걷어냈어도 쓰던 기록은 그대로 남아야 한다.
+def test_the_oldest_file_lands_on_the_simplified_portfolio(upgraded):
+    """Alembic 이전 파일도 끝까지 올라간다 — 매수 기록은 0006에서 사라지고 보유수량은 남는다.
 
-    뜻이 바뀐 게 아니라 이름만 바뀌었다 — 여전히 "아직 매수완료 확인을 안 한 건"이다.
-    확정된 건은 건드리지 않는다.
+    옛 파일의 매수 기록에는 '추천(recommended)'이라는 옛 이름까지 들어 있다. 이름을 바꾸는
+    단계(0001 이전)와 표를 지우는 단계(0006)를 둘 다 지나도 막히지 않아야 한다.
     """
-    rows = upgraded.execute(
-        text("SELECT ticker, status, amount FROM buy_execution ORDER BY ticker")
-    ).fetchall()
-
-    assert rows == [
-        ("005930.KS", "confirmed", 500000.0),
-        ("VOO", "scheduled", 300.0),
-    ]
-    # 옛 이름이 남아 있으면 화면에서 버튼이 안 뜬다
-    assert "recommended" not in {status for _, status, _ in rows}
+    tables = {
+        r[0]
+        for r in upgraded.execute(text("SELECT name FROM sqlite_master WHERE type = 'table'"))
+    }
+    assert "buy_execution" not in tables
+    assert "rebalance_snapshot" in tables
+    holdings = dict(
+        upgraded.execute(text("SELECT ticker, quantity FROM holding WHERE user_id = 1")).fetchall()
+    )
+    assert holdings == {"VOO": 12.5, "005930.KS": 100.0}

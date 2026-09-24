@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 from collections import defaultdict
 from typing import Sequence, TypeVar
 
@@ -69,3 +70,16 @@ def latest_closes(db: Session, tickers: Sequence[str]) -> dict[str, float]:
         for ticker, rows in recent_prices(db, tickers, limit=1).items()
         if rows
     }
+
+
+def last_buy_signal_dates(db: Session, tickers: Sequence[str]) -> dict[str, dt.date]:
+    """종목별 무릎매수(v2)가 마지막으로 뜬 날. 한 번도 안 뜬 종목은 키가 없다."""
+    if not tickers:
+        return {}
+    rows = (
+        db.query(SignalDaily.ticker, func.max(SignalDaily.date))
+        .filter(SignalDaily.ticker.in_(list(tickers)), SignalDaily.knee_buy_v2.is_(True))
+        .group_by(SignalDaily.ticker)
+        .all()
+    )
+    return {ticker: date for ticker, date in rows if date is not None}

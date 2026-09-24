@@ -35,15 +35,33 @@ export interface OrderLine {
   action: OrderAction
 }
 
+/** 현금 한 줄. 종목처럼 목표가 있고, 모자라거나 남는 만큼이 곧 주문의 재원이다 */
+export interface CashLine {
+  /** 지금 현금 + 새로 넣을 돈 (기준통화) */
+  current: number
+  targetValue: number
+  /** +면 현금을 더 쌓아야 하고, −면 그만큼 종목을 사는 데 쓸 수 있다 */
+  adjust: number
+  targetPct: number
+}
+
 export interface OrderPlan {
   /** 보유 평가금액 합계 (기준통화) */
   holdingsTotal: number
-  /** 비중 계산에 쓰는 총 운용자산 — 사용자가 직접 입력하면 그 값 */
+  /** 비중 계산에 쓰는 전체 자금 = 보유 + 현금 + 새로 넣을 돈 */
   total: number
-  /** 총 운용자산에서 보유분을 뺀 미투자 현금 */
-  cash: number
+  /** 새로 넣을 돈 (기준통화). 입력하지 않으면 0 */
+  newMoney: number
+  cash: CashLine
+  /** 종목 목표 + 현금 목표 */
   targetSum: number
   orders: OrderLine[]
+}
+
+/** 저장된 현금 — 서버가 기준통화로 환산해서 준다 */
+export interface CashInput {
+  value_base: number
+  target_pct: number
 }
 
 /**
@@ -69,10 +87,10 @@ export function toNative(
 }
 
 /**
- * 사용자가 입력한 총 운용자산. 비어 있거나 숫자가 아니면 null(= 보유 합계를 쓴다).
+ * 사람이 친 금액. 비어 있거나 숫자가 아니거나 0 이하면 null.
  * 천단위 쉼표를 그대로 붙여넣는 경우가 많아 제거한 뒤 해석한다.
  */
-export function parseTotalOverride(input: string): number | null {
+export function parseAmount(input: string): number | null {
   const trimmed = input.trim()
   if (trimmed === '') return null
   const parsed = Number(trimmed.replace(/,/g, ''))
@@ -82,6 +100,12 @@ export function parseTotalOverride(input: string): number | null {
 /**
  * 목표 비중과 현재 비중의 차이를 주문 계획으로 바꾼다.
  *
+ * **목표비중은 전체 자금 중의 비중이다** — 보유 + 현금 + (있으면) 새로 넣을 돈. 현금을
+ * 빼고 계산하면 현금 30%를 들고 있어도 "100% 투자"로 보여 전 종목이 과중이 된다.
+ *
+ * 새로 넣을 돈은 적립하는 달에 쓴다. "이번 달 100만원을 어디에 넣나"가 곧 모자란 종목을
+ * 채우는 계획이라, 따로 적립 기능을 두지 않아도 여기서 답이 나온다.
+ *
  * 금액 계산은 전부 기준통화로 한다 — 통화가 섞인 상태에서 현지 금액끼리 더하면
  * (원화 80만 + 달러 1000) 숫자가 무의미해진다.
  */
@@ -89,11 +113,14 @@ export function buildOrderPlan(
   rows: RebalanceRow[],
   baseCurrency: Currency,
   krwPer: KrwRates,
-  totalOverride = '',
+  cash: CashInput = { value_base: 0, target_pct: 0 },
+  newMoneyInput = '',
 ): OrderPlan {
   const holdingsTotal = rows.reduce((sum, row) => sum + row.current_value_base, 0)
-  const total = parseTotalOverride(totalOverride) ?? holdingsTotal
-  const targetSum = rows.reduce((sum, row) => sum + row.target_weight_pct, 0)
+  const newMoney = parseAmount(newMoneyInput) ?? 0
+  const cashNow = cash.value_base + newMoney
+  const total = holdingsTotal + cashNow
+  const targetSum = rows.reduce((sum, row) => sum + row.target_weight_pct, 0) + cash.target_pct
 
   const orders = rows.map((row): OrderLine => {
     const targetValue = (total * row.target_weight_pct) / 100
@@ -114,5 +141,18 @@ export function buildOrderPlan(
     }
   })
 
-  return { holdingsTotal, total, cash: total - holdingsTotal, targetSum, orders }
+  const cashTarget = (total * cash.target_pct) / 100
+  return {
+    holdingsTotal,
+    total,
+    newMoney,
+    cash: {
+      current: cashNow,
+      targetValue: cashTarget,
+      adjust: cashTarget - cashNow,
+      targetPct: cash.target_pct,
+    },
+    targetSum,
+    orders,
+  }
 }

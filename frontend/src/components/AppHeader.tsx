@@ -129,7 +129,7 @@ export function AppHeader() {
                 </span>
               )}
             </h1>
-            <p className="brand-sub">기술적 타이밍 시그널 · DCA 매수 워크플로우 · 비중조절 신호</p>
+            <p className="brand-sub">기술적 타이밍 시그널 · 리밸런싱 가이드 · 비중조절 신호</p>
           </div>
         </div>
 

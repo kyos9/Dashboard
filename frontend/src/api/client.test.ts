@@ -116,3 +116,19 @@ describe('세션이 끊겼을 때', () => {
     window.removeEventListener(UNAUTHORIZED_EVENT, heard)
   })
 })
+
+describe('보유수량 저장', () => {
+  it('평단가를 안 넘기면 보내지 않는다 — 서버는 보낸 칸만 바꾼다', async () => {
+    mockFetch({ text: '{}' })
+    await api.updateHolding('VOO', 3)
+    const body = JSON.parse((vi.mocked(fetch).mock.calls[0][1] as RequestInit).body as string)
+    expect(body).toEqual({ quantity: 3 })
+  })
+
+  it('null을 넘기면 "모름"으로 지우라고 보낸다', async () => {
+    mockFetch({ text: '{}' })
+    await api.updateHolding('VOO', 3, null)
+    const body = JSON.parse((vi.mocked(fetch).mock.calls[0][1] as RequestInit).body as string)
+    expect(body).toEqual({ quantity: 3, avg_cost: null })
+  })
+})

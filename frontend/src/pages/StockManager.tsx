@@ -6,24 +6,19 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ErrorNotice } from '../components/ErrorNotice'
 import { NumberInput } from '../components/NumberInput'
 import { SymbolSearch } from '../components/SymbolSearch'
-import { CURRENCY_BY_MARKET, CURRENCY_META, MARKET_LABEL, money, stockLabel } from '../lib/display'
-import type {
-  ListingStatus,
-  DcaPeriod,
-  RebalancePeriod,
-  Stock,
-  StockCreateInput,
-  SymbolMatch,
-} from '../types'
+import { CURRENCY_BY_MARKET, CURRENCY_META, MARKET_LABEL, stockLabel } from '../lib/display'
+import type { ListingStatus, Stock, SymbolMatch } from '../types'
 
-const emptyForm: StockCreateInput = {
-  ticker: '',
-  category: '',
-  dca_amount: 0,
-  dca_period: 'monthly',
-  rebalance_period: 'quarterly',
-  target_weight_pct: 0,
+/** 새 종목 입력칸. 숫자도 글자로 들고 있다 — 비워둔 것과 0을 구분해야 한다 */
+interface NewStockForm {
+  ticker: string
+  category: string
+  targetWeight: string
+  quantity: string
+  avgCost: string
 }
+
+const emptyForm: NewStockForm = { ticker: '', category: '', targetWeight: '', quantity: '', avgCost: '' }
 
 /** 구분 입력을 돕는 예시값 — 자유 입력이므로 강제되지 않는다 */
 const CATEGORY_SUGGESTIONS = ['지수', '알파', '안전자산']
@@ -41,12 +36,8 @@ function StockRow({
 }) {
   const [name, setName] = useState(stock.name ?? '')
   const [category, setCategory] = useState(stock.category ?? '')
-  const [dcaAmount, setDcaAmount] = useState(String(stock.dca_amount))
-  const [dcaPeriod, setDcaPeriod] = useState<DcaPeriod>(stock.dca_period)
-  const [rebalancePeriod, setRebalancePeriod] = useState<RebalancePeriod>(stock.rebalance_period)
   const [targetWeight, setTargetWeight] = useState(String(stock.target_weight_pct))
   const [bandPct, setBandPct] = useState(stock.rebalance_band_pct === null ? '' : String(stock.rebalance_band_pct))
-  const [reviewOverride, setReviewOverride] = useState(stock.review_date_override ?? '')
   const [saving, setSaving] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
 
@@ -56,12 +47,8 @@ function StockRow({
       await api.updateStock(stock.ticker, {
         name: name.trim() === '' ? null : name.trim(),
         category: category.trim() === '' ? null : category.trim(),
-        dca_amount: Number(dcaAmount),
-        dca_period: dcaPeriod,
-        rebalance_period: rebalancePeriod,
         target_weight_pct: Number(targetWeight),
         rebalance_band_pct: bandPct === '' ? null : Number(bandPct),
-        review_date_override: reviewOverride === '' ? null : reviewOverride,
       })
       onSaved()
     } catch (e) {
@@ -129,21 +116,6 @@ function StockRow({
       </td>
       <td>
         <div className="input-with-button tight">
-          <span className="unit">{CURRENCY_META[stock.currency].symbol}</span>
-          <NumberInput
-            value={dcaAmount}
-            onChange={setDcaAmount}
-            allowDecimal={stock.currency === 'USD'}
-            aria-label={`${stock.ticker} DCA 금액`}
-          />
-          <select value={dcaPeriod} onChange={(e) => setDcaPeriod(e.target.value as DcaPeriod)}>
-            <option value="monthly">월</option>
-            <option value="quarterly">분기</option>
-          </select>
-        </div>
-      </td>
-      <td>
-        <div className="input-with-button tight">
           <NumberInput
             value={targetWeight}
             onChange={setTargetWeight}
@@ -151,15 +123,6 @@ function StockRow({
           />
           <span className="unit">%</span>
         </div>
-      </td>
-      <td>
-        <select
-          value={rebalancePeriod}
-          onChange={(e) => setRebalancePeriod(e.target.value as RebalancePeriod)}
-        >
-          <option value="quarterly">분기</option>
-          <option value="semiannual">반기</option>
-        </select>
       </td>
       <td>
         <div className="input-with-button tight">
@@ -171,9 +134,6 @@ function StockRow({
           />
           <span className="unit">%p</span>
         </div>
-      </td>
-      <td>
-        <input type="date" value={reviewOverride} onChange={(e) => setReviewOverride(e.target.value)} />
       </td>
       <td>
         <div className="btn-group tight">
@@ -212,7 +172,8 @@ export function StockManager() {
   const { refreshKey, notifyDataChanged } = useAppState()
   const { isAdmin } = useAuth()
   const [stocks, setStocks] = useState<Stock[]>([])
-  const [form, setForm] = useState<StockCreateInput>(emptyForm)
+  const [form, setForm] = useState<NewStockForm>(emptyForm)
+  const [cashTarget, setCashTarget] = useState(0)
   const [error, setError] = useState<unknown>(null)
   const [notice, setNotice] = useState<{ tone: 'green' | 'amber'; text: string; detail?: string } | null>(null)
   const [creating, setCreating] = useState(false)
@@ -233,6 +194,14 @@ export function StockManager() {
   // 실패해도 검색 자체는 되므로 오류로 처리하지 않는다.
   useEffect(() => {
     api.getListingStatus().then(setListing).catch(() => setListing(null))
+  }, [refreshKey])
+
+  // 목표 비중 합계에 현금 몫도 넣어야 100%가 맞는지 알 수 있다. 못 읽으면 0으로 본다.
+  useEffect(() => {
+    api
+      .getSettings()
+      .then((s) => setCashTarget(s.cash_target_pct))
+      .catch(() => setCashTarget(0))
   }, [refreshKey])
 
   const handleSaved = () => {
@@ -266,10 +235,13 @@ export function StockManager() {
     setError(null)
     setNotice(null)
     try {
+      const quantity = form.quantity === '' ? undefined : Number(form.quantity)
       const result = await api.createStock({
-        ...form,
         ticker: query,
-        category: form.category?.trim() === '' ? null : form.category,
+        category: form.category.trim() === '' ? null : form.category.trim(),
+        target_weight_pct: form.targetWeight === '' ? 0 : Number(form.targetWeight),
+        ...(quantity ? { quantity } : {}),
+        ...(form.avgCost === '' ? {} : { avg_cost: Number(form.avgCost) }),
       })
       setForm(emptyForm)
       setPicked(null)
@@ -301,7 +273,7 @@ export function StockManager() {
     }
   }
 
-  const handleCreate = () => void createWith(picked?.ticker ?? (form.ticker ?? '').trim())
+  const handleCreate = () => void createWith(picked?.ticker ?? form.ticker.trim())
 
   const refreshListing = async () => {
     setListingBusy(true)
@@ -321,9 +293,11 @@ export function StockManager() {
     }
   }
 
-  const targetSum = stocks.filter((s) => s.active).reduce((sum, s) => sum + s.target_weight_pct, 0)
-  // DCA 금액은 그 종목을 실제로 거래하는 통화 기준이므로, 고른 종목에 맞춰 단위를 보여준다
-  const newCurrencyMeta = CURRENCY_META[CURRENCY_BY_MARKET[picked?.market ?? 'US']]
+  const targetSum =
+    stocks.filter((s) => s.active).reduce((sum, s) => sum + s.target_weight_pct, 0) + cashTarget
+  // 평단가는 그 종목을 실제로 거래하는 통화 기준이므로, 고른 종목에 맞춰 단위를 보여준다
+  const newMarket = picked?.market ?? 'US'
+  const newCurrencyMeta = CURRENCY_META[CURRENCY_BY_MARKET[newMarket]]
 
   return (
     <div>
@@ -388,37 +362,39 @@ export function StockManager() {
               type="text"
               list="category-options"
               placeholder="지수"
-              value={form.category ?? ''}
+              value={form.category}
               onChange={(e) => setForm({ ...form, category: e.target.value })}
             />
-          </div>
-          <div className="field">
-            <label htmlFor="new-amount">DCA 금액 ({newCurrencyMeta.symbol})</label>
-            <NumberInput
-              id="new-amount"
-              value={String(form.dca_amount ?? 0)}
-              onChange={(v) => setForm({ ...form, dca_amount: Number(v) })}
-              // 원·엔은 소수점이 의미가 없다 (1주 단위 금액이 크다)
-              allowDecimal={picked?.market === 'US'}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="new-period">DCA 주기</label>
-            <select
-              id="new-period"
-              value={form.dca_period}
-              onChange={(e) => setForm({ ...form, dca_period: e.target.value as DcaPeriod })}
-            >
-              <option value="monthly">월</option>
-              <option value="quarterly">분기</option>
-            </select>
           </div>
           <div className="field">
             <label htmlFor="new-weight">목표 비중 (%)</label>
             <NumberInput
               id="new-weight"
-              value={String(form.target_weight_pct ?? 0)}
-              onChange={(v) => setForm({ ...form, target_weight_pct: Number(v) })}
+              placeholder="0"
+              value={form.targetWeight}
+              onChange={(v) => setForm({ ...form, targetWeight: v })}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="new-quantity">보유 수량</label>
+            <NumberInput
+              id="new-quantity"
+              placeholder="0"
+              value={form.quantity}
+              onChange={(v) => setForm({ ...form, quantity: v })}
+              // 미국 주식은 소수점 단위로도 산다
+              allowDecimal={newMarket === 'US'}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="new-cost">평단가 ({newCurrencyMeta.symbol})</label>
+            <NumberInput
+              id="new-cost"
+              placeholder="모르면 비워두기"
+              value={form.avgCost}
+              onChange={(v) => setForm({ ...form, avgCost: v })}
+              // 원·엔은 소수점이 의미가 없다
+              allowDecimal={newMarket === 'US'}
             />
           </div>
           <div className="field">
@@ -429,10 +405,10 @@ export function StockManager() {
           </div>
         </div>
         <p className="hint" style={{ marginTop: 10 }}>
-          DCA 금액 {newCurrencyMeta.symbol}
-          {money(form.dca_amount ?? 0)}을(를) {form.dca_period === 'monthly' ? '매월' : '매 분기'} 매수하는 것으로
-          기록합니다. 금액은 해당 종목을 실제로 거래하는 통화({newCurrencyMeta.label}) 기준입니다. 시세 조회에
-          실패해도 종목 등록은 유지되며 나중에 다시 갱신할 수 있습니다.
+          목표 비중은 <b>현금을 포함한 전체 자금</b> 중 이 종목에 둘 비중입니다. 이미 들고 있는 종목이면 수량과
+          평단가를 같이 적으세요 — 평단가는 {newCurrencyMeta.label} 기준이고 손익을 보여주는 데만 쓰이며 비중에는
+          영향이 없습니다. 수량·평단가는 나중에 리밸런싱 탭에서 고칠 수 있습니다. 시세 조회에 실패해도 종목
+          등록은 유지되며 나중에 다시 갱신할 수 있습니다.
         </p>
       </div>
 
@@ -440,7 +416,8 @@ export function StockManager() {
         <div className="section-head">
           <h3>등록된 종목 {stocks.length}개</h3>
           <span className={`badge ${Math.abs(targetSum - 100) < 0.01 ? 'badge-green' : 'badge-amber'}`}>
-            활성 종목 목표 비중 합계 {targetSum.toFixed(1)}%
+            목표 비중 합계 {targetSum.toFixed(1)}%
+            {cashTarget > 0 && ` (현금 ${cashTarget.toFixed(1)}% 포함)`}
           </span>
         </div>
 
@@ -451,27 +428,16 @@ export function StockManager() {
           </div>
         ) : (
           <div className="table-scroll">
-            <table className="data-table fixed" style={{ minWidth: 1390 }}>
+            <table className="data-table fixed" style={{ minWidth: 890 }}>
               <thead>
                 <tr>
                   <th style={{ width: 202 }}>종목</th>
                   <th style={{ width: 108 }}>구분</th>
-                  <th style={{ width: 228 }}>DCA 금액 / 주기</th>
                   <th style={{ width: 132 }}>목표 비중</th>
-                  <th style={{ width: 104 }}>
-                    리밸런싱
-                    <br />
-                    주기
-                  </th>
                   <th style={{ width: 148 }}>
                     밴드 임계값
                     <br />
                     (비워두면 기본값)
-                  </th>
-                  <th style={{ width: 168 }}>
-                    리뷰 마감일
-                    <br />
-                    직접 지정
                   </th>
                   <th style={{ width: 300 }}>작업</th>
                 </tr>
@@ -502,8 +468,9 @@ export function StockManager() {
           onCancel={() => setPurging(null)}
         >
           <p>
-            <strong>{stockLabel(purging)}</strong>({purging.ticker})의 시세·지표·매수 기록까지 전부
-            지웁니다. 되돌릴 수 없고, 다시 등록하면 히스토리를 처음부터 새로 받아야 합니다.
+            <strong>{stockLabel(purging)}</strong>({purging.ticker})의 보유수량·평단가와 시세·지표까지 전부
+            지웁니다. 되돌릴 수 없고, 다시 등록하면 히스토리를 처음부터 새로 받아야 합니다. 이미 남긴
+            리밸런싱 기록은 그대로 둡니다.
           </p>
           <p>
             잠시 목록에서만 내리려는 것이라면 <strong>비활성화</strong>를 쓰세요. 기록은 그대로 남고

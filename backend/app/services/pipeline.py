@@ -1,4 +1,4 @@
-"""종목 하나를 갱신(가격→지표→시그널)하고 매수 워크플로우까지 평가하는 오케스트레이션.
+"""종목 하나를 갱신(가격→지표→시그널)하는 오케스트레이션.
 
 수동 새로고침 버튼과 일일 스케줄러(scheduler.py)가 공통으로 사용한다.
 """
@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.markets import Market
 from app.models import Instrument, PriceDaily, UserStock
-from app.services import buy_workflow, data_ingestion, fx
+from app.services import data_ingestion, fx
 from app.services.trading_calendar import last_closed_trading_day
 
 logger = logging.getLogger(__name__)
@@ -23,11 +23,9 @@ def refresh_and_evaluate_stock(
     full_backfill: bool = False,
     price_df: pd.DataFrame | None = None,
 ) -> dict:
-    result = data_ingestion.refresh_ticker(
+    return data_ingestion.refresh_ticker(
         db, stock.ticker, full_backfill=full_backfill, price_df=price_df
     )
-    buy_workflow.evaluate_buy_workflow(db, stock)
-    return result
 
 
 def refresh_all_active_stocks(db: Session, market: Market | None = None) -> list[dict]:

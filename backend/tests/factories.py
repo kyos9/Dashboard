@@ -19,15 +19,10 @@
 
 from __future__ import annotations
 
-import datetime as dt
-
 from sqlalchemy.orm import Session
 
 from app.markets import normalize_ticker
 from app.models import (
-    BuyExecution,
-    BuyStatus,
-    BuyType,
     Holding,
     Instrument,
     User,
@@ -67,7 +62,7 @@ def make_stock(
 ) -> UserStock:
     """종목 하나를 만들어 DB에 넣는다 — 공용 행(`Instrument`)과 내 행(`UserStock`) 둘 다.
 
-    나머지 칸(`target_weight_pct`, `dca_period`, `added_at` …)은 부르는 쪽이 필요한
+    나머지 칸(`target_weight_pct`, `rebalance_band_pct`, `added_at` …)은 부르는 쪽이 필요한
     것만 넘긴다. 여기서 기본값을 따로 정하지 않는 이유는 모델의 기본값과 다른 값을
     숨겨두면, 테스트가 왜 그렇게 도는지 이 파일을 열어봐야만 알 수 있기 때문이다.
 
@@ -91,11 +86,12 @@ def make_holding(
     ticker: str,
     quantity: float,
     *,
+    avg_cost: float | None = None,
     user_id: int = LOCAL_USER_ID,
     commit: bool = True,
 ) -> Holding:
-    """보유수량 한 줄."""
-    holding = Holding(user_id=user_id, ticker=ticker, quantity=quantity)
+    """보유수량 한 줄. 평단가는 안 주면 모름(None)."""
+    holding = Holding(user_id=user_id, ticker=ticker, quantity=quantity, avg_cost=avg_cost)
     db.add(holding)
     if commit:
         db.commit()
@@ -117,33 +113,3 @@ def make_settings(
     if commit:
         db.commit()
     return settings
-
-
-def make_buy(
-    db: Session,
-    ticker: str,
-    *,
-    period_start: dt.date,
-    period_end: dt.date | None = None,
-    exec_date: dt.date | None = None,
-    type: BuyType = BuyType.signal,
-    amount: float = 100.0,
-    status: BuyStatus = BuyStatus.scheduled,
-    user_id: int = LOCAL_USER_ID,
-    commit: bool = True,
-) -> BuyExecution:
-    """매수 기록 한 줄. 기간 끝·실행일을 안 주면 기간 시작과 같은 날로 둔다."""
-    buy = BuyExecution(
-        user_id=user_id,
-        ticker=ticker,
-        period_start=period_start,
-        period_end=period_end or period_start,
-        exec_date=exec_date or period_start,
-        type=type,
-        amount=amount,
-        status=status,
-    )
-    db.add(buy)
-    if commit:
-        db.commit()
-    return buy

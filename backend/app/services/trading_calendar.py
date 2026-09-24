@@ -130,7 +130,7 @@ def _month_range(year: int, month: int) -> tuple[dt.date, dt.date]:
 
 
 def calendar_period_range(d: dt.date, period: str) -> tuple[dt.date, dt.date]:
-    """d가 속한 캘린더 기간(월/분기/반기)의 [시작일, 끝일] (달력 기준, 거래일 필터 전)."""
+    """d가 속한 캘린더 기간(월/분기/반기/연)의 [시작일, 끝일] (달력 기준, 거래일 필터 전)."""
     if period == "monthly":
         return _month_range(d.year, d.month)
     if period == "quarterly":
@@ -143,6 +143,8 @@ def calendar_period_range(d: dt.date, period: str) -> tuple[dt.date, dt.date]:
         start, _ = _month_range(d.year, h_start_month)
         _, end = _month_range(d.year, h_start_month + 5)
         return start, end
+    if period == "annual":
+        return dt.date(d.year, 1, 1), dt.date(d.year, 12, 31)
     raise ValueError(f"unknown period: {period}")
 
 
