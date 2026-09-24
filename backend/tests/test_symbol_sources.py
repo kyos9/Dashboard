@@ -27,7 +27,7 @@ class _Response:
         self.encoding = encoding
 
 
-# ── 한국거래소 목록 조회 ─────────────────────────────────────────────
+# ── 한국거래소(KIND) 목록 조회 — 네이버가 안 될 때의 대안 ─────────────────────────────────────────────
 
 def test_fetch_board_requests_right_market_and_decodes_euckr(monkeypatch):
     """이 파일은 EUC-KR로 내려온다. 인코딩을 지정하지 않으면 한글이 깨진다."""
@@ -39,7 +39,7 @@ def test_fetch_board_requests_right_market_and_decodes_euckr(monkeypatch):
 
     monkeypatch.setattr(requests, "get", fake_get)
 
-    rows = krx.fetch_board(Board.KOSDAQ)
+    rows = krx.fetch_board_kind(Board.KOSDAQ)
 
     assert captured["params"] == {"method": "download", "marketType": "kosdaqMkt"}
     assert rows == [{"code": "005930", "name": "삼성전자", "board": "KOSDAQ"}]
@@ -48,7 +48,7 @@ def test_fetch_board_requests_right_market_and_decodes_euckr(monkeypatch):
 def test_fetch_board_reports_http_error(monkeypatch):
     monkeypatch.setattr(requests, "get", lambda *a, **k: _Response(status=503))
     with pytest.raises(krx.KrxUnavailable) as excinfo:
-        krx.fetch_board(Board.KOSPI)
+        krx.fetch_board_kind(Board.KOSPI)
     assert "503" in str(excinfo.value)
 
 
@@ -58,7 +58,7 @@ def test_fetch_board_reports_connection_failure(monkeypatch):
 
     monkeypatch.setattr(requests, "get", blocked)
     with pytest.raises(krx.KrxUnavailable) as excinfo:
-        krx.fetch_board(Board.KOSPI)
+        krx.fetch_board_kind(Board.KOSPI)
     assert "ConnectionError" in str(excinfo.value)
 
 

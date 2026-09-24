@@ -37,7 +37,7 @@ def listing_status(db: Session = Depends(get_db)):
 
 @router.post("/refresh-listing", dependencies=[Depends(require_owner)])
 def refresh_listing(db: Session = Depends(get_db)):
-    """한국거래소 상장목록을 다시 받아 캐시한다.
+    """국내 상장목록(네이버, 안 되면 한국거래소)을 다시 받아 캐시한다.
 
     실패해도 번들 시드로 검색은 계속 되므로 500이 아니라 실패 사유를 담아 200으로
     돌려준다 — 화면에서 "갱신은 실패했지만 검색은 된다"고 안내할 수 있게.
@@ -52,7 +52,7 @@ def refresh_listing(db: Session = Depends(get_db)):
             "count": 0,
             "error": str(exc),
             "hint": (
-                "한국거래소 상장목록을 받지 못했습니다. 네트워크가 막혀 있어도 "
+                "국내 상장목록을 받지 못했습니다. 네트워크가 막혀 있어도 "
                 "주요 종목은 내장 목록으로 검색됩니다."
             ),
         }

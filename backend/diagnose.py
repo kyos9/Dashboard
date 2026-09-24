@@ -83,8 +83,8 @@ for host in (
     "fc.yahoo.com",
     "stooq.com",
     "api.finance.naver.com",  # 국내주식 시세
-    "kind.krx.co.kr",  # 국내 상장목록(종목명 검색)
-    "finance.naver.com",  # 국내 ETF 목록(ETF 이름 검색)
+    "kind.krx.co.kr",  # 국내 상장목록 — 네이버가 안 될 때의 대안
+    "finance.naver.com",  # 국내 전체 종목·ETF 목록(종목명 검색)
 ):
     try:
         ok(f"{host} → {socket.gethostbyname(host)}")
@@ -251,7 +251,7 @@ if app_modules and market is Market.KR:
     except Exception as exc:
         fail(brief(exc, 300))
 
-    print("\n  7-2) 한국거래소 상장목록 받기 (신규 상장·사명 변경 반영용)")
+    print("\n  7-2) 국내 전체 종목 목록 받기 (네이버 시가총액 목록 — 내장 목록에 없는 종목을 이름으로 찾는 데 쓴다)")
     import time as _time
 
     from app.markets import Board
@@ -262,14 +262,23 @@ if app_modules and market is Market.KR:
     for board in (Board.KOSPI, Board.KOSDAQ):
         began = _time.perf_counter()
         try:
-            rows = krx.fetch_board(board, timeout=30)
-            ok(f"{board.value} {len(rows):,}종목 ({_time.perf_counter() - began:.1f}초)")
-            sample = next((i for i in rows if i["code"] == code), None)
-            if sample:
-                ok(f"{code} → {sample['name']} ({sample['board']})")
+            rows = krx.fetch_board_naver(board, timeout=30)
+            ok(f"{board.value} {len(rows):,}종목 — 네이버 ({_time.perf_counter() - began:.1f}초)")
+            by_code = {i["code"]: i["name"] for i in rows}
+            for probe in dict.fromkeys([code, *(("005930", "005935") if board is Board.KOSPI else ())]):
+                if probe in by_code:
+                    ok(f"{probe} → {by_code[probe]}")
+            continue
         except Exception as exc:
-            fail(f"{board.value} ({_time.perf_counter() - began:.1f}초) — {brief(exc, 300)}")
-            info("→ 실패해도 내장 목록(주요 종목)으로는 검색됩니다. 목록에 없는 종목만 못 찾습니다.")
+            fail(f"{board.value} 네이버 ({_time.perf_counter() - began:.1f}초) — {brief(exc, 300)}")
+
+        began = _time.perf_counter()
+        try:
+            rows = krx.fetch_board_kind(board, timeout=30)
+            ok(f"{board.value} {len(rows):,}종목 — 대신 한국거래소에서 받았습니다 ({_time.perf_counter() - began:.1f}초, 우선주 없음)")
+        except Exception as exc:
+            fail(f"{board.value} 한국거래소 ({_time.perf_counter() - began:.1f}초) — {brief(exc, 300)}")
+            info("→ 둘 다 실패해도 내장 목록(주요 종목)으로는 검색됩니다. 목록에 없는 종목만 못 찾습니다.")
 
     print("\n  7-3) 국내 ETF 목록 받기 (네이버 — ETF를 한글 이름으로 찾는 데 쓴다)")
     try:

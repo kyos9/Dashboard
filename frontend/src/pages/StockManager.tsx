@@ -336,7 +336,7 @@ export function StockManager() {
       api.getListingStatus().then(setListing).catch(() => {})
       setNotice(
         result.ok
-          ? { tone: 'green', text: `한국거래소 상장목록 ${result.count.toLocaleString('ko-KR')}종목을 받았습니다. 신규 상장·사명 변경이 검색에 반영됩니다.` }
+          ? { tone: 'green', text: `국내 상장목록 ${result.count.toLocaleString('ko-KR')}종목을 받았습니다. 신규 상장·사명 변경이 검색에 반영됩니다.` }
           : { tone: 'amber', text: result.hint ?? '상장목록을 받지 못했습니다.', detail: result.error },
       )
     } catch (e) {

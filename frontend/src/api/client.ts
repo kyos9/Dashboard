@@ -104,7 +104,7 @@ export const api = {
     request<SymbolMatch[]>(`/symbols/search?q=${encodeURIComponent(q)}&limit=${limit}`),
   /** 지금 몇 종목이 검색 가능한지 — 내장 목록만인지, 거래소 목록까지 받았는지 */
   getListingStatus: () => request<ListingStatus>('/symbols/listing-status'),
-  /** 한국거래소 상장목록을 다시 받아 캐시한다 (신규 상장·사명 변경 반영) */
+  /** 국내 상장목록(네이버, 안 되면 한국거래소)을 다시 받아 캐시한다 (신규 상장·사명 변경 반영) */
   refreshSymbolListing: () =>
     request<{ ok: boolean; count: number; error?: string; hint?: string }>(
       '/symbols/refresh-listing',
