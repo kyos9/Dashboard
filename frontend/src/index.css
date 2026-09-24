@@ -1839,6 +1839,70 @@ table.data-table tr.dirty:hover td {
   color: var(--text);
 }
 
+/* 관리자 — 사용자 목록 · 가입 승인 */
+.users-modal {
+  width: min(720px, 100%);
+}
+
+.users-intro {
+  margin: 0 0 10px;
+}
+
+.users-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.user-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.user-row:last-child {
+  border-bottom: none;
+}
+
+.user-who {
+  display: flex;
+  flex: 1 1 260px;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.user-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  overflow-wrap: anywhere;
+}
+
+.user-email,
+.user-meta {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.user-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+  margin-left: auto;
+}
+
+/* 헤더 버튼 안의 작은 숫자 (기다리는 가입 신청 수) */
+.count-badge {
+  margin-left: 6px;
+  padding: 0 6px;
+  min-width: 18px;
+  justify-content: center;
+}
+
 .diag-foot {
   display: flex;
   flex-wrap: wrap;

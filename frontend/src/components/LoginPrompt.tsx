@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { LOGIN_ERRORS, useAuth } from './AuthGate'
+import { LOGIN_ERRORS, browser, useAuth } from './AuthGate'
 
 /**
  * 손님(로그인 전) 화면 조각들 (ROADMAP 4-4).
@@ -52,8 +52,34 @@ export function GuestNotice() {
   )
 }
 
+/**
+ * 가입 신청을 하고 승인을 기다리는 사람에게. 로그인 버튼 자리에 "기다리는 중"을 둔다 —
+ * 로그인 버튼을 또 보여주면 눌러도 같은 화면이라 고장 난 것으로 보인다.
+ */
+export function PendingPrompt() {
+  const { user } = useAuth()
+  return (
+    <div className="empty-state login-prompt">
+      <h3>가입 신청을 받았습니다</h3>
+      <p>
+        {user?.email ? <b>{user.email}</b> : '이 계정'}으로 신청했습니다. 관리자가 승인하면 내 종목과
+        포트폴리오를 만들 수 있습니다.
+      </p>
+      <p className="hint">
+        승인을 기다리는 동안에도 <b>매크로</b> 탭은 볼 수 있습니다. 승인된 뒤에는 다시 로그인할 필요 없이
+        아래 버튼이나 새로고침으로 바로 들어옵니다.
+      </p>
+      <button type="button" className="primary" onClick={() => browser.go('/')}>
+        승인됐는지 확인
+      </button>
+    </div>
+  )
+}
+
 /** 내 종목이 있어야 뜻이 있는 화면을 대신하는 안내. */
 export function LoginPrompt({ title, children }: { title: string; children?: ReactNode }) {
+  const { pending } = useAuth()
+  if (pending) return <PendingPrompt />
   return (
     <div className="empty-state login-prompt">
       <h3>{title}</h3>

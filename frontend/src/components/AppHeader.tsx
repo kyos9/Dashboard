@@ -6,6 +6,7 @@ import { useAuth } from './AuthGate'
 import { ConfirmDialog } from './ConfirmDialog'
 import { DiagnosticsModal } from './DiagnosticsModal'
 import { InstallButton } from './InstallButton'
+import { UsersModal } from './UsersModal'
 import { GuestNotice, LoginButton } from './LoginPrompt'
 import type { HealthInfo } from '../types'
 
@@ -51,7 +52,9 @@ const TABS = [
 
 export function AppHeader() {
   const { refreshAll, refreshing, lastSync, refreshError } = useAppState()
-  const { locked, mode, user, guest, isAdmin, logout, withdraw } = useAuth()
+  const { locked, mode, user, guest, pending, pendingCount, recountPending, isAdmin, logout, withdraw } =
+    useAuth()
+  const [showUsers, setShowUsers] = useState(false)
   const [confirmWithdraw, setConfirmWithdraw] = useState(false)
   const [withdrawing, setWithdrawing] = useState(false)
   const [withdrawError, setWithdrawError] = useState<string | null>(null)
@@ -155,9 +158,24 @@ export function AppHeader() {
               >
                 진단
               </button>
+              {/* 계정이 있는 것은 구글 로그인뿐이다 — 혼자 쓰는 서버에는 사용자 목록이 없다 */}
+              {mode === 'google' && (
+                <button
+                  className="ghost"
+                  onClick={() => setShowUsers(true)}
+                  title={pendingCount > 0 ? `가입 신청 ${pendingCount}건이 기다리고 있습니다` : '사용자 목록'}
+                >
+                  사용자
+                  {pendingCount > 0 && (
+                    <span className="badge badge-amber count-badge" aria-label={`가입 신청 ${pendingCount}건`}>
+                      {pendingCount}
+                    </span>
+                  )}
+                </button>
+              )}
             </>
           )}
-          {guest && <LoginButton label="로그인" />}
+          {guest && !pending && <LoginButton label="로그인" />}
           {/* 설치할 수 있을 때만 나온다 (이미 설치했거나 PC 크롬이 아니면 숨는다) */}
           <InstallButton />
           {/* 누구로 들어와 있는지 — 계정이 여럿인 폰에서 "내 종목이 없어졌다"가 사실은
@@ -166,16 +184,18 @@ export function AppHeader() {
             <span className="account-chip" title={user.email ?? undefined}>
               <span className="account-name">{user.name || user.email}</span>
               {user.is_owner && <span className="badge badge-grey">관리자</span>}
+              {pending && <span className="badge badge-amber">승인 대기</span>}
             </span>
           )}
-          {/* 잠긴 서버에서 들어와 있을 때만 — 개인 PC와 손님에게는 나갈 문이 없다 */}
-          {locked && !guest && (
+          {/* 잠긴 서버에서 들어와 있을 때만 — 개인 PC와 손님에게는 나갈 문이 없다.
+              승인을 기다리는 사람은 나갈 수 있다 (다른 계정으로 바꿔 들어오려고) */}
+          {locked && (!guest || pending) && (
             <button className="ghost" onClick={() => void logout()} title="로그아웃">
               나가기
             </button>
           )}
           {/* 관리자는 탈퇴할 수 없다 (공용 데이터를 돌볼 사람이 사라진다) */}
-          {mode === 'google' && user && !user.is_owner && (
+          {mode === 'google' && user && !user.is_owner && !pending && (
             <button className="ghost" onClick={() => setConfirmWithdraw(true)}>
               탈퇴
             </button>
@@ -214,6 +234,7 @@ export function AppHeader() {
       </nav>
 
       {showDiagnostics && <DiagnosticsModal onClose={() => setShowDiagnostics(false)} />}
+      {showUsers && <UsersModal onClose={() => setShowUsers(false)} onChanged={recountPending} />}
 
       {confirmWithdraw && (
         <ConfirmDialog

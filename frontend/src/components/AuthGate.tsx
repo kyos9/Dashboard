@@ -23,9 +23,9 @@ import type { AuthMode, AuthUser } from '../types'
  *   안내로 바뀐다 (`RequireLogin`). 들어오면 계정마다 자기 데이터가 보인다.
  *
  * 누가 무엇을 하는지:
- * - 관리자(주인) — 전원의 시세·매크로 갱신, 진단 로그, 예상치 입력
+ * - 관리자(주인) — 전원의 시세·매크로 갱신, 진단 로그, 예상치 입력, 가입 승인
  * - 사용자 — 자기 종목·보유·설정
- * - 손님 — 매크로 보기
+ * - 손님 — 매크로 보기. 구글로 가입 신청을 하고 승인을 기다리는 사람도 여기다.
  */
 interface AuthValue {
   /** 서버가 잠겨 있는지. 개인 PC에서는 false */
@@ -33,8 +33,14 @@ interface AuthValue {
   mode: AuthMode
   /** 구글 모드에서 들어와 있는 사람 */
   user: AuthUser | null
-  /** 구글 모드에서 로그인 전. 공용 매크로만 본다 */
+  /** 구글 모드에서 로그인 전 — 또는 가입 신청 뒤 승인을 기다리는 중. 공용 매크로만 본다 */
   guest: boolean
+  /** 구글로 들어왔지만 관리자 승인을 기다리는 중 (`guest` 도 참이다) */
+  pending: boolean
+  /** 관리자에게만 — 기다리는 가입 신청 수. 헤더의 사용자 버튼에 뜬다 */
+  pendingCount: number
+  /** 승인·거절한 뒤 신청 수를 다시 센다 */
+  recountPending: () => void
   /** 관리자 전용 버튼(전체 새로고침·진단·예상치 입력 등)을 보여줄지. 혼자 쓰는 서버는 늘 관리자다 */
   isAdmin: boolean
   /** 구글 로그인으로 보낸다 */
@@ -54,6 +60,9 @@ const Ctx = createContext<AuthValue>({
   mode: 'open',
   user: null,
   guest: false,
+  pending: false,
+  pendingCount: 0,
+  recountPending: () => {},
   isAdmin: true,
   login: () => {},
   configProblem: null,
@@ -76,7 +85,10 @@ export function useAuth(): AuthValue {
  */
 export const LOGIN_ERRORS: Record<string, string> = {
   not_allowed:
-    '이 구글 계정은 아직 들어올 수 없습니다. 관리자에게 쓰시는 구글 이메일 주소를 알려주고 추가해 달라고 해주세요.',
+    '이 구글 계정은 이메일 확인이 안 된 계정이라 들어올 수 없습니다. 다른 구글 계정으로 로그인해 주세요.',
+  rejected: '가입 신청이 받아들여지지 않았습니다. 잘못된 것 같으면 관리자에게 문의해 주세요.',
+  blocked: '이 계정은 관리자가 이용을 멈췄습니다. 관리자에게 문의해 주세요.',
+  busy: '지금은 가입 신청이 많이 밀려 있어 새 신청을 받지 못합니다. 며칠 뒤 다시 시도해 주세요.',
   cancelled: '구글 화면에서 로그인을 취소했습니다.',
   expired: '로그인이 중간에 끊겼습니다 (시간이 지났거나 다른 창에서 시작했습니다). 다시 눌러주세요.',
   failed: '구글 로그인을 확인하지 못했습니다. 잠시 뒤 다시 시도해 주세요.',
@@ -111,6 +123,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const [mode, setMode] = useState<AuthMode>('open')
   const [user, setUser] = useState<AuthUser | null>(null)
   const [configProblem, setConfigProblem] = useState<string | null>(null)
+  const [pendingCount, setPendingCount] = useState(0)
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(takeLoginError)
   const [busy, setBusy] = useState(false)
@@ -130,6 +143,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
         setMode(current)
         setUser(status.user ?? null)
         setConfigProblem(status.config_problem ?? null)
+        setPendingCount(status.pending_count ?? 0)
         // 구글 모드는 로그인 전에도 연다 — 손님으로 둘러본다
         setPhase(status.locked && !status.authenticated && current !== 'google' ? 'locked' : 'open')
       })
@@ -179,10 +193,19 @@ export function AuthGate({ children }: { children: ReactNode }) {
     leave()
   }, [leave])
 
+  const recountPending = useCallback(() => {
+    api
+      .getAuthStatus()
+      .then((status) => setPendingCount(status.pending_count ?? 0))
+      .catch(() => {})
+  }, [])
+
   const login = useCallback(() => browser.go(GOOGLE_LOGIN_URL), [])
   const dismissLoginError = useCallback(() => setError(null), [])
 
-  const guest = mode === 'google' && user === null
+  // 승인 대기인 사람은 서버에서 손님과 똑같이 다뤄진다 — 화면도 손님처럼 그린다
+  const pending = mode === 'google' && user?.status === 'pending'
+  const guest = mode === 'google' && (user === null || pending)
   // 혼자 쓰는 서버(잠금 없음·비밀번호)는 들어온 사람이 곧 1번 — 관리자다
   const isAdmin = mode === 'google' ? user?.is_owner === true : true
 
@@ -192,6 +215,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
       mode,
       user,
       guest,
+      pending,
+      pendingCount,
+      recountPending,
       isAdmin,
       login,
       configProblem,
@@ -200,7 +226,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
       logout,
       withdraw,
     }),
-    [locked, mode, user, guest, isAdmin, login, configProblem, error, dismissLoginError, logout, withdraw],
+    [
+      locked, mode, user, guest, pending, pendingCount, recountPending, isAdmin, login,
+      configProblem, error, dismissLoginError, logout, withdraw,
+    ],
   )
 
   async function submit(event: FormEvent) {

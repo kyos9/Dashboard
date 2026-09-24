@@ -79,7 +79,7 @@ def at_0005(at_0004):
 def test_kept_values_do_not_move(at_0005, snapshots):
     engine = at_0005
     migrate.upgrade_to_head(engine)
-    assert migrate.current_revision(engine) == "0006"
+    assert migrate.current_revision(engine) == migrate.head_revision()
 
     assert sorted(_rows(engine, "SELECT user_id, ticker, quantity FROM holding")) == sorted(
         (1, t, q) for t, q, _ in HOLDINGS
@@ -202,5 +202,5 @@ def test_downgrade_brings_back_the_shape_but_not_the_records(at_0005, snapshots)
 
     # 다시 올려도 된다 (왕복)
     migrate.upgrade_to_head(engine)
-    assert migrate.current_revision(engine) == "0006"
+    assert migrate.current_revision(engine) == migrate.head_revision()
     assert _rows(engine, "SELECT count(*) FROM user_stock") == [(5,)]

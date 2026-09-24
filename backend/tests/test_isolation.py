@@ -61,7 +61,7 @@ ANYONE = "누구나"  # 로그인 화면이 쓰는 것
 
 # (메서드, 경로) → (누구 것인가, 누가 쓰는가)
 #
-# 주인 전용 8개는 `require_owner` 로 잠겨 있다 — 표와 라우터가 어긋나면 아래 테스트가 잡는다.
+# 주인 전용 10개는 `require_owner` 로 잠겨 있다 — 표와 라우터가 어긋나면 아래 테스트가 잡는다.
 ENDPOINTS: dict[tuple[str, str], tuple[str, str]] = {
     # 로그인
     ("GET", "/api/auth/status"): (PUBLIC, ANYONE),
@@ -111,6 +111,9 @@ ENDPOINTS: dict[tuple[str, str], tuple[str, str]] = {
     # 로그·진단 — 남의 종목과 오류가 찍혀 있다
     ("GET", "/api/logs"): (SHARED, OWNER),
     ("GET", "/api/logs/download"): (SHARED, OWNER),
+    # 사용자 목록·가입 승인 — 모든 사람의 이메일이 들어 있다
+    ("GET", "/api/admin/users"): (SHARED, OWNER),
+    ("PUT", "/api/admin/users/{user_id}/status"): (SHARED, OWNER),
 }
 
 
@@ -143,9 +146,9 @@ def test_the_table_has_no_api_that_is_gone():
 
 
 def test_owner_only_list_matches_the_plan():
-    """주인 전용은 8개다 (ROADMAP 6-1). 늘거나 줄면 계획과 같이 고친다."""
+    """주인 전용은 10개다 (ROADMAP 6-1의 8개 + 4-4b 사용자 목록·승인). 늘거나 줄면 계획과 같이 고친다."""
     owner_only = sorted(key for key, (_, who) in ENDPOINTS.items() if who == OWNER)
-    assert len(owner_only) == 8, owner_only
+    assert len(owner_only) == 10, owner_only
     # 주인 전용은 전부 공용 자원을 건드린다. 사용자별 자원을 주인만 쓰게 할 이유는 없다.
     assert all(ENDPOINTS[key][0] == SHARED for key in owner_only)
 
@@ -592,16 +595,18 @@ OWNER_CALLS = {
     ("POST", "/api/symbols/refresh-listing"): {},
     ("GET", "/api/logs"): {},
     ("GET", "/api/logs/download"): {},
+    ("GET", "/api/admin/users"): {},
+    ("PUT", "/api/admin/users/{user_id}/status"): {"json": {"status": "blocked"}},
 }
 
 
 def _url(path: str) -> str:
     return (path.replace("{ticker}", "QQQ").replace("{code}", "CPIAUCSL")
-            .replace("{snapshot_id}", "1"))
+            .replace("{snapshot_id}", "1").replace("{user_id}", str(B)))
 
 
 def test_user_is_refused_every_owner_api(world):
-    """사용자 계정은 주인 전용 8개 모두 403. 아무것도 받아오지 않는다."""
+    """사용자 계정은 주인 전용 10개 모두 403. 아무것도 받아오지 않는다 (자기를 차단하지도 못한다)."""
     assert set(OWNER_CALLS) == {key for key, (_, who) in ENDPOINTS.items() if who == OWNER}
     client = world.as_user(B)
     for (method, path), kwargs in OWNER_CALLS.items():

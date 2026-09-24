@@ -1,4 +1,5 @@
 import type {
+  AdminUser,
   AuthStatus,
   DashboardCard,
   FxInfo,
@@ -23,6 +24,7 @@ import type {
   StockCreateInput,
   StockCreateResult,
   StockUpdateInput,
+  UserStatus,
 } from '../types'
 
 const BASE = '/api'
@@ -98,6 +100,13 @@ export const api = {
   logout: () => request<AuthStatus>('/auth/logout', { method: 'POST' }),
   /** 탈퇴 — 내 종목·보유수량·매수 기록·설정과 계정을 지운다 */
   withdraw: () => request<void>('/auth/me', { method: 'DELETE' }),
+  /** 관리자 — 사용자 목록과 가입 승인 */
+  listUsers: () => request<AdminUser[]>('/admin/users'),
+  setUserStatus: (userId: number, status: Exclude<UserStatus, 'pending'>) =>
+    request<AdminUser>(`/admin/users/${userId}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    }),
 
   /** 종목명/코드로 후보를 찾는다 — 사용자가 고른 뒤에 등록한다 */
   searchSymbols: (q: string, limit = 8) =>

@@ -306,3 +306,12 @@ export function categoryOf(value: string | null | undefined): string {
   const trimmed = (value ?? '').trim()
   return trimmed === '' ? CATEGORY_UNSET : trimmed
 }
+
+/** 서버 시각(UTC, 시간대 표시 없음)을 보는 사람의 시계로 "9/21 16:11". */
+export function whenLabel(value: string | null): string {
+  if (!value) return '—'
+  const when = new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(value) ? value : `${value}Z`)
+  if (Number.isNaN(when.getTime())) return '—'
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${when.getFullYear()}.${when.getMonth() + 1}.${when.getDate()} ${pad(when.getHours())}:${pad(when.getMinutes())}`
+}

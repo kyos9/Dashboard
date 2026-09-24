@@ -17,7 +17,8 @@
 - `state` — 남이 만든 로그인 링크로 **내 브라우저에 남의 구글 계정이 붙는 것** (CSRF).
 - `nonce` — 가로챈 `id_token` 을 다른 로그인에 끼워 넣는 것 (재사용).
 - PKCE — 가로챈 `code` 를 다른 곳에서 토큰으로 바꾸는 것.
-- 허용목록 — 공개 주소에 구글 로그인만 걸면 **전 세계 누구나 가입된다.** 기본은 닫혀 있다.
+- 승인 — 공개 주소에 구글 로그인만 걸면 **전 세계 누구나 가입된다.** 처음 들어온 사람은
+  승인 대기로 시작하고, 관리자가 승인해야 쓸 수 있다 (허용목록에 적힌 사람은 바로 승인).
 """
 
 from __future__ import annotations
@@ -38,7 +39,13 @@ from sqlalchemy.orm import Session
 
 from app.models import User
 from app.services import auth
-from app.services.users import LOCAL_USER_ID
+from app.services.users import (
+    LOCAL_USER_ID,
+    STATUS_ACTIVE,
+    STATUS_BLOCKED,
+    STATUS_PENDING,
+    STATUS_REJECTED,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -73,8 +80,15 @@ class LoginFailed(Exception):
 REASON_CANCELLED = "cancelled"   # 구글 화면에서 취소
 REASON_EXPIRED = "expired"       # 쿠키가 없거나 오래됐거나 state 가 안 맞음
 REASON_FAILED = "failed"         # 토큰 교환·검증 실패
-REASON_NOT_ALLOWED = "not_allowed"
+REASON_NOT_ALLOWED = "not_allowed"  # 확인 안 된 이메일
+REASON_REJECTED = "rejected"     # 가입 신청이 거절됐다
+REASON_BLOCKED = "blocked"       # 관리자가 이용을 멈췄다
+REASON_BUSY = "busy"             # 승인 대기가 너무 많이 쌓였다
 REASON_CONFIG = "config"         # 서버 설정이 덜 됐다
+
+# 승인 대기로 쌓아 둘 최대 인원. 누구나 신청할 수 있으므로, 상한이 없으면 봇 하나가
+# 사용자 표를 끝없이 채울 수 있다. 관리자가 처리하면 다시 자리가 난다.
+MAX_PENDING = 50
 
 
 # ---------------------------------------------------------------------------
@@ -100,7 +114,11 @@ def owner_email() -> str | None:
 
 
 def allowed_emails() -> set[str]:
-    """들어올 수 있는 사람. **주인은 늘 들어 있다.**"""
+    """승인 없이 바로 들어오는 사람. **주인은 늘 들어 있다.**
+
+    예전에는 이 목록이 문 자체였다. 이제 문은 관리자 승인이고, 이 목록은 "미리 승인해 둔
+    사람"이다 — 이미 쓰던 설정을 그대로 두어도 그 사람들은 기다리지 않는다.
+    """
     allowed = _emails(os.environ.get(ALLOWED_EMAILS_ENV, ""))
     owner = owner_email()
     if owner:
@@ -275,21 +293,23 @@ def verify_id_token(token: str, nonce: str) -> dict:
 
 
 def resolve_user(db: Session, claims: dict) -> User:
-    """구글 계정 → 우리 사용자. 들어올 수 없는 사람이면 `LoginFailed(not_allowed)`.
+    """구글 계정 → 우리 사용자. 들어올 수 없는 사람이면 `LoginFailed`.
 
     **식별 키는 `sub` 다, 이메일이 아니다.** 이메일은 바뀌고, 조직 계정은 회수돼 다른
-    사람에게 간다 (models.User 참고). 이메일은 *들여보낼지* 정하는 데만 쓴다.
+    사람에게 간다 (models.User 참고). 이메일은 주인 연결과 미리 승인에만 쓴다.
 
     **주인 계정은 새로 만들지 않고 1번에 붙인다.** 마이그레이션이 만든 1번은 구글이 없는
     로컬 계정이라, 그냥 두면 내가 처음 로그인할 때 2번이 새로 생기고 내 종목·보유수량은
     전부 1번에 남는다. 화면은 비고, 그건 데이터가 사라진 것으로 보인다.
 
-    허용목록은 로그인할 때마다 본다. 목록에서 빼면 그 사람은 다음 로그인부터 못 들어온다
-    (이미 받은 쪽지는 만료까지 유효하다 — 바로 끊으려면 epoch 를 올린다).
+    처음 온 사람은 **승인 대기**로 만들고 로그인은 시켜준다 — 화면이 "신청을 받았습니다"를
+    보여줄 수 있게. 쓰는 것은 승인된 뒤다 (`routers.auth.resolve_user_id` 가 막는다).
+    거절·차단된 사람은 여기서 돌려보낸다.
     """
     sub = str(claims["sub"])
     email = str(claims.get("email", "")).strip().lower()
     owner = owner_email()
+    pre_approved = email in allowed_emails()
 
     user = db.query(User).filter(User.google_sub == sub).first()
     if user is None:
@@ -297,14 +317,27 @@ def resolve_user(db: Session, claims: dict) -> User:
         if owner and email == owner and local is not None and local.google_sub is None:
             user = local
             user.google_sub = sub
+            user.status = STATUS_ACTIVE
             logger.info("주인 구글 계정을 1번 사용자에 연결했습니다")
-        elif email in allowed_emails():
-            user = User(google_sub=sub, is_owner=False, created_at=dt.datetime.utcnow())
-            db.add(user)
         else:
-            raise LoginFailed(REASON_NOT_ALLOWED, "허용목록에 없는 계정")
-    elif not user.is_owner and email not in allowed_emails():
-        raise LoginFailed(REASON_NOT_ALLOWED, "허용목록에서 빠진 계정")
+            if not pre_approved and _pending_count(db) >= MAX_PENDING:
+                raise LoginFailed(REASON_BUSY, "승인 대기가 가득 참")
+            user = User(
+                google_sub=sub,
+                is_owner=False,
+                status=STATUS_ACTIVE if pre_approved else STATUS_PENDING,
+                created_at=dt.datetime.utcnow(),
+            )
+            db.add(user)
+            if not pre_approved:
+                logger.info("가입 신청이 들어왔습니다 (승인 대기)")
+    elif user.status == STATUS_REJECTED:
+        raise LoginFailed(REASON_REJECTED, "거절된 계정")
+    elif user.status == STATUS_BLOCKED:
+        raise LoginFailed(REASON_BLOCKED, "차단된 계정")
+    elif user.status == STATUS_PENDING and pre_approved:
+        # 기다리는 동안 관리자가 허용목록에 적었다 — 승인한 것과 같다
+        user.status = STATUS_ACTIVE
 
     user.email = email or user.email
     user.name = claims.get("name") or user.name
@@ -319,3 +352,7 @@ def resolve_user(db: Session, claims: dict) -> User:
             raise
     db.refresh(user)
     return user
+
+
+def _pending_count(db: Session) -> int:
+    return db.query(User).filter(User.status == STATUS_PENDING).count()

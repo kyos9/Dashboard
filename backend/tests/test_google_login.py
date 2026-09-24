@@ -226,7 +226,8 @@ def test_owner_login_attaches_to_user_1_and_sees_existing_data(api, google_says)
     assert [s["ticker"] for s in client.get("/api/stocks").json()] == ["VOO"]
     status = client.get("/api/auth/status").json()
     assert status["mode"] == "google" and status["authenticated"] is True
-    assert status["user"] == {"email": OWNER, "name": "owner", "is_owner": True}
+    assert status["user"] == {"email": OWNER, "name": "owner", "is_owner": True, "status": "active"}
+    assert status["pending_count"] == 0  # 관리자에게만 — 기다리는 가입 신청 수
 
 
 def test_the_code_is_exchanged_with_the_matching_pkce_verifier(api, google_says):
@@ -292,10 +293,16 @@ def _no_session(client, Session, users_before: int):
         assert db.query(User).count() == users_before
 
 
-def test_someone_not_on_the_list_is_turned_away(api, google_says):
+def test_someone_not_on_the_list_waits_for_approval(api, google_says):
+    """허용목록 밖의 사람은 돌려보내지 않고 **승인 대기**로 받는다 — 쓰는 건 승인 뒤다.
+
+    자세한 것은 `test_signup_approval.py`.
+    """
     client, Session = api
-    assert error_of(login_as(client, google_says, STRANGER, "sub-x")) == google.REASON_NOT_ALLOWED
-    _no_session(client, Session, 1)
+    assert error_of(login_as(client, google_says, STRANGER, "sub-x")) is None
+    assert client.get("/api/stocks").status_code == 401
+    with Session() as db:
+        assert db.query(User).filter_by(google_sub="sub-x").one().status == "pending"
 
 
 def test_an_unverified_email_does_not_pass_the_list(api, google_says):
@@ -307,12 +314,18 @@ def test_an_unverified_email_does_not_pass_the_list(api, google_says):
         assert db.get(User, LOCAL_USER_ID).google_sub is None  # 주인 자리가 안 넘어갔다
 
 
-def test_removing_a_friend_from_the_list_stops_their_next_login(api, google_says, monkeypatch):
+def test_taking_an_approved_friend_off_the_list_does_not_lock_them_out(api, google_says, monkeypatch):
+    """허용목록은 "미리 승인"일 뿐이다. 한 번 승인된 사람을 멈추는 것은 관리자의 **차단**이다.
+
+    예전에는 목록에서 빼면 다음 로그인부터 막혔다. 이제 승인은 DB에 남으므로, 목록을
+    정리한다고 쓰던 사람이 갑자기 못 들어오는 일이 없다.
+    """
     client, _ = api
     assert error_of(login_as(client, google_says, FRIEND, "sub-friend")) is None
     monkeypatch.setenv(google.ALLOWED_EMAILS_ENV, "")
     client.cookies.clear()
-    assert error_of(login_as(client, google_says, FRIEND, "sub-friend")) == google.REASON_NOT_ALLOWED
+    assert error_of(login_as(client, google_says, FRIEND, "sub-friend")) is None
+    assert client.get("/api/stocks").status_code == 200
 
 
 @pytest.mark.parametrize(

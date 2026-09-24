@@ -22,7 +22,7 @@ from app.db import get_db
 from app.models import Holding, RebalanceSnapshot, User, UserSettings, UserStock
 from app.services import auth
 from app.services import google_login as google
-from app.services.users import LOCAL_USER_ID, current_user_id
+from app.services.users import LOCAL_USER_ID, STATUS_ACTIVE, STATUS_PENDING, current_user_id
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +74,11 @@ class LoginRequest(BaseModel):
 
 
 def _session_user(db: Session, token: str | None) -> User | None:
-    """구글 모드의 쪽지 → 사용자. 서명이 그 사람의 지금 상태와 맞아야 한다."""
+    """구글 모드의 쪽지 → 사용자. 서명이 그 사람의 지금 상태와 맞아야 한다.
+
+    **승인 여부는 여기서 보지 않는다** — 승인 대기인 사람도 "누구인지"는 안다 (화면이
+    "신청을 받았습니다"를 띄운다). 들여보낼지는 `resolve_user_id` 가 정한다.
+    """
     user_id = auth.user_id_in_token(token)
     if user_id is None:
         return None
@@ -99,7 +103,8 @@ def resolve_user_id(db_factory, token: str | None) -> int | None:
     db = next(generator)
     try:
         user = _session_user(db, token)
-        return user.id if user else None
+        # 승인 대기·거절·차단은 손님과 같다 — 쪽지가 맞아도 들여보내지 않는다
+        return user.id if user is not None and user.status == STATUS_ACTIVE else None
     finally:
         generator.close()
 
@@ -169,10 +174,16 @@ def status(request: Request, db: Session = Depends(get_db)) -> dict:
     authenticated = is_authenticated(request)
     body = {"locked": auth.lock_enabled(), "authenticated": authenticated, "mode": auth.mode()}
     if auth.mode() == auth.MODE_GOOGLE:
-        user = db.get(User, request.state.user_id) if authenticated else None
+        # 승인 대기인 사람도 보여준다 — 누구로 신청했는지, 아직 기다리는 중인지 알아야 한다
+        user = _session_user(db, request.cookies.get(auth.COOKIE_NAME))
         body["user"] = (
-            {"email": user.email, "name": user.name, "is_owner": user.is_owner} if user else None
+            {"email": user.email, "name": user.name, "is_owner": user.is_owner, "status": user.status}
+            if user is not None and user.status in (STATUS_ACTIVE, STATUS_PENDING)
+            else None
         )
+        # 관리자에게는 기다리는 신청이 몇 건인지 — 헤더의 사용자 버튼에 숫자로 뜬다
+        if user is not None and user.is_owner and authenticated:
+            body["pending_count"] = db.query(User).filter(User.status == STATUS_PENDING).count()
         # 설정이 덜 됐으면 로그인 버튼을 누르기 **전에** 알려준다 — 누르고 나서야 안 되는
         # 것을 알면 구글 쪽 문제로 보인다.
         body["config_problem"] = google.config_problem()

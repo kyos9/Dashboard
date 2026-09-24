@@ -56,6 +56,10 @@ class User(Base):
     session_epoch: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     # 공용 데이터(매크로·환율·상장목록·전체 갱신)를 고칠 수 있는 사람.
     is_owner: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # 들어와서 쓸 수 있는 사람인가 (`services.users.STATUS_*`). 처음 구글로 들어온 사람은
+    # **승인 대기**로 시작하고, 관리자가 사용자 목록에서 승인해야 자기 종목을 담을 수 있다.
+    # 승인 대기·거절·차단된 사람의 요청은 로그인 전 손님과 같다 (공용 매크로 보기뿐).
+    status: Mapped[str] = mapped_column(String, default="active", server_default="active", nullable=False)
 
 
 class Instrument(Base):

@@ -27,7 +27,6 @@ from app import migrate
 from app.db import get_db
 from app.services import backup
 from tests import dbsetup
-from tests.factories import make_user
 
 # ---------------------------------------------------------------------------
 #  0004 모양의 DB — 이 앱을 몇 달 쓴 사람의 것처럼
@@ -252,11 +251,13 @@ def test_new_rows_do_not_collide_with_moved_ids(at_0004, snapshots):
     engine = at_0004
     to_0005(engine)
 
-    Session = sessionmaker(bind=engine)
-    with Session() as session:
-        second = make_user(session, is_owner=False)
-        assert second.id == 2
-    # 매수 기록 모델은 0006에서 사라졌다 — 그때 모양대로 SQL로 넣는다
+    # 사용자·매수 기록은 그 뒤 리비전에서 모양이 바뀌었다(0006·0007) — 그때 모양대로 SQL로 넣는다
+    with engine.begin() as conn:
+        conn.execute(
+            text("INSERT INTO users (created_at, session_epoch, is_owner) VALUES (:t, 0, :o)"),
+            {"t": dt.datetime(2026, 9, 1), "o": False},
+        )
+    assert _rows(engine, "SELECT max(id) FROM users") == [(2,)]
     with engine.begin() as conn:
         conn.execute(
             text(

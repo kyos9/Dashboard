@@ -27,6 +27,18 @@ from app.models import User, UserStock, stock_order
 # 로그인 전까지 모든 요청의 주인. 마이그레이션 0005가 만든 로컬 계정이다.
 LOCAL_USER_ID = 1
 
+# 사용자 상태 (`User.status`). 들어와서 쓸 수 있는 것은 `ACTIVE` 뿐이다.
+#
+# - 승인 대기: 구글로 처음 들어온 사람. 관리자가 승인할 때까지 손님과 같다.
+# - 거절: 신청을 받아들이지 않았다. 다시 로그인하면 거절 안내가 뜬다 — 행을 지우지 않는
+#   이유는, 지우면 같은 사람이 로그인만 다시 해서 신청을 끝없이 새로 올릴 수 있어서다.
+# - 차단: 쓰던 사람을 멈췄다. 이미 나간 쪽지도 그 자리에서 무효가 된다.
+STATUS_ACTIVE = "active"
+STATUS_PENDING = "pending"
+STATUS_REJECTED = "rejected"
+STATUS_BLOCKED = "blocked"
+STATUSES = (STATUS_ACTIVE, STATUS_PENDING, STATUS_REJECTED, STATUS_BLOCKED)
+
 
 def current_user_id(request: Request) -> int:
     """요청을 보낸 사람. 라우터가 `Depends(current_user_id)` 로 받는다.

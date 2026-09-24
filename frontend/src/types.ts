@@ -330,6 +330,22 @@ export interface AuthUser {
   name: string | null
   /** 주인(1번). 주인은 탈퇴할 수 없다 */
   is_owner: boolean
+  /** 승인 대기면 아직 손님과 같다 — 관리자가 승인해야 쓴다. 옛 서버는 보내지 않는다 */
+  status?: 'active' | 'pending'
+}
+
+export type UserStatus = 'active' | 'pending' | 'rejected' | 'blocked'
+
+/** 관리자의 사용자 목록 한 줄 */
+export interface AdminUser {
+  id: number
+  email: string | null
+  name: string | null
+  status: UserStatus
+  is_owner: boolean
+  created_at: string | null
+  last_login_at: string | null
+  stock_count: number
 }
 
 export interface AuthStatus {
@@ -343,6 +359,8 @@ export interface AuthStatus {
   user?: AuthUser | null
   /** 구글 모드인데 서버 설정이 덜 됐으면 그 설명 */
   config_problem?: string | null
+  /** 관리자에게만 — 기다리는 가입 신청 수 */
+  pending_count?: number
 }
 
 export interface HealthInfo {

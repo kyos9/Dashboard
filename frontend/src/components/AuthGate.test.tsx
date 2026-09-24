@@ -140,8 +140,8 @@ describe('구글 로그인 서버 — 문 없이 손님으로 둘러본다', () 
     expect(go).toHaveBeenCalledWith(GOOGLE_LOGIN_URL)
   })
 
-  it('거절당해 돌아오면 누구에게 무엇을 부탁해야 하는지 알려주고, 닫을 수 있다', async () => {
-    window.history.replaceState(null, '', '/?login_error=not_allowed')
+  it.each(['rejected', 'blocked'])('%s: 들어오지 못한 이유와 물어볼 곳을 알려주고, 닫을 수 있다', async (reason) => {
+    window.history.replaceState(null, '', `/?login_error=${reason}`)
     vi.spyOn(api, 'getAuthStatus').mockResolvedValue(googleStatus())
     renderProbe()
 
