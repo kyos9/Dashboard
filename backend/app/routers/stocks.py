@@ -1,3 +1,6 @@
+import logging
+import time
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -31,6 +34,8 @@ from app.services.users import (
     require_owner,
     user_stocks,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/stocks", tags=["stocks"])
 
@@ -135,7 +140,9 @@ def create_stock(
     db: Session = Depends(get_db),
     user_id: int = Depends(current_user_id),
 ):
+    started = time.perf_counter()
     ticker, resolved_name, resolved_from = _resolve_ticker(db, payload.ticker)
+    resolved_in = time.perf_counter() - started
     # **내 목록에** 이미 있을 때만 막는다. 남이 담은 종목을 내가 담는 건 당연히 된다.
     if find_user_stock(db, user_id, ticker):
         raise HTTPException(status_code=409, detail=f"{ticker} already exists")
@@ -172,11 +179,14 @@ def create_stock(
     db.commit()
     db.refresh(stock)
 
+    loading = time.perf_counter()
+    download = None
     try:
         download = _download_needed(db, stock)
         if download is not None:
             refresh_and_evaluate_stock(db, stock, full_backfill=download == "full")
     except data_ingestion.DataIngestionError as exc:
+        _log_timing(ticker, resolved_in, download, time.perf_counter() - loading, failed=True)
         # 종목 등록 자체는 유지하고, 데이터 백필은 이후 수동 새로고침으로 재시도 가능
         detail = _failure_detail(exc)
         return StockCreateResult(
@@ -187,8 +197,18 @@ def create_stock(
             resolved_from=resolved_from,
         )
 
+    _log_timing(ticker, resolved_in, download, time.perf_counter() - loading)
     return StockCreateResult(
         stock=StockOut.model_validate(stock), data_loaded=True, resolved_from=resolved_from
+    )
+
+
+def _log_timing(ticker: str, resolved_in: float, download: str | None, loaded_in: float, failed: bool = False) -> None:
+    """등록이 느리다는 말이 나오면 어디서 걸렸는지 로그로 바로 보이게 (진단 화면 → 로그)."""
+    what = {"full": "전체 기간 받기+계산", "recent": "최근분 받기+계산", None: "받을 것 없음"}[download]
+    logger.info(
+        "종목 등록 %s — 이름 찾기 %.1f초 · %s %.1f초%s",
+        ticker, resolved_in, what, loaded_in, " (시세 실패)" if failed else "",
     )
 
 

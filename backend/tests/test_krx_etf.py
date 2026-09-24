@@ -127,6 +127,15 @@ def test_cache_without_etfs_is_refetched_even_if_recent(listed):
     assert symbols.refresh_krx_listing_if_stale(listed) is None
 
 
+def test_cache_without_stocks_is_refetched_too(db_session, monkeypatch):
+    """거래소(KIND)만 실패하고 ETF는 받아진 경우 — 날짜는 새로 찍혔지만 주식이 비어 있다."""
+    db_session.add(KrxListing(code="379800", name="KODEX 미국S&P500", board="KOSPI", instrument="ETF",
+                              updated_at=dt.datetime.utcnow()))
+    db_session.commit()
+    monkeypatch.setattr(krx, "fetch_all", lambda timeout=30: [{"code": "005930", "name": "삼성전자", "board": "KOSPI"}])
+    assert symbols.refresh_krx_listing_if_stale(db_session) == 1
+
+
 # ── 이미 담긴 종목의 이름 ────────────────────────────────────────────
 
 

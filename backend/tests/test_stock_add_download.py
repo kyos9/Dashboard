@@ -68,3 +68,12 @@ def test_korean_stock_is_judged_by_the_korean_calendar(api, downloads, monkeypat
     _stored_until(SessionLocal, "005930.KS", kr_day)
     client.post("/api/stocks", json={"ticker": "005930.KS"})
     assert downloads == []
+
+
+def test_registration_logs_where_the_time_went(api, downloads, caplog):
+    """"등록이 느리다"는 말이 나오면 로그 한 줄로 이름 찾기와 시세 받기 중 어디인지 보이게."""
+    client, _ = api
+    with caplog.at_level("INFO", logger="app.routers.stocks"):
+        client.post("/api/stocks", json={"ticker": "VOO"})
+    line = next(r.getMessage() for r in caplog.records if r.name == "app.routers.stocks")
+    assert line.startswith("종목 등록 VOO — 이름 찾기 ") and "전체 기간 받기+계산" in line

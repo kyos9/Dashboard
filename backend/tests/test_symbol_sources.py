@@ -205,3 +205,46 @@ def test_listing_refresh_runs_when_cache_is_old(db_session, monkeypatch):
     )
     assert symbols.refresh_krx_listing_if_stale(db_session) == 1
     assert db_session.query(KrxListing).filter_by(code="005930").one().name == "삼성전자"
+
+
+# ── 못 찾았을 때 목록 다시 받기 — 검색을 붙잡지 않는다 ──────────────
+
+
+@pytest.fixture()
+def slow_listing(monkeypatch):
+    """받는 데 5초 걸리는 상장목록. 서버에서 거래소 한 곳이 응답을 안 할 때의 모습이다."""
+    import threading
+    import time
+
+    started = threading.Event()
+    calls: list[int] = []
+
+    def slow(db, timeout=30):
+        calls.append(1)
+        started.set()
+        time.sleep(5)
+        return 0
+
+    monkeypatch.setattr(symbols, "refresh_krx_listing", slow)
+    monkeypatch.setattr(symbols, "_miss_refresh_at", None)
+    return started, calls
+
+
+def test_a_miss_does_not_wait_for_the_listing(db_session, slow_listing):
+    """예전에는 이 자리에서 목록을 기다리며 받아, 종목 추가 한 번이 1분 넘게 걸렸다."""
+    import time
+
+    started, calls = slow_listing
+    began = time.perf_counter()
+    assert symbols.search("없는이름종목", db=db_session, allow_network=True) == []
+    assert time.perf_counter() - began < 1.0
+    # 그래도 받기는 한다 — 뒤에서
+    assert started.wait(2)
+
+
+def test_misses_refresh_the_listing_at_most_once_an_hour(db_session, slow_listing):
+    started, calls = slow_listing
+    for query in ("없는이름하나", "없는이름둘", "999999"):
+        symbols.search(query, db=db_session, allow_network=True)
+    started.wait(2)
+    assert calls == [1]

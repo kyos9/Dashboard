@@ -239,7 +239,11 @@ if app_modules and market is Market.KR:
 
     print("  7-1) 내장 목록에서 이 종목을 찾는지 (네트워크 없이)")
     try:
-        found = [m for m in symbols.search(code, allow_network=False, limit=5) if m.ticker == TICKER]
+        # "이름 모르는 추측"(379800 (KOSPI))은 찾은 게 아니다 — 예전에는 이것도 성공으로 셌다
+        found = [
+            m for m in symbols.search(code, allow_network=False, limit=5)
+            if m.ticker == TICKER and m.source != "guess"
+        ]
         if found:
             ok(f"{found[0].name} ({found[0].ticker}) — 내장 목록에 있습니다")
         else:
@@ -248,20 +252,24 @@ if app_modules and market is Market.KR:
         fail(brief(exc, 300))
 
     print("\n  7-2) 한국거래소 상장목록 받기 (신규 상장·사명 변경 반영용)")
-    try:
-        from app.services import krx
+    import time as _time
 
-        listings = krx.fetch_all(timeout=30)
-        boards = {}
-        for item in listings:
-            boards[item["board"]] = boards.get(item["board"], 0) + 1
-        ok(f"{len(listings):,}종목 — {', '.join(f'{k} {v:,}' for k, v in sorted(boards.items()))}")
-        sample = next((i for i in listings if i["code"] == code), None)
-        if sample:
-            ok(f"{code} → {sample['name']} ({sample['board']})")
-    except Exception as exc:
-        fail(brief(exc, 300))
-        info("→ 실패해도 내장 목록(주요 종목)으로는 검색됩니다. 중소형주만 못 찾게 됩니다.")
+    from app.markets import Board
+    from app.services import krx
+
+    # 시장마다 따로 받아 본다 — 합쳐 받으면 한쪽이 실패해도 숫자만 보여서 모른다
+    # (코스피·코스닥이 둘 다 실패하고 ETF만 받아졌는데 "863종목"으로 성공처럼 보였다).
+    for board in (Board.KOSPI, Board.KOSDAQ):
+        began = _time.perf_counter()
+        try:
+            rows = krx.fetch_board(board, timeout=30)
+            ok(f"{board.value} {len(rows):,}종목 ({_time.perf_counter() - began:.1f}초)")
+            sample = next((i for i in rows if i["code"] == code), None)
+            if sample:
+                ok(f"{code} → {sample['name']} ({sample['board']})")
+        except Exception as exc:
+            fail(f"{board.value} ({_time.perf_counter() - began:.1f}초) — {brief(exc, 300)}")
+            info("→ 실패해도 내장 목록(주요 종목)으로는 검색됩니다. 목록에 없는 종목만 못 찾습니다.")
 
     print("\n  7-3) 국내 ETF 목록 받기 (네이버 — ETF를 한글 이름으로 찾는 데 쓴다)")
     try:

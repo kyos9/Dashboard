@@ -21,6 +21,7 @@ import datetime as dt
 import json
 import logging
 import re
+import threading
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -407,20 +408,21 @@ def refresh_krx_listing_if_stale(db: Session, timeout: int = 30) -> int | None:
     """
     updated_at = krx_listing_updated_at(db)
     fresh = updated_at is not None and dt.datetime.utcnow() - updated_at < LISTING_STALE_AFTER
-    if fresh and _has_etfs(db):
+    if fresh and _has_kind(db, "ETF") and _has_kind(db, "STOCK"):
         return None
-    # ETF가 한 줄도 없으면 날짜와 상관없이 다시 받는다 — ETF 목록을 받기 전(0.20.1까지)에
-    # 채운 캐시는 날짜로는 "최신"이라, 기다리면 최대 일주일 동안 ETF를 이름으로 못 찾는다.
+    # 주식이나 ETF 중 한쪽이 한 줄도 없으면 날짜와 상관없이 다시 받는다. 목록은 세 곳에서
+    # 받고 한 곳만 성공해도 날짜가 새로 찍히므로, 날짜만 보면 빠진 쪽을 일주일 동안 안 채운다.
+    # (ETF 목록을 받기 전인 0.20.1까지 채운 캐시도 여기서 걸린다.)
     return refresh_krx_listing(db, timeout=timeout)
 
 
-def _has_etfs(db: Session) -> bool:
+def _has_kind(db: Session, instrument: str) -> bool:
     from app.models import KrxListing
 
     try:
-        return db.query(KrxListing.code).filter(KrxListing.instrument == "ETF").first() is not None
+        return db.query(KrxListing.code).filter(KrxListing.instrument == instrument).first() is not None
     except Exception:
-        logger.exception("KRX 캐시 ETF 조회 실패")
+        logger.exception("KRX 캐시 조회 실패")
         return True  # 모르면 평소 주기대로 둔다
 
 
@@ -472,7 +474,7 @@ def _adopt_official_names(db: Session, official: dict[str, str]) -> None:
         logger.info("국내 종목 %d개의 이름을 거래소 정식 이름으로 맞췄습니다", changed)
 
 
-def _search_yahoo(query: str, limit: int, timeout: int = 10) -> list[SymbolMatch]:
+def _search_yahoo(query: str, limit: int, timeout: int = 5) -> list[SymbolMatch]:
     """야후 검색 — 해외 종목과 국내 ETF까지 덮는다. 막혀 있으면 빈 목록."""
     import requests
 
@@ -570,21 +572,51 @@ def search(
 
     if allow_network and long_enough and unresolved():
         if db is not None and (KRX_CODE_RE.match(normalized) or _has_hangul(normalized)):
-            try:
-                count = refresh_krx_listing(db)
-                logger.info("KRX 상장목록 %d건 갱신", count)
-                matches.extend(_search_local(db, normalized, limit))
-            except Exception as exc:
-                logger.info("KRX 목록 갱신 실패: %s", exc)
-
-        if unresolved():
-            matches.extend(_search_yahoo(normalized, limit))
+            # 목록을 여기서 기다리며 받지 않는다 — 뒤에서 받게만 하고 지금 있는 것으로 답한다.
+            _refresh_listing_in_background()
+        matches.extend(_search_yahoo(normalized, limit))
 
     # 아무 데서도 못 찾은 6자리 코드는 시장을 모르니 양쪽 다 후보로 제시한다
     if not matches and KRX_CODE_RE.match(normalized):
         matches.extend(_bare_code_candidates(normalized))
 
     return _dedupe(matches)[:limit]
+
+
+# 검색에서 못 찾았을 때 목록을 다시 받는 것은 이 간격에 한 번만.
+MISS_REFRESH_EVERY = dt.timedelta(hours=1)
+_miss_refresh_lock = threading.Lock()
+_miss_refresh_at: dt.datetime | None = None
+
+
+def _refresh_listing_in_background() -> bool:
+    """못 찾은 이름이 새로 상장한 종목일 수 있으니 목록을 다시 받는다 — **뒤에서.**
+
+    예전에는 검색 요청 안에서 기다리며 받았다. 목록은 세 군데(코스피·코스닥·ETF)에서 차례로
+    받고 각각 30초까지 기다리는데, 서버에서 한 곳이 응답을 안 하면 **종목 추가 한 번이 1분 넘게**
+    걸렸다. 글자를 칠 때마다 검색하므로 못 찾는 글자마다 그랬다. 목록은 서버를 켤 때와
+    매주 알아서 받으므로, 여기서는 한 시간에 한 번만 뒤에서 받게 한다.
+    """
+    global _miss_refresh_at
+    now = dt.datetime.utcnow()
+    with _miss_refresh_lock:
+        if _miss_refresh_at is not None and now - _miss_refresh_at < MISS_REFRESH_EVERY:
+            return False
+        _miss_refresh_at = now
+
+    def run() -> None:
+        from app.db import SessionLocal
+
+        db = SessionLocal()
+        try:
+            logger.info("검색에서 못 찾은 이름이 있어 상장목록 %d건을 다시 받았습니다", refresh_krx_listing(db))
+        except Exception as exc:
+            logger.info("상장목록을 다시 받지 못했습니다: %s", exc)
+        finally:
+            db.close()
+
+    threading.Thread(target=run, name="listing-refresh", daemon=True).start()
+    return True
 
 
 def _has_hangul(text: str) -> bool:
