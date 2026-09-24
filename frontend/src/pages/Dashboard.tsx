@@ -1125,7 +1125,7 @@ function SettingsTable({
                         disabled={busy}
                         onClick={() => onConfirmPurge(card.ticker)}
                       >
-                        완전 삭제
+                        삭제
                       </button>
                     </div>
                   </td>
@@ -1138,16 +1138,17 @@ function SettingsTable({
 
       {confirmingPurge && (
         <ConfirmDialog
-          title={`${confirmingPurge} 완전 삭제`}
-          confirmLabel="네, 완전히 지웁니다"
+          title={`${confirmingPurge} 삭제`}
+          confirmLabel="네, 지웁니다"
           busyLabel="지우는 중…"
           busy={busy}
           onConfirm={() => onRemove(confirmingPurge, 'purge')}
           onCancel={() => onConfirmPurge(null)}
         >
           <p>
-            <strong>{confirmingPurge}</strong>의 보유수량·평단가와 시세·지표까지 전부 지웁니다. 되돌릴 수
-            없고, 다시 등록하면 히스토리를 처음부터 새로 받아야 합니다. 이미 남긴 리밸런싱 기록은 그대로 둡니다.
+            <strong>{confirmingPurge}</strong>을(를) 내 목록에서 빼고 보유수량·평단가를 지웁니다. 되돌릴 수
+            없습니다. 시세·지표는 모두가 같이 쓰는 기록이라 남겨 두므로, 다시 등록하면 히스토리가 바로 보입니다.
+            이미 남긴 리밸런싱 기록도 그대로 둡니다.
           </p>
           <p>
             잠시 치워두려는 것이라면 <strong>감추기</strong>를 쓰세요.

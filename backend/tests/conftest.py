@@ -40,6 +40,16 @@ def isolated_session_key(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def fresh_limits():
+    """새로고침 쿨다운·검색 한도는 프로세스 안에 기억된다. 앞 테스트의 기억을 비운다."""
+    from app.services import limits
+
+    limits.reset()
+    yield
+    limits.reset()
+
+
+@pytest.fixture(autouse=True)
 def block_network(monkeypatch):
     """테스트가 실수로 바깥 네트워크를 쓰지 못하게 막는다.
 

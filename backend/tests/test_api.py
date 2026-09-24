@@ -523,8 +523,9 @@ def test_stocks_left_out_of_the_order_go_last(api):
     assert [s["ticker"] for s in client.get("/api/stocks").json()] == ["SCHD", "QQQ", "VOO"]
 
 
-def test_purge_removes_the_stock_and_everything_attached(api):
-    """정말 지울 때는 딸린 기록까지 같이 지운다 (외래키가 남으면 다시 못 넣는다)."""
+def test_purge_removes_my_row_but_keeps_shared_prices(api):
+    """삭제는 내 목록에서 빼는 것이다. 시세·공용 행은 남긴다 (ROADMAP 4-4b) — 남의 것이기도
+    하고, 남겨두면 다시 담을 때 10년치를 새로 받지 않는다."""
     import datetime as dt
 
     from app.models import Instrument, PriceDaily, UserStock
@@ -543,9 +544,9 @@ def test_purge_removes_the_stock_and_everything_attached(api):
 
     with Session() as session:
         assert session.query(UserStock).filter_by(ticker="VOO").first() is None
-        assert session.query(PriceDaily).filter_by(ticker="VOO").count() == 0
-        # 아무도 안 담은 종목이 됐으니 공용 행도 같이 사라진다
-        assert session.get(Instrument, "VOO") is None
+        # 아무도 안 담은 종목이 됐어도 공용 시세와 공용 행은 남는다
+        assert session.query(PriceDaily).filter_by(ticker="VOO").count() == 1
+        assert session.get(Instrument, "VOO") is not None
 
     # 같은 티커를 다시 넣을 수 있어야 한다
     assert client.post("/api/stocks", json={"ticker": "VOO", "target_weight_pct": 0}).status_code == 200
@@ -623,8 +624,15 @@ def test_history_coverage_is_empty_when_no_prices(api):
 
 def test_refresh_accepts_full_backfill(api, monkeypatch):
     """전체 기간 다시 받기 — 등록 이후로는 2년보다 앞선 시세를 채울 방법이 없었다."""
-    client, _ = api
+    import datetime as dt
+
+    from app.models import PriceDaily
+
+    client, Session = api
     client.post("/api/stocks", json={"ticker": "VOO", "target_weight_pct": 20})
+    with Session() as session:  # 한 줄도 없으면 묻지 않고 전체를 받는다 — 여기서는 있는 경우
+        session.add(PriceDaily(ticker="VOO", date=dt.date(2026, 9, 16), open=1, high=1, low=1, close=1, volume=1))
+        session.commit()
 
     seen = []
 

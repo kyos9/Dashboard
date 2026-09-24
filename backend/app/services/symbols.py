@@ -22,6 +22,7 @@ import json
 import logging
 import re
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -541,8 +542,13 @@ def search(
     db: Session | None = None,
     allow_network: bool = True,
     limit: int = 10,
+    network_gate: Callable[[], bool] | None = None,
 ) -> list[SymbolMatch]:
-    """검색어에 맞는 종목 후보를 점수 순으로 돌려준다."""
+    """검색어에 맞는 종목 후보를 점수 순으로 돌려준다.
+
+    `network_gate` 는 바깥에 묻기 **직전에만** 불린다 — 로컬에서 찾히는 평소 검색은 한도를
+    쓰지 않는다. False 면 지금 있는 것으로만 답한다 (`search_gate`).
+    """
     normalized = normalize_query(query)
     if not normalized:
         return []
@@ -570,7 +576,7 @@ def search(
     # 한두 글자짜리 진짜 티커(`V`, `T`)는 내장 목록에 있어서 여기까지 오지 않는다.
     long_enough = len(normalized) >= MIN_NETWORK_QUERY_LEN
 
-    if allow_network and long_enough and unresolved():
+    if allow_network and long_enough and unresolved() and (network_gate is None or network_gate()):
         if db is not None and (KRX_CODE_RE.match(normalized) or _has_hangul(normalized)):
             # 목록을 여기서 기다리며 받지 않는다 — 뒤에서 받게만 하고 지금 있는 것으로 답한다.
             _refresh_listing_in_background()
@@ -623,7 +629,31 @@ def _has_hangul(text: str) -> bool:
     return any("가" <= ch <= "힣" or "ㄱ" <= ch <= "ㆎ" for ch in text)
 
 
-def resolve(query: str, db: Session | None = None, allow_network: bool = True) -> SymbolMatch | None:
+def search_gate(user_id: int) -> Callable[[], bool]:
+    """사람마다 분당 몇 번까지만 바깥(야후)에 묻는다 (ROADMAP 4-4b).
+
+    오타 하나, 글자 하나가 외부 조회 하나다. 사람이 늘면 조용히 비싸지므로 사람에 건다 —
+    검색어는 사람마다 다르니 종목처럼 자원에 걸 수가 없다. 막히면 로컬 결과만 돌려준다.
+    (상장목록을 다시 받는 것은 이미 전역으로 한 시간에 한 번이다 — `MISS_REFRESH_EVERY`.)
+    """
+    from app.services import limits
+
+    def gate() -> bool:
+        if limits.yahoo_searches.allow(user_id):
+            return True
+        logger.info("사용자 %s: 바깥 검색이 분당 %d번을 넘어 로컬 결과만 돌려줍니다",
+                    user_id, limits.YAHOO_SEARCHES_PER_MINUTE)
+        return False
+
+    return gate
+
+
+def resolve(
+    query: str,
+    db: Session | None = None,
+    allow_network: bool = True,
+    network_gate: Callable[[], bool] | None = None,
+) -> SymbolMatch | None:
     """가장 잘 맞는 후보 하나. 확정할 수 없으면 None.
 
     두 경우에 None을 돌려준다:
@@ -632,7 +662,11 @@ def resolve(query: str, db: Session | None = None, allow_network: bool = True) -
 
     어느 쪽이든 화면에서 사용자가 직접 고르게 해야 엉뚱한 종목이 등록되지 않는다.
     """
-    candidates = [m for m in search(query, db=db, allow_network=allow_network, limit=5) if m.confident]
+    candidates = [
+        m
+        for m in search(query, db=db, allow_network=allow_network, limit=5, network_gate=network_gate)
+        if m.confident
+    ]
     if not candidates:
         return None
     if len(candidates) > 1 and candidates[1].score == candidates[0].score:

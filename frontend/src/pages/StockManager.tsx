@@ -28,11 +28,14 @@ function StockRow({
   stock,
   onSaved,
   onError,
+  onNotice,
   onPurge,
 }: {
   stock: Stock
   onSaved: () => void
   onError: (e: unknown) => void
+  /** 받지 않고 넘어갔을 때 그 사실을 알린다 ("3분 전에 받았습니다") */
+  onNotice: (text: string) => void
   onPurge: (stock: Stock) => void
 }) {
   const [name, setName] = useState(stock.name ?? '')
@@ -73,7 +76,9 @@ function StockRow({
     setRefreshing(true)
     onError(null)
     try {
-      await api.refreshStock(stock.ticker)
+      const result = await api.refreshStock(stock.ticker)
+      // 같은 종목은 10분에 한 번만 실제로 받는다 — 거절이 아니라 언제 받았는지를 알린다
+      if (result.skipped) onNotice(`${stockLabel(stock)}: ${result.hint ?? '최근에 받았습니다.'}`)
       onSaved()
     } catch (e) {
       onError(e)
@@ -502,6 +507,7 @@ export function StockManager() {
                     stock={s}
                     onSaved={handleSaved}
                     onError={setError}
+                    onNotice={(text) => setNotice({ tone: 'green', text })}
                     onPurge={setPurging}
                   />
                 ))}
@@ -514,16 +520,16 @@ export function StockManager() {
       {purging && (
         <ConfirmDialog
           title={`${stockLabel(purging)} 삭제`}
-          confirmLabel="네, 완전히 지웁니다"
+          confirmLabel="네, 지웁니다"
           busyLabel="지우는 중…"
           busy={purgeBusy}
           onConfirm={() => void purge(purging)}
           onCancel={() => setPurging(null)}
         >
           <p>
-            <strong>{stockLabel(purging)}</strong>({purging.ticker})의 보유수량·평단가와 시세·지표까지 전부
-            지웁니다. 되돌릴 수 없고, 다시 등록하면 히스토리를 처음부터 새로 받아야 합니다. 이미 남긴
-            리밸런싱 기록은 그대로 둡니다.
+            <strong>{stockLabel(purging)}</strong>({purging.ticker})을(를) 내 목록에서 빼고 보유수량·평단가를
+            지웁니다. 되돌릴 수 없습니다. 시세·지표는 모두가 같이 쓰는 기록이라 남겨 두므로, 다시 등록하면
+            히스토리가 바로 보입니다. 이미 남긴 리밸런싱 기록도 그대로 둡니다.
           </p>
           <p>
             잠시 목록에서만 내리려는 것이라면 <strong>비활성화</strong>를 쓰세요. 기록은 그대로 남고

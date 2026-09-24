@@ -582,7 +582,7 @@ describe('대시보드 · 설정 모드', () => {
     expect(update).not.toHaveBeenCalled()
   })
 
-  it('완전 삭제는 한 번 더 확인을 받는다', async () => {
+  it('삭제는 한 번 더 확인을 받는다 — 내 목록에서만 빼고 시세는 남긴다고 알린다', async () => {
     mockApi()
     const purge = vi.spyOn(api, 'purgeStock').mockResolvedValue(undefined)
     const user = userEvent.setup()
@@ -590,15 +590,18 @@ describe('대시보드 · 설정 모드', () => {
     await openSettings(user)
 
     const row = await cardRow('VOO')
-    await user.click(within(row).getByRole('button', { name: '완전 삭제' }))
+    await user.click(within(row).getByRole('button', { name: '삭제' }))
 
     // 아직 지우면 안 된다 — 되돌릴 수 없는 동작이다
     expect(purge).not.toHaveBeenCalled()
     // 확인은 표 아래가 아니라 화면 위에 떠야 한다 (종목이 많으면 표 아래는 안 보인다)
     const dialog = screen.getByRole('alertdialog')
-    expect(within(dialog).getByText(/되돌릴 수 없고/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/되돌릴 수 없습니다/)).toBeInTheDocument()
+    // 시세는 공용이라 남는다 — "처음부터 새로 받아야 한다"는 더 이상 사실이 아니다
+    expect(within(dialog).getByText(/시세·지표는 모두가 같이 쓰는 기록이라 남겨/)).toBeInTheDocument()
+    expect(within(dialog).queryByText(/처음부터 새로/)).toBeNull()
 
-    await user.click(within(dialog).getByRole('button', { name: '네, 완전히 지웁니다' }))
+    await user.click(within(dialog).getByRole('button', { name: '네, 지웁니다' }))
     await waitFor(() => expect(purge).toHaveBeenCalledWith('VOO'))
   })
 

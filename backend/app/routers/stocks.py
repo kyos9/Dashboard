@@ -7,14 +7,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.db import get_db
 from app.markets import market_of_stock, normalize_ticker
-from app.models import (
-    Holding,
-    IndicatorDaily,
-    Instrument,
-    PriceDaily,
-    SignalDaily,
-    UserStock,
-)
+from app.models import Holding, PriceDaily, User, UserStock
 from app.schemas import (
     RefreshResult,
     StockCreate,
@@ -23,7 +16,7 @@ from app.schemas import (
     StockOut,
     StockUpdate,
 )
-from app.services import backfill, data_ingestion, symbols
+from app.services import backfill, data_ingestion, limits, symbols
 from app.services.instruments import ensure_instrument
 from app.services.pipeline import refresh_all_active_stocks, refresh_and_evaluate_stock
 from app.services.trading_calendar import last_closed_trading_day
@@ -38,6 +31,20 @@ from app.services.users import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/stocks", tags=["stocks"])
+
+# 한 사람이 담을 수 있는 종목 (비활성 포함). 한 사람이 200개를 넣으면 매일 갱신이 전원
+# 몫으로 늘고 차단 위험도 같이 커진다 — 악의가 아니라 호기심으로도 일어난다.
+# 관리자는 서버를 돌보는 사람이라 세지 않는다.
+MAX_STOCKS_PER_USER = 30
+
+
+def _is_owner(db: Session, user_id: int) -> bool:
+    user = db.get(User, user_id)
+    return user is not None and user.is_owner
+
+
+def _has_prices(db: Session, ticker: str) -> bool:
+    return db.query(PriceDaily.id).filter(PriceDaily.ticker == ticker).first() is not None
 
 
 def _failure_detail(exc: data_ingestion.DataIngestionError) -> dict:
@@ -86,7 +93,7 @@ def update_stock_order(
     return ordered_user_stocks(db, user_id)
 
 
-def _resolve_ticker(db: Session, raw: str) -> tuple[str, str | None, str | None]:
+def _resolve_ticker(db: Session, raw: str, user_id: int) -> tuple[str, str | None, str | None]:
     """입력을 티커로 해석한다 -> (티커, 종목명, 원래 입력한 말).
 
     이미 티커면 그대로 쓰고, "삼성전자"처럼 이름이면 찾아준다. 확정할 수 없으면
@@ -97,9 +104,10 @@ def _resolve_ticker(db: Session, raw: str) -> tuple[str, str | None, str | None]
     if not typed:
         raise HTTPException(status_code=400, detail={"hint": "종목명이나 티커를 입력해주세요.", "message": "empty ticker"})
 
-    match = symbols.resolve(typed, db=db)
+    gate = symbols.search_gate(user_id)
+    match = symbols.resolve(typed, db=db, network_gate=gate)
     if match is None:
-        candidates = [m.to_dict() for m in symbols.search(typed, db=db, limit=5)]
+        candidates = [m.to_dict() for m in symbols.search(typed, db=db, limit=5, network_gate=gate)]
         raise HTTPException(
             status_code=400,
             detail={
@@ -141,11 +149,38 @@ def create_stock(
     user_id: int = Depends(current_user_id),
 ):
     started = time.perf_counter()
-    ticker, resolved_name, resolved_from = _resolve_ticker(db, payload.ticker)
+    ticker, resolved_name, resolved_from = _resolve_ticker(db, payload.ticker, user_id)
     resolved_in = time.perf_counter() - started
     # **내 목록에** 이미 있을 때만 막는다. 남이 담은 종목을 내가 담는 건 당연히 된다.
     if find_user_stock(db, user_id, ticker):
         raise HTTPException(status_code=409, detail=f"{ticker} already exists")
+
+    owner = _is_owner(db, user_id)
+    if not owner and user_stocks(db, user_id).count() >= MAX_STOCKS_PER_USER:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "hint": (
+                    f"종목은 {MAX_STOCKS_PER_USER}개까지 담을 수 있습니다 (비활성 포함). "
+                    "쓰지 않는 종목을 삭제하고 다시 추가해 주세요."
+                ),
+                "message": "stock limit reached",
+            },
+        )
+    # 아무도 받은 적 없는 종목은 전체 기간을 받아야 한다 — 외부 호출이 드는 건 이 경우뿐이라
+    # 여기에만 하루 한도를 건다. 이미 누가 담은 종목은 몇 개든 공짜다.
+    first_time = not _has_prices(db, ticker)
+    if first_time and not owner and not limits.new_tickers.has_room(user_id):
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "hint": (
+                    f"처음 받는 종목(시세를 처음부터 받아야 하는 종목)은 하루 {limits.NEW_TICKERS_PER_DAY}개까지 "
+                    "추가할 수 있습니다. 내일 다시 시도해 주세요."
+                ),
+                "message": "new ticker limit reached",
+            },
+        )
 
     # 해석된 종목명은 공용 행에, 화면에 보일 이름은 내 행에 둔다.
     # 사용자가 이름을 직접 적었으면 그 값을 존중하고, 아니면 해석된 종목명을 쓴다.
@@ -186,6 +221,9 @@ def create_stock(
             stock=_stock_out(stock), data_loaded=True, resolved_from=resolved_from
         )
 
+    if download == "full" and not owner:
+        limits.new_tickers.allow(user_id)
+
     # 받는 건 뒤에서 — 서버에서는 전체 기간 받기+계산이 종목 하나에 10초를 넘긴다.
     # 요청 세션은 응답과 함께 닫히므로 뒤의 일은 같은 DB에 새 세션을 연다.
     session_factory = sessionmaker(bind=db.get_bind())
@@ -207,7 +245,9 @@ def _load_in_background(session_factory, user_id: int, ticker: str, resolved_in:
             backfill.clear(ticker)
             return
         refresh_and_evaluate_stock(db, stock, full_backfill=download == "full")
+        limits.refresh_cooldown.mark(ticker, ok=True)
     except data_ingestion.DataIngestionError as exc:
+        limits.refresh_cooldown.mark(ticker, ok=False)
         _log_timing(ticker, resolved_in, download, time.perf_counter() - started, failed=True)
         detail = _failure_detail(exc)
         backfill.fail(ticker, hint=detail["hint"], error=detail["message"])
@@ -279,37 +319,33 @@ def deactivate_stock(
 def purge_stock(
     ticker: str, db: Session = Depends(get_db), user_id: int = Depends(current_user_id)
 ):
-    """종목과 그 종목에 딸린 기록을 전부 지운다. 되돌릴 수 없다.
+    """종목을 **내 목록에서** 빼고, 내 보유수량·평단가를 지운다. 되돌릴 수 없다.
 
     비활성화(`DELETE /{ticker}`)와 일부러 나눠뒀다. 대부분의 경우 원하는 건
-    "화면에서 치우기"이고, 그때 시세·지표·보유수량까지 날리면 나중에 다시 넣었을 때
-    전부 새로 받아야 한다. 정말 지우려는 사람만 이 경로로 오게 한다.
+    "화면에서 치우기"이고, 그때 보유수량까지 날리면 다시 넣었을 때 새로 적어야 한다.
 
-    리밸런싱 기록은 지우지 않는다 — 그날의 모습을 얼려둔 것이라 종목을 가리키지 않는다.
+    **시세·지표·시그널은 지우지 않는다** (ROADMAP 4-4b). 공용이라 남의 것이기도 하고,
+    아무도 안 담은 종목이라도 남겨두면 누가 다시 담을 때 10년치를 새로 받지 않는다 —
+    사람이 늘수록 새 종목 추가가 빨라진다. 아무도 안 보는 종목은 매일 받는 대상에서만
+    빠진다 (`pipeline.watched`).
+
+    리밸런싱 기록도 지우지 않는다 — 그날의 모습을 얼려둔 것이라 종목을 가리키지 않는다.
     """
     normalized = normalize_ticker(ticker)
     stock = find_user_stock(db, user_id, normalized)
     if stock is None:
         raise HTTPException(status_code=404, detail="stock not found")
-    backfill.clear(normalized)
 
     # 내 보유가 내 종목 행을 가리키므로 먼저 지운다
     db.query(Holding).filter(
         Holding.user_id == stock.user_id, Holding.ticker == normalized
     ).delete(synchronize_session=False)
     db.delete(stock)
-
-    # 시세·지표·시그널은 공용이다. 지금은 사람이 한 명이라 예전처럼 같이 지우되,
-    # **아무도 안 담은 종목일 때만** 지운다 — 남이 담은 종목의 시세를 지우면 그 사람의
-    # 화면이 비는 것이다. (사람이 늘면 이 자리는 "내 목록에서만 뺀다"로 바뀐다: 4-4)
-    db.flush()
-    if db.query(UserStock).filter(UserStock.ticker == normalized).first() is None:
-        for model in (PriceDaily, IndicatorDaily, SignalDaily):
-            db.query(model).filter(model.ticker == normalized).delete(synchronize_session=False)
-        db.query(Instrument).filter(Instrument.ticker == normalized).delete(
-            synchronize_session=False
-        )
     db.commit()
+
+    # "받는 중·못 받음" 표시는 티커마다 하나라 남이 담고 있으면 그 사람 화면의 표시다
+    if db.query(UserStock).filter(UserStock.ticker == normalized).first() is None:
+        backfill.clear(normalized)
 
 
 @router.post("/refresh-all", response_model=list[RefreshResult], dependencies=[Depends(require_owner)])
@@ -338,16 +374,60 @@ def refresh_stock(
     """이 종목의 시세를 다시 받는다.
 
     평소 갱신은 최근 2년만 받는다 — 매일 돌리는 일에 10년치를 매번 내려받을 이유가 없다.
-    `full=true`면 처음 등록할 때처럼 전체 기간을 받는다. 등록 시점에 시세를 못 받았거나
-    (그때는 기록이 비어 있다) 차트에서 5년·전체를 눌렀는데 앞부분이 비어 있을 때 쓴다 —
-    이 경로가 없으면 등록 이후로는 2년보다 앞선 시세를 채울 방법이 아예 없었다.
+    `full=true`면 처음 등록할 때처럼 전체 기간을 받는다. 차트에서 5년·전체를 눌렀는데
+    앞부분이 비어 있을 때 쓴다.
+
+    누구나 신청할 수 있게 되면서 둘을 막았다 (ROADMAP 4-4b · 6-1).
+
+    - **`full=true` 는 관리자만.** 이 깃발 하나가 10년치를 통째로 다시 받는다. 단 **아직
+      한 줄도 못 받은 종목**은 예외다 — 등록할 때 조회가 실패하면 종목만 남는데, 그걸 채울
+      방법이 이 버튼뿐이다. 그때는 묻지 않고 전체 기간을 받는다.
+    - **쿨다운은 사람이 아니라 종목에 건다** (`limits.refresh_cooldown`, 10분). 30명이 같은
+      종목을 눌러도 실제 조회는 한 번이다. 쿨다운 중에는 거절하지 않고 언제 받았는지
+      알려준다(`skipped`). 방금 실패했으면 1분 뒤에 다시 눌러 달라고 한다(429).
+      관리자는 기다리지 않는다.
     """
     stock = find_user_stock(db, user_id, ticker.upper())
     if stock is None:
         raise HTTPException(status_code=404, detail="stock not found")
+
+    owner = _is_owner(db, user_id)
+    empty = not _has_prices(db, stock.ticker)
+    if full and not owner and not empty:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "hint": "전체 기간 다시 받기는 관리자만 할 수 있습니다. 최근 시세는 '시세 갱신'으로 받을 수 있습니다.",
+                "message": "full backfill is owner only",
+            },
+        )
+
+    if not owner:
+        waiting = limits.refresh_cooldown.check(stock.ticker)
+        if waiting is not None:
+            elapsed, left, ok = waiting
+            if not ok:
+                raise HTTPException(
+                    status_code=429,
+                    detail={
+                        "hint": f"방금 받지 못했습니다. {left}초 뒤에 다시 눌러 주세요.",
+                        "message": "retry cooldown",
+                    },
+                )
+            return {
+                "ticker": stock.ticker,
+                "skipped": True,
+                "hint": (
+                    f"{limits.ago_label(elapsed)} 받았습니다. 같은 종목은 "
+                    f"{limits.REFRESH_COOLDOWN_SECONDS // 60}분에 한 번 다시 받습니다."
+                ),
+            }
+
     try:
-        result = refresh_and_evaluate_stock(db, stock, full_backfill=full)
+        result = refresh_and_evaluate_stock(db, stock, full_backfill=full or empty)
     except data_ingestion.DataIngestionError as exc:
+        limits.refresh_cooldown.mark(stock.ticker, ok=False)
         raise HTTPException(status_code=502, detail=_failure_detail(exc)) from exc
+    limits.refresh_cooldown.mark(stock.ticker, ok=True)
     backfill.clear(stock.ticker)  # 등록 때 실패했던 표시를 지운다
     return result

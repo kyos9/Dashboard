@@ -74,6 +74,14 @@ export type StockUpdateInput = Partial<
 }
 
 /** 종목 등록 결과 — 최초 시세 백필이 실제로 됐는지까지 알려준다 */
+/** 종목 하나 새로고침. 쿨다운 중이면 받지 않고 `skipped` 와 언제 받았는지(`hint`)가 온다 */
+export interface StockRefreshResult {
+  ticker: string
+  rows_upserted?: number
+  skipped?: boolean
+  hint?: string
+}
+
 export interface StockCreateResult {
   stock: Stock
   data_loaded: boolean

@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.schemas import SymbolMatchOut
 from app.services import symbols
-from app.services.users import require_owner
+from app.services.users import current_user_id, require_owner
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +24,10 @@ def search_symbols(
     q: str = Query(..., min_length=1, description="종목명, 종목코드 또는 티커"),
     limit: int = Query(10, ge=1, le=30),
     db: Session = Depends(get_db),
+    user_id: int = Depends(current_user_id),
 ):
-    matches = symbols.search(q, db=db, limit=limit)
+    # 로컬에서 못 찾아 바깥에 묻는 것은 사람마다 분당 몇 번까지 (symbols.search_gate)
+    matches = symbols.search(q, db=db, limit=limit, network_gate=symbols.search_gate(user_id))
     return [SymbolMatchOut(**match.to_dict()) for match in matches]
 
 

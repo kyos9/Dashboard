@@ -1,8 +1,10 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { MemoryRouter } from 'react-router-dom'
 import { api } from '../api/client'
 import type { HistoryResponse } from '../types'
+import { AuthGate } from './AuthGate'
 import { ChartModal, needsBackfill } from './ChartModal'
 
 const series = { setData: vi.fn() }
@@ -104,7 +106,7 @@ describe('저장 구간 안내', () => {
       coverage: { first_date: '2025-09-16', last_date: '2026-09-16', rows: 250 },
     }
     const history = vi.spyOn(api, 'getHistory').mockResolvedValue(short)
-    const refresh = vi.spyOn(api, 'refreshStock').mockResolvedValue(undefined)
+    const refresh = vi.spyOn(api, 'refreshStock').mockResolvedValue({ ticker: 'VOO' })
     const user = userEvent.setup()
     render(<ChartModal ticker="VOO" onClose={() => {}} />)
 
@@ -122,6 +124,30 @@ describe('저장 구간 안내', () => {
     render(<ChartModal ticker="005930.KS" onClose={() => {}} />)
 
     await screen.findByText(/저장된 시세/)
+    expect(screen.queryByRole('button', { name: '전체 기간 다시 받기' })).toBeNull()
+  })
+
+  it('사용자에게는 짧다는 사실만 — 전체 기간 다시 받기는 관리자만 한다', async () => {
+    vi.spyOn(api, 'getHealth').mockResolvedValue({ status: 'ok', version: '0.22.0' })
+    vi.spyOn(api, 'getAuthStatus').mockResolvedValue({
+      locked: true, authenticated: true, mode: 'google', config_problem: null,
+      user: { email: 'b@example.com', name: '비', is_owner: false, status: 'active' },
+    })
+    vi.spyOn(api, 'getHistory').mockResolvedValue({
+      ...HISTORY,
+      coverage: { first_date: '2025-09-16', last_date: '2026-09-16', rows: 250 },
+    })
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter>
+        <AuthGate>
+          <ChartModal ticker="VOO" onClose={() => {}} />
+        </AuthGate>
+      </MemoryRouter>,
+    )
+
+    await user.click(await screen.findByRole('button', { name: '5년' }))
+    expect(await screen.findByText(/고른 기간보다 짧습니다 \(앞부분은 관리자가 받을 수 있습니다\)/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '전체 기간 다시 받기' })).toBeNull()
   })
 

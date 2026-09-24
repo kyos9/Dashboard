@@ -270,7 +270,7 @@ describe('등록된 종목 목록', () => {
     expect(screen.queryByLabelText('VOO 표시 이름')).not.toBeInTheDocument()
   })
 
-  it('종목을 완전히 지울 수 있다 — 되돌릴 수 없으니 한 번 더 묻는다', async () => {
+  it('종목을 내 목록에서 지울 수 있다 — 되돌릴 수 없으니 한 번 더 묻는다', async () => {
     const purge = vi.spyOn(api, 'purgeStock').mockResolvedValue(undefined)
     mockApi([stock({ ticker: 'VOO' })])
     const user = userEvent.setup()
@@ -281,11 +281,27 @@ describe('등록된 종목 목록', () => {
 
     // 확인은 표 아래가 아니라 화면 위에 떠야 한다 (종목이 많으면 표 아래는 안 보인다)
     const dialog = screen.getByRole('alertdialog')
-    expect(within(dialog).getByText(/되돌릴 수 없고/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/되돌릴 수 없습니다/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/시세·지표는 모두가 같이 쓰는 기록이라 남겨/)).toBeInTheDocument()
 
-    await user.click(within(dialog).getByRole('button', { name: '네, 완전히 지웁니다' }))
+    await user.click(within(dialog).getByRole('button', { name: '네, 지웁니다' }))
     await waitFor(() => expect(purge).toHaveBeenCalledWith('VOO'))
     expect(await screen.findByText(/VOO을\(를\) 지웠습니다/)).toBeInTheDocument()
+  })
+
+  it('방금 받은 종목을 새로고침하면 다시 받지 않고 언제 받았는지 알린다', async () => {
+    // 같은 종목은 10분에 한 번만 실제로 받는다 (서버 쿨다운). 거절이 아니라 사실을 알린다
+    mockApi([stock({ ticker: 'VOO' })])
+    vi.spyOn(api, 'refreshStock').mockResolvedValue({
+      ticker: 'VOO',
+      skipped: true,
+      hint: '3분 전에 받았습니다. 같은 종목은 10분에 한 번 다시 받습니다.',
+    })
+    const user = userEvent.setup()
+    renderManager()
+
+    await user.click(await screen.findByRole('button', { name: '시세 갱신' }))
+    expect(await screen.findByText('VOO: 3분 전에 받았습니다. 같은 종목은 10분에 한 번 다시 받습니다.')).toBeInTheDocument()
   })
 
   it('삭제를 취소하면 아무것도 지우지 않는다', async () => {

@@ -23,6 +23,7 @@ import type {
   Stock,
   StockCreateInput,
   StockCreateResult,
+  StockRefreshResult,
   StockUpdateInput,
   UserStatus,
 } from '../types'
@@ -133,8 +134,10 @@ export const api = {
     request<void>(`/stocks/${encodeURIComponent(ticker)}/purge`, { method: 'DELETE' }),
   deactivateStock: (ticker: string) => request<Stock>(`/stocks/${ticker}`, { method: 'DELETE' }),
   /** `full`이면 처음 등록할 때처럼 전체 기간을 다시 받는다 (평소 갱신은 최근 2년) */
+  // `full` 은 관리자만 (아직 한 줄도 없는 종목은 서버가 알아서 전체를 받는다).
+  // 같은 종목은 10분에 한 번만 실제로 받는다 — 그 안에 누르면 `skipped` 와 언제 받았는지가 온다.
   refreshStock: (ticker: string, full = false) =>
-    request<unknown>(`/stocks/${ticker}/refresh${full ? '?full=true' : ''}`, { method: 'POST' }),
+    request<StockRefreshResult>(`/stocks/${ticker}/refresh${full ? '?full=true' : ''}`, { method: 'POST' }),
   refreshAll: () => request<RefreshResult[]>('/stocks/refresh-all', { method: 'POST' }),
 
   getDashboard: () => request<DashboardCard[]>('/dashboard'),
