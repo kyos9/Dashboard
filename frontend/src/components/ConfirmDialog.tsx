@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { useBackToClose } from '../lib/backToClose'
 
 interface Props {
   title: string
@@ -33,6 +34,9 @@ export function ConfirmDialog({
   useEffect(() => {
     cancelRef.current?.focus()
   }, [])
+
+  // 폰의 뒤로가기로도 닫힌다 (지우는 중에는 안 닫힌다)
+  useBackToClose(onCancel, !busy)
 
   // ESC로 닫기 + 뒤 화면이 같이 스크롤되지 않게 (차트 팝업과 같은 규칙)
   useEffect(() => {

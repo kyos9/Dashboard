@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
+import { useBackToClose } from '../lib/backToClose'
 import { macroValue } from '../lib/macro'
 import type { MacroHistory } from '../types'
 import { ErrorNotice } from './ErrorNotice'
@@ -40,6 +41,9 @@ export function MacroChartModal({ code, name, onClose }: Props) {
       .catch(setError)
       .finally(() => setLoading(false))
   }, [code, range])
+
+  // 폰의 뒤로가기로도 닫힌다
+  useBackToClose(onClose)
 
   // ESC로 닫기 + 뒤 화면이 같이 스크롤되지 않게
   useEffect(() => {

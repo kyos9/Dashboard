@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
+import { useBackToClose } from '../lib/backToClose'
 import { ErrorNotice } from './ErrorNotice'
 import type { LogsResponse } from '../types'
 
@@ -49,6 +50,9 @@ export function DiagnosticsModal({ onClose }: { onClose: () => void }) {
       .catch(setError)
       .finally(() => setLoading(false))
   }, [level])
+
+  // 폰의 뒤로가기로도 닫힌다
+  useBackToClose(onClose)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()

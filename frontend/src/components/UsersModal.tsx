@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
+import { useBackToClose } from '../lib/backToClose'
 import { ConfirmDialog } from './ConfirmDialog'
 import { ErrorNotice } from './ErrorNotice'
 import { whenLabel } from '../lib/display'
@@ -32,6 +33,9 @@ export function UsersModal({ onClose, onChanged }: { onClose: () => void; onChan
   useEffect(() => {
     api.listUsers().then(setUsers).catch(setError)
   }, [])
+
+  // 폰의 뒤로가기로도 닫힌다
+  useBackToClose(onClose)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !confirmBlock && onClose()

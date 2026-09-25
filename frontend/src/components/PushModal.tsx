@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ApiError, api } from '../api/client'
+import { useBackToClose } from '../lib/backToClose'
 import { disablePush, enablePush, pushState, type PushState } from '../lib/push'
 import { KIND_TEXT, STATE_TEXT } from '../lib/pushText'
 import type { PushKind, PushSettings } from '../types'
@@ -50,6 +51,9 @@ export function PushModal({ account, onClose }: { account: string; onClose: () =
       cancelled = true
     }
   }, [account])
+
+  // 폰의 뒤로가기로도 닫힌다
+  useBackToClose(onClose)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()

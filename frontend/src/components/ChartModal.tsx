@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
+import { useBackToClose } from '../lib/backToClose'
 import type { HistoryResponse } from '../types'
 import { useAuth } from './AuthGate'
 import { ChartLegend, coverageText, PriceChart } from './PriceChart'
@@ -109,6 +110,9 @@ export function ChartModal({ ticker, name, onClose }: Props) {
       .catch(setError)
       .finally(() => setLoading(false))
   }, [ticker, range, reloadKey])
+
+  // 폰의 뒤로가기로도 닫힌다
+  useBackToClose(onClose)
 
   // ESC로 닫기 + 뒤 화면이 같이 스크롤되지 않게
   useEffect(() => {
