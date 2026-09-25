@@ -1,6 +1,6 @@
 """사람끼리 데이터가 섞이지 않는가 (ROADMAP 4단계 7번).
 
-API가 40개다(표가 센다). 그중 사용자별인 것에서 `WHERE user_id` 하나만 빠져도 남의 데이터가 그대로
+API가 48개다(표가 센다). 그중 사용자별인 것에서 `WHERE user_id` 하나만 빠져도 남의 데이터가 그대로
 나간다. 눈으로 막을 수 있는 종류가 아니라서, 사람의 주의력 대신 **표**에 기댄다.
 
 1. `ENDPOINTS` — 앱의 모든 API를 *누구 것인가*와 *누가 쓰는가*로 적은 표. 앱의 라우터
@@ -36,6 +36,8 @@ import app.main as main_module
 from app.models import (
     Holding,
     PriceDaily,
+    PushState,
+    PushSubscription,
     RebalanceSnapshot,
     SignalDaily,
     UserSettings,
@@ -44,7 +46,15 @@ from app.models import (
 from app.services import macro
 from app.services import auth as auth_service
 from app.services.users import LOCAL_USER_ID, current_user_id, require_owner, viewer_user_id
-from tests.factories import make_holding, make_settings, make_stock, make_user
+from tests.factories import (
+    make_holding,
+    make_push_state,
+    make_push_subscription,
+    make_settings,
+    make_stock,
+    make_user,
+    new_device,
+)
 
 # ---------------------------------------------------------------------------
 #  표
@@ -114,6 +124,13 @@ ENDPOINTS: dict[tuple[str, str], tuple[str, str]] = {
     # 사용자 목록·가입 승인 — 모든 사람의 이메일이 들어 있다
     ("GET", "/api/admin/users"): (SHARED, OWNER),
     ("PUT", "/api/admin/users/{user_id}/status"): (SHARED, OWNER),
+    # 푸시 알림 — 서버 공개키만 공용이고, 기기·받을 종류·시험은 그 사람 것이다
+    ("GET", "/api/push/key"): (SHARED, USER),
+    ("GET", "/api/push/settings"): (MINE, USER),
+    ("PUT", "/api/push/settings"): (MINE, USER),
+    ("POST", "/api/push/subscriptions"): (MINE, USER),
+    ("DELETE", "/api/push/subscriptions"): (MINE, USER),
+    ("POST", "/api/push/test"): (MINE, USER),
 }
 
 
@@ -169,6 +186,7 @@ class World:
     Session: object
     snapshots: dict  # 사용자 → 리밸런싱 기록 id
     monkeypatch: object
+    devices: dict  # 사용자 → 알림 받는 기기
 
     def as_user(self, user_id: int):
         """이후 요청을 그 사람으로 보낸다 (로그인이 하는 일을 대신한다).
@@ -230,12 +248,20 @@ def world(api, monkeypatch) -> World:
 
         make_settings(db, user_id=A, default_rebalance_band_pct=7.0, base_currency="KRW",
                       fx_overrides={"USD": 1300.0}, pinned_macro=["VIX"],
-                      cash={"KRW": 1_000_000}, cash_target_pct=10.0, review_period="annual")
+                      cash={"KRW": 1_000_000}, cash_target_pct=10.0, review_period="annual",
+                      push_kinds=["buy", "signup"])
         make_settings(db, user_id=B, default_rebalance_band_pct=3.0, base_currency="USD",
                       pinned_macro=["DGS10"], cash={"USD": 50})
 
         snapshots = {A: _snapshot(db, A, "A의 기록"), B: _snapshot(db, B, "B의 기록")}
-    return World(client=client, Session=Session, snapshots=snapshots, monkeypatch=monkeypatch)
+
+        devices = {A: new_device("a"), B: new_device("b")}
+        make_push_subscription(db, devices[A], user_id=A)
+        make_push_subscription(db, devices[B], user_id=B)
+        make_push_state(db, "buy:QQQ", "2026-09-21", user_id=A)
+        make_push_state(db, "buy:QQQ", "2026-09-18", user_id=B)
+    return World(client=client, Session=Session, snapshots=snapshots, monkeypatch=monkeypatch,
+                 devices=devices)
 
 
 def _a_is_untouched(w: World) -> None:
@@ -261,6 +287,13 @@ def _a_is_untouched(w: World) -> None:
         ]
         # 공용 시세도 그대로 — A가 아직 QQQ를 담고 있다
         assert db.query(PriceDaily).filter_by(ticker="QQQ").count() == 2
+        # 알림 — A의 기기·받을 종류·이미 알린 것
+        assert settings.push_kinds == ["buy", "signup"]
+        assert [s.endpoint for s in db.query(PushSubscription).filter_by(user_id=A)] == [
+            w.devices[A].endpoint
+        ]
+        assert db.get(PushSubscription, 1).p256dh == w.devices[A].p256dh
+        assert db.get(PushState, (A, "buy:QQQ")).value == "2026-09-21"
 
 
 # ---------------------------------------------------------------------------
@@ -507,13 +540,80 @@ def check_withdraw(w: World):
 
     with w.Session() as db:
         assert db.get(User, B) is None
-        for model in (UserStock, Holding, RebalanceSnapshot, UserSettings):
+        for model in (UserStock, Holding, RebalanceSnapshot, UserSettings, PushSubscription, PushState):
             assert db.query(model).filter_by(user_id=B).count() == 0
         # 공용 시세는 남는다 — B만 담았던 삼성전자도
         assert db.query(PriceDaily).filter_by(ticker=SAMSUNG).count() == 2
     # 탈퇴한 사람의 쪽지는 더 이상 통하지 않는다
     client.cookies.set(auth_service.COOKIE_NAME, cookie)
     assert client.get("/api/stocks").status_code == 401
+    _a_is_untouched(w)
+
+
+def check_push_settings(w: World):
+    got = w.as_user(B).get("/api/push/settings").json()
+    # B는 고른 적이 없어 전부 받는다. 가입 신청 알림은 관리자에게만 있다
+    assert got == {"kinds": ["buy", "band", "review"], "available": ["buy", "band", "review"], "devices": 1}
+    theirs = w.as_user(A).get("/api/push/settings").json()
+    assert theirs["kinds"] == ["buy", "signup"]
+    assert theirs["devices"] == 1
+
+
+def check_update_push_settings(w: World):
+    client = w.as_user(B)
+    # 사용자는 가입 신청 알림을 고를 수 없다
+    assert client.put("/api/push/settings", json={"kinds": ["signup"]}).status_code == 400
+    res = client.put("/api/push/settings", json={"kinds": ["band"]})
+    assert res.status_code == 200, res.text
+    assert res.json()["kinds"] == ["band"]
+    assert w.get(UserSettings, B).push_kinds == ["band"]
+    _a_is_untouched(w)
+
+
+def check_subscribe(w: World):
+    client = w.as_user(B)
+    phone = new_device("b-phone")
+    assert client.post("/api/push/subscriptions", json=phone.as_json()).status_code == 200
+    with w.Session() as db:
+        assert {s.endpoint for s in db.query(PushSubscription).filter_by(user_id=B)} == {
+            w.devices[B].endpoint, phone.endpoint
+        }
+    _a_is_untouched(w)
+
+
+def check_unsubscribe(w: World):
+    client = w.as_user(B)
+    assert client.request(
+        "DELETE", "/api/push/subscriptions", json={"endpoint": w.devices[A].endpoint}
+    ).status_code == 404
+    assert client.request(
+        "DELETE", "/api/push/subscriptions", json={"endpoint": w.devices[B].endpoint}
+    ).status_code == 204
+    with w.Session() as db:
+        assert db.query(PushSubscription).filter_by(user_id=B).count() == 0
+    _a_is_untouched(w)
+
+
+def check_push_test(w: World):
+    """시험 알림은 **내 기기에만** 간다 — 받은 쪽에서 풀어서 확인한다."""
+    import requests
+
+    got: list[tuple[str, bytes]] = []
+
+    class Ok:
+        status_code = 201
+        text = ""
+
+    def fake_post(url, data=None, **kwargs):
+        got.append((url, data))
+        return Ok()
+
+    w.monkeypatch.setattr(requests, "post", fake_post)
+    res = w.as_user(B).post("/api/push/test")
+    assert res.status_code == 200, res.text
+    assert res.json() == {"sent": 1, "failed": 0}
+    assert [url for url, _ in got] == [w.devices[B].endpoint]
+    assert w.devices[B].open(got[0][1])["title"] == "신호판"
     _a_is_untouched(w)
 
 
@@ -541,6 +641,11 @@ CHECKS = {
     ("GET", "/api/macro"): check_macro_overview,
     ("GET", "/api/macro/pinned"): check_pinned,
     ("PUT", "/api/macro/pinned"): check_update_pinned,
+    ("GET", "/api/push/settings"): check_push_settings,
+    ("PUT", "/api/push/settings"): check_update_push_settings,
+    ("POST", "/api/push/subscriptions"): check_subscribe,
+    ("DELETE", "/api/push/subscriptions"): check_unsubscribe,
+    ("POST", "/api/push/test"): check_push_test,
 }
 
 

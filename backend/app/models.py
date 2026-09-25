@@ -259,6 +259,9 @@ class UserSettings(Base):
     cash: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     # 현금으로 남겨둘 비중(%). 종목 목표비중과 합쳐 100이 되게 맞춘다.
     cash_target_pct: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    # 받을 푸시 알림의 종류 (`services.alerts.KINDS`). **`None` 은 "다 받는다"** — 켜기만 하면
+    # 오게. `[]` 은 일부러 다 끈 것이다 (기기의 구독은 남는다). `pinned_macro` 와 같은 약속.
+    push_kinds: Mapped[list | None] = mapped_column(JSON, nullable=True)
 
 
 class RebalanceSnapshot(Base):
@@ -282,6 +285,41 @@ class RebalanceSnapshot(Base):
     note: Mapped[str | None] = mapped_column(String, nullable=True)
     # 종목 행·현금·환율. 한 번 쓰고 고치지 않는다.
     data: Mapped[dict] = mapped_column(JSON, nullable=False)
+
+
+class PushSubscription(Base):
+    """알림을 받을 기기 하나 — 브라우저가 준 푸시 주소와 열쇠 (services/push.py).
+
+    **주소(`endpoint`)가 곧 기기다.** 한 기기에서 계정을 바꿔 다시 켜면 같은 주소가 새 사람에게
+    넘어간다 — 알림은 마지막으로 켠 사람 것만 간다. 나가기를 누르면 화면이 먼저 지운다.
+    """
+
+    __tablename__ = "push_subscription"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    endpoint: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    # 그 기기의 공개키와 비밀값. 내용을 그 기기만 풀 수 있게 싸는 데 쓴다.
+    p256dh: Mapped[str] = mapped_column(String, nullable=False)
+    auth: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow, nullable=False)
+    # 마지막으로 닿은 때. 진단에서 "켜 뒀는데 안 온다"를 가를 때 본다.
+    last_ok_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class PushState(Base):
+    """무엇을 이미 알렸나. **바뀐 순간에만 울린다** — 같은 과중 신호로 매일 아침 울리면 끈다.
+
+    `subject` 는 알림거리 하나(`buy:VOO`, `band:VOO`, `review`), `value` 는 마지막으로 본 값
+    (시그널 날짜, `over`/`under`/빈 값, 리뷰일). 값이 달라지고 새 값이 비어 있지 않을 때 알린다.
+    """
+
+    __tablename__ = "push_state"
+
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), primary_key=True)
+    subject: Mapped[str] = mapped_column(String, primary_key=True)
+    value: Mapped[str] = mapped_column(String, default="", nullable=False)
+    updated_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow, nullable=False)
 
 
 class FxRate(Base):

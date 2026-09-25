@@ -6,8 +6,10 @@ import { useAuth } from './AuthGate'
 import { ConfirmDialog } from './ConfirmDialog'
 import { DiagnosticsModal } from './DiagnosticsModal'
 import { InstallButton } from './InstallButton'
+import { PushModal } from './PushModal'
 import { UsersModal } from './UsersModal'
 import { GuestNotice, LoginButton } from './LoginPrompt'
+import { pushAccount, syncPush } from '../lib/push'
 import type { HealthInfo } from '../types'
 
 type Theme = 'dark' | 'light'
@@ -72,6 +74,15 @@ export function AppHeader() {
   const [theme, setTheme] = useState<Theme>(readStoredTheme)
   const [health, setHealth] = useState<HealthInfo | null>(null)
   const [showDiagnostics, setShowDiagnostics] = useState(false)
+  const [showPush, setShowPush] = useState(false)
+  // 들어와 쓰는 사람만 알림이 있다 (손님·승인 대기에게는 보낼 것이 없다)
+  const member = !guest && !pending
+  const account = pushAccount(user)
+
+  // 켜 둔 기기가 서버와 맞는지 한 번 본다 — 서버 키가 바뀌었거나 구독이 빠졌으면 다시 채운다
+  useEffect(() => {
+    if (member) void syncPush(account)
+  }, [member, account])
 
   // 실행 중인 백엔드 버전을 헤더에 띄운다 — 업데이트 후 서버를 다시 켰는지 한눈에 확인하려고.
   useEffect(() => {
@@ -176,6 +187,11 @@ export function AppHeader() {
             </>
           )}
           {guest && !pending && <LoginButton label="로그인" />}
+          {member && (
+            <button className="ghost" onClick={() => setShowPush(true)} title="알림 설정" aria-label="알림 설정">
+              🔔
+            </button>
+          )}
           {/* 설치할 수 있을 때만 나온다 (이미 설치했거나 PC 크롬이 아니면 숨는다) */}
           <InstallButton />
           {/* 누구로 들어와 있는지 — 계정이 여럿인 폰에서 "내 종목이 없어졌다"가 사실은
@@ -234,6 +250,7 @@ export function AppHeader() {
       </nav>
 
       {showDiagnostics && <DiagnosticsModal onClose={() => setShowDiagnostics(false)} />}
+      {showPush && <PushModal account={account} onClose={() => setShowPush(false)} />}
       {showUsers && <UsersModal onClose={() => setShowUsers(false)} onChanged={recountPending} />}
 
       {confirmWithdraw && (

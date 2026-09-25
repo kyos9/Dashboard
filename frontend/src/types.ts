@@ -540,3 +540,21 @@ export interface MacroRefreshResult {
   hint: string | null
   skipped: string | null
 }
+
+/* ---------- 푸시 알림 ---------- */
+
+/** 받을 알림 종류. 가입 신청은 관리자에게만 있다 (backend/app/services/alerts.py) */
+export type PushKind = 'buy' | 'band' | 'review' | 'signup'
+
+export interface PushSettings {
+  kinds: PushKind[]
+  available: PushKind[]
+  /** 알림을 켜 둔 내 기기 수 */
+  devices: number
+}
+
+/** 브라우저의 `PushSubscription.toJSON()` 모양 */
+export interface PushSubscriptionInput {
+  endpoint: string
+  keys: { p256dh: string; auth: string }
+}

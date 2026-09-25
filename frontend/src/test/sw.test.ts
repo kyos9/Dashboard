@@ -52,12 +52,23 @@ class FakeCache {
   }
 }
 
+interface FakeWindow {
+  url: string
+  focus: ReturnType<typeof vi.fn>
+  navigate: ReturnType<typeof vi.fn>
+}
+
 interface Harness {
   listeners: Record<string, ((event: unknown) => void)[]>
   caches: Map<string, FakeCache>
   fetch: ReturnType<typeof vi.fn>
   skipWaiting: ReturnType<typeof vi.fn>
   claim: ReturnType<typeof vi.fn>
+  showNotification: ReturnType<typeof vi.fn>
+  subscribe: ReturnType<typeof vi.fn>
+  openWindow: ReturnType<typeof vi.fn>
+  /** 지금 열려 있는 앱 창들 (clients.matchAll 이 돌려준다) */
+  windows: FakeWindow[]
 }
 
 function load(): Harness {
@@ -66,11 +77,16 @@ function load(): Harness {
 
   const skipWaiting = vi.fn(async () => {})
   const claim = vi.fn(async () => {})
+  const showNotification = vi.fn(async () => {})
+  const subscribe = vi.fn(async () => ({ toJSON: () => ({ endpoint: 'https://fcm.googleapis.com/fcm/send/new' }) }))
+  const openWindow = vi.fn(async () => null)
+  const windows: FakeWindow[] = []
 
   const self = {
     location: { origin: ORIGIN },
     skipWaiting,
-    clients: { claim },
+    registration: { showNotification, pushManager: { subscribe } },
+    clients: { claim, openWindow, matchAll: vi.fn(async () => windows) },
     addEventListener(type: string, fn: (event: unknown) => void) {
       ;(listeners[type] ??= []).push(fn)
     },
@@ -99,7 +115,9 @@ function load(): Harness {
   // 배포되는 파일을 그대로 실행한다. self/caches/fetch 만 가짜로 갈아끼운다.
   new Function('self', 'caches', 'fetch', 'console', SW_SOURCE)(self, caches, fetchMock, console)
 
-  return { listeners, caches: store, fetch: fetchMock, skipWaiting, claim }
+  return {
+    listeners, caches: store, fetch: fetchMock, skipWaiting, claim, showNotification, subscribe, openWindow, windows,
+  }
 }
 
 interface FetchEvent {
@@ -334,5 +352,158 @@ describe('설치와 정리', () => {
     expect([...h.caches.keys()]).not.toContain('signalboard-shell-v0')
     expect([...h.caches.keys()]).not.toContain('남이-쓰는-캐시')
     expect(h.claim).toHaveBeenCalled()
+  })
+})
+
+/* ---------- 푸시 알림 ---------- */
+
+interface WaitEvent {
+  waits: Promise<unknown>[]
+  waitUntil: (p: Promise<unknown>) => void
+}
+
+function waitEvent<T extends object>(extra: T): T & WaitEvent {
+  const event = { ...extra, waits: [] as Promise<unknown>[] } as T & WaitEvent
+  event.waitUntil = (p) => {
+    event.waits.push(p)
+  }
+  return event
+}
+
+function pushEvent(payload: unknown) {
+  return waitEvent({
+    data:
+      payload === undefined
+        ? null
+        : {
+            json: () => {
+              if (typeof payload === 'string') return JSON.parse(payload)
+              return payload
+            },
+          },
+  })
+}
+
+function clickEvent(data: unknown) {
+  const close = vi.fn()
+  return { event: waitEvent({ notification: { data, close } }), close }
+}
+
+describe('푸시 — 받으면 띄운다', () => {
+  it('서버가 보낸 제목·내용·종류·열 주소로 띄운다', async () => {
+    const event = pushEvent({ title: '매수 시그널', body: 'VOO, QQQ', url: '/', tag: 'daily' })
+    dispatch(h, 'push', event)
+    await Promise.all(event.waits)
+
+    expect(h.showNotification).toHaveBeenCalledWith('매수 시그널', {
+      body: 'VOO, QQQ',
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      tag: 'daily',
+      renotify: true,
+      data: { url: '/' },
+    })
+  })
+
+  it.each([
+    ['내용이 JSON 이 아니어도', '이건 JSON 아님'],
+    ['내용이 비어 있어도', undefined],
+    ['제목이 없어도', { body: '본문만' }],
+  ])('%s 알림은 띄운다 — 안 띄우면 브라우저가 구독을 거둔다', async (_, payload) => {
+    const event = pushEvent(payload)
+    dispatch(h, 'push', event)
+    await Promise.all(event.waits)
+    expect(h.showNotification).toHaveBeenCalledTimes(1)
+    expect(h.showNotification.mock.calls[0][0]).toBe('신호판')
+  })
+
+  it.each(['https://evil.example/', '//evil.example/x', 'javascript:alert(1)', 42])(
+    '앱 밖 주소(%s)는 첫 화면으로 바꾼다',
+    async (url) => {
+      const event = pushEvent({ title: 't', url })
+      dispatch(h, 'push', event)
+      await Promise.all(event.waits)
+      expect(h.showNotification.mock.calls[0][1].data).toEqual({ url: '/' })
+    },
+  )
+})
+
+describe('푸시 — 누르면 앱을 연다', () => {
+  it('이미 열린 창이 있으면 그 창을 앞으로 가져와 그 화면으로 옮긴다', async () => {
+    const win = { url: `${ORIGIN}/`, focus: vi.fn(async () => {}), navigate: vi.fn(async () => {}) }
+    h.windows.push(win)
+    const { event, close } = clickEvent({ url: '/rebalance' })
+    dispatch(h, 'notificationclick', event)
+    await Promise.all(event.waits)
+
+    expect(close).toHaveBeenCalled()
+    expect(win.focus).toHaveBeenCalled()
+    expect(win.navigate).toHaveBeenCalledWith(`${ORIGIN}/rebalance`)
+    expect(h.openWindow).not.toHaveBeenCalled()
+  })
+
+  it('이미 그 화면이면 옮기지 않는다 (다시 불러오지 않게)', async () => {
+    const win = { url: `${ORIGIN}/rebalance`, focus: vi.fn(async () => {}), navigate: vi.fn(async () => {}) }
+    h.windows.push(win)
+    const { event } = clickEvent({ url: '/rebalance' })
+    dispatch(h, 'notificationclick', event)
+    await Promise.all(event.waits)
+    expect(win.focus).toHaveBeenCalled()
+    expect(win.navigate).not.toHaveBeenCalled()
+  })
+
+  it('열린 창이 없으면 새로 연다', async () => {
+    const { event } = clickEvent({ url: '/' })
+    dispatch(h, 'notificationclick', event)
+    await Promise.all(event.waits)
+    expect(h.openWindow).toHaveBeenCalledWith(`${ORIGIN}/`)
+  })
+
+  it('남의 사이트 창은 건드리지 않고, 주소가 이상하면 첫 화면을 연다', async () => {
+    const other = { url: 'https://other.example/', focus: vi.fn(async () => {}), navigate: vi.fn(async () => {}) }
+    h.windows.push(other)
+    const { event } = clickEvent({ url: 'https://evil.example/' })
+    dispatch(h, 'notificationclick', event)
+    await Promise.all(event.waits)
+    expect(other.focus).not.toHaveBeenCalled()
+    expect(h.openWindow).toHaveBeenCalledWith(`${ORIGIN}/`)
+  })
+})
+
+describe('푸시 — 브라우저가 구독을 바꾸면', () => {
+  it('새 구독을 서버에 다시 적는다', async () => {
+    const newSubscription = { toJSON: () => ({ endpoint: 'https://fcm.googleapis.com/fcm/send/renewed' }) }
+    h.fetch.mockResolvedValue({ ok: true })
+    const event = waitEvent({ newSubscription })
+    dispatch(h, 'pushsubscriptionchange', event)
+    await Promise.all(event.waits)
+
+    expect(h.fetch).toHaveBeenCalledWith('/api/push/subscriptions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint: 'https://fcm.googleapis.com/fcm/send/renewed' }),
+    })
+  })
+
+  it('새 구독이 안 왔으면 서버 키로 직접 다시 구독한다', async () => {
+    h.fetch.mockImplementation(async (url: string) =>
+      url === '/api/push/key' ? { ok: true, json: async () => ({ public_key: 'AQID' }) } : { ok: true },
+    )
+    const event = waitEvent({ newSubscription: null })
+    dispatch(h, 'pushsubscriptionchange', event)
+    await Promise.all(event.waits)
+
+    const options = h.subscribe.mock.calls[0][0]
+    expect(options.userVisibleOnly).toBe(true)
+    expect([...options.applicationServerKey]).toEqual([1, 2, 3])
+    expect(h.fetch).toHaveBeenLastCalledWith('/api/push/subscriptions', expect.objectContaining({ method: 'POST' }))
+  })
+
+  it('로그인이 풀려 있어도 넘어지지 않는다 — 다음에 화면을 열 때 맞춘다', async () => {
+    h.fetch.mockResolvedValue({ ok: false })
+    const event = waitEvent({ newSubscription: null })
+    dispatch(h, 'pushsubscriptionchange', event)
+    await expect(Promise.all(event.waits)).resolves.toBeDefined()
+    expect(h.subscribe).not.toHaveBeenCalled()
   })
 })

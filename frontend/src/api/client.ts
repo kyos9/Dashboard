@@ -20,6 +20,9 @@ import type {
   MacroPinned,
   MacroRefreshResult,
   MacroSeriesInfo,
+  PushKind,
+  PushSettings,
+  PushSubscriptionInput,
   Stock,
   StockCreateInput,
   StockCreateResult,
@@ -205,6 +208,20 @@ export const api = {
       `/macro/${encodeURIComponent(code)}/forecast?as_of=${encodeURIComponent(asOf)}`,
       { method: 'DELETE' },
     ),
+
+  /** 푸시 알림 — 서버 공개키, 받을 종류, 이 기기 켜기·끄기, 시험 */
+  getPushKey: () => request<{ public_key: string }>('/push/key'),
+  getPushSettings: () => request<PushSettings>('/push/settings'),
+  setPushKinds: (kinds: PushKind[]) =>
+    request<PushSettings>('/push/settings', { method: 'PUT', body: JSON.stringify({ kinds }) }),
+  addPushSubscription: (subscription: PushSubscriptionInput) =>
+    request<{ ok: boolean }>('/push/subscriptions', {
+      method: 'POST',
+      body: JSON.stringify(subscription),
+    }),
+  removePushSubscription: (endpoint: string) =>
+    request<void>('/push/subscriptions', { method: 'DELETE', body: JSON.stringify({ endpoint }) }),
+  sendTestPush: () => request<{ sent: number; failed: number }>('/push/test', { method: 'POST' }),
 
   getLogs: (level: 'warning' | 'all' = 'warning') =>
     request<LogsResponse>(`/logs?level=${level}`),

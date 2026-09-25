@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from 'react'
 import { GOOGLE_LOGIN_URL, api, UNAUTHORIZED_EVENT } from '../api/client'
+import { disablePush, forgetPushDevice } from '../lib/push'
 import type { AuthMode, AuthUser } from '../types'
 
 /**
@@ -185,6 +186,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
+      // 나가기 전에 이 기기의 알림부터 끈다 — 공용 PC·남의 폰에서 내 알림이 계속 오면 안 된다.
+      // 쪽지가 살아 있을 때 해야 서버에서도 지워진다. 실패해도 나가기는 한다.
+      await disablePush().catch(() => {})
       await api.logout()
     } finally {
       leave()
@@ -195,6 +199,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
     // 실패하면 그대로 던진다 — 확인 창이 사유를 보여준다. 여기서 삼키면 "눌렀는데
     // 그대로"가 되고, 탈퇴가 됐는지 안 됐는지 알 수 없다.
     await api.withdraw()
+    // 서버의 구독은 탈퇴와 함께 지워졌다 — 브라우저 쪽만 거둔다
+    await forgetPushDevice().catch(() => {})
     leave()
   }, [leave])
 

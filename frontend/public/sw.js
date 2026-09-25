@@ -14,6 +14,8 @@
  * 새 버전은 2번 덕에 내려온다. 화면을 열 때마다 index.html 을 네트워크에서 먼저
  * 받으므로, 새 이름의 /assets/ 를 가리키게 되고 그건 캐시에 없으니 새로 받는다.
  * 그래서 이 파일 자체는 **캐시되면 안 된다** — 서버가 no-cache 로 내보낸다(app/web.py).
+ *
+ * 맨 아래는 푸시 알림이다 (ROADMAP 6단계). 서버가 보낸 것을 띄우고, 누르면 앱을 연다.
  */
 
 const VERSION = 'v1'
@@ -149,4 +151,104 @@ async function trim(cache, limit) {
   const keys = await cache.keys()
   if (keys.length <= limit) return
   await Promise.all(keys.slice(0, keys.length - limit).map((k) => cache.delete(k)))
+}
+
+/* ---------- 푸시 알림 ----------
+ *
+ * 서버(backend/app/services/alerts.py)가 `{title, body, url, tag}` 를 싸서 보낸다.
+ *
+ * **무엇이 오든 알림은 띄운다.** 브라우저는 "받으면 반드시 보여준다"는 약속으로 구독을
+ * 내줬다(userVisibleOnly). 내용이 깨졌다고 조용히 넘기면 크롬은 대신 "백그라운드에서
+ * 업데이트됨" 같은 알림을 띄우고, 그게 반복되면 구독을 거둬간다.
+ */
+
+const DEFAULT_TITLE = '신호판'
+
+self.addEventListener('push', (event) => {
+  let data = {}
+  try {
+    data = event.data ? event.data.json() : {}
+  } catch {
+    // 글자가 아니거나 JSON 이 아니다 — 기본 문구로 띄운다
+  }
+  const title = typeof data.title === 'string' && data.title ? data.title : DEFAULT_TITLE
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: typeof data.body === 'string' ? data.body : '',
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      // 같은 종류는 앞의 것을 갈아끼운다 — 알림 서랍에 어제 것이 쌓이지 않게
+      tag: typeof data.tag === 'string' && data.tag ? data.tag : 'signalboard',
+      renotify: true,
+      data: { url: safePath(data.url) },
+    }),
+  )
+})
+
+/** 이 앱 안의 주소만. `//evil.example` 이나 `https://…` 는 첫 화면으로 바꾼다. */
+function safePath(url) {
+  if (typeof url !== 'string' || !url.startsWith('/') || url.startsWith('//')) return '/'
+  return url
+}
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const path = safePath(event.notification.data && event.notification.data.url)
+  event.waitUntil(
+    (async () => {
+      const target = new URL(path, self.location.origin).href
+      const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+      // 이미 열려 있으면 그 창을 앞으로 — 새 창을 자꾸 열면 탭이 쌓인다
+      for (const client of windows) {
+        if (new URL(client.url).origin !== self.location.origin) continue
+        await client.focus()
+        if (client.url !== target && 'navigate' in client) {
+          try {
+            await client.navigate(target)
+          } catch {
+            // 이 서비스 워커가 맡지 않은 창은 옮길 수 없다 — 앞으로 가져온 것으로 충분하다
+          }
+        }
+        return
+      }
+      await self.clients.openWindow(target)
+    })(),
+  )
+})
+
+/* 브라우저가 구독을 스스로 바꿨을 때 (만료·키 교체). 새 구독을 서버에 알려두지 않으면
+ * 알림이 그날로 끊기는데, 사용자는 알 방법이 없다. 로그인 쿠키가 살아 있으면 여기서
+ * 바로 다시 적고, 아니면 다음에 앱을 열 때 화면이 맞춘다 (src/lib/push.ts). */
+self.addEventListener('pushsubscriptionchange', (event) => {
+  event.waitUntil(
+    (async () => {
+      try {
+        let sub = event.newSubscription
+        if (!sub) {
+          const res = await fetch('/api/push/key')
+          if (!res.ok) return
+          const { public_key: key } = await res.json()
+          sub = await self.registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: base64UrlToBytes(key),
+          })
+        }
+        await fetch('/api/push/subscriptions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(sub.toJSON()),
+        })
+      } catch {
+        // 다음에 화면을 열 때 다시 맞춘다
+      }
+    })(),
+  )
+})
+
+function base64UrlToBytes(value) {
+  const padded = value.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - (value.length % 4)) % 4)
+  const raw = atob(padded)
+  const out = new Uint8Array(raw.length)
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i)
+  return out
 }

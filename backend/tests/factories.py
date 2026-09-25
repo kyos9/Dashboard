@@ -19,16 +19,25 @@
 
 from __future__ import annotations
 
+import json
+import os
+from dataclasses import dataclass
+
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from sqlalchemy.orm import Session
 
 from app.markets import normalize_ticker
 from app.models import (
     Holding,
     Instrument,
+    PushState,
+    PushSubscription,
     User,
     UserSettings,
     UserStock,
 )
+from app.services import push
 from app.services.users import LOCAL_USER_ID
 
 
@@ -113,3 +122,80 @@ def make_settings(
     if commit:
         db.commit()
     return settings
+
+
+@dataclass
+class Device:
+    """알림을 받는 가짜 기기 — 브라우저가 구독할 때 만드는 열쇠 한 벌.
+
+    진짜 열쇠라서 서버가 싸서 보낸 것을 **여기서 풀어볼 수 있다** (`open`). 그래야 "보냈다"가
+    아니라 "그 기기가 받아서 읽었다"를 확인할 수 있다.
+    """
+
+    endpoint: str
+    key: ec.EllipticCurvePrivateKey
+    secret: bytes
+
+    @property
+    def p256dh(self) -> str:
+        return push._b64url(push._point(self.key.public_key()))
+
+    @property
+    def auth(self) -> str:
+        return push._b64url(self.secret)
+
+    def as_json(self) -> dict:
+        """브라우저의 `PushSubscription.toJSON()` 모양."""
+        return {"endpoint": self.endpoint, "keys": {"p256dh": self.p256dh, "auth": self.auth}}
+
+    def open(self, body: bytes) -> dict:
+        """서버가 보낸 암호문을 이 기기의 열쇠로 푼다 (RFC 8291 의 받는 쪽)."""
+        salt, record_size, id_len = body[:16], int.from_bytes(body[16:20], "big"), body[20]
+        as_public = body[21 : 21 + id_len]
+        assert record_size == push.RECORD_SIZE
+        peer = ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), as_public)
+        shared = self.key.exchange(ec.ECDH(), peer)
+        ua_public = push._point(self.key.public_key())
+        prk_key = push._hmac(self.secret, shared)
+        ikm = push._hmac(prk_key, b"WebPush: info\x00" + ua_public + as_public + b"\x01")
+        prk = push._hmac(salt, ikm)
+        cek = push._hmac(prk, b"Content-Encoding: aes128gcm\x00\x01")[:16]
+        nonce = push._hmac(prk, b"Content-Encoding: nonce\x00\x01")[:12]
+        plain = AESGCM(cek).decrypt(nonce, body[21 + id_len :], None)
+        assert plain.endswith(b"\x02")
+        return json.loads(plain[:-1].decode("utf-8"))
+
+
+def new_device(name: str = "a") -> Device:
+    """구글(FCM) 주소를 가진 가짜 기기. 이름이 곧 주소의 끝이라 기기마다 주소가 다르다."""
+    return Device(
+        endpoint=f"https://fcm.googleapis.com/fcm/send/test-{name}",
+        key=ec.generate_private_key(ec.SECP256R1()),
+        secret=os.urandom(16),
+    )
+
+
+def make_push_subscription(
+    db: Session, device: Device, *, user_id: int = LOCAL_USER_ID, commit: bool = True, **fields
+) -> PushSubscription:
+    """그 사람의 알림 받는 기기 하나."""
+    _ensure_user(db, user_id)
+    row = PushSubscription(
+        user_id=user_id, endpoint=device.endpoint, p256dh=device.p256dh, auth=device.auth, **fields
+    )
+    db.add(row)
+    if commit:
+        db.commit()
+    return row
+
+
+def make_push_state(
+    db: Session, subject: str, value: str, *, user_id: int = LOCAL_USER_ID, commit: bool = True
+) -> PushState:
+    """"이미 이것을 알렸다"는 기록 한 줄."""
+    _ensure_user(db, user_id)
+    row = PushState(user_id=user_id, subject=subject, value=value)
+    db.add(row)
+    if commit:
+        db.commit()
+    return row

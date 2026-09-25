@@ -8,6 +8,7 @@
 - **처음 들어오는 종목**(아직 아무도 받지 않아 10년치를 받아야 하는 것): 사람마다 하루 몇 개.
   이미 누가 담은 종목은 외부 호출이 없으므로 세지 않는다.
 - **야후 검색**: 사람마다 분당 몇 번. 로컬에서 찾히는 평소 검색은 세지 않는다.
+- **시험 알림**: 사람마다 분당 몇 번.
 
 기억은 프로세스 안에만 둔다 — 서버를 다시 띄우면 비워진다. 앱은 워커 하나로 돌고
 (Dockerfile), 다시 띄우는 일은 드물어서 그걸로 충분하다. DB에 두면 한도를 지키려고 매번
@@ -28,6 +29,8 @@ REFRESH_RETRY_SECONDS = 60
 NEW_TICKERS_PER_DAY = 10
 # 사람마다 분당 야후 검색
 YAHOO_SEARCHES_PER_MINUTE = 20
+# 사람마다 분당 시험 알림 (누를 때마다 바깥의 푸시 서버로 나간다)
+TEST_PUSHES_PER_MINUTE = 3
 
 
 class TickerCooldown:
@@ -99,6 +102,7 @@ class SlidingLimit:
 refresh_cooldown = TickerCooldown()
 new_tickers = SlidingLimit(NEW_TICKERS_PER_DAY, 24 * 60 * 60)
 yahoo_searches = SlidingLimit(YAHOO_SEARCHES_PER_MINUTE, 60)
+test_pushes = SlidingLimit(TEST_PUSHES_PER_MINUTE, 60)
 
 
 def reset() -> None:
@@ -106,6 +110,7 @@ def reset() -> None:
     refresh_cooldown.clear()
     new_tickers.clear()
     yahoo_searches.clear()
+    test_pushes.clear()
 
 
 def ago_label(seconds: int) -> str:

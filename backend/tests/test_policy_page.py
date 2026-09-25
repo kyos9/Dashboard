@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 from app.routers.stocks import MAX_STOCKS_PER_USER
-from app.services import auth, backup, limits
+from app.services import alerts, auth, backup, limits, push
 from app.services import google_login as google
 from tests import test_google_login as gl
 
@@ -38,10 +38,27 @@ def _flat(text: str) -> str:
         f"최대 {backup.KEEP}일",
         f"최대 {auth.SESSION_SECONDS // 86400}일",
         f"확인용 쿠키를 {google.FLOW_SECONDS // 60}분",
+        f"한 사람당 {alerts.MAX_DEVICES}대까지",
     ],
 )
 def test_policy_numbers_match_the_server(phrase):
     assert phrase in _flat(POLICY), f"방침에 '{phrase}' 가 없습니다 — 서버 값과 방침이 어긋났습니다"
+
+
+def test_policy_names_every_push_service_we_send_to():
+    """알림이 거쳐 가는 회사를 방침이 다 적었는가. 허용 목록(`push.PUSH_HOSTS`)이 늘면 방침도 고친다."""
+    vendors = {
+        "fcm.googleapis.com": "구글",
+        "android.googleapis.com": "구글",
+        "updates.push.services.mozilla.com": "모질라",
+        "web.push.apple.com": "애플",
+        ".push.apple.com": "애플",
+        ".notify.windows.com": "마이크로소프트",
+    }
+    assert set(push.PUSH_HOSTS) | set(push.PUSH_HOST_SUFFIXES) == set(vendors)
+    flat = _flat(POLICY)
+    for vendor in set(vendors.values()):
+        assert vendor in flat
 
 
 def test_first_screen_states_the_same_cap():

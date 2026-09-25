@@ -13,5 +13,8 @@ pandas-market-calendars==4.6.1
 apscheduler==3.11.0
 # 구글 로그인의 id_token 검증 (서명·발급자·대상·만료 + 공개키 회전). 직접 짜지 않는다.
 google-auth==2.58.0
+# 푸시 알림 내용 암호화(ECDH·HKDF·AES-GCM, RFC 8291). google-auth 도 쓰는 것이라 이미 깔려
+# 있지만, 이제 직접 부르므로 적어둔다 (services/push.py).
+cryptography>=41
 pytest==8.3.4
 httpx==0.28.1

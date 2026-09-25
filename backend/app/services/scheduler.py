@@ -48,6 +48,25 @@ def _refresh(market: Market | None, label: str) -> None:
         logger.info("%s refresh completed: %s", label, results)
     finally:
         db.close()
+    _send_alerts()
+
+
+def _send_alerts() -> None:
+    """시세를 받은 뒤 알림 (ROADMAP 6단계). 새로 뜬 시그널·비중·리뷰만 간다 (services/alerts.py).
+
+    갱신이 시장마다 따로 도므로 여기서도 여러 번 불린다 — 미국 종목의 시그널은 미국 갱신 뒤
+    (한국 아침), 한국 종목은 한국 갱신 뒤(한국 오후)에 온다. 이미 알린 것은 다시 안 간다.
+    알림이 넘어져도 갱신 결과는 그대로다.
+    """
+    from app.services import alerts
+
+    db = SessionLocal()
+    try:
+        alerts.run_daily(db)
+    except Exception:
+        logger.warning("알림을 보내지 못했습니다", exc_info=True)
+    finally:
+        db.close()
 
 
 def _daily_refresh_job() -> None:
@@ -80,8 +99,12 @@ def _startup_refresh_job() -> None:
     except Exception:
         # 네트워크가 막혀 있을 수 있다. 앱은 계속 뜬다 — 화면의 "새로고침"이 남아 있다.
         logger.warning("따라잡기 갱신에 실패했습니다", exc_info=True)
+        results = {}
     finally:
         db.close()
+    # 받아온 게 있을 때만. 서버를 다시 띄울 때마다 알림을 판정할 이유는 없다
+    if results:
+        _send_alerts()
 
 
 def _backup_job() -> None:

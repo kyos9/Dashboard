@@ -40,6 +40,28 @@ def isolated_session_key(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def isolated_push_key(tmp_path, monkeypatch):
+    """푸시 서명 키도 세션 키와 같은 이유로 임시 폴더에 만든다."""
+    from app.services import push
+
+    monkeypatch.setattr(push, "KEY_FILE", tmp_path / "vapid.pem")
+    push.reset_key_cache()
+    yield
+    push.reset_key_cache()
+
+
+@pytest.fixture(autouse=True)
+def no_background_push(monkeypatch):
+    """가입 신청 알림은 뒤에서 **앱의 DB 로** 보낸다 — 테스트에서는 실제 DB 를 건드리면 안 된다.
+
+    보내는 일 자체는 `tests/test_push.py` 가 테스트 DB 로 따로 본다.
+    """
+    from app.services import alerts
+
+    monkeypatch.setattr(alerts, "_run_in_background", lambda job: None)
+
+
+@pytest.fixture(autouse=True)
 def fresh_limits():
     """새로고침 쿨다운·검색 한도는 프로세스 안에 기억된다. 앞 테스트의 기억을 비운다."""
     from app.services import limits

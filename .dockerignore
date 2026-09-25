@@ -18,6 +18,9 @@ backend/logs
 backend/backups
 .env
 .env.local
+# 서명 키 — 이미지에 들어가면 이미지를 받는 누구나 갖게 된다 (서버는 /data 볼륨의 것을 쓴다)
+**/session.key
+**/vapid.pem
 
 # 이미지와 무관한 것
 *.bat

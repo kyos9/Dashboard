@@ -1895,6 +1895,66 @@ table.data-table tr.dirty:hover td {
   margin-left: auto;
 }
 
+/* ---------- 알림 설정 (PushModal) ---------- */
+
+.push-modal {
+  width: min(560px, 100%);
+}
+
+.push-device,
+.push-kinds {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.push-device p,
+.push-kinds h4 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.push-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* 켤 수 없는 이유 + 할 일. 길어도 잘리지 않고 줄바꿈된다 */
+.push-blocked {
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--amber-soft);
+  line-height: 1.55;
+}
+
+.push-notice {
+  color: var(--green);
+}
+
+.push-kind {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.push-kind input {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+}
+
+.push-foot {
+  margin: 12px 0 0;
+  line-height: 1.55;
+}
+
 /* 헤더 버튼 안의 작은 숫자 (기다리는 가입 신청 수) */
 .count-badge {
   margin-left: 6px;

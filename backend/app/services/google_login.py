@@ -324,6 +324,7 @@ def resolve_user(db: Session, claims: dict) -> User:
     owner = owner_email()
     pre_approved = email in allowed_emails()
 
+    new_request = False
     user = db.query(User).filter(User.google_sub == sub).first()
     if user is None:
         local = db.get(User, LOCAL_USER_ID)
@@ -344,6 +345,7 @@ def resolve_user(db: Session, claims: dict) -> User:
             db.add(user)
             if not pre_approved:
                 logger.info("가입 신청이 들어왔습니다 (승인 대기)")
+                new_request = True
     elif user.status == STATUS_REJECTED:
         raise LoginFailed(REASON_REJECTED, "거절된 계정")
     elif user.status == STATUS_BLOCKED:
@@ -360,10 +362,16 @@ def resolve_user(db: Session, claims: dict) -> User:
     except IntegrityError:
         # 같은 사람이 두 창에서 동시에 처음 로그인했다 — 먼저 넣은 쪽을 읽으면 된다
         db.rollback()
+        new_request = False  # 먼저 넣은 창이 이미 알렸다
         user = db.query(User).filter(User.google_sub == sub).first()
         if user is None:
             raise
     db.refresh(user)
+    if new_request:
+        # 관리자에게 알린다 — 뒤에서 보내므로 로그인은 기다리지 않는다
+        from app.services import alerts
+
+        alerts.notify_signup_later(user.name)
     return user
 
 
