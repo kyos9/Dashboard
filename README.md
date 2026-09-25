@@ -460,6 +460,14 @@ HTTPS → curl_cffi → yfinance → 앱 수집 경로 순으로 나눠 검사�
 국내 티커(`python diagnose.py 005930.KS`)를 주면 시장에 맞는 제공자 순서로 검사하고,
 종목명 검색(한국거래소 상장목록)과 환율까지 이어서 확인합니다.
 
+### 재무 지표 출처 확인 (v0.23.2)
+
+**`python diagnose_financials.py`** (서버: `docker compose exec app python diagnose_financials.py`)는
+등록된 종목마다 재무제표를 어디서 받을 수 있는지와 **어떤 모양으로 오는지** 찍습니다 —
+미국은 SEC, 한국은 OpenDART(`.env` 의 `DART_API_KEY`), 일본과 폴백은 야후. 티커를 주면
+그 종목만 봅니다(`python diagnose_financials.py AAPL 005930.KS 7203.T`). 키 값은 출력에
+나오지 않으니 결과를 그대로 복사해 공유하면 됩니다.
+
 ### 받은 값이 맞는지 확인할 때
 
 연결이 되는 것과 값이 맞는 것은 다릅니다. **`python verify_live.py`**는 자동 테스트로

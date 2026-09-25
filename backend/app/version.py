@@ -91,7 +91,9 @@ from pathlib import Path
 #         공식 예제와 바이트 단위로 대조한다. 마이그레이션 0008.
 # 0.23.1: 폰의 뒤로가기로 팝업이 닫힌다 (6단계 끝). 탭은 그대로 두고 팝업만, 겹쳐 있으면
 #         맨 위 하나만. ✕·Esc 로 닫아도 다음 뒤로가기가 헛돌지 않는다.
-APP_VERSION = "0.23.1"
+# 0.23.2: 재무 지표(3b)를 붙이기 전에 출처부터 본다 — `diagnose_financials.py` 가 SEC·DART·
+#         야후에서 실제로 무엇이 오는지 찍는다. DART 키 자리(DART_API_KEY)를 만들었다.
+APP_VERSION = "0.23.2"
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
