@@ -209,7 +209,7 @@ describe('차트 팝업 · 재무 탭', () => {
     expect(screen.getByRole('button', { name: '전체' })).toBeInTheDocument()
   })
 
-  it('카드의 재무 줄로 열면 재무 탭부터', async () => {
+  it('"재무" 화면에서 열면 재무 탭부터', async () => {
     vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
     vi.spyOn(api, 'getFundamentals').mockResolvedValue(FUNDAMENTALS)
     render(<ChartModal ticker="GOOG" name="GOOG" initialTab="fundamentals" onClose={() => {}} />)

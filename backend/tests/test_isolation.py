@@ -93,6 +93,7 @@ ENDPOINTS: dict[tuple[str, str], tuple[str, str]] = {
     # 화면
     ("GET", "/api/dashboard"): (MINE, USER),
     ("GET", "/api/history/{ticker}"): (MINE, USER),
+    ("GET", "/api/fundamentals"): (MINE, USER),
     ("GET", "/api/fundamentals/{ticker}"): (MINE, USER),
     # 내 포트폴리오
     ("GET", "/api/rebalance/targets"): (MINE, USER),
@@ -396,7 +397,16 @@ def check_fundamentals(w: World):
     client = w.as_user(B)
     # 재무도 차트와 같다 — 공시는 공용이지만 내가 담은 종목만 열린다
     assert client.get("/api/fundamentals/VOO").status_code == 404
-    assert client.get("/api/fundamentals/QQQ").status_code == 200
+    res = client.get("/api/fundamentals/QQQ")
+    assert res.status_code == 200 and res.json()["name"] == "B의 QQQ"
+
+
+def check_fundamentals_list(w: World):
+    rows = w.as_user(B).get("/api/fundamentals").json()
+    assert {r["ticker"] for r in rows} == {SAMSUNG, "QQQ"}
+    assert next(r for r in rows if r["ticker"] == "QQQ")["name"] == "B의 QQQ"
+    theirs = w.as_user(A).get("/api/fundamentals").json()
+    assert {r["ticker"] for r in theirs} == {"VOO", "QQQ"}
 
 
 def check_targets(w: World):
@@ -636,6 +646,7 @@ CHECKS = {
     ("POST", "/api/stocks/{ticker}/refresh"): check_refresh_one,
     ("GET", "/api/dashboard"): check_dashboard,
     ("GET", "/api/history/{ticker}"): check_history,
+    ("GET", "/api/fundamentals"): check_fundamentals_list,
     ("GET", "/api/fundamentals/{ticker}"): check_fundamentals,
     ("GET", "/api/rebalance/targets"): check_targets,
     ("PUT", "/api/rebalance/targets/{ticker}"): check_update_target,

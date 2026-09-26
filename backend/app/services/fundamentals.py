@@ -238,27 +238,9 @@ def _facts_by_ticker(db: Session, tickers: list[str]) -> dict[str, list[calc.Fac
     return {t: calc.adjust_for_splits(facts, splits.get(t, [])) for t, facts in out.items()}
 
 
-def summaries(db: Session, prices: dict[str, float | None]) -> dict[str, dict | None]:
-    """대시보드 카드 한 줄 — PER · ROE · 매출 전년비. 재무가 없는 종목은 None."""
-    facts = _facts_by_ticker(db, list(prices))
-    out: dict[str, dict | None] = {}
-    for ticker, items in facts.items():
-        if not items:
-            out[ticker] = None
-            continue
-        snap = calc.snapshot(items, prices.get(ticker))
-        out[ticker] = {
-            "per": snap["per"]["value"],
-            "per_note": snap["per"]["note"],
-            "roe": snap["roe"]["value"],
-            "revenue_yoy": snap["revenue_yoy"]["value"],
-            "period_end": snap["revenue_yoy"]["period_end"] or snap["per"]["period_end"],
-        }
-    return out
-
-
-def detail(db: Session, ticker: str, currency: str, today: dt.date | None = None) -> dict:
-    """차트 팝업의 "재무" 탭."""
+def detail(db: Session, ticker: str, currency: str, today: dt.date | None = None,
+           with_quarters: bool = True) -> dict:
+    """종목 하나의 재무 — 차트 팝업의 "재무" 탭. 목록 화면은 분기 표를 빼고 같은 것을 쓴다."""
     today = today or dt.date.today()
     status = db.get(FundamentalStatus, ticker)
     facts = _facts_by_ticker(db, [ticker])[ticker]
@@ -286,5 +268,17 @@ def detail(db: Session, ticker: str, currency: str, today: dt.date | None = None
     snap = calc.snapshot(facts, price)
     out["metrics"] = list(snap.values())
     out["per_range"] = calc.per_history(facts, prices, snap["per"]["value"], today)
-    out["quarters"] = calc.quarter_table(facts)
+    if with_quarters:
+        out["quarters"] = calc.quarter_table(facts)
     return out
+
+
+def overview(db: Session, stocks, today: dt.date | None = None) -> list[dict]:
+    """"재무" 화면 — 담은 종목마다 지표 한 줄. 순서는 받은 그대로(대시보드 순서)."""
+    rows = []
+    for stock in stocks:
+        row = detail(db, stock.ticker, stock.currency, today, with_quarters=False)
+        row["name"] = stock.name
+        row["category"] = stock.category
+        rows.append(row)
+    return rows

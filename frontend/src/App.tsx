@@ -5,6 +5,7 @@ import { AppHeader } from './components/AppHeader'
 import { AuthGate, useAuth } from './components/AuthGate'
 import { RequireLogin } from './components/LoginPrompt'
 import { Dashboard } from './pages/Dashboard'
+import { FundamentalsPage } from './pages/FundamentalsPage'
 import { GuestHome } from './pages/GuestHome'
 import { MacroPanel } from './pages/MacroPanel'
 import { Policy } from './pages/Policy'
@@ -41,6 +42,14 @@ function App() {
                     <Suspense fallback={<p className="hint">차트를 불러오는 중…</p>}>
                       <HistoryChart />
                     </Suspense>
+                  </RequireLogin>
+                }
+              />
+              <Route
+                path="/fundamentals"
+                element={
+                  <RequireLogin title="로그인하면 담은 종목의 재무를 볼 수 있습니다">
+                    <FundamentalsPage />
                   </RequireLogin>
                 }
               />

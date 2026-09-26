@@ -121,18 +121,6 @@ class KneeConditions(BaseModel):
     adx_trending: Optional[bool] = None  # ADX > 20
 
 
-class FundamentalSummary(BaseModel):
-    """대시보드 카드 한 줄 (ROADMAP 3b) — PER · ROE · 매출 전년 동기 대비."""
-
-    per: Optional[float] = None
-    # PER 이 비어 있는 이유 ("적자"). 없으면 그냥 값이 없는 것이다.
-    per_note: Optional[str] = None
-    roe: Optional[float] = None
-    revenue_yoy: Optional[float] = None
-    # 어느 분기까지 반영됐나
-    period_end: Optional[dt.date] = None
-
-
 class DashboardCard(BaseModel):
     ticker: str
     name: Optional[str]
@@ -152,8 +140,6 @@ class DashboardCard(BaseModel):
     rebalance_signal: RebalanceSignal = RebalanceSignal(active=False, reasons=[])
     # 등록 직후 시세를 뒤에서 받는 중("loading")이거나 받다가 실패("failed")
     data_status: Optional[Literal["loading", "failed"]] = None
-    # 재무가 없는 종목(ETF, 아직 못 받음)은 None — 카드에 줄 자체가 안 생긴다
-    fundamentals: Optional[FundamentalSummary] = None
 
 
 class HistoryPoint(BaseModel):
@@ -576,7 +562,11 @@ class FundamentalQuarter(BaseModel):
 
 
 class FundamentalsOut(BaseModel):
+    """종목 하나의 재무. "재무" 화면의 목록은 이것의 줄들이다 (분기 표만 빠진다)."""
+
     ticker: str
+    name: Optional[str] = None
+    category: Optional[str] = None
     # ok · none(재무 없음: ETF 등) · unsupported(아직 못 읽는 출처) · error · None(아직 안 받음)
     state: Optional[str] = None
     message: Optional[str] = None

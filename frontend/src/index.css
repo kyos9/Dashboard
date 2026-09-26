@@ -2626,44 +2626,7 @@ table.data-table tr.dirty:hover td {
 }
 
 /* ---------- 재무 (ROADMAP 3b) ----------
-   카드의 한 줄은 누르면 팝업이 재무 탭으로 열린다. 숫자가 길어져도 줄바꿈하고 잘리지 않는다. */
-
-.fund-line {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px 8px;
-  width: 100%;
-  margin-top: 4px;
-  padding: 6px 8px;
-  font-size: 12px;
-  line-height: 1.4;
-  text-align: left;
-  color: var(--text-dim);
-  background: transparent;
-  border: 1px dashed var(--border);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  overflow-wrap: anywhere;
-}
-
-.fund-line:hover {
-  color: var(--text);
-  border-color: var(--border-strong);
-}
-
-.fund-line-k {
-  font-size: 11px;
-  color: var(--text-faint);
-}
-
-/* 표의 종목 칸 안에서는 테두리 없이 이름 밑 작은 글씨로 */
-.data-table .fund-line {
-  margin-top: 4px;
-  padding: 0;
-  border: none;
-  font-size: 11px;
-}
+   상단 "재무" 화면의 목록과 차트 팝업의 재무 탭. 숫자가 길어져도 줄바꿈하고 잘리지 않는다. */
 
 .fund-panel {
   display: flex;
@@ -2783,6 +2746,59 @@ table.data-table tr.dirty:hover td {
   font-size: 11px;
 }
 
+/* "재무" 화면 목록 — PC 는 한 표. 칸이 많아 좁으면 표 안에서만 옆으로 민다 (페이지는 안 밀린다) */
+.fund-list {
+  min-width: 1080px;
+}
+
+.fund-list td,
+.fund-list thead th {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.fund-list thead th:first-child,
+.fund-list th[scope='row'] {
+  text-align: left;
+}
+
+.fund-list thead th {
+  word-break: keep-all;
+}
+
+.fund-list th[scope='row'] {
+  min-width: 120px;
+  white-space: normal;
+}
+
+.fund-list th[scope='row'] .hint {
+  display: block;
+  font-weight: 400;
+  font-size: 11px;
+}
+
+.fund-foot {
+  margin-top: 10px;
+  overflow-wrap: anywhere;
+}
+
+.fund-hidden {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fund-hidden li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  overflow-wrap: anywhere;
+}
+
 /* 폰에서는 여섯 칸이 한 줄에 안 들어간다 — 분기마다 작은 카드로 펼친다 */
 @media (max-width: 640px) {
   .fund-table thead {
@@ -2822,6 +2838,60 @@ table.data-table tr.dirty:hover td {
   }
 
   .fund-table td::before {
+    content: attr(data-label);
+    color: var(--text-faint);
+    font-family: var(--font-sans);
+  }
+}
+
+/* 폰에서는 종목마다 카드 — 이름 줄 밑에 지표가 두 칸씩 */
+@media (max-width: 640px) {
+  .fund-list {
+    min-width: 0;
+  }
+
+  .fund-list thead {
+    display: none;
+  }
+
+  .fund-list,
+  .fund-list tbody {
+    display: block;
+  }
+
+  .fund-list tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 2px 14px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .fund-list th,
+  .fund-list td {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 2px 0;
+    border: none;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .fund-list th[scope='row'] {
+    grid-column: 1 / -1;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: flex-start;
+    gap: 2px 10px;
+    padding-bottom: 4px;
+  }
+
+  .fund-list th[scope='row'] .hint {
+    display: inline;
+  }
+
+  .fund-list td::before {
     content: attr(data-label);
     color: var(--text-faint);
     font-family: var(--font-sans);

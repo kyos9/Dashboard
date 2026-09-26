@@ -2,6 +2,7 @@ import type { FundamentalQuarter, FundamentalsResponse } from '../types'
 import { price, num } from '../lib/display'
 import {
   bigAmount,
+  emptyReason,
   METRIC_GROUPS,
   metricBasisParts,
   metricValue,
@@ -11,14 +12,6 @@ import {
 } from '../lib/fundamentals'
 
 const SOURCE_LABEL: Record<string, string> = { sec: 'SEC 공시', dart: 'DART 공시', yahoo: '야후' }
-
-/** 아직 보여줄 숫자가 없을 때 왜 없는지 */
-function emptyText(data: FundamentalsResponse): string {
-  if (data.state === null) return '아직 재무를 받지 않았습니다. 새벽 작업이 받아오면 여기에 보입니다.'
-  if (data.state === 'none') return data.message ?? '재무제표가 없는 종목입니다.'
-  if (data.state === 'unsupported') return data.message ?? '아직 이 종목의 재무를 읽지 못합니다.'
-  return `재무를 받지 못했습니다${data.message ? ` — ${data.message}` : ''}. 다음 날 다시 시도합니다.`
-}
 
 const COLUMNS: { key: keyof FundamentalQuarter; label: string }[] = [
   { key: 'revenue', label: '매출' },
@@ -37,7 +30,7 @@ const COLUMNS: { key: keyof FundamentalQuarter; label: string }[] = [
  */
 export function FundamentalsPanel({ data }: { data: FundamentalsResponse }) {
   if (data.metrics.length === 0) {
-    return <p className="hint fund-empty">{emptyText(data)}</p>
+    return <p className="hint fund-empty">{emptyReason(data)}</p>
   }
   const byKey = Object.fromEntries(data.metrics.map((m) => [m.key, m]))
   const range = data.per_range

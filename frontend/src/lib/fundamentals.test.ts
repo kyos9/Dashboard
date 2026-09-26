@@ -3,34 +3,15 @@ import { FUNDAMENTALS } from '../test/fundamentalsFixture'
 import type { FundamentalMetric } from '../types'
 import {
   bigAmount,
+  latestQuarter,
   metricBasis,
   metricValue,
   perMarker,
   perPositionText,
   quarterLabel,
-  summaryLine,
 } from './fundamentals'
 
 const metric = (key: FundamentalMetric['key']) => FUNDAMENTALS.metrics.find((m) => m.key === key)!
-
-describe('재무 한 줄', () => {
-  it('PER · ROE · 매출 전년비', () => {
-    expect(summaryLine({ per: 28.14, per_note: null, roe: 31.2, revenue_yoy: 6.4, period_end: '2026-06-30' })).toBe(
-      'PER 28.1 · ROE 31% · 매출 +6%',
-    )
-  })
-
-  it('적자면 PER 자리에 이유를 쓰고, 없는 값은 뺀다', () => {
-    expect(summaryLine({ per: null, per_note: '적자', roe: null, revenue_yoy: -12, period_end: null })).toBe(
-      'PER 적자 · 매출 -12%',
-    )
-  })
-
-  it('값이 하나도 없으면 줄을 그리지 않는다', () => {
-    expect(summaryLine({ per: null, per_note: null, roe: null, revenue_yoy: null, period_end: null })).toBeNull()
-    expect(summaryLine(null)).toBeNull()
-  })
-})
 
 describe('재무 숫자', () => {
   it('큰 금액은 달러 B·T, 원 조·억', () => {
@@ -72,5 +53,15 @@ describe('PER 5년 위치', () => {
     expect(perMarker(range, range.max)).toBe(100)
     expect(perMarker(range, 99)).toBe(100)
     expect(perMarker(range, null)).toBeNull()
+  })
+})
+
+describe('몇 분기까지', () => {
+  it('지표 근거 중 가장 늦은 분기 — 늦게 끊긴 항목에 끌려가지 않는다', () => {
+    const at = (period_end: string | null) => ({ ...metric('per'), period_end })
+    expect(latestQuarter([at('2026-03-31'), at('2026-06-30'), at(null), at('2025-12-31')])).toBe('2026-06-30')
+    expect(latestQuarter([at('2026-06-30'), at('2026-03-31')])).toBe('2026-06-30')
+    expect(latestQuarter([at(null)])).toBeNull()
+    expect(latestQuarter([])).toBeNull()
   })
 })

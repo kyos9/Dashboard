@@ -8,7 +8,6 @@ import type {
   Currency,
   FundamentalKey,
   FundamentalMetric,
-  FundamentalSummary,
   FundamentalsResponse,
   PerRange,
 } from '../types'
@@ -22,15 +21,12 @@ export function hasFundamentalsTab(data: FundamentalsResponse | null): boolean {
   return data !== null && data.state !== 'none'
 }
 
-/** 카드 한 줄 — `PER 28.1 · ROE 31% · 매출 +6%`. 값이 하나도 없으면 null (줄을 안 그린다). */
-export function summaryLine(summary: FundamentalSummary | null | undefined): string | null {
-  if (!summary) return null
-  const parts: string[] = []
-  if (summary.per !== null) parts.push(`PER ${num(summary.per, 1)}`)
-  else if (summary.per_note) parts.push(`PER ${summary.per_note}`)
-  if (summary.roe !== null) parts.push(`ROE ${num(summary.roe, 0)}%`)
-  if (summary.revenue_yoy !== null) parts.push(`매출 ${signed(summary.revenue_yoy, 0, '%')}`)
-  return parts.length ? parts.join(' · ') : null
+/** 보여줄 숫자가 없을 때 왜 없는지 — 팝업의 재무 탭과 "재무" 화면이 같이 쓴다 */
+export function emptyReason(data: Pick<FundamentalsResponse, 'state' | 'message'>): string {
+  if (data.state === null) return '아직 재무를 받지 않았습니다. 새벽 작업이 받아오면 여기에 보입니다.'
+  if (data.state === 'none') return data.message ?? '재무제표가 없는 종목입니다.'
+  if (data.state === 'unsupported') return data.message ?? '아직 이 종목의 재무를 읽지 못합니다.'
+  return `재무를 받지 못했습니다${data.message ? ` — ${data.message}` : ''}. 다음 날 다시 시도합니다.`
 }
 
 /** 큰 금액 — 달러는 B·M, 원·엔은 조·억. 분기 매출 같은 숫자를 자릿수 세지 않고 읽게. */
@@ -147,4 +143,13 @@ export function perMarker(range: PerRange, value: number | null): number | null 
   if (value === null) return null
   if (range.max <= range.min) return 50
   return Math.min(100, Math.max(0, ((value - range.min) / (range.max - range.min)) * 100))
+}
+
+/** 이 종목의 숫자가 몇 분기까지인가 — 지표들의 근거 중 가장 늦은 분기. 하나도 없으면 null. */
+export function latestQuarter(metrics: FundamentalMetric[]): string | null {
+  let latest: string | null = null
+  for (const m of metrics) {
+    if (m.period_end && (latest === null || m.period_end > latest)) latest = m.period_end
+  }
+  return latest
 }

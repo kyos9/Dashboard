@@ -144,19 +144,6 @@ export interface DashboardCard {
   /** 등록 직후 시세를 뒤에서 받는 중이거나 받다가 실패 */
   data_status?: DataStatus | null
   rebalance_signal: RebalanceSignal
-  /** 재무 한 줄 (PER · ROE · 매출 전년비). ETF·아직 못 받은 종목은 null */
-  fundamentals?: FundamentalSummary | null
-}
-
-/** 대시보드 카드의 재무 한 줄 (ROADMAP 3b) */
-export interface FundamentalSummary {
-  per: number | null
-  /** PER 이 없는 이유 ("적자") */
-  per_note: string | null
-  roe: number | null
-  revenue_yoy: number | null
-  /** 어느 분기까지 반영됐나 */
-  period_end: string | null
 }
 
 export type FundamentalKey =
@@ -213,8 +200,11 @@ export interface FundamentalQuarter {
 /** ok · none(재무 없음: ETF 등) · unsupported(아직 못 읽는 출처) · error · null(아직 안 받음) */
 export type FundamentalState = 'ok' | 'none' | 'unsupported' | 'error'
 
+/** 종목 하나의 재무. "재무" 화면 목록은 이것의 줄들이다 (분기 표는 비어 온다). */
 export interface FundamentalsResponse {
   ticker: string
+  name?: string | null
+  category?: string | null
   state: FundamentalState | null
   message: string | null
   source: string | null

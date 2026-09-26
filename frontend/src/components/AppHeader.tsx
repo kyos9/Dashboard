@@ -47,6 +47,7 @@ export function buildLabel(builtAt?: string | null): string {
 const TABS = [
   { to: '/', label: '대시보드', end: true },
   { to: '/history', label: '히스토리 차트', end: false },
+  { to: '/fundamentals', label: '재무', end: false },
   { to: '/macro', label: '매크로', end: false },
   { to: '/rebalance', label: '리밸런싱', end: false },
   { to: '/stocks', label: '종목 관리', end: false },

@@ -310,24 +310,12 @@ def _prices(db, ticker, close=40.0):
     db.commit()
 
 
-def test_summaries_for_cards(db_session, fake_sec):
-    make_stock(db_session, "ACME")
-    make_stock(db_session, "VOO")
-    fundamentals.refresh_ticker(db_session, "ACME", NOW)
-    got = fundamentals.summaries(db_session, {"ACME": 40.0, "VOO": 500.0})
-    assert got["VOO"] is None
-    assert got["ACME"]["per"] == pytest.approx(10.0)       # TTM EPS 4
-    assert got["ACME"]["roe"] == pytest.approx(100 / 400 * 100)
-    assert got["ACME"]["revenue_yoy"] == pytest.approx((150 / 110 - 1) * 100)
-    assert got["ACME"]["period_end"] == D(2026, 6, 30)
-
-
 # --- API -------------------------------------------------------------------------
 
-def test_api_detail_and_dashboard_line(api, fake_sec):
+def test_api_detail(api, fake_sec):
     client, Session = api
     with Session() as db:
-        make_stock(db, "ACME")
+        make_stock(db, "ACME", name="Acme Corp")
         _prices(db, "ACME")
         fundamentals.refresh_ticker(db, "ACME", NOW)
 
@@ -339,9 +327,39 @@ def test_api_detail_and_dashboard_line(api, fake_sec):
     assert metrics["operating_margin"]["value"] is None
     assert [q["period_end"] for q in body["quarters"]][:2] == ["2026-06-30", "2026-03-31"]
     assert body["quarters"][0]["filed_at"] == "2026-07-30"
+    assert body["name"] == "Acme Corp"
 
+
+def test_dashboard_no_longer_carries_fundamentals(api, fake_sec):
+    """재무는 "재무" 화면과 차트 팝업에만 — 대시보드는 시그널만 본다."""
+    client, Session = api
+    with Session() as db:
+        make_stock(db, "ACME")
+        _prices(db, "ACME")
+        fundamentals.refresh_ticker(db, "ACME", NOW)
     card = next(c for c in client.get("/api/dashboard").json() if c["ticker"] == "ACME")
-    assert card["fundamentals"]["per"] == pytest.approx(10.0)
+    assert "fundamentals" not in card
+
+
+def test_api_list_in_dashboard_order_without_quarters(api, fake_sec):
+    client, Session = api
+    with Session() as db:
+        make_stock(db, "VOO")
+        make_stock(db, "ACME")
+        make_stock(db, "OLD", active=False)
+        _prices(db, "ACME")
+        fundamentals.refresh_ticker(db, "ACME", NOW)
+        fundamentals.refresh_ticker(db, "VOO", NOW)
+    order = [c["ticker"] for c in client.get("/api/dashboard").json()]
+    rows = client.get("/api/fundamentals").json()
+    assert [r["ticker"] for r in rows] == order
+    assert "OLD" not in order
+    by = {r["ticker"]: r for r in rows}
+    per = next(m for m in by["ACME"]["metrics"] if m["key"] == "per")
+    assert per["value"] == pytest.approx(10.0)
+    assert by["ACME"]["per_range"]["current"] == pytest.approx(10.0)
+    assert by["ACME"]["quarters"] == []
+    assert by["VOO"]["state"] == "none" and by["VOO"]["metrics"] == []
 
 
 def test_api_only_opens_my_stocks(api, fake_sec):
@@ -355,8 +373,7 @@ def test_api_before_first_fetch_says_nothing_yet(api, fake_sec):
         make_stock(db, "ACME")
     body = client.get("/api/fundamentals/ACME").json()
     assert body["state"] is None and body["metrics"] == [] and body["quarters"] == []
-    card = next(c for c in client.get("/api/dashboard").json() if c["ticker"] == "ACME")
-    assert card["fundamentals"] is None
+    assert client.get("/api/fundamentals").json()[0]["state"] is None
 
 
 def test_new_stock_fetches_fundamentals_in_the_background(api, fake_sec, monkeypatch):

@@ -87,7 +87,7 @@ export function ChartCoverage({
 interface Props {
   ticker: string
   name?: string | null
-  /** 카드의 재무 줄을 눌러 열었으면 재무 탭부터 */
+  /** "재무" 화면에서 종목을 눌러 열었으면 재무 탭부터 */
   initialTab?: ChartTab
   onClose: () => void
 }
