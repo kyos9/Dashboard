@@ -10,7 +10,7 @@ from app.schemas import (
     LatestIndicators,
     RebalanceSignal,
 )
-from app.services import backfill, queries, rebalance
+from app.services import backfill, fundamentals, queries, rebalance
 from app.services.trading_calendar import market_today
 from app.services.users import current_user_id, ordered_user_stocks
 
@@ -78,6 +78,10 @@ def get_dashboard(db: Session = Depends(get_db), user_id: int = Depends(current_
     signals_by_ticker = queries.recent_signals(db, tickers, limit=1)
 
     last_buy_signals = queries.last_buy_signal_dates(db, tickers)
+
+    # 재무 한 줄 (ROADMAP 3b). PER 은 지금 종가로 계산한다 — 저장된 PER 은 없다.
+    latest_close = {t: rows[0].close for t, rows in prices_by_ticker.items() if rows}
+    fundamentals_by_ticker = fundamentals.summaries(db, {t: latest_close.get(t) for t in tickers})
 
     cards = []
     # "오늘"은 시장마다 다르다. 서버 시계로 재면 한국 종목은 미국이 아직 어제일 때
@@ -148,6 +152,7 @@ def get_dashboard(db: Session = Depends(get_db), user_id: int = Depends(current_
                 last_buy_signal_date=last_buy_signals.get(stock.ticker),
                 rebalance_signal=rebalance_signal,
                 data_status=(backfill.status(stock.ticker) or {}).get("state"),
+                fundamentals=fundamentals_by_ticker.get(stock.ticker),
             )
         )
 

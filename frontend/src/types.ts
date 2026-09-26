@@ -144,6 +144,87 @@ export interface DashboardCard {
   /** 등록 직후 시세를 뒤에서 받는 중이거나 받다가 실패 */
   data_status?: DataStatus | null
   rebalance_signal: RebalanceSignal
+  /** 재무 한 줄 (PER · ROE · 매출 전년비). ETF·아직 못 받은 종목은 null */
+  fundamentals?: FundamentalSummary | null
+}
+
+/** 대시보드 카드의 재무 한 줄 (ROADMAP 3b) */
+export interface FundamentalSummary {
+  per: number | null
+  /** PER 이 없는 이유 ("적자") */
+  per_note: string | null
+  roe: number | null
+  revenue_yoy: number | null
+  /** 어느 분기까지 반영됐나 */
+  period_end: string | null
+}
+
+export type FundamentalKey =
+  | 'per'
+  | 'pbr'
+  | 'dividend_yield'
+  | 'roe'
+  | 'operating_margin'
+  | 'revenue_yoy'
+  | 'operating_income_yoy'
+  | 'eps_yoy'
+  | 'debt_ratio'
+  | 'fcf'
+
+export interface FundamentalMetric {
+  key: FundamentalKey
+  value: number | null
+  period_end: string | null
+  /** 이 값을 이루는 공시가 나온 날 (여럿이면 가장 늦은 날) */
+  filed_at: string | null
+  /** 공시일을 결산일로 추정했나 (야후 출처) */
+  estimated: boolean
+  /** 값이 없는 이유 ("적자", "자본잠식") */
+  note: string | null
+}
+
+export interface PerRange {
+  min: number
+  max: number
+  median: number
+  current: number | null
+  /** 지난 기간 중 지금 PER 이하였던 날의 비율 (%) */
+  position_pct: number | null
+  since: string
+  days: number
+}
+
+export interface FundamentalQuarter {
+  period_end: string
+  /** 그 분기 숫자가 처음 공시된 날 */
+  filed_at: string
+  estimated: boolean
+  /** 뒤에 정정 공시로 값이 바뀌었나 */
+  revised: boolean
+  revenue: number | null
+  operating_income: number | null
+  net_income: number | null
+  eps_diluted: number | null
+  operating_cf: number | null
+  capex: number | null
+  fcf: number | null
+}
+
+/** ok · none(재무 없음: ETF 등) · unsupported(아직 못 읽는 출처) · error · null(아직 안 받음) */
+export type FundamentalState = 'ok' | 'none' | 'unsupported' | 'error'
+
+export interface FundamentalsResponse {
+  ticker: string
+  state: FundamentalState | null
+  message: string | null
+  source: string | null
+  checked_at: string | null
+  currency: Currency
+  price: number | null
+  price_date: string | null
+  metrics: FundamentalMetric[]
+  per_range: PerRange | null
+  quarters: FundamentalQuarter[]
 }
 
 export interface HistoryPoint {

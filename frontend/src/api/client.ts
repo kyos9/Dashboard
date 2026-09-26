@@ -4,6 +4,7 @@ import type {
   DashboardCard,
   FxInfo,
   Holding,
+  FundamentalsResponse,
   HistoryResponse,
   RebalanceCurrent,
   RebalanceSnapshot,
@@ -147,6 +148,9 @@ export const api = {
 
   getHistory: (ticker: string, range: string = '1y') =>
     request<HistoryResponse>(`/history/${ticker}?range=${range}`),
+
+  /** 차트 팝업의 "재무" 탭 — 공시 값과 그날 종가로 계산한 지표 */
+  getFundamentals: (ticker: string) => request<FundamentalsResponse>(`/fundamentals/${ticker}`),
 
   listRebalanceTargets: () => request<RebalanceTarget[]>('/rebalance/targets'),
   updateRebalanceTarget: (ticker: string, payload: Partial<RebalanceTarget>) =>

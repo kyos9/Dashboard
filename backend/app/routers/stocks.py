@@ -16,7 +16,7 @@ from app.schemas import (
     StockOut,
     StockUpdate,
 )
-from app.services import backfill, data_ingestion, limits, symbols
+from app.services import backfill, data_ingestion, fundamentals, limits, symbols
 from app.services.instruments import ensure_instrument
 from app.services.pipeline import refresh_all_active_stocks, refresh_and_evaluate_stock
 from app.services.trading_calendar import last_closed_trading_day
@@ -246,6 +246,9 @@ def _load_in_background(session_factory, user_id: int, ticker: str, resolved_in:
             return
         refresh_and_evaluate_stock(db, stock, full_backfill=download == "full")
         limits.refresh_cooldown.mark(ticker, ok=True)
+        # 재무는 따로 뒤에서 — 시세 "받는 중" 표시를 붙잡지 않는다. 이미 받아둔 종목이면
+        # (남이 먼저 담았다) 받을 때가 안 됐으니 그냥 지나간다.
+        fundamentals.refresh_in_background(session_factory, ticker)
     except data_ingestion.DataIngestionError as exc:
         limits.refresh_cooldown.mark(ticker, ok=False)
         _log_timing(ticker, resolved_in, download, time.perf_counter() - started, failed=True)

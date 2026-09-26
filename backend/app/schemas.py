@@ -121,6 +121,18 @@ class KneeConditions(BaseModel):
     adx_trending: Optional[bool] = None  # ADX > 20
 
 
+class FundamentalSummary(BaseModel):
+    """대시보드 카드 한 줄 (ROADMAP 3b) — PER · ROE · 매출 전년 동기 대비."""
+
+    per: Optional[float] = None
+    # PER 이 비어 있는 이유 ("적자"). 없으면 그냥 값이 없는 것이다.
+    per_note: Optional[str] = None
+    roe: Optional[float] = None
+    revenue_yoy: Optional[float] = None
+    # 어느 분기까지 반영됐나
+    period_end: Optional[dt.date] = None
+
+
 class DashboardCard(BaseModel):
     ticker: str
     name: Optional[str]
@@ -140,6 +152,8 @@ class DashboardCard(BaseModel):
     rebalance_signal: RebalanceSignal = RebalanceSignal(active=False, reasons=[])
     # 등록 직후 시세를 뒤에서 받는 중("loading")이거나 받다가 실패("failed")
     data_status: Optional[Literal["loading", "failed"]] = None
+    # 재무가 없는 종목(ETF, 아직 못 받음)은 None — 카드에 줄 자체가 안 생긴다
+    fundamentals: Optional[FundamentalSummary] = None
 
 
 class HistoryPoint(BaseModel):
@@ -517,3 +531,60 @@ class MacroRefreshResult(BaseModel):
     error: Optional[str] = None
     hint: Optional[str] = None
     skipped: Optional[str] = None
+
+
+class FundamentalMetric(BaseModel):
+    """재무 지표 하나와 그 근거 (어느 분기까지, 언제 공시된 값으로)."""
+
+    key: str
+    value: Optional[float] = None
+    period_end: Optional[dt.date] = None
+    filed_at: Optional[dt.date] = None
+    # 공시일을 결산일로 추정했는가 (야후 출처)
+    estimated: bool = False
+    # 값이 없는 이유 ("적자", "자본잠식")
+    note: Optional[str] = None
+
+
+class PerRange(BaseModel):
+    """지난 5년 날마다의 PER (그날까지 공시된 EPS 로) 과 지금의 위치."""
+
+    min: float
+    max: float
+    median: float
+    current: Optional[float] = None
+    # 지난 기간 중 지금 PER 이하였던 날의 비율 (%)
+    position_pct: Optional[float] = None
+    since: dt.date
+    days: int
+
+
+class FundamentalQuarter(BaseModel):
+    period_end: dt.date
+    # 그 분기 숫자가 처음 공시된 날
+    filed_at: dt.date
+    estimated: bool = False
+    # 뒤에 정정 공시로 값이 바뀌었나
+    revised: bool = False
+    revenue: Optional[float] = None
+    operating_income: Optional[float] = None
+    net_income: Optional[float] = None
+    eps_diluted: Optional[float] = None
+    operating_cf: Optional[float] = None
+    capex: Optional[float] = None
+    fcf: Optional[float] = None
+
+
+class FundamentalsOut(BaseModel):
+    ticker: str
+    # ok · none(재무 없음: ETF 등) · unsupported(아직 못 읽는 출처) · error · None(아직 안 받음)
+    state: Optional[str] = None
+    message: Optional[str] = None
+    source: Optional[str] = None
+    checked_at: Optional[dt.datetime] = None
+    currency: Currency
+    price: Optional[float] = None
+    price_date: Optional[dt.date] = None
+    metrics: list[FundamentalMetric] = []
+    per_range: Optional[PerRange] = None
+    quarters: list[FundamentalQuarter] = []

@@ -50,7 +50,8 @@ SEC_TAGS: dict[str, list[str]] = {
             "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest", "Equity"],
     "부채": ["Liabilities"],
     "영업현금흐름": ["NetCashProvidedByUsedInOperatingActivities", "CashFlowsFromUsedInOperatingActivities"],
-    "설비투자": ["PaymentsToAcquirePropertyPlantAndEquipment", "PurchaseOfPropertyPlantAndEquipment",
+    "설비투자": ["PaymentsToAcquirePropertyPlantAndEquipment", "PaymentsToAcquireProductiveAssets",
+             "PurchaseOfPropertyPlantAndEquipment",
              "PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities"],
     "주식수": ["EntityCommonStockSharesOutstanding", "WeightedAverageNumberOfDilutedSharesOutstanding"],
     "주당배당": ["CommonStockDividendsPerShareDeclared", "CommonStockDividendsPerShareCashPaid"],
@@ -156,6 +157,31 @@ def pick_sec_tag(facts: dict, names: list[str]) -> tuple[str, str, dict] | None:
     return None
 
 
+# 항목이 없거나 낡았을 때 비슷한 태그를 찾을 실마리 (v0.23.2 결과: 릴리의 영업이익·부채·설비투자,
+# 엔비디아의 설비투자가 2020년에 끊김)
+SEC_HINTS = {
+    "영업이익": "OperatingIncome", "부채": "Liabilities", "설비투자": "PaymentsToAcquire",
+    "주당배당": "Dividend", "주식수": "SharesOutstanding", "매출": "Revenue",
+}
+
+
+def similar_tags(facts: dict, hint: str, limit: int = 6) -> list[tuple[str, str]]:
+    """이름에 `hint` 가 든 us-gaap 태그와 그 마지막 결산일 — 최근 것부터."""
+    found = []
+    for name, node in facts.get("us-gaap", {}).items():
+        if hint.lower() not in name.lower():
+            continue
+        ends = [e.get("end", "") for entries in node.get("units", {}).values() for e in entries]
+        if ends:
+            found.append((name, max(ends)))
+    found.sort(key=lambda item: item[1], reverse=True)
+    return found[:limit]
+
+
+def latest_end(node: dict) -> str:
+    return max((e.get("end", "") for entries in node.get("units", {}).values() for e in entries), default="")
+
+
 def dart_filed_date(rcept_no: str) -> str:
     """접수번호 앞 8자리가 접수일이다 (20250311000123 → 2025-03-11)."""
     digits = (rcept_no or "")[:8]
@@ -259,9 +285,14 @@ def check_sec(tickers: list[str]) -> None:
         ok(f"{title} (CIK {cik}) — 태그 수: {sizes} / {len(response.content) / 1e6:.1f}MB")
         for metric, names in SEC_TAGS.items():
             picked = pick_sec_tag(facts, names)
-            if not picked:
-                info(f"{metric:<8} 없음")
-                continue
+            stale = picked is not None and latest_end(picked[2]) < f"{dt.date.today().year - 1}"
+            if not picked or stale:
+                info(f"{metric:<8} {'없음' if not picked else '최근 값 없음 (' + latest_end(picked[2]) + '까지)'}"
+                     " — 비슷한 태그:")
+                for tag, end in similar_tags(facts, SEC_HINTS.get(metric, "")) if metric in SEC_HINTS else []:
+                    print(f"             us-gaap:{tag} (마지막 {end})")
+                if not picked:
+                    continue
             taxonomy, name, node = picked
             for unit, entries in node.get("units", {}).items():
                 s = summarize_sec_fact(entries)

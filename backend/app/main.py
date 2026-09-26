@@ -10,7 +10,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from app import version, web
 from app.db import init_db
 from app.logging_setup import setup_logging
-from app.routers import admin, auth, dashboard, history, logs, macro, push, rebalance, stocks, symbols
+from app.routers import (
+    admin, auth, dashboard, fundamentals, history, logs, macro, push, rebalance, stocks, symbols,
+)
 from app.services import auth as auth_service
 from app.services import providers, trading_calendar
 from app.services.scheduler import shutdown_scheduler, start_scheduler
@@ -61,6 +63,7 @@ app.include_router(auth.router)
 app.include_router(stocks.router)
 app.include_router(dashboard.router)
 app.include_router(history.router)
+app.include_router(fundamentals.router)
 app.include_router(rebalance.router)
 app.include_router(macro.router)
 app.include_router(symbols.router)

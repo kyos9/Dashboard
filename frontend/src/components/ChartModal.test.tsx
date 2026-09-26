@@ -6,6 +6,7 @@ import { api } from '../api/client'
 import type { HistoryResponse } from '../types'
 import { AuthGate } from './AuthGate'
 import { ChartModal, needsBackfill } from './ChartModal'
+import { FUNDAMENTALS } from '../test/fundamentalsFixture'
 
 const series = { setData: vi.fn() }
 const chart = {
@@ -189,5 +190,54 @@ describe('기간 대비 저장 구간 판정', () => {
 
   it('저장된 시세가 아예 없으면 차트가 아니라 등록·갱신의 문제다', () => {
     expect(needsBackfill(withCoverage(null), '5y')).toBe(false)
+  })
+})
+
+describe('차트 팝업 · 재무 탭', () => {
+  it('재무가 있으면 탭이 생기고, 누르면 재무를 보여준다', async () => {
+    vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
+    vi.spyOn(api, 'getFundamentals').mockResolvedValue(FUNDAMENTALS)
+    const user = userEvent.setup()
+    render(<ChartModal ticker="GOOG" name="GOOG" onClose={() => {}} />)
+
+    await user.click(await screen.findByRole('tab', { name: '재무' }))
+    expect(screen.getByText('28.1배')).toBeInTheDocument()
+    // 재무를 보는 동안 차트 기간 버튼은 뜻이 없다
+    expect(screen.queryByRole('button', { name: '전체' })).toBeNull()
+
+    await user.click(screen.getByRole('tab', { name: '차트' }))
+    expect(screen.getByRole('button', { name: '전체' })).toBeInTheDocument()
+  })
+
+  it('카드의 재무 줄로 열면 재무 탭부터', async () => {
+    vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
+    vi.spyOn(api, 'getFundamentals').mockResolvedValue(FUNDAMENTALS)
+    render(<ChartModal ticker="GOOG" name="GOOG" initialTab="fundamentals" onClose={() => {}} />)
+    expect(await screen.findByText('28.1배')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: '재무' })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('ETF 처럼 재무가 없는 종목은 탭이 없다', async () => {
+    vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
+    const fundamentals = vi.spyOn(api, 'getFundamentals').mockResolvedValue({
+      ...FUNDAMENTALS,
+      state: 'none',
+      metrics: [],
+      quarters: [],
+      per_range: null,
+    })
+    render(<ChartModal ticker="VOO" name="VOO" initialTab="fundamentals" onClose={() => {}} />)
+    await waitFor(() => expect(fundamentals).toHaveBeenCalledWith('VOO'))
+    await waitFor(() => expect(createChart).toHaveBeenCalled())
+    expect(screen.queryByRole('tab', { name: '재무' })).toBeNull()
+  })
+
+  it('재무를 못 받아도 차트는 그대로다', async () => {
+    vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
+    vi.spyOn(api, 'getFundamentals').mockRejectedValue(new Error('offline'))
+    render(<ChartModal ticker="GOOG" name="GOOG" onClose={() => {}} />)
+    await waitFor(() => expect(createChart).toHaveBeenCalled())
+    expect(screen.queryByRole('tab', { name: '재무' })).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 })

@@ -492,6 +492,88 @@ class MacroForecast(Base):
     )
 
 
+class FundamentalFact(Base):
+    """공시된 재무 값 하나. **공용 데이터다** (ROADMAP 3b).
+
+    **받은 그대로를 저장하고 비율은 읽을 때 계산한다.** PER 을 저장하면 "그날 알던 값"을
+    다시 만들 수 없다 — 주가는 매일 바뀌고, 분기 값은 공시일에야 세상에 나온다.
+
+    - `period_start`~`period_end` 가 이 값이 가리키는 기간이다. 손익·현금흐름은 기간값이고
+      (분기 3개월, 누적 6·9개월, 연간), 자본·부채·주식수는 **한 시점의 값**이라 둘이 같다.
+      (NULL 로 두지 않는 이유: Postgres 의 유일 제약은 NULL 을 서로 다르게 봐서 같은 값이
+      두 번 들어간다.)
+    - `filed_at` 은 **처음 공시된 날**이다. SEC 는 같은 분기를 이듬해 보고서의 비교 기간에
+      다시 싣는데, 값이 같으면 새 줄을 만들지 않는다. **값이 바뀌었을 때만(정정)** 그 공시일로
+      새 줄이 생긴다 — 덮어쓰면 "정정 전에 알던 값"이 사라진다.
+    - `filed_estimated` — 공시일을 주지 않는 출처(야후)에서 결산일로 추정했는가.
+    - 값은 **공시 당시의 주식 기준**이다. 그 뒤에 액면분할이 있으면 주당 값은 읽을 때
+      `StockSplit` 으로 맞춘다 (시세가 분할을 반영한 값이라서).
+    """
+
+    __tablename__ = "fundamental_fact"
+    __table_args__ = (
+        UniqueConstraint(
+            "ticker", "source", "metric", "period_start", "period_end", "filed_at",
+            name="uq_fundamental_fact_key",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ticker: Mapped[str] = mapped_column(String, ForeignKey("instrument.ticker"), nullable=False, index=True)
+    # 우리가 부르는 항목 이름 (services/fundamentals.py 의 METRICS) — 출처의 태그 이름이 아니다
+    metric: Mapped[str] = mapped_column(String, nullable=False)
+    period_start: Mapped[dt.date] = mapped_column(Date, nullable=False)
+    period_end: Mapped[dt.date] = mapped_column(Date, nullable=False)
+    value: Mapped[float] = mapped_column(Float, nullable=False)
+    # USD · USD/shares · shares
+    unit: Mapped[str] = mapped_column(String, nullable=False)
+    filed_at: Mapped[dt.date] = mapped_column(Date, nullable=False)
+    filed_estimated: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    source: Mapped[str] = mapped_column(String, nullable=False)
+    # 어느 서식에서 왔나 (10-Q, 10-K, 8-K …). 이상한 값을 거슬러 올라갈 때 쓴다.
+    form: Mapped[str | None] = mapped_column(String, nullable=True)
+    # 출처에서 쓰는 이름 (us-gaap:Revenues). 같은 항목을 회사마다 다른 태그로 낸다.
+    tag: Mapped[str | None] = mapped_column(String, nullable=True)
+    fetched_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow, nullable=False)
+
+
+class FundamentalStatus(Base):
+    """종목마다 재무를 마지막으로 어떻게 받았는지. **공용 데이터다.**
+
+    `MacroSeries.last_*` 와 같은 이유로 값과 따로 둔다 — 값이 안 바뀌었으면 값 표에는
+    흔적이 없어서, "받아봤는데 새 공시가 없었다"와 "못 받았다"가 구분되지 않는다.
+    """
+
+    __tablename__ = "fundamental_status"
+
+    ticker: Mapped[str] = mapped_column(String, ForeignKey("instrument.ticker"), primary_key=True)
+    # ok · none(재무가 없는 종목: ETF 등) · unsupported(아직 못 읽는 출처) · error
+    state: Mapped[str] = mapped_column(String, nullable=False)
+    source: Mapped[str | None] = mapped_column(String, nullable=True)
+    # 사람이 읽는 한 줄 (왜 없는지, 어떤 항목이 공시에 없는지)
+    message: Mapped[str | None] = mapped_column(String, nullable=True)
+    checked_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
+    ok_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class StockSplit(Base):
+    """액면분할 이력. **공용 데이터다.**
+
+    시세는 분할을 반영해 과거까지 고쳐진 값인데, 공시된 EPS 는 **그때의 주식 기준**이다.
+    엔비디아는 2024년 6월에 1주를 10주로 나눴다 — 그 전 EPS 를 그대로 지금 주가에 대면
+    PER 이 열 배 틀린다. 공시일 뒤에 있었던 분할만큼 나눠 맞춘다.
+    """
+
+    __tablename__ = "stock_split"
+    __table_args__ = (UniqueConstraint("ticker", "date", name="uq_stock_split_ticker_date"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ticker: Mapped[str] = mapped_column(String, ForeignKey("instrument.ticker"), nullable=False, index=True)
+    date: Mapped[dt.date] = mapped_column(Date, nullable=False)
+    # 1주가 몇 주가 됐나 (10:1 분할이면 10, 1:4 병합이면 0.25)
+    ratio: Mapped[float] = mapped_column(Float, nullable=False)
+
+
 class KrxListing(Base):
     """한국거래소 상장 종목 캐시 (종목명 -> 티커 해석용).
 

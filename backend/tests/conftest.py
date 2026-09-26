@@ -125,6 +125,11 @@ def api(monkeypatch):
 
     backfill.reset()
     monkeypatch.setattr(backfill, "RUNNER", lambda work: work())
+    # 등록 뒤 재무 받기도 뒤에서 돈다 — SEC 를 부르므로 여기서는 돌리지 않는다
+    # (돌리는 쪽은 test_fundamentals.py 가 가짜 SEC 로 본다).
+    from app.services import fundamentals
+
+    monkeypatch.setattr(fundamentals, "RUNNER", lambda work: None)
 
     # 메모리 SQLite는 연결마다 DB가 따로 생기므로 StaticPool로 하나를 붙들어야 한다
     # (Postgres로 돌 때는 서버가 하나라 해당 없다).

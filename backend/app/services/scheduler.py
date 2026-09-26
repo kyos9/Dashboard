@@ -169,6 +169,31 @@ def _macro_refresh_job(startup: bool = False) -> None:
         db.close()
 
 
+def _fundamentals_job() -> None:
+    """재무 (ROADMAP 3b). 보고 있는 종목 중 **받을 때가 된 것만** — 평소 7일, 실적 시즌엔 매일.
+
+    매크로와 달리 정기 실행에서도 거른다. 공시는 1년에 네 번이라, 매일 전 종목을 받으면
+    SEC 에 3~4MB 씩 같은 걸 되묻는 셈이다. 판정은 `fundamentals.is_due` 가 한다.
+    켠 직후에도 같은 판정으로 돈다 — 오늘 이미 본 종목은 건너뛴다.
+    """
+    from app.services import fundamentals
+    from app.services.pipeline import watched
+
+    db = SessionLocal()
+    try:
+        tickers = sorted({stock.ticker for stock in watched(db)})
+        results = fundamentals.refresh_due(db, tickers)
+        if results:
+            counts: dict[str, int] = {}
+            for item in results:
+                counts[item["state"]] = counts.get(item["state"], 0) + 1
+            logger.info("재무 갱신: %s", counts)
+    except Exception:
+        logger.warning("재무 갱신에 실패했습니다", exc_info=True)
+    finally:
+        db.close()
+
+
 def _listing_refresh_job() -> None:
     """상장목록 캐시 채우기. 실패해도 앱은 내장 목록으로 계속 검색된다."""
     from app.services import symbols
@@ -247,6 +272,15 @@ def start_scheduler() -> BackgroundScheduler | None:
     scheduler.add_job(
         _macro_refresh_job, "date", run_date=_soon(45), id="macro_refresh_startup",
         args=[True],  # 켠 직후 쪽 — 방금 받은 것은 건너뛰고, 실패했던 것만 다시 해본다
+    )
+    # 재무: 매크로 뒤, 백업 앞. 미국 실적 공시는 장 마감 뒤에 몰리므로 이 시각이면 그날 것까지 본다.
+    scheduler.add_job(
+        _fundamentals_job, "cron", hour=23, minute=15, id="fundamentals_refresh",
+        misfire_grace_time=MISFIRE_GRACE_SECONDS,
+    )
+    # 켠 직후 한 번 — 매크로(45초) 뒤, 백업(60초)과 겹치지 않게 조금 더 뒤로.
+    scheduler.add_job(
+        _fundamentals_job, "date", run_date=_soon(90), id="fundamentals_refresh_startup",
     )
     # 백업: 미국 갱신(22:30)이 끝난 뒤. 그날 받은 시세까지 들어간다.
     scheduler.add_job(

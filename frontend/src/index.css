@@ -2624,3 +2624,206 @@ table.data-table tr.dirty:hover td {
 .site-footer a {
   color: var(--text-dim);
 }
+
+/* ---------- 재무 (ROADMAP 3b) ----------
+   카드의 한 줄은 누르면 팝업이 재무 탭으로 열린다. 숫자가 길어져도 줄바꿈하고 잘리지 않는다. */
+
+.fund-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  width: 100%;
+  margin-top: 4px;
+  padding: 6px 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: left;
+  color: var(--text-dim);
+  background: transparent;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.fund-line:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+.fund-line-k {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+/* 표의 종목 칸 안에서는 테두리 없이 이름 밑 작은 글씨로 */
+.data-table .fund-line {
+  margin-top: 4px;
+  padding: 0;
+  border: none;
+  font-size: 11px;
+}
+
+.fund-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.fund-panel .hint,
+.fund-empty {
+  overflow-wrap: anywhere;
+}
+
+.fund-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.fund-group h4 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+/* 날짜 한 덩어리는 가운데서 끊지 않는다 — 조각 사이에서만 줄을 바꾼다 */
+.fund-panel .nobr {
+  white-space: nowrap;
+}
+
+.fund-group .stat-box .v {
+  overflow-wrap: anywhere;
+}
+
+/* PER 5년 범위 막대 — 가운데 표시는 중앙값, 동그라미는 지금 */
+.per-range {
+  position: relative;
+  height: 18px;
+  margin: 6px 8px 0;
+}
+
+.per-track {
+  position: absolute;
+  top: 7px;
+  left: 0;
+  right: 0;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--panel-soft);
+  border: 1px solid var(--border);
+}
+
+.per-median {
+  position: absolute;
+  top: 3px;
+  width: 2px;
+  height: 12px;
+  margin-left: -1px;
+  background: var(--text-faint);
+}
+
+.per-now {
+  position: absolute;
+  top: 2px;
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--panel);
+}
+
+.per-scale {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  margin: 4px 0 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.fund-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.fund-table th,
+.fund-table td {
+  padding: 6px 8px;
+  text-align: right;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.fund-table thead th {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-faint);
+  word-break: keep-all;
+}
+
+.fund-table th[scope='row'],
+.fund-table thead th:first-child {
+  text-align: left;
+}
+
+.fund-table th[scope='row'] {
+  font-weight: 600;
+}
+
+.fund-table th[scope='row'] .hint {
+  display: block;
+  font-weight: 400;
+  font-size: 11px;
+}
+
+/* 폰에서는 여섯 칸이 한 줄에 안 들어간다 — 분기마다 작은 카드로 펼친다 */
+@media (max-width: 640px) {
+  .fund-table thead {
+    display: none;
+  }
+
+  .fund-table,
+  .fund-table tbody,
+  .fund-table tr {
+    display: block;
+  }
+
+  .fund-table tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 2px 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .fund-table th,
+  .fund-table td {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 2px 0;
+    border: none;
+    overflow-wrap: anywhere;
+  }
+
+  .fund-table th[scope='row'] {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 8px;
+  }
+
+  .fund-table td::before {
+    content: attr(data-label);
+    color: var(--text-faint);
+    font-family: var(--font-sans);
+  }
+}

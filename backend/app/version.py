@@ -93,7 +93,10 @@ from pathlib import Path
 #         맨 위 하나만. ✕·Esc 로 닫아도 다음 뒤로가기가 헛돌지 않는다.
 # 0.23.2: 재무 지표(3b)를 붙이기 전에 출처부터 본다 — `diagnose_financials.py` 가 SEC·DART·
 #         야후에서 실제로 무엇이 오는지 찍는다. DART 키 자리(DART_API_KEY)를 만들었다.
-APP_VERSION = "0.23.2"
+# 0.24.0: 재무 지표 — 미국 종목 (3b-1). SEC 공시 값을 공시일과 함께 저장하고(정정은 새 줄),
+#         PER·PBR·배당수익률은 그날 종가로 계산한다. 카드에 한 줄, 차트 팝업에 "재무" 탭
+#         (지표 10개·PER 5년 위치·최근 8분기). 마이그레이션 0009.
+APP_VERSION = "0.24.0"
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 

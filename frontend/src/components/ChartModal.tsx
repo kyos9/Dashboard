@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { useBackToClose } from '../lib/backToClose'
-import type { HistoryResponse } from '../types'
+import type { FundamentalsResponse, HistoryResponse } from '../types'
 import { useAuth } from './AuthGate'
 import { ChartLegend, coverageText, PriceChart } from './PriceChart'
 import { ErrorNotice } from './ErrorNotice'
+import { FundamentalsPanel } from './FundamentalsPanel'
+import { hasFundamentalsTab, type ChartTab } from '../lib/fundamentals'
 
 export const RANGE_OPTIONS = [
   { value: '6mo', label: '6개월', days: 182 },
@@ -85,6 +87,8 @@ export function ChartCoverage({
 interface Props {
   ticker: string
   name?: string | null
+  /** 카드의 재무 줄을 눌러 열었으면 재무 탭부터 */
+  initialTab?: ChartTab
   onClose: () => void
 }
 
@@ -94,7 +98,9 @@ interface Props {
  * 차트를 보려고 페이지를 떠나면 보던 표의 스크롤 위치와 필터가 날아가고, 돌아오면
  * 다시 찾아야 한다. 차트는 "잠깐 확인하는" 것이므로 지금 화면 위에 얹는다.
  */
-export function ChartModal({ ticker, name, onClose }: Props) {
+export function ChartModal({ ticker, name, initialTab = 'chart', onClose }: Props) {
+  const [tab, setTab] = useState<ChartTab>(initialTab)
+  const [fundamentals, setFundamentals] = useState<FundamentalsResponse | null>(null)
   const [range, setRange] = useState<Range>('1y')
   const [history, setHistory] = useState<HistoryResponse | null>(null)
   const [loading, setLoading] = useState(true)
@@ -110,6 +116,21 @@ export function ChartModal({ ticker, name, onClose }: Props) {
       .catch(setError)
       .finally(() => setLoading(false))
   }, [ticker, range, reloadKey])
+
+  // 재무는 한 번만 — 차트 기간을 바꿀 때마다 다시 물을 이유가 없다. 못 받아도 차트는 그대로다.
+  useEffect(() => {
+    let alive = true
+    api
+      .getFundamentals(ticker)
+      .then((data) => alive && setFundamentals(data))
+      .catch(() => alive && setFundamentals(null))
+    return () => {
+      alive = false
+    }
+  }, [ticker])
+
+  const showFundamentals = hasFundamentalsTab(fundamentals)
+  const activeTab: ChartTab = showFundamentals ? tab : 'chart'
 
   // 폰의 뒤로가기로도 닫힌다
   useBackToClose(onClose)
@@ -140,32 +161,60 @@ export function ChartModal({ ticker, name, onClose }: Props) {
             <h3>{name ?? ticker}</h3>
             <span className="hint">{ticker}</span>
           </div>
-          <div className="chip-row">
-            {RANGE_OPTIONS.map((r) => (
+          {showFundamentals && (
+            <div className="chip-row" role="tablist" aria-label="보기">
               <button
-                key={r.value}
-                className={`chip${range === r.value ? ' active' : ''}`}
-                onClick={() => setRange(r.value)}
+                role="tab"
+                aria-selected={activeTab === 'chart'}
+                className={`chip${activeTab === 'chart' ? ' active' : ''}`}
+                onClick={() => setTab('chart')}
               >
-                {r.label}
+                차트
               </button>
-            ))}
-          </div>
+              <button
+                role="tab"
+                aria-selected={activeTab === 'fundamentals'}
+                className={`chip${activeTab === 'fundamentals' ? ' active' : ''}`}
+                onClick={() => setTab('fundamentals')}
+              >
+                재무
+              </button>
+            </div>
+          )}
+          {activeTab === 'chart' && (
+            <div className="chip-row">
+              {RANGE_OPTIONS.map((r) => (
+                <button
+                  key={r.value}
+                  className={`chip${range === r.value ? ' active' : ''}`}
+                  onClick={() => setRange(r.value)}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+          )}
           <button className="icon-btn" onClick={onClose} aria-label="닫기">
             ✕
           </button>
         </div>
 
-        <ErrorNotice error={error} onDismiss={() => setError(null)} />
-        <PriceChart history={history} height={380} />
-        <ChartLegend history={history} loading={loading} />
-        <ChartCoverage
-          ticker={ticker}
-          history={history}
-          range={range}
-          onReloaded={() => setReloadKey((k) => k + 1)}
-          onError={setError}
-        />
+        {activeTab === 'fundamentals' && fundamentals ? (
+          <FundamentalsPanel data={fundamentals} />
+        ) : (
+          <>
+            <ErrorNotice error={error} onDismiss={() => setError(null)} />
+            <PriceChart history={history} height={380} />
+            <ChartLegend history={history} loading={loading} />
+            <ChartCoverage
+              ticker={ticker}
+              history={history}
+              range={range}
+              onReloaded={() => setReloadKey((k) => k + 1)}
+              onError={setError}
+            />
+          </>
+        )}
       </div>
     </div>
   )

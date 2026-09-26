@@ -12,6 +12,7 @@ import { useRecheck } from '../lib/recheck'
 
 // 차트는 누를 때 받는다 (App.tsx의 HistoryChart와 같은 이유)
 const ChartModal = lazyChunk(() => import('../components/ChartModal'), 'ChartModal')
+import { type ChartTab, quarterLabel, summaryLine } from '../lib/fundamentals'
 import { ErrorNotice } from '../components/ErrorNotice'
 import {
   amount,
@@ -169,7 +170,7 @@ function DragHandle({
  * 앞으로 AI 종목분석처럼 종목 하나에 붙는 기능이 생기면 이 줄(.stock-line) 옆에
  * 버튼을 나란히 둔다.
  */
-function StockName({ card, onChart }: { card: DashboardCard; onChart: (card: DashboardCard) => void }) {
+function StockName({ card, onChart }: { card: DashboardCard; onChart: OnChart }) {
   return (
     <div className="stock-line">
       {card.category && <span className="cat-tag">{card.category}</span>}
@@ -177,6 +178,28 @@ function StockName({ card, onChart }: { card: DashboardCard; onChart: (card: Das
         {stockLabel(card)}
       </button>
     </div>
+  )
+}
+
+type OnChart = (card: DashboardCard, tab?: ChartTab) => void
+
+/**
+ * 재무 한 줄 — `PER 28.1 · ROE 31% · 매출 +6%` (ROADMAP 3b). 누르면 팝업이 재무 탭으로 열린다.
+ * 재무가 없는 종목(ETF, 아직 못 받음)은 줄 자체가 없다.
+ */
+function FundLine({ card, onChart }: { card: DashboardCard; onChart: OnChart }) {
+  const line = summaryLine(card.fundamentals)
+  if (!line) return null
+  const until = card.fundamentals?.period_end
+  return (
+    <button
+      className="fund-line"
+      onClick={() => onChart(card, 'fundamentals')}
+      title={`재무 보기${until ? ` — ${quarterLabel(until)} 분기까지 공시 기준` : ''}`}
+    >
+      <span className="fund-line-k">재무</span>
+      <span className="mono">{line}</span>
+    </button>
   )
 }
 
@@ -329,6 +352,11 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<unknown>(null)
   const [chartCard, setChartCard] = useState<DashboardCard | null>(null)
+  const [chartTab, setChartTab] = useState<ChartTab>('chart')
+  const openChart: OnChart = (card, tab = 'chart') => {
+    setChartTab(tab)
+    setChartCard(card)
+  }
   const [stocks, setStocks] = useState<Stock[]>([])
   const [reordering, setReordering] = useState(false)
   const [dragging, setDragging] = useState<string | null>(null)
@@ -804,13 +832,13 @@ export function Dashboard() {
       ) : view === 'table' ? (
         <SignalMatrix
           cards={visible}
-          onChart={setChartCard}
+          onChart={openChart}
           controls={rowControls}
         />
       ) : (
         <SignalCards
           cards={visible}
-          onChart={setChartCard}
+          onChart={openChart}
           controls={rowControls}
         />
       )}
@@ -821,6 +849,7 @@ export function Dashboard() {
           <ChartModal
             ticker={chartCard.ticker}
             name={stockLabel(chartCard)}
+            initialTab={chartTab}
             onClose={() => setChartCard(null)}
           />
         </Suspense>
@@ -887,7 +916,7 @@ function SignalMatrix({
   controls,
 }: {
   cards: DashboardCard[]
-  onChart: (card: DashboardCard) => void
+  onChart: OnChart
   controls: RowControlProps
 }) {
   return (
@@ -937,6 +966,7 @@ function SignalMatrix({
                 </td>
                 <td>
                   <StockName card={card} onChart={onChart} />
+                  <FundLine card={card} onChart={onChart} />
                 </td>
                 <td>
                   <PriceCell card={card} />
@@ -1187,7 +1217,7 @@ function SignalCards({
   controls,
 }: {
   cards: DashboardCard[]
-  onChart: (card: DashboardCard) => void
+  onChart: OnChart
   controls: RowControlProps
 }) {
   return (
@@ -1289,6 +1319,8 @@ function SignalCards({
                 </span>
               </div>
             </div>
+
+            <FundLine card={card} onChart={onChart} />
 
             <div className="card-actions">
               <span className="k">마지막 매수 시그널</span>

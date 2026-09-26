@@ -445,6 +445,50 @@ describe('대시보드 · 차트 열기', () => {
   })
 })
 
+describe('대시보드 · 재무 한 줄', () => {
+  const withFundamentals = [
+    card({
+      ticker: 'NVDA',
+      fundamentals: { per: 41.26, per_note: null, roe: 102.4, revenue_yoy: 56.2, period_end: '2026-07-26' },
+    }),
+    card({ ticker: 'VOO', fundamentals: null }),
+  ]
+
+  it('재무가 있는 종목만 한 줄이 생기고, 누르면 재무 탭으로 열린다', async () => {
+    mockApi(withFundamentals)
+    vi.spyOn(api, 'getHistory').mockResolvedValue({
+      ticker: 'NVDA',
+      prices: [],
+      markers: [],
+      coverage: { first_date: null, last_date: null, rows: 0 },
+    })
+    const fundamentals = vi.spyOn(api, 'getFundamentals').mockResolvedValue({
+      ticker: 'NVDA',
+      state: 'ok',
+      message: null,
+      source: 'sec',
+      checked_at: null,
+      currency: 'USD',
+      price: 180,
+      price_date: '2026-09-25',
+      metrics: [{ key: 'per', value: 41.26, period_end: '2026-07-26', filed_at: '2026-08-26', estimated: false, note: null }],
+      per_range: null,
+      quarters: [],
+    })
+    const user = userEvent.setup()
+    renderDashboard()
+
+    const line = await screen.findByRole('button', { name: /PER 41\.3 · ROE 102% · 매출 \+56%/ })
+    expect(line).toHaveAttribute('title', expect.stringContaining('2026.07 분기까지'))
+    expect(within(await cardRow('VOO')).queryByText(/PER/)).toBeNull()
+
+    await user.click(line)
+    await waitFor(() => expect(fundamentals).toHaveBeenCalledWith('NVDA'))
+    expect(await screen.findByRole('tab', { name: '재무' })).toHaveAttribute('aria-selected', 'true')
+    expect(await screen.findByText('41.3배')).toBeInTheDocument()
+  })
+})
+
 describe('대시보드 · 종목 순서', () => {
   it('끌어다 놓으면 그 자리로 옮겨지고 저장된다', async () => {
     mockApi()

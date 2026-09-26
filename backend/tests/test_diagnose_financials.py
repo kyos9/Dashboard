@@ -128,3 +128,17 @@ def test_without_a_dart_key_it_says_how_to_get_one(diag, monkeypatch, capsys):
 def test_market_split(diag):
     assert [diag.market(t) for t in ("AAPL", "005930.KS", "035720.KQ", "7203.T", "BRK-B")] == [
         "US", "KR", "KR", "JP", "US"]
+
+
+def test_similar_tags_are_listed_latest_first(diag):
+    """없는 항목은 비슷한 이름의 태그를 보여준다 — 다음 판에서 태그 목록을 넓히는 근거."""
+    facts = {"us-gaap": {
+        "PaymentsToAcquirePropertyPlantAndEquipment": {"units": {"USD": [{"end": "2020-04-26"}]}},
+        "PaymentsToAcquireProductiveAssets": {"units": {"USD": [{"end": "2026-07-26"}]}},
+        "Revenues": {"units": {"USD": [{"end": "2026-07-26"}]}},
+    }}
+    assert diag.similar_tags(facts, "PaymentsToAcquire") == [
+        ("PaymentsToAcquireProductiveAssets", "2026-07-26"),
+        ("PaymentsToAcquirePropertyPlantAndEquipment", "2020-04-26"),
+    ]
+    assert diag.latest_end(facts["us-gaap"]["Revenues"]) == "2026-07-26"

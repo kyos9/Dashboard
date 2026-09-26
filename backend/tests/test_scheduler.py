@@ -28,6 +28,8 @@ def test_jobs_cover_both_market_closes():
             "refresh_startup",
             "macro_refresh",
             "macro_refresh_startup",
+            "fundamentals_refresh",
+            "fundamentals_refresh_startup",
             "backup",
             "backup_startup",
         }
@@ -46,6 +48,10 @@ def test_jobs_cover_both_market_closes():
         # 지표가 백업에 안 들어가고, 하루 늦은 것만 남는다.
         macro_job = str(jobs["macro_refresh"].trigger)
         assert "hour='23'" in macro_job and "minute='0'" in macro_job
+
+        # 재무: 매크로(23:00) 뒤, 백업(23:30) 앞 — 그날 받은 공시가 그날 백업에 든다
+        fundamentals_job = str(jobs["fundamentals_refresh"].trigger)
+        assert "hour='23'" in fundamentals_job and "minute='15'" in fundamentals_job
     finally:
         scheduler.shutdown_scheduler()
 
@@ -55,7 +61,7 @@ def test_start_is_idempotent():
     first = scheduler.start_scheduler()
     try:
         assert scheduler.start_scheduler() is first
-        assert len(first.get_jobs()) == 10
+        assert len(first.get_jobs()) == 12
     finally:
         scheduler.shutdown_scheduler()
 
@@ -238,7 +244,8 @@ def test_startup_jobs_are_scheduled_in_seconds_not_hours():
     try:
         now = dt.datetime.now(dt.timezone.utc)
         jobs = {job.id: job for job in sched.get_jobs()}
-        for job_id in ("listing_refresh_startup", "refresh_startup", "backup_startup"):
+        for job_id in ("listing_refresh_startup", "refresh_startup", "backup_startup",
+                       "fundamentals_refresh_startup"):
             delay = (jobs[job_id].trigger.run_date - now).total_seconds()
             assert 0 < delay < 300, f"{job_id}: {delay:.0f}초 뒤에 돈다"
     finally:
@@ -330,3 +337,20 @@ def test_a_second_process_does_not_start_a_second_scheduler(monkeypatch):
 
     monkeypatch.setattr(scheduler, "_lock", Taken())
     assert scheduler.start_scheduler() is None
+
+
+def test_fundamentals_job_covers_watched_tickers_once(db_session, monkeypatch):
+    """재무는 보고 있는 종목의 합집합으로 — 둘이 같은 종목을 담아도 한 번."""
+    from app.services import fundamentals
+    from tests.factories import make_user
+
+    make_stock(db_session, "NVDA")
+    make_user(db_session, id=2, status="active")
+    make_stock(db_session, "NVDA", user_id=2)
+    make_stock(db_session, "LLY", user_id=2)
+    seen = []
+    monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
+    monkeypatch.setattr(db_session, "close", lambda: None)
+    monkeypatch.setattr(fundamentals, "refresh_due", lambda db, tickers: seen.append(tickers) or [])
+    scheduler._fundamentals_job()
+    assert seen == [["LLY", "NVDA"]]
