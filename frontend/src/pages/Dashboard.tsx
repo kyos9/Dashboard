@@ -8,6 +8,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { useAppState } from '../AppState'
 import { api } from '../api/client'
 import { lazyChunk } from '../lib/lazyChunk'
+import type { ChartTab } from '../lib/fundamentals'
 import { useRecheck } from '../lib/recheck'
 
 // 차트는 누를 때 받는다 (App.tsx의 HistoryChart와 같은 이유)
@@ -166,8 +167,7 @@ function DragHandle({
  * 국내는 종목명, 해외는 티커 하나만 적는다 — 티커·시장·"차트 보기"를 함께 적던 때는
  * 한 칸이 세 줄이 되어 표 전체가 들쭉날쭉했다.
  *
- * 앞으로 AI 종목분석처럼 종목 하나에 붙는 기능이 생기면 이 줄(.stock-line) 옆에
- * 버튼을 나란히 둔다.
+ * AI 분석은 이 줄이 아니라 맨 오른쪽 칸에 둔다(`AiButton`) — 이름 칸이 두 줄이 되지 않게.
  */
 function StockName({ card, onChart }: { card: DashboardCard; onChart: (card: DashboardCard) => void }) {
   return (
@@ -177,6 +177,18 @@ function StockName({ card, onChart }: { card: DashboardCard; onChart: (card: Das
         {stockLabel(card)}
       </button>
     </div>
+  )
+}
+
+/**
+ * 맨 오른쪽 "AI 분석" — 누르면 종목 팝업이 AI 탭으로 열린다. 부르는 건 거기서 한 번 더 눌러야
+ * 한다(요금이 나가는 일이라 버튼 하나로 바로 부르지 않는다). 받아 둔 글이 있으면 그것부터 보인다.
+ */
+function AiButton({ card, onAi }: { card: DashboardCard; onAi: (card: DashboardCard) => void }) {
+  return (
+    <button className="ghost sm ai-open" onClick={() => onAi(card)} aria-label={`${stockLabel(card)} AI 분석`}>
+      AI 분석
+    </button>
   )
 }
 
@@ -328,7 +340,10 @@ export function Dashboard() {
   const [baseCurrency, setBaseCurrency] = useState<Currency>('KRW')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<unknown>(null)
-  const [chartCard, setChartCard] = useState<DashboardCard | null>(null)
+  // 팝업과 어느 탭부터 열지 — 종목 이름은 차트, 맨 오른쪽 "AI 분석" 버튼은 AI 탭
+  const [chart, setChart] = useState<{ card: DashboardCard; tab: ChartTab } | null>(null)
+  const openChart = useCallback((card: DashboardCard) => setChart({ card, tab: 'chart' }), [])
+  const openAi = useCallback((card: DashboardCard) => setChart({ card, tab: 'ai' }), [])
   const [stocks, setStocks] = useState<Stock[]>([])
   const [reordering, setReordering] = useState(false)
   const [dragging, setDragging] = useState<string | null>(null)
@@ -804,24 +819,29 @@ export function Dashboard() {
       ) : view === 'table' ? (
         <SignalMatrix
           cards={visible}
-          onChart={setChartCard}
+          onChart={openChart}
+          onAi={openAi}
           controls={rowControls}
         />
       ) : (
         <SignalCards
           cards={visible}
-          onChart={setChartCard}
+          onChart={openChart}
+          onAi={openAi}
           controls={rowControls}
         />
       )}
       </div>
 
-      {chartCard && (
+      {chart && (
         <Suspense fallback={null}>
           <ChartModal
-            ticker={chartCard.ticker}
-            name={stockLabel(chartCard)}
-            onClose={() => setChartCard(null)}
+            // 같은 종목이라도 다른 버튼으로 열면 그 탭부터 — 새로 띄운다
+            key={`${chart.card.ticker}:${chart.tab}`}
+            ticker={chart.card.ticker}
+            name={stockLabel(chart.card)}
+            initialTab={chart.tab}
+            onClose={() => setChart(null)}
           />
         </Suspense>
       )}
@@ -884,19 +904,21 @@ function dragProps(ticker: string, controls: RowControlProps) {
 function SignalMatrix({
   cards,
   onChart,
+  onAi,
   controls,
 }: {
   cards: DashboardCard[]
   onChart: (card: DashboardCard) => void
+  onAi: (card: DashboardCard) => void
   controls: RowControlProps
 }) {
   return (
     <div className="table-scroll">
-      <table className="data-table fixed" style={{ minWidth: 1292 }}>
+      <table className="data-table fixed" style={{ minWidth: 1302 }}>
         <thead>
           <tr>
             <th style={{ width: 44 }} aria-label="순서" />
-            <th style={{ width: 154 }}>구분 / 종목</th>
+            <th style={{ width: 146 }}>구분 / 종목</th>
             <th style={{ width: 128 }}>
               <MetricHead title="현재가" sub="(전일 대비)" />
             </th>
@@ -906,19 +928,20 @@ function SignalMatrix({
             <th style={{ width: 118 }}>
               <MetricHead title="ADX" sub="(추세 강도)" metric="adx" />
             </th>
-            <th style={{ width: 150 }}>
+            <th style={{ width: 134 }}>
               <MetricHead title="DI 방향" sub="(+DI / -DI)" metric="di" />
             </th>
-            <th style={{ width: 150 }}>
+            <th style={{ width: 128 }}>
               <MetricHead title="거래량비" sub="(MA5/MA20)" metric="volume" />
             </th>
             <th style={{ width: 112 }}>
               <MetricHead title="200일선" sub="(장기 추세)" />
             </th>
-            <th style={{ width: 150 }}>종합 신호등</th>
-            <th style={{ width: 150 }}>
+            <th style={{ width: 128 }}>종합 신호등</th>
+            <th style={{ width: 136 }}>
               <MetricHead title="마지막 매수" sub="시그널" />
             </th>
+            <th style={{ width: 96 }}>AI 분석</th>
           </tr>
         </thead>
         <tbody>
@@ -1001,6 +1024,9 @@ function SignalMatrix({
                 </td>
                 <td>
                   <LastBuySignal card={card} />
+                </td>
+                <td>
+                  <AiButton card={card} onAi={onAi} />
                 </td>
               </tr>
             )
@@ -1184,10 +1210,12 @@ function SettingsTable({
 function SignalCards({
   cards,
   onChart,
+  onAi,
   controls,
 }: {
   cards: DashboardCard[]
   onChart: (card: DashboardCard) => void
+  onAi: (card: DashboardCard) => void
   controls: RowControlProps
 }) {
   return (
@@ -1293,6 +1321,7 @@ function SignalCards({
             <div className="card-actions">
               <span className="k">마지막 매수 시그널</span>
               <LastBuySignal card={card} />
+              <AiButton card={card} onAi={onAi} />
             </div>
           </article>
         )

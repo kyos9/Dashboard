@@ -14,6 +14,7 @@ import type { AiAnalysis, AiProviderName } from '../types'
 
 const KEY_STORE = 'signalboard:ai-key'
 const RESULT_STORE = 'signalboard:ai-results'
+const QUESTION_STORE = 'signalboard:ai-question'
 /** 같은 탭의 다른 화면(헤더의 키 설정 ↔ 팝업의 AI 탭)이 바뀐 것을 알게 */
 const CHANGED = 'signalboard:ai-changed'
 /** 받아 둔 정리 글은 종목 몇 개까지만 (오래된 것부터 버린다) */
@@ -116,12 +117,13 @@ export function saveAiSettings(settings: AiSettings): void {
   announce()
 }
 
-/** 키와 받아 둔 글을 모두 지운다 — 키 지우기, 나가기, 탈퇴 */
+/** 키와 받아 둔 글, 넣어 둔 요청을 모두 지운다 — 키 지우기, 나가기, 탈퇴 */
 export function clearAi(): void {
   for (const storage of stores()) {
     try {
       storage.removeItem(KEY_STORE)
       storage.removeItem(RESULT_STORE)
+      storage.removeItem(QUESTION_STORE)
     } catch {
       // 무시
     }
@@ -179,5 +181,30 @@ export function saveAiResult(account: string, result: AiAnalysis): void {
     localStorage.setItem(RESULT_STORE, JSON.stringify({ account, items: Object.fromEntries(kept) }))
   } catch {
     // 저장이 막혔거나 가득 찼다 — 이번에만 보인다
+  }
+}
+
+// --- 내 요청 ----------------------------------------------------------------
+// 사용자가 AI 에게 붙이는 말. 종목마다가 아니라 하나 — "초보자용으로" 같은 요청은 종목을 바꿔도
+// 그대로 쓰는 일이 많다. 이 기기에, 넣은 계정과 함께 둔다.
+
+/** 서버의 한도와 같다 (`ai_analysis.QUESTION_MAX`) */
+export const QUESTION_MAX = 1000
+
+export function readAiQuestion(account: string): string {
+  try {
+    const found = readJson<{ account: string; text: string }>(localStorage, QUESTION_STORE)
+    return found && found.account === account ? found.text : ''
+  } catch {
+    return ''
+  }
+}
+
+export function saveAiQuestion(account: string, text: string): void {
+  try {
+    if (text.trim()) localStorage.setItem(QUESTION_STORE, JSON.stringify({ account, text }))
+    else localStorage.removeItem(QUESTION_STORE)
+  } catch {
+    // 저장이 막힌 브라우저 — 이번에만 쓴다
   }
 }

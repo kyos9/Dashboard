@@ -1,8 +1,15 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, api } from '../api/client'
-import { readAiResult, readAiSettings, saveAiResult, saveAiSettings } from '../lib/aiKey'
+import {
+  QUESTION_MAX,
+  readAiQuestion,
+  readAiResult,
+  readAiSettings,
+  saveAiResult,
+  saveAiSettings,
+} from '../lib/aiKey'
 import type { AiAnalysis } from '../types'
 import { AiKeyForm } from './AiKeyForm'
 import { AiPanel } from './AiPanel'
@@ -101,12 +108,12 @@ describe('AI 키 넣기', () => {
   })
 })
 
-describe('AI 정리 탭', () => {
+describe('AI 분석 탭', () => {
   it('키가 없으면 키 넣기부터 — 부르지 않는다', () => {
     const analyze = vi.spyOn(api, 'aiAnalyze')
     render(<AiPanel ticker="GOOG" account={ME} />)
     expect(screen.getByRole('heading', { name: '내 AI 키 넣기' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'AI 정리 받기' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'AI 분석 받기' })).toBeNull()
     expect(analyze).not.toHaveBeenCalled()
   })
 
@@ -117,8 +124,8 @@ describe('AI 정리 탭', () => {
     render(<AiPanel ticker="GOOG" account={ME} />)
     expect(analyze).not.toHaveBeenCalled()
 
-    await user.click(screen.getByRole('button', { name: 'AI 정리 받기' }))
-    expect(analyze).toHaveBeenCalledWith('GOOG', 'anthropic', 'claude-x', KEY)
+    await user.click(screen.getByRole('button', { name: 'AI 분석 받기' }))
+    expect(analyze).toHaveBeenCalledWith('GOOG', 'anthropic', 'claude-x', KEY, '')
     expect(await screen.findByRole('heading', { name: '한눈에 보기' })).toBeInTheDocument()
     expect(screen.getByText(/2026-09-25 종가까지/)).toHaveTextContent('토큰 1,500 + 900')
     expect(screen.getByText(/투자 권유가 아니고/)).toBeInTheDocument()
@@ -142,7 +149,7 @@ describe('AI 정리 탭', () => {
     )
     const user = userEvent.setup()
     render(<AiPanel ticker="GOOG" account={ME} />)
-    await user.click(screen.getByRole('button', { name: 'AI 정리 받기' }))
+    await user.click(screen.getByRole('button', { name: 'AI 분석 받기' }))
     expect(await screen.findByText('AI 키가 맞지 않습니다.')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'AI 키 바꾸기' })).toBeInTheDocument()
   })
@@ -152,9 +159,57 @@ describe('AI 정리 탭', () => {
     vi.spyOn(api, 'aiAnalyze').mockRejectedValue(new ApiError(402, '잔액이 부족합니다.', 'x', 'no_credit'))
     const user = userEvent.setup()
     render(<AiPanel ticker="GOOG" account={ME} />)
-    await user.click(screen.getByRole('button', { name: 'AI 정리 받기' }))
+    await user.click(screen.getByRole('button', { name: 'AI 분석 받기' }))
     expect(await screen.findByText('잔액이 부족합니다.')).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'AI 키 바꾸기' })).toBeNull()
+  })
+
+  it('내 요청을 붙여 부르고, 받은 글 위에 그 요청을 적는다', async () => {
+    withKey()
+    const analyze = vi.spyOn(api, 'aiAnalyze').mockResolvedValue({ ...RESULT, question: '다섯 줄로 짧게' })
+    const user = userEvent.setup()
+    render(<AiPanel ticker="GOOG" account={ME} />)
+    // 예시를 누르면 칸이 채워진다
+    await user.click(screen.getByRole('button', { name: '다섯 줄로 짧게' }))
+    expect(screen.getByLabelText(/내 요청/)).toHaveValue('다섯 줄로 짧게')
+    await user.click(screen.getByRole('button', { name: 'AI 분석 받기' }))
+    expect(analyze).toHaveBeenCalledWith('GOOG', 'anthropic', 'claude-x', KEY, '다섯 줄로 짧게')
+    expect(await screen.findByText('다섯 줄로 짧게', { selector: '.ai-asked' })).toBeInTheDocument()
+  })
+
+  it('요청은 이 기기에 기억해 다른 종목에서도 이어 쓴다 (계정별)', async () => {
+    const user = userEvent.setup()
+    const { unmount } = render(<AiPanel ticker="GOOG" account={ME} />)
+    await user.type(screen.getByLabelText(/내 요청/), '재무 위주로')
+    unmount()
+    render(<AiPanel ticker="VOO" account={ME} />)
+    expect(screen.getByLabelText(/내 요청/)).toHaveValue('재무 위주로')
+    expect(readAiQuestion('b@example.com')).toBe('')
+  })
+
+  it('너무 긴 요청은 보내지 않는다', async () => {
+    withKey()
+    const analyze = vi.spyOn(api, 'aiAnalyze')
+    render(<AiPanel ticker="GOOG" account={ME} />)
+    fireEvent.change(screen.getByLabelText(/내 요청/), { target: { value: '가'.repeat(QUESTION_MAX + 1) } })
+    expect(screen.getByRole('button', { name: 'AI 분석 받기' })).toBeDisabled()
+    expect(screen.getByText(`${(QUESTION_MAX + 1).toLocaleString('ko-KR')}/${QUESTION_MAX.toLocaleString('ko-KR')}`)).toHaveClass('error-inline')
+    expect(analyze).not.toHaveBeenCalled()
+  })
+
+  it('보내는 내용에는 지금 적은 요청까지 들어간다', async () => {
+    const context = vi.spyOn(api, 'aiContext').mockResolvedValue({
+      ticker: 'GOOG', as_of: null, system: 's', prompt: '[사용자의 요청]\n쉽게',
+    })
+    const user = userEvent.setup()
+    render(<AiPanel ticker="GOOG" account={ME} />)
+    await user.type(screen.getByLabelText(/내 요청/), '쉽게')
+    await user.click(screen.getByText('AI 에게 보내는 내용 보기'))
+    await waitFor(() => expect(context).toHaveBeenCalledWith('GOOG', '쉽게'))
+    // 요청을 바꾸면 다시 받아야 한다
+    await user.type(screen.getByLabelText(/내 요청/), '!')
+    await user.click(await screen.findByRole('button', { name: '지금 요청을 넣어 다시 보기' }))
+    await waitFor(() => expect(context).toHaveBeenLastCalledWith('GOOG', '쉽게!'))
   })
 
   it('보내는 내용을 펼치면 그대로 보여준다', async () => {
@@ -164,7 +219,7 @@ describe('AI 정리 탭', () => {
     const user = userEvent.setup()
     render(<AiPanel ticker="GOOG" account={ME} />)
     await user.click(screen.getByText('AI 에게 보내는 내용 보기'))
-    await waitFor(() => expect(context).toHaveBeenCalledWith('GOOG'))
+    await waitFor(() => expect(context).toHaveBeenCalledWith('GOOG', ''))
     expect(await screen.findByText('지시문 본문')).toBeInTheDocument()
     expect(screen.getByText(/종가 100/)).toBeInTheDocument()
   })

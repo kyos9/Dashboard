@@ -100,7 +100,9 @@ from pathlib import Path
 #         이름을 누르면 팝업의 재무 탭(분기 표·PER 5년 위치). 대시보드는 시그널만 본다.
 # 0.25.0: AI 정리(3c) — 종목 팝업의 "AI 정리" 탭에서 앱이 계산한 숫자를 AI 가 글로 풀어 준다.
 #         사용자 본인 키(Claude·ChatGPT·Gemini)로, 키는 브라우저에만 두고 서버는 중계만 한다.
-APP_VERSION = "0.25.0"
+# 0.25.1: 대시보드 맨 오른쪽에 "AI 분석" 칸(카드 보기에도 버튼) — 누르면 팝업이 AI 탭으로 열린다.
+#         AI 에게 내 요청을 붙일 수 있다 (지시문의 권유·예측 금지는 그대로).
+APP_VERSION = "0.25.1"
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 

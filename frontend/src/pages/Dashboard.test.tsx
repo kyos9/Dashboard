@@ -443,6 +443,35 @@ describe('대시보드 · 차트 열기', () => {
     expect(await screen.findByRole('dialog', { name: /삼성전자 차트/ })).toBeInTheDocument()
     await waitFor(() => expect(history).toHaveBeenCalledWith('005930.KS', '1y'))
   })
+
+  it('맨 오른쪽 "AI 분석"을 누르면 팝업이 AI 탭으로 열린다 — 누르는 것만으로 부르지는 않는다', async () => {
+    mockApi()
+    vi.spyOn(api, 'getHistory').mockResolvedValue({
+      ticker: '005930.KS', prices: [], markers: [],
+      coverage: { first_date: null, last_date: null, rows: 0 },
+    })
+    vi.spyOn(api, 'getFundamentals').mockRejectedValue(new Error('none'))
+    const analyze = vi.spyOn(api, 'aiAnalyze')
+    const user = userEvent.setup()
+    renderDashboard()
+
+    // 표의 마지막 칸
+    const headers = (await screen.findAllByRole('columnheader')).map((h) => h.textContent)
+    expect(headers[headers.length - 1]).toBe('AI 분석')
+    await user.click(screen.getByRole('button', { name: '삼성전자 AI 분석' }))
+
+    const dialog = await screen.findByRole('dialog', { name: /삼성전자 차트/ })
+    expect(within(dialog).getByRole('tab', { name: 'AI 분석' })).toHaveAttribute('aria-selected', 'true')
+    expect(analyze).not.toHaveBeenCalled()
+  })
+
+  it('카드 보기에도 "AI 분석" 버튼이 있다', async () => {
+    mockApi()
+    const user = userEvent.setup()
+    renderDashboard()
+    await user.click(await screen.findByRole('button', { name: '카드 보기' }))
+    expect(await screen.findByRole('button', { name: '삼성전자 AI 분석' })).toBeInTheDocument()
+  })
 })
 
 describe('대시보드 · 종목 순서', () => {

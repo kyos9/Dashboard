@@ -73,6 +73,7 @@ ERRORS: dict[str, tuple[int, str]] = {
     "bad_key_shape": (400, "AI 키 모양이 아닙니다. 공백 없이 키 전체를 넣어 주세요."),
     "bad_model": (400, "모델 이름이 올바르지 않습니다. 모델 목록에서 골라 주세요."),
     "unknown_provider": (400, "지원하지 않는 AI 제공자입니다."),
+    "question_too_long": (400, "요청이 너무 깁니다. 1000자 안으로 줄여 주세요."),
 }
 
 

@@ -630,7 +630,7 @@ export interface PushSubscriptionInput {
   keys: { p256dh: string; auth: string }
 }
 
-// --- AI 정리 (3c) -----------------------------------------------------------
+// --- AI 분석 (3c) -----------------------------------------------------------
 
 export type AiProviderName = 'anthropic' | 'openai' | 'gemini'
 
@@ -654,6 +654,8 @@ export interface AiContext {
 
 export interface AiAnalysis {
   ticker: string
+  /** 이 글을 받을 때 붙인 요청 (없으면 기본 정리) */
+  question?: string | null
   provider: AiProviderName
   model: string
   text: string

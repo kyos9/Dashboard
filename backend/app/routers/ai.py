@@ -55,9 +55,18 @@ def list_models(
 
 
 @router.get("/context/{ticker}", response_model=AiContextOut)
-def get_context(ticker: str, db: Session = Depends(get_db), user_id: int = Depends(current_user_id)):
-    """AI 에게 보내는 내용 그대로. 키가 없어도 볼 수 있다."""
-    return ai_analysis.preview(db, _my_stock(db, user_id, ticker))
+def get_context(
+    ticker: str,
+    question: str | None = None,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(current_user_id),
+):
+    """AI 에게 보내는 내용 그대로 (넣은 요청까지). 키가 없어도 볼 수 있다."""
+    stock = _my_stock(db, user_id, ticker)
+    try:
+        return ai_analysis.preview(db, stock, question)
+    except providers.AiError as e:
+        raise _refuse(e) from None
 
 
 @router.post("/analyze/{ticker}", response_model=AiAnalysisOut)
@@ -74,6 +83,7 @@ def analyze(
         providers.get(payload.provider)
         providers.check_model(payload.model)
         providers.check_key(key)
+        ai_analysis.check_question(payload.question)
     except providers.AiError as e:
         raise _refuse(e) from None
 
@@ -87,7 +97,7 @@ def analyze(
             raise _too_many(
                 f"AI 정리는 1분에 {limits.AI_ANALYSES_PER_MINUTE}번까지입니다. 잠시 뒤 다시 해 보세요."
             )
-        return ai_analysis.analyze(db, stock, payload.provider, payload.model, key or "")
+        return ai_analysis.analyze(db, stock, payload.provider, payload.model, key or "", payload.question)
     except providers.AiError as e:
         raise _refuse(e) from None
     finally:

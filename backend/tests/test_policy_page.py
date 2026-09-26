@@ -39,7 +39,7 @@ def _flat(text: str) -> str:
         f"최대 {auth.SESSION_SECONDS // 86400}일",
         f"확인용 쿠키를 {google.FLOW_SECONDS // 60}분",
         f"한 사람당 {alerts.MAX_DEVICES}대까지",
-        f"AI 정리는 분당 {limits.AI_ANALYSES_PER_MINUTE}번까지",
+        f"AI 분석은 분당 {limits.AI_ANALYSES_PER_MINUTE}번까지",
     ],
 )
 def test_policy_numbers_match_the_server(phrase):

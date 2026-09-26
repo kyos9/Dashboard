@@ -4,7 +4,9 @@ import type { AiAnalysis } from '../types'
 import {
   clearAi,
   maskKey,
+  readAiQuestion,
   readAiResult,
+  saveAiQuestion,
   readAiSettings,
   saveAiResult,
   saveAiSettings,
@@ -45,10 +47,12 @@ describe('AI 키 보관', () => {
     expect(readAiSettings('b@example.com')).toBeNull()
   })
 
-  it('지우면 키와 받아 둔 글이 함께 사라진다', () => {
+  it('지우면 키와 받아 둔 글, 적어 둔 요청이 함께 사라진다', () => {
     saveAiSettings(MINE)
     saveAiResult('a@example.com', result('VOO'))
+    saveAiQuestion('a@example.com', '쉽게')
     clearAi()
+    expect(readAiQuestion('a@example.com')).toBe('')
     expect(readAiSettings('a@example.com')).toBeNull()
     expect(readAiResult('a@example.com', 'VOO')).toBeNull()
   })

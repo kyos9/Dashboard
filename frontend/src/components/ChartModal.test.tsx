@@ -232,27 +232,27 @@ describe('차트 팝업 · 재무 탭', () => {
     expect(screen.queryByRole('tab', { name: '재무' })).toBeNull()
   })
 
-  it('AI 정리 탭 — 키가 없으면 키 넣기부터', async () => {
+  it('AI 분석 탭 — 키가 없으면 키 넣기부터', async () => {
     localStorage.clear()
     vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
     vi.spyOn(api, 'getFundamentals').mockResolvedValue(FUNDAMENTALS)
     const user = userEvent.setup()
     render(<ChartModal ticker="GOOG" name="GOOG" onClose={() => {}} />)
-    await user.click(await screen.findByRole('tab', { name: 'AI 정리' }))
+    await user.click(await screen.findByRole('tab', { name: 'AI 분석' }))
     expect(screen.getByRole('heading', { name: '내 AI 키 넣기' })).toBeInTheDocument()
     // AI 를 보는 동안 차트 기간 버튼은 뜻이 없다
     expect(screen.queryByRole('button', { name: '전체' })).toBeNull()
   })
 
-  it('재무가 없는 종목(ETF)도 AI 정리 탭은 있다', async () => {
+  it('재무가 없는 종목(ETF)도 AI 분석 탭은 있다', async () => {
     vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
     vi.spyOn(api, 'getFundamentals').mockResolvedValue({ ...FUNDAMENTALS, state: 'none', metrics: [], quarters: [] })
     render(<ChartModal ticker="VOO" name="VOO" onClose={() => {}} />)
-    expect(await screen.findByRole('tab', { name: 'AI 정리' })).toBeInTheDocument()
+    expect(await screen.findByRole('tab', { name: 'AI 분석' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: '차트' })).toHaveAttribute('aria-selected', 'true')
   })
 
-  it('손님(로그인 전)에게는 AI 정리 탭이 없다', async () => {
+  it('손님(로그인 전)에게는 AI 분석 탭이 없다', async () => {
     vi.spyOn(api, 'getHealth').mockResolvedValue({ status: 'ok', version: '0.25.0' })
     vi.spyOn(api, 'getAuthStatus').mockResolvedValue({
       locked: true, authenticated: false, mode: 'google', config_problem: null, user: null,
@@ -267,7 +267,7 @@ describe('차트 팝업 · 재무 탭', () => {
       </MemoryRouter>,
     )
     expect(await screen.findByRole('tab', { name: '재무' })).toBeInTheDocument()
-    expect(screen.queryByRole('tab', { name: 'AI 정리' })).toBeNull()
+    expect(screen.queryByRole('tab', { name: 'AI 분석' })).toBeNull()
   })
 
   it('재무를 못 받아도 차트는 그대로다', async () => {

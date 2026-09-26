@@ -239,7 +239,7 @@ export const api = {
   sendTestPush: () => request<{ sent: number; failed: number }>('/push/test', { method: 'POST' }),
 
   /**
-   * AI 정리 (3c). **키는 헤더로만 보낸다** — 서버는 중계만 하고 저장하지 않는다.
+   * AI 분석 (3c). **키는 헤더로만 보낸다** — 서버는 중계만 하고 저장하지 않는다.
    * 키는 이 기기에만 있다 (`lib/aiKey.ts`).
    */
   aiModels: (provider: AiProviderName, key: string) =>
@@ -249,12 +249,16 @@ export const api = {
       body: JSON.stringify({ provider }),
     }),
   /** AI 에게 보내는 내용 그대로 — 키 없이도 볼 수 있다 */
-  aiContext: (ticker: string) => request<AiContext>(`/ai/context/${encodeURIComponent(ticker)}`),
-  aiAnalyze: (ticker: string, provider: AiProviderName, model: string, key: string) =>
+  aiContext: (ticker: string, question = '') =>
+    request<AiContext>(
+      `/ai/context/${encodeURIComponent(ticker)}${question.trim() ? `?question=${encodeURIComponent(question)}` : ''}`,
+    ),
+  /** `question` — 사용자가 붙이는 요청 (선택). 비우면 기본 정리 */
+  aiAnalyze: (ticker: string, provider: AiProviderName, model: string, key: string, question = '') =>
     request<AiAnalysis>(`/ai/analyze/${encodeURIComponent(ticker)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', [AI_KEY_HEADER]: key },
-      body: JSON.stringify({ provider, model }),
+      body: JSON.stringify({ provider, model, question: question.trim() || null }),
     }),
 
   getLogs: (level: 'warning' | 'all' = 'warning') =>

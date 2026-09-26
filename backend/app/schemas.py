@@ -601,6 +601,8 @@ class AiModelsOut(BaseModel):
 class AiAnalyzeIn(BaseModel):
     provider: str
     model: str
+    # 사용자가 붙이는 요청 (선택). 길이는 서비스가 본다 (`ai_analysis.QUESTION_MAX`)
+    question: Optional[str] = None
 
 
 class AiContextOut(BaseModel):
@@ -614,6 +616,8 @@ class AiContextOut(BaseModel):
 
 class AiAnalysisOut(BaseModel):
     ticker: str
+    # 이 글을 받을 때 붙인 요청 (없으면 기본 정리)
+    question: Optional[str] = None
     provider: str
     model: str
     text: str

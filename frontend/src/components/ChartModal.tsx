@@ -89,7 +89,7 @@ export function ChartCoverage({
 interface Props {
   ticker: string
   name?: string | null
-  /** "재무" 화면에서 종목을 눌러 열었으면 재무 탭부터 */
+  /** 어느 탭부터 — "재무" 화면에서 열면 재무, 대시보드의 "AI 분석" 버튼으로 열면 AI */
   initialTab?: ChartTab
   onClose: () => void
 }
@@ -133,14 +133,14 @@ export function ChartModal({ ticker, name, initialTab = 'chart', onClose }: Prop
 
   const { user, guest, pending } = useAuth()
   const showFundamentals = hasFundamentalsTab(fundamentals)
-  // AI 정리는 들어와 쓰는 사람만 — 손님·승인 대기는 담은 종목이 없다
+  // AI 분석은 들어와 쓰는 사람만 — 손님·승인 대기는 담은 종목이 없다
   const showAi = !guest && !pending
   const activeTab: ChartTab =
     (tab === 'fundamentals' && !showFundamentals) || (tab === 'ai' && !showAi) ? 'chart' : tab
   const tabs: { key: ChartTab; label: string }[] = [
     { key: 'chart', label: '차트' },
     ...(showFundamentals ? [{ key: 'fundamentals' as const, label: '재무' }] : []),
-    ...(showAi ? [{ key: 'ai' as const, label: 'AI 정리' }] : []),
+    ...(showAi ? [{ key: 'ai' as const, label: 'AI 분석' }] : []),
   ]
 
   // 폰의 뒤로가기로도 닫힌다
