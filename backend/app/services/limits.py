@@ -9,6 +9,9 @@
   이미 누가 담은 종목은 외부 호출이 없으므로 세지 않는다.
 - **야후 검색**: 사람마다 분당 몇 번. 로컬에서 찾히는 평소 검색은 세지 않는다.
 - **시험 알림**: 사람마다 분당 몇 번.
+- **AI 정리** (3c): 사용료는 그 사람 키로 나가지만, 답을 기다리는 수십 초 동안 서버의
+  일꾼 하나를 붙잡는다. 그래서 **한 사람에 한 번에 하나**, 서버 전체로 몇 개까지만 동시에
+  돌리고, 분당 횟수도 건다 (연타로 남의 키 잔액을 태우는 실수도 막는다).
 
 기억은 프로세스 안에만 둔다 — 서버를 다시 띄우면 비워진다. 앱은 워커 하나로 돌고
 (Dockerfile), 다시 띄우는 일은 드물어서 그걸로 충분하다. DB에 두면 한도를 지키려고 매번
@@ -31,6 +34,11 @@ NEW_TICKERS_PER_DAY = 10
 YAHOO_SEARCHES_PER_MINUTE = 20
 # 사람마다 분당 시험 알림 (누를 때마다 바깥의 푸시 서버로 나간다)
 TEST_PUSHES_PER_MINUTE = 3
+# 사람마다 분당 AI 정리 / 모델 목록 확인
+AI_ANALYSES_PER_MINUTE = 4
+AI_MODEL_LISTS_PER_MINUTE = 10
+# 서버 전체에서 동시에 기다리는 AI 요청 (일꾼 스레드 40개 중)
+AI_CONCURRENT = 4
 
 
 class TickerCooldown:
@@ -99,10 +107,40 @@ class SlidingLimit:
             self._hits.clear()
 
 
+class InFlight:
+    """지금 돌고 있는 것. 열쇠(사람)마다 하나, 전체로 `total` 개까지."""
+
+    def __init__(self, total: int) -> None:
+        self.total = total
+        self._lock = threading.Lock()
+        self._keys: set[object] = set()
+
+    def enter(self, key: object) -> str | None:
+        """들어가면 None, 못 들어가면 이유("mine" | "full")."""
+        with self._lock:
+            if key in self._keys:
+                return "mine"
+            if len(self._keys) >= self.total:
+                return "full"
+            self._keys.add(key)
+            return None
+
+    def leave(self, key: object) -> None:
+        with self._lock:
+            self._keys.discard(key)
+
+    def clear(self) -> None:
+        with self._lock:
+            self._keys.clear()
+
+
 refresh_cooldown = TickerCooldown()
 new_tickers = SlidingLimit(NEW_TICKERS_PER_DAY, 24 * 60 * 60)
 yahoo_searches = SlidingLimit(YAHOO_SEARCHES_PER_MINUTE, 60)
 test_pushes = SlidingLimit(TEST_PUSHES_PER_MINUTE, 60)
+ai_analyses = SlidingLimit(AI_ANALYSES_PER_MINUTE, 60)
+ai_model_lists = SlidingLimit(AI_MODEL_LISTS_PER_MINUTE, 60)
+ai_running = InFlight(AI_CONCURRENT)
 
 
 def reset() -> None:
@@ -111,6 +149,9 @@ def reset() -> None:
     new_tickers.clear()
     yahoo_searches.clear()
     test_pushes.clear()
+    ai_analyses.clear()
+    ai_model_lists.clear()
+    ai_running.clear()
 
 
 def ago_label(seconds: int) -> str:

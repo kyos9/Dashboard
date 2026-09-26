@@ -1,5 +1,9 @@
 import type {
   AdminUser,
+  AiAnalysis,
+  AiContext,
+  AiModelsResponse,
+  AiProviderName,
   AuthStatus,
   DashboardCard,
   FxInfo,
@@ -34,6 +38,9 @@ import type {
 
 const BASE = '/api'
 
+/** AI 키를 싣는 헤더. 본문에 넣지 않는다 (서버 `routers/ai.py` 참고) */
+const AI_KEY_HEADER = 'X-AI-Key'
+
 /** 구글 로그인 시작 주소. fetch 가 아니라 **화면 이동**으로 가야 한다 (구글 화면을 거친다) */
 export const GOOGLE_LOGIN_URL = `${BASE}/auth/google/start`
 
@@ -52,13 +59,16 @@ export class ApiError extends Error {
   readonly status: number
   readonly hint: string | null
   readonly detail: string
+  /** 화면이 갈래를 나눠야 하는 오류의 이름 (예: AI 키가 틀림 → 키 입력을 다시 연다) */
+  readonly code: string | null
 
-  constructor(status: number, hint: string | null, detail: string) {
+  constructor(status: number, hint: string | null, detail: string, code: string | null = null) {
     super(hint || detail || `요청이 실패했습니다 (HTTP ${status})`)
     this.name = 'ApiError'
     this.status = status
     this.hint = hint
     this.detail = detail
+    this.code = code
   }
 }
 
@@ -67,7 +77,7 @@ function parseError(status: number, statusText: string, body: string): ApiError 
     const parsed = JSON.parse(body)
     const detail = parsed?.detail
     if (detail && typeof detail === 'object') {
-      return new ApiError(status, detail.hint ?? null, detail.message ?? body)
+      return new ApiError(status, detail.hint ?? null, detail.message ?? body, detail.code ?? null)
     }
     if (typeof detail === 'string') {
       return new ApiError(status, null, detail)
@@ -227,6 +237,25 @@ export const api = {
   removePushSubscription: (endpoint: string) =>
     request<void>('/push/subscriptions', { method: 'DELETE', body: JSON.stringify({ endpoint }) }),
   sendTestPush: () => request<{ sent: number; failed: number }>('/push/test', { method: 'POST' }),
+
+  /**
+   * AI 정리 (3c). **키는 헤더로만 보낸다** — 서버는 중계만 하고 저장하지 않는다.
+   * 키는 이 기기에만 있다 (`lib/aiKey.ts`).
+   */
+  aiModels: (provider: AiProviderName, key: string) =>
+    request<AiModelsResponse>('/ai/models', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', [AI_KEY_HEADER]: key },
+      body: JSON.stringify({ provider }),
+    }),
+  /** AI 에게 보내는 내용 그대로 — 키 없이도 볼 수 있다 */
+  aiContext: (ticker: string) => request<AiContext>(`/ai/context/${encodeURIComponent(ticker)}`),
+  aiAnalyze: (ticker: string, provider: AiProviderName, model: string, key: string) =>
+    request<AiAnalysis>(`/ai/analyze/${encodeURIComponent(ticker)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', [AI_KEY_HEADER]: key },
+      body: JSON.stringify({ provider, model }),
+    }),
 
   getLogs: (level: 'warning' | 'all' = 'warning') =>
     request<LogsResponse>(`/logs?level=${level}`),

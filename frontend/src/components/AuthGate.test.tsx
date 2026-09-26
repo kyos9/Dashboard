@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, GOOGLE_LOGIN_URL, UNAUTHORIZED_EVENT, api } from '../api/client'
 import type { AuthStatus } from '../types'
+import { saveAiSettings } from '../lib/aiKey'
 import { AuthGate, LOGIN_ERRORS, browser, useAuth } from './AuthGate'
 import { GuestNotice, LoginButton } from './LoginPrompt'
 
@@ -207,6 +208,23 @@ describe('구글 로그인 서버 — 문 없이 손님으로 둘러본다', () 
 
     await userEvent.click(await screen.findByRole('button', { name: '나가기' }))
     expect(go).toHaveBeenCalledWith('/')
+  })
+
+  it('나가면 이 기기의 AI 키와 받아 둔 정리 글도 지운다 — 다음 사람이 내 키로 부르지 않게', async () => {
+    vi.spyOn(api, 'getAuthStatus').mockResolvedValue(
+      googleStatus({ authenticated: true, user: { email: 'a@b.c', name: null, is_owner: false } }),
+    )
+    vi.spyOn(api, 'logout').mockResolvedValue({ locked: true, authenticated: false })
+    vi.spyOn(browser, 'go').mockImplementation(() => {})
+    saveAiSettings({ provider: 'anthropic', key: 'sk-ant-mine-1111', model: 'm', remember: true, account: 'a@b.c' })
+    sessionStorage.setItem('signalboard:ai-key', '{"key":"sk-session"}')
+    localStorage.setItem('signalboard:ai-results', '{"account":"a@b.c","items":{}}')
+    renderProbe()
+
+    await userEvent.click(await screen.findByRole('button', { name: '나가기' }))
+    expect(localStorage.getItem('signalboard:ai-key')).toBeNull()
+    expect(sessionStorage.getItem('signalboard:ai-key')).toBeNull()
+    expect(localStorage.getItem('signalboard:ai-results')).toBeNull()
   })
 })
 

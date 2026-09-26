@@ -8,4 +8,4 @@
 export const POLICY_PATH = '/privacy'
 
 /** 방침을 고치면 이 날짜도 바꾼다 — 무엇이 언제부터인지가 방침의 일부다 */
-export const POLICY_EFFECTIVE = '2026-09-25'
+export const POLICY_EFFECTIVE = '2026-09-26'

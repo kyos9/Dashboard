@@ -7,6 +7,7 @@ import { ConfirmDialog } from './ConfirmDialog'
 import { DiagnosticsModal } from './DiagnosticsModal'
 import { InstallButton } from './InstallButton'
 import { PushModal } from './PushModal'
+import { AiKeyModal } from './AiKeyModal'
 import { UsersModal } from './UsersModal'
 import { GuestNotice, LoginButton } from './LoginPrompt'
 import { pushAccount, syncPush } from '../lib/push'
@@ -76,6 +77,7 @@ export function AppHeader() {
   const [health, setHealth] = useState<HealthInfo | null>(null)
   const [showDiagnostics, setShowDiagnostics] = useState(false)
   const [showPush, setShowPush] = useState(false)
+  const [showAi, setShowAi] = useState(false)
   // 들어와 쓰는 사람만 알림이 있다 (손님·승인 대기에게는 보낼 것이 없다)
   const member = !guest && !pending
   const account = pushAccount(user)
@@ -193,6 +195,11 @@ export function AppHeader() {
               🔔
             </button>
           )}
+          {member && (
+            <button className="ghost" onClick={() => setShowAi(true)} title="AI 키 설정" aria-label="AI 키 설정">
+              AI
+            </button>
+          )}
           {/* 설치할 수 있을 때만 나온다 (이미 설치했거나 PC 크롬이 아니면 숨는다) */}
           <InstallButton />
           {/* 누구로 들어와 있는지 — 계정이 여럿인 폰에서 "내 종목이 없어졌다"가 사실은
@@ -252,6 +259,7 @@ export function AppHeader() {
 
       {showDiagnostics && <DiagnosticsModal onClose={() => setShowDiagnostics(false)} />}
       {showPush && <PushModal account={account} onClose={() => setShowPush(false)} />}
+      {showAi && <AiKeyModal account={account} onClose={() => setShowAi(false)} />}
       {showUsers && <UsersModal onClose={() => setShowUsers(false)} onChanged={recountPending} />}
 
       {confirmWithdraw && (

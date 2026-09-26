@@ -214,6 +214,13 @@ describe('구글 계정', () => {
     expect(screen.getByRole('button', { name: '나가기' })).toBeInTheDocument()
   })
 
+  it('들어온 사람에게는 AI 키 버튼 — 누르면 키 설정 팝업', async () => {
+    renderSignedIn({ email: 'friend@example.com', name: '친구', is_owner: false })
+    await userEvent.click(await screen.findByRole('button', { name: 'AI 키 설정' }))
+    expect(screen.getByRole('dialog', { name: 'AI 키 설정' })).toBeInTheDocument()
+    expect(screen.getByText(/이 기기의 브라우저에만/)).toBeInTheDocument()
+  })
+
   it('손님에게는 로그인 버튼만 — 나가기·탈퇴·관리자 버튼은 없다', async () => {
     mockHealth()
     vi.spyOn(api, 'getAuthStatus').mockResolvedValue({
@@ -231,7 +238,7 @@ describe('구글 계정', () => {
     )
     await userEvent.click(await screen.findByRole('button', { name: '로그인' }))
     expect(go).toHaveBeenCalledWith(GOOGLE_LOGIN_URL)
-    for (const name of ['나가기', '탈퇴', '전체 새로고침', '진단']) {
+    for (const name of ['나가기', '탈퇴', '전체 새로고침', '진단', 'AI 키 설정']) {
       expect(screen.queryByRole('button', { name })).not.toBeInTheDocument()
     }
     // 탭은 그대로 다 보인다 — 무엇이 있는지는 보여준다

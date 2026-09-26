@@ -629,3 +629,39 @@ export interface PushSubscriptionInput {
   endpoint: string
   keys: { p256dh: string; auth: string }
 }
+
+// --- AI 정리 (3c) -----------------------------------------------------------
+
+export type AiProviderName = 'anthropic' | 'openai' | 'gemini'
+
+export interface AiModel {
+  id: string
+  label: string
+}
+
+export interface AiModelsResponse {
+  provider: AiProviderName
+  models: AiModel[]
+}
+
+/** AI 에게 보내는 내용 그대로 */
+export interface AiContext {
+  ticker: string
+  as_of: string | null
+  system: string
+  prompt: string
+}
+
+export interface AiAnalysis {
+  ticker: string
+  provider: AiProviderName
+  model: string
+  text: string
+  /** 길이 제한에 걸려 끝이 잘렸는가 */
+  truncated: boolean
+  /** 어느 날 종가까지 보고 쓴 글인가 */
+  as_of: string | null
+  generated_at: string
+  input_tokens: number | null
+  output_tokens: number | null
+}

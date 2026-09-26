@@ -13,8 +13,8 @@ import type {
 } from '../types'
 import { currencyMeta, num, signed } from './display'
 
-/** 차트 팝업의 보기 — 차트 · 재무 */
-export type ChartTab = 'chart' | 'fundamentals'
+/** 차트 팝업의 보기 — 차트 · 재무 · AI 정리 */
+export type ChartTab = 'chart' | 'fundamentals' | 'ai'
 
 /** 재무 탭을 보일까. ETF 처럼 재무제표가 없는 종목은 탭 자체를 숨긴다. */
 export function hasFundamentalsTab(data: FundamentalsResponse | null): boolean {

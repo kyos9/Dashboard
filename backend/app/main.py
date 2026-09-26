@@ -11,7 +11,7 @@ from app import version, web
 from app.db import init_db
 from app.logging_setup import setup_logging
 from app.routers import (
-    admin, auth, dashboard, fundamentals, history, logs, macro, push, rebalance, stocks, symbols,
+    admin, ai, auth, dashboard, fundamentals, history, logs, macro, push, rebalance, stocks, symbols,
 )
 from app.services import auth as auth_service
 from app.services import providers, trading_calendar
@@ -70,6 +70,7 @@ app.include_router(symbols.router)
 app.include_router(logs.router)
 app.include_router(admin.router)
 app.include_router(push.router)
+app.include_router(ai.router)
 
 
 @app.get("/api/health")

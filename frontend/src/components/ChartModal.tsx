@@ -6,6 +6,8 @@ import { useAuth } from './AuthGate'
 import { ChartLegend, coverageText, PriceChart } from './PriceChart'
 import { ErrorNotice } from './ErrorNotice'
 import { FundamentalsPanel } from './FundamentalsPanel'
+import { AiPanel } from './AiPanel'
+import { pushAccount } from '../lib/push'
 import { hasFundamentalsTab, type ChartTab } from '../lib/fundamentals'
 
 export const RANGE_OPTIONS = [
@@ -129,8 +131,17 @@ export function ChartModal({ ticker, name, initialTab = 'chart', onClose }: Prop
     }
   }, [ticker])
 
+  const { user, guest, pending } = useAuth()
   const showFundamentals = hasFundamentalsTab(fundamentals)
-  const activeTab: ChartTab = showFundamentals ? tab : 'chart'
+  // AI 정리는 들어와 쓰는 사람만 — 손님·승인 대기는 담은 종목이 없다
+  const showAi = !guest && !pending
+  const activeTab: ChartTab =
+    (tab === 'fundamentals' && !showFundamentals) || (tab === 'ai' && !showAi) ? 'chart' : tab
+  const tabs: { key: ChartTab; label: string }[] = [
+    { key: 'chart', label: '차트' },
+    ...(showFundamentals ? [{ key: 'fundamentals' as const, label: '재무' }] : []),
+    ...(showAi ? [{ key: 'ai' as const, label: 'AI 정리' }] : []),
+  ]
 
   // 폰의 뒤로가기로도 닫힌다
   useBackToClose(onClose)
@@ -161,24 +172,19 @@ export function ChartModal({ ticker, name, initialTab = 'chart', onClose }: Prop
             <h3>{name ?? ticker}</h3>
             <span className="hint">{ticker}</span>
           </div>
-          {showFundamentals && (
+          {tabs.length > 1 && (
             <div className="chip-row" role="tablist" aria-label="보기">
-              <button
-                role="tab"
-                aria-selected={activeTab === 'chart'}
-                className={`chip${activeTab === 'chart' ? ' active' : ''}`}
-                onClick={() => setTab('chart')}
-              >
-                차트
-              </button>
-              <button
-                role="tab"
-                aria-selected={activeTab === 'fundamentals'}
-                className={`chip${activeTab === 'fundamentals' ? ' active' : ''}`}
-                onClick={() => setTab('fundamentals')}
-              >
-                재무
-              </button>
+              {tabs.map((t) => (
+                <button
+                  key={t.key}
+                  role="tab"
+                  aria-selected={activeTab === t.key}
+                  className={`chip${activeTab === t.key ? ' active' : ''}`}
+                  onClick={() => setTab(t.key)}
+                >
+                  {t.label}
+                </button>
+              ))}
             </div>
           )}
           {activeTab === 'chart' && (
@@ -199,7 +205,9 @@ export function ChartModal({ ticker, name, initialTab = 'chart', onClose }: Prop
           </button>
         </div>
 
-        {activeTab === 'fundamentals' && fundamentals ? (
+        {activeTab === 'ai' ? (
+          <AiPanel ticker={ticker} account={pushAccount(user)} />
+        ) : activeTab === 'fundamentals' && fundamentals ? (
           <FundamentalsPanel data={fundamentals} />
         ) : (
           <>

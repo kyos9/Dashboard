@@ -3,61 +3,20 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.markets import Market, currency_of_stock, market_of_stock
-from app.models import IndicatorDaily
 from app.schemas import (
     DashboardCard,
-    KneeConditions,
     LatestIndicators,
     RebalanceSignal,
 )
 from app.services import backfill, queries, rebalance
+# 화면이 조건을 나눠 보여주는 판정 — AI 정리(ai_analysis)도 같은 것을 쓴다
+from app.services.signals import knee_conditions as _knee_conditions
 from app.services.trading_calendar import market_today
 from app.services.users import current_user_id, ordered_user_stocks
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
 STALE_AFTER_DAYS = 5
-
-
-def _knee_conditions(
-    latest: IndicatorDaily | None, five_days_ago: IndicatorDaily | None
-) -> KneeConditions:
-    """무릎매수(v2) 네 조건의 개별 충족 여부.
-
-    signals.compute_signals와 같은 기준을 쓰되, 어느 조건이 걸렸는지 화면에 보여주기 위해
-    분해한다. 계산에 필요한 값이 없으면 해당 조건은 None(판정 불가)으로 남긴다.
-    """
-    if latest is None:
-        return KneeConditions()
-
-    di_bearish = (
-        None
-        if latest.minus_di is None or latest.plus_di is None
-        else latest.minus_di > latest.plus_di
-    )
-    disparity_negative = None if latest.disparity is None else latest.disparity < 0
-    adx_trending = None if latest.adx is None else latest.adx > 20
-
-    # StdDev20 축소 또는 거래량비 > 1.1 — 둘 중 하나만 만족해도 참
-    stddev_shrinking = (
-        None
-        if latest.stddev20 is None or five_days_ago is None or five_days_ago.stddev20 is None
-        else latest.stddev20 < five_days_ago.stddev20
-    )
-    volume_expanding = None if latest.vol_ratio is None else latest.vol_ratio > 1.1
-    if stddev_shrinking is True or volume_expanding is True:
-        volatility_or_volume: bool | None = True
-    elif stddev_shrinking is None and volume_expanding is None:
-        volatility_or_volume = None
-    else:
-        volatility_or_volume = False
-
-    return KneeConditions(
-        di_bearish=di_bearish,
-        disparity_negative=disparity_negative,
-        volatility_or_volume=volatility_or_volume,
-        adx_trending=adx_trending,
-    )
 
 
 @router.get("", response_model=list[DashboardCard])

@@ -1,6 +1,6 @@
 """사람끼리 데이터가 섞이지 않는가 (ROADMAP 4단계 7번).
 
-API가 48개다(표가 센다). 그중 사용자별인 것에서 `WHERE user_id` 하나만 빠져도 남의 데이터가 그대로
+API가 53개다(표가 센다). 그중 사용자별인 것에서 `WHERE user_id` 하나만 빠져도 남의 데이터가 그대로
 나간다. 눈으로 막을 수 있는 종류가 아니라서, 사람의 주의력 대신 **표**에 기댄다.
 
 1. `ENDPOINTS` — 앱의 모든 API를 *누구 것인가*와 *누가 쓰는가*로 적은 표. 앱의 라우터
@@ -133,6 +133,11 @@ ENDPOINTS: dict[tuple[str, str], tuple[str, str]] = {
     ("POST", "/api/push/subscriptions"): (MINE, USER),
     ("DELETE", "/api/push/subscriptions"): (MINE, USER),
     ("POST", "/api/push/test"): (MINE, USER),
+    # AI 정리 — 키는 요청마다 브라우저에서 온다(서버에 없다). 모델 목록은 그 키로 제공자에게 묻는 것뿐이고,
+    # 정리·보내는 내용은 내가 담은 종목만 열린다
+    ("POST", "/api/ai/models"): (SHARED, USER),
+    ("GET", "/api/ai/context/{ticker}"): (MINE, USER),
+    ("POST", "/api/ai/analyze/{ticker}"): (MINE, USER),
 }
 
 
@@ -409,6 +414,35 @@ def check_fundamentals_list(w: World):
     assert {r["ticker"] for r in theirs} == {"VOO", "QQQ"}
 
 
+def check_ai_context(w: World):
+    client = w.as_user(B)
+    # 공용 시세라도 내가 담지 않은 종목은 없는 것이다
+    assert client.get("/api/ai/context/VOO").status_code == 404
+    res = client.get("/api/ai/context/QQQ")
+    assert res.status_code == 200 and "B의 QQQ(QQQ)" in res.json()["prompt"]
+    # 그 사람의 것(보유수량·평단가·목표비중)은 AI 에게 가지 않는다
+    for mine in ("390", "30.0"):
+        assert mine not in res.json()["prompt"]
+
+
+def check_ai_analyze(w: World):
+    from app.services.providers import ai
+
+    sent = []
+    w.monkeypatch.setattr(ai, "send", lambda *a, **k: sent.append(k) or ai.Response(200, {
+        "model": "m", "content": [{"type": "text", "text": "정리"}], "stop_reason": "end_turn",
+    }))
+    client = w.as_user(B)
+    body = {"provider": "anthropic", "model": "m"}
+    key = {"X-AI-Key": "sk-ant-test-key-for-b"}
+    # 남의 종목이면 제공자를 부르기 전에 404 — B 의 키로 A 의 종목을 정리할 일이 없다
+    assert client.post("/api/ai/analyze/VOO", json=body, headers=key).status_code == 404
+    assert sent == []
+    res = client.post("/api/ai/analyze/QQQ", json=body, headers=key)
+    assert res.status_code == 200 and res.json()["text"] == "정리"
+    assert "B의 QQQ(QQQ)" in sent[0]["json"]["messages"][0]["content"]
+
+
 def check_targets(w: World):
     got = {t["ticker"]: t for t in w.as_user(B).get("/api/rebalance/targets").json()}
     assert set(got) == {SAMSUNG, "QQQ"}
@@ -666,6 +700,8 @@ CHECKS = {
     ("POST", "/api/push/subscriptions"): check_subscribe,
     ("DELETE", "/api/push/subscriptions"): check_unsubscribe,
     ("POST", "/api/push/test"): check_push_test,
+    ("GET", "/api/ai/context/{ticker}"): check_ai_context,
+    ("POST", "/api/ai/analyze/{ticker}"): check_ai_analyze,
 }
 
 

@@ -11,6 +11,7 @@ import {
 } from 'react'
 import { GOOGLE_LOGIN_URL, api, UNAUTHORIZED_EVENT } from '../api/client'
 import { disablePush, forgetPushDevice } from '../lib/push'
+import { clearAi } from '../lib/aiKey'
 import type { AuthMode, AuthUser } from '../types'
 
 /**
@@ -189,6 +190,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
       // 나가기 전에 이 기기의 알림부터 끈다 — 공용 PC·남의 폰에서 내 알림이 계속 오면 안 된다.
       // 쪽지가 살아 있을 때 해야 서버에서도 지워진다. 실패해도 나가기는 한다.
       await disablePush().catch(() => {})
+      // AI 키도 — 다음 사람이 내 키(내 잔액)로 정리를 받으면 안 된다
+      clearAi()
       await api.logout()
     } finally {
       leave()
@@ -201,6 +204,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     await api.withdraw()
     // 서버의 구독은 탈퇴와 함께 지워졌다 — 브라우저 쪽만 거둔다
     await forgetPushDevice().catch(() => {})
+    clearAi()
     leave()
   }, [leave])
 

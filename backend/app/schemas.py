@@ -578,3 +578,49 @@ class FundamentalsOut(BaseModel):
     metrics: list[FundamentalMetric] = []
     per_range: Optional[PerRange] = None
     quarters: list[FundamentalQuarter] = []
+
+
+# --- AI 정리 (3c) -----------------------------------------------------------
+# 키는 어느 스키마에도 없다 — 본문이 아니라 헤더(`X-AI-Key`)로만 오고, 응답에는 절대 싣지 않는다.
+
+
+class AiModelsIn(BaseModel):
+    provider: str
+
+
+class AiModel(BaseModel):
+    id: str
+    label: str
+
+
+class AiModelsOut(BaseModel):
+    provider: str
+    models: list[AiModel]
+
+
+class AiAnalyzeIn(BaseModel):
+    provider: str
+    model: str
+
+
+class AiContextOut(BaseModel):
+    """AI 에게 보내는 내용 그대로 — 사용자가 확인할 수 있게."""
+
+    ticker: str
+    as_of: Optional[dt.date] = None
+    system: str
+    prompt: str
+
+
+class AiAnalysisOut(BaseModel):
+    ticker: str
+    provider: str
+    model: str
+    text: str
+    # 길이 제한에 걸려 끝이 잘렸는가
+    truncated: bool = False
+    # 어느 날 종가까지 보고 쓴 글인가
+    as_of: Optional[dt.date] = None
+    generated_at: dt.datetime
+    input_tokens: Optional[int] = None
+    output_tokens: Optional[int] = None
