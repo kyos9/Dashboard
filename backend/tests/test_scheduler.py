@@ -348,9 +348,12 @@ def test_fundamentals_job_covers_watched_tickers_once(db_session, monkeypatch):
     make_user(db_session, id=2, status="active")
     make_stock(db_session, "NVDA", user_id=2)
     make_stock(db_session, "LLY", user_id=2)
+    from sqlalchemy.orm import sessionmaker
+
     seen = []
-    monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
-    monkeypatch.setattr(db_session, "close", lambda: None)
+    # 작업은 자기 세션을 열고 닫는다 — 테스트 세션을 넘겨 close 를 막으면 Postgres 에서
+    # 트랜잭션이 열린 채 남아 정리(DROP SCHEMA)가 영영 기다린다.
+    monkeypatch.setattr(scheduler, "SessionLocal", sessionmaker(bind=db_session.get_bind()))
     monkeypatch.setattr(fundamentals, "refresh_due", lambda db, tickers: seen.append(tickers) or [])
     scheduler._fundamentals_job()
     assert seen == [["LLY", "NVDA"]]
