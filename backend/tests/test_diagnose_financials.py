@@ -142,3 +142,13 @@ def test_similar_tags_are_listed_latest_first(diag):
         ("PaymentsToAcquirePropertyPlantAndEquipment", "2020-04-26"),
     ]
     assert diag.latest_end(facts["us-gaap"]["Revenues"]) == "2026-07-26"
+
+
+def test_dart_candidates_show_similar_accounts_when_the_standard_name_is_missing(diag):
+    rows = [
+        {"sj_div": "CF", "account_id": "-표준계정코드 미사용-", "account_nm": "유형자산의 취득", "thstrm_amount": "-5"},
+        {"sj_div": "CF", "account_id": "x", "account_nm": "무형자산의 취득", "thstrm_amount": "-1"},
+        {"sj_div": "BS", "account_id": "y", "account_nm": "유형자산", "thstrm_amount": "9"},
+    ]
+    assert diag.dart_candidates(rows, "설비투자") == ["-표준계정코드 미사용- '유형자산의 취득' 당기=-5"]
+    assert diag.dart_candidates(rows, "EPS(기본)") == []

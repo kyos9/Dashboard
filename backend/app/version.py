@@ -104,7 +104,8 @@ from pathlib import Path
 #         AI 에게 내 요청을 붙일 수 있다 (지시문의 권유·예측 금지는 그대로).
 # 0.26.0: 한국 종목 재무 (3b-2) — OpenDART 에서 보고서마다 받는다. 공시일은 접수번호에서.
 #         운영자 키(DART_API_KEY)가 없으면 이유를 적고 비워 둔다.
-APP_VERSION = "0.26.0"
+# 0.26.1: 삼성전자 설비투자 계정 이름 추가(서버 진단), 진단이 못 찾은 항목의 후보 계정을 찍는다.
+APP_VERSION = "0.26.1"
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 

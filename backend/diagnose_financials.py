@@ -65,7 +65,8 @@ DART_ACCOUNTS: dict[str, list[str]] = {
     "자본(지배)": ["ifrs-full_EquityAttributableToOwnersOfParent", "ifrs-full_Equity"],
     "부채": ["ifrs-full_Liabilities"],
     "영업현금흐름": ["ifrs-full_CashFlowsFromUsedInOperatingActivities"],
-    "설비투자": ["ifrs-full_PurchaseOfPropertyPlantAndEquipment"],
+    "설비투자": ["ifrs-full_PurchaseOfPropertyPlantAndEquipment",
+             "ifrs-full_PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities"],
 }
 # 사업보고서 · 반기 · 1분기 · 3분기
 DART_REPORTS = {"11011": "사업보고서", "11012": "반기보고서", "11013": "1분기보고서", "11014": "3분기보고서"}
@@ -196,6 +197,19 @@ def pick_dart_row(rows: list[dict], ids: list[str]) -> dict | None:
             if row.get("account_id") == account_id:
                 return row
     return None
+
+
+# 표준 이름으로 못 찾았을 때 비슷한 계정을 찍는다 — 앱의 목록을 넓힐 근거
+DART_HINTS = {"매출": ("IS", "매출"), "영업이익": ("IS", "영업"), "설비투자": ("CF", "유형자산"),
+              "영업현금흐름": ("CF", "영업활동"), "자본(지배)": ("BS", "자본"), "부채": ("BS", "부채")}
+
+
+def dart_candidates(rows: list[dict], metric: str, limit: int = 6) -> list[str]:
+    statement, word = DART_HINTS.get(metric, ("", ""))
+    if not word:
+        return []
+    found = [r for r in rows if (r.get("sj_div") or "").startswith(statement) and word in (r.get("account_nm") or "")]
+    return [f"{r.get('account_id')} '{r.get('account_nm')}' 당기={r.get('thstrm_amount')}" for r in found[:limit]]
 
 
 def parse_corp_codes(zipped: bytes) -> dict[str, tuple[str, str]]:
@@ -378,6 +392,8 @@ def check_dart(tickers: list[str]) -> None:
                 row = pick_dart_row(rows, ids)
                 if not row:
                     print(f"             {metric:<10} 없음")
+                    for hint in dart_candidates(rows, metric):
+                        print(f"                 후보 {hint}")
                     continue
                 print(f"             {metric:<10} {row.get('sj_div')} {row.get('account_id')} "
                       f"당기={row.get('thstrm_amount')} 누적={row.get('thstrm_add_amount', '-')} "

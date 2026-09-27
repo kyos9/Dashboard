@@ -250,6 +250,15 @@ def test_non_standard_accounts_are_found_by_name():
     assert parsed["eps_diluted"]["value"] == 70
 
 
+def test_capex_under_the_investing_activities_name():
+    # 서버 진단(v0.26.0): 삼성전자는 앞의 표준 이름으로 설비투자를 내지 않는다
+    rows = [{"rcept_no": "20260814000001", "sj_div": "CF",
+             "account_id": "ifrs-full_PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities",
+             "account_nm": "유형자산 취득", "thstrm_amount": "-24,000"}]
+    [fact] = dart.parse_report(rows, dart.Report(2026, "11012"), "CFS")
+    assert (fact["metric"], fact["value"], fact["period_start"]) == ("capex", 24000.0, D(2026, 1, 1))
+
+
 def test_report_without_receipt_number_is_skipped():
     assert dart.parse_report([is_row("ifrs-full_Revenue", "매출액", 1, 2, "")], dart.Report(2025, "11012"),
                              "CFS") == []

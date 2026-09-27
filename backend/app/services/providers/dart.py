@@ -95,7 +95,10 @@ ACCOUNTS: dict[str, tuple[tuple[str, ...], str, list[str], list[str]]] = {
     "operating_cf": (CF, "ytd", ["ifrs-full_CashFlowsFromUsedInOperatingActivities"],
                      ["영업활동현금흐름", "영업활동으로인한현금흐름"]),
     # 나가는 돈이라 음수로 적는 회사가 많다 — 크기만 쓴다 (SEC 의 Payments… 는 양수다)
-    "capex": (CF, "ytd", ["ifrs-full_PurchaseOfPropertyPlantAndEquipment"], ["유형자산의취득", "유형자산취득"]),
+    # 삼성전자는 앞의 이름으로 내지 않는다 (서버 진단 v0.26.0) — 투자활동 분류가 붙은 이름이 흔하다
+    "capex": (CF, "ytd", ["ifrs-full_PurchaseOfPropertyPlantAndEquipment",
+                          "ifrs-full_PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities"],
+              ["유형자산의취득", "유형자산취득"]),
 }
 
 UNIT = {"eps_diluted": "KRW/shares", "dps": "KRW/shares", "shares": "shares"}
