@@ -203,6 +203,8 @@ describe('구글 계정', () => {
     expect(screen.getByText('관리자')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '탈퇴' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '전체 새로고침' })).toBeInTheDocument()
+    // 진단은 메뉴 안에 있다 (ROADMAP 8-2)
+    await userEvent.click(screen.getByRole('button', { name: '메뉴' }))
     expect(screen.getByRole('button', { name: '진단' })).toBeInTheDocument()
   })
 
@@ -212,6 +214,7 @@ describe('구글 계정', () => {
     expect(screen.queryByText('관리자')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '전체 새로고침' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '진단' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /메뉴/ })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '나가기' })).toBeInTheDocument()
   })
 

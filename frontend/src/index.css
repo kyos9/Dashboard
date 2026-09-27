@@ -277,6 +277,270 @@ h4 {
   border-color: var(--border-strong);
 }
 
+/* ---------- ⋯ 메뉴 (ROADMAP 8-2) ----------
+   폰은 헤더 버튼을 전부, PC 는 관리자 도구(진단·사용자)만 여기에 모은다. */
+
+.header-menu {
+  position: relative;
+}
+
+button.menu-btn {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  min-width: 40px;
+  padding-inline: 10px;
+}
+
+.menu-glyph {
+  display: block;
+}
+
+/* 가입 신청 수 — 메뉴를 열지 않아도 보이게 */
+.menu-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--amber);
+  color: #1a1203;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+
+.menu-panel {
+  position: absolute;
+  z-index: 45;
+  top: calc(100% + 6px);
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  width: max-content;
+  min-width: 210px;
+  max-width: min(300px, calc(100vw - 2 * var(--gutter)));
+  padding: 6px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.35);
+}
+
+button.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 14px;
+}
+
+button.menu-item:hover:not(:disabled),
+button.menu-item:focus-visible {
+  background: var(--panel-soft);
+}
+
+button.menu-item.danger {
+  color: var(--red);
+}
+
+.menu-head {
+  padding: 8px 12px 10px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.menu-account {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* 메뉴 안에서는 이름을 줄이지 않는다 — 여기가 전체를 보는 자리다 */
+.menu-account .account-name {
+  font-weight: 700;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.menu-email {
+  font-size: 12px;
+  color: var(--text-faint);
+  overflow-wrap: anywhere;
+}
+
+.menu-account-badges {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.menu-foot {
+  padding: 8px 12px 4px;
+  margin-top: 4px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+/* ---------- 폰 헤더 한 줄 (ROADMAP 8-2) ----------
+   로고 · 상태 · 새로고침 · 메뉴. 본문이 첫 화면에 보이게. */
+
+.app-header.narrow {
+  flex-wrap: nowrap;
+  gap: 8px;
+  padding-top: calc(8px + env(safe-area-inset-top, 0px));
+  padding-bottom: 8px;
+}
+
+.app-header.narrow .brand {
+  flex: none;
+  gap: 8px;
+}
+
+.app-header.narrow .brand-mark {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  font-size: 17px;
+}
+
+.app-header.narrow .brand-title {
+  white-space: nowrap;
+}
+
+.app-header.narrow .header-right {
+  flex-wrap: nowrap;
+  gap: 8px;
+  min-width: 0;
+  margin-left: auto;
+}
+
+/* 손가락 크기 — 44px 보다 작은 누르는 자리가 헤더에 없게 */
+.app-header.narrow button {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+.status-pill.compact {
+  min-width: 0;
+  padding: 4px 10px;
+  gap: 6px;
+}
+
+button.icon-action {
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------- 폰 아래 탭 (ROADMAP 8-2) ----------
+   엄지가 닿는 자리. 설치한 앱에는 주소창이 없어서 이것이 앱의 모양이 된다. */
+
+.bottom-tabs {
+  position: fixed;
+  z-index: 40;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  padding: 4px env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  background: var(--bg-elevated);
+  border-top: 1px solid var(--border);
+}
+
+/* 글자를 치는 동안은 비킨다 — 안드로이드는 키보드 위로 탭이 따라 올라와 입력칸을 가린다 */
+body:has(input:focus, textarea:focus) .bottom-tabs {
+  display: none;
+}
+
+.bottom-tab,
+button.bottom-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 100%;
+  min-width: 0;
+  min-height: 52px;
+  padding: 4px 2px;
+  background: transparent;
+  border: 0;
+  border-radius: 10px;
+  color: var(--text-faint);
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+button.bottom-tab:hover:not(:disabled) {
+  background: transparent;
+}
+
+.bottom-tab.active,
+button.bottom-tab.active {
+  color: var(--accent);
+}
+
+.bottom-tab-label {
+  max-width: 100%;
+  line-height: 1.2;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.bottom-more {
+  position: relative;
+  display: flex;
+  min-width: 0;
+}
+
+.more-sheet {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 6px;
+  display: flex;
+  flex-direction: column;
+  min-width: 170px;
+  padding: 6px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.more-sheet .tab {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
 /* ---------- 페이지 ---------- */
 
 .page {
@@ -1416,10 +1680,6 @@ button:disabled {
   .app-header {
     padding-top: calc(12px + env(safe-area-inset-top, 0px));
     padding-bottom: 12px;
-  }
-  .header-right {
-    margin-left: 0;
-    width: 100%;
   }
   .page {
     padding-top: 18px;
@@ -2633,6 +2893,13 @@ table.data-table tr.dirty:hover td {
   color: var(--text-dim);
 }
 
+@media (max-width: 720px) {
+  /* 아래 탭(약 56px + 홈 인디케이터)에 맨 끝 글자가 가리지 않게 (ROADMAP 8-2) */
+  .site-footer {
+    padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
 /* ---------- 재무 (ROADMAP 3b) ----------
    상단 "재무" 화면의 목록과 차트 팝업의 재무 탭. 숫자가 길어져도 줄바꿈하고 잘리지 않는다. */
 
@@ -3429,7 +3696,8 @@ table.data-table tr.dirty:hover td {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .skeleton {
+  .skeleton,
+  .spin {
     animation: none;
   }
 }

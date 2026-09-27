@@ -1,17 +1,19 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
-import { NavLink } from 'react-router-dom'
 import { useAppState } from '../AppState'
 import { api } from '../api/client'
 import { useAuth } from './AuthGate'
 import { ConfirmDialog } from './ConfirmDialog'
 import { DiagnosticsModal } from './DiagnosticsModal'
-import { InstallButton } from './InstallButton'
+import { HeaderMenu, type MenuItem } from './HeaderMenu'
+import { TabBar } from './TabBar'
 import { PushModal } from './PushModal'
 import { AiKeyModal } from './AiKeyModal'
 import { UsersModal } from './UsersModal'
 import { GuestNotice, LoginButton } from './LoginPrompt'
 import { pushAccount, syncPush } from '../lib/push'
 import { lastLoadedAt, loadedAgoLabel, subscribeCache } from '../lib/cache'
+import { useInstall } from '../lib/install'
+import { useNarrow } from '../lib/narrow'
 import type { HealthInfo } from '../types'
 
 type Theme = 'dark' | 'light'
@@ -45,15 +47,6 @@ export function buildLabel(builtAt?: string | null): string {
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${when.getMonth() + 1}/${when.getDate()} ${pad(when.getHours())}:${pad(when.getMinutes())}`
 }
-
-const TABS = [
-  { to: '/', label: '대시보드', end: true },
-  { to: '/history', label: '히스토리 차트', end: false },
-  { to: '/fundamentals', label: '재무', end: false },
-  { to: '/macro', label: '매크로', end: false },
-  { to: '/rebalance', label: '리밸런싱', end: false },
-  { to: '/stocks', label: '종목 관리', end: false },
-]
 
 export function AppHeader() {
   const { refreshAll, refreshing, lastSync, refreshError } = useAppState()
@@ -127,126 +120,214 @@ export function AppHeader() {
         ? { dot: 'ok', text: '시세 연동 정상' }
         : { dot: 'ok', text: loadedAgo ?? '연결 확인 중' }
 
+  const narrow = useNarrow()
+  const install = useInstall()
+  const signedIn = mode === 'google' && user
+  const themeLabel = theme === 'dark' ? '밝은 테마로 전환' : '어두운 테마로 전환'
+  const toggleTheme = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))
+  const canLogout = locked && (!guest || pending)
+  // 관리자는 탈퇴할 수 없다 (공용 데이터를 돌볼 사람이 사라진다)
+  const canWithdraw = mode === 'google' && user && !user.is_owner && !pending
+  const version = health?.version
+    ? `v${health.version}${buildLabel(health.built_at) ? ` · ${buildLabel(health.built_at)}` : ''}`
+    : null
+  const versionTitle =
+    [
+      health?.revision ? `커밋 ${health.revision}` : null,
+      health?.providers_by_market
+        ? `시세 제공자 — 해외: ${health.providers_by_market.US.join(' → ')}` +
+          ` / 국내: ${health.providers_by_market.KR.join(' → ')}`
+        : null,
+    ]
+      .filter(Boolean)
+      .join('\n') || undefined
+
+  // ⋯ 메뉴 (ROADMAP 8-2). 관리자 도구(진단·사용자)는 PC·폰 모두 여기에 있고, 폰에서는 나머지 버튼도
+  // 들어온다 — 헤더를 한 줄로 만들려고.
+  //
+  // 관리자만의 것: 진단에는 남의 종목과 오류가 찍혀 있다. 계정이 있는 것은 구글 로그인뿐이다
+  // (혼자 쓰는 서버에는 사용자 목록이 없다).
+  const adminItems: MenuItem[] = isAdmin
+    ? [
+        { key: 'diag', label: '진단', title: '서버가 남긴 경고·오류 보기', onSelect: () => setShowDiagnostics(true) },
+        ...(mode === 'google'
+          ? [
+              {
+                key: 'users',
+                label: (
+                  <>
+                    사용자
+                    {pendingCount > 0 && (
+                      <span className="badge badge-amber count-badge" aria-label={`가입 신청 ${pendingCount}건`}>
+                        {pendingCount}
+                      </span>
+                    )}
+                  </>
+                ),
+                title: pendingCount > 0 ? `가입 신청 ${pendingCount}건이 기다리고 있습니다` : '사용자 목록',
+                onSelect: () => setShowUsers(true),
+              },
+            ]
+          : []),
+      ]
+    : []
+  const phoneItems: MenuItem[] = [
+    ...(member ? [{ key: 'push', label: '알림 설정', onSelect: () => setShowPush(true) }] : []),
+    ...(member ? [{ key: 'ai', label: 'AI 키 설정', onSelect: () => setShowAi(true) }] : []),
+    ...(install.available ? [{ key: 'install', label: '앱 설치', onSelect: install.start }] : []),
+    { key: 'theme', label: themeLabel, onSelect: toggleTheme },
+    ...adminItems,
+    ...(canLogout ? [{ key: 'logout', label: '나가기', onSelect: () => void logout() }] : []),
+    ...(canWithdraw
+      ? [{ key: 'withdraw', label: '탈퇴', danger: true, onSelect: () => setConfirmWithdraw(true) }]
+      : []),
+  ]
+  const accountHead = signedIn ? (
+    <div className="menu-account">
+      <span className="account-name">{user.name || user.email}</span>
+      {user.name && user.email && <span className="menu-email">{user.email}</span>}
+      {(user.is_owner || pending) && (
+        <span className="menu-account-badges">
+          {user.is_owner && <span className="badge badge-grey">관리자</span>}
+          {pending && <span className="badge badge-amber">승인 대기</span>}
+        </span>
+      )}
+    </div>
+  ) : null
+
+  const statusPill = isAdmin && (
+    <span
+      className={`status-pill${narrow ? ' compact' : ''}`}
+      title="이 화면이 서버에서 마지막으로 값을 받은 때입니다. 시세는 장 마감 뒤 서버가 매일 받고, 앱으로 돌아왔을 때 5분이 지났으면 다시 받습니다."
+    >
+      <span className={`status-dot ${status.dot}`} aria-hidden="true" />
+      {status.text}
+      {lastSync && !narrow && <span className="mono">갱신 {lastSync.toLocaleTimeString('ko-KR')}</span>}
+    </span>
+  )
+
   return (
     <>
-      <header className="app-header">
-        <div className="brand">
-          <span className="brand-mark" aria-hidden="true">
-            📈
-          </span>
-          <div className="brand-text">
-            <h1 className="brand-title">
-              신호판
-              <span className="badge badge-blue">매수·매도 시그널</span>
-              {health?.version && (
-                <span
-                  className="badge badge-grey mono"
-                  title={[
-                    health.revision ? `커밋 ${health.revision}` : null,
-                    health.providers_by_market
-                      ? `시세 제공자 — 해외: ${health.providers_by_market.US.join(' → ')}` +
-                        ` / 국내: ${health.providers_by_market.KR.join(' → ')}`
-                      : null,
-                  ]
-                    .filter(Boolean)
-                    .join('\n') || undefined}
-                >
-                  v{health.version}
-                  {buildLabel(health.built_at) && ` · ${buildLabel(health.built_at)}`}
-                </span>
-              )}
-            </h1>
-            <p className="brand-sub">기술적 타이밍 시그널 · 리밸런싱 가이드 · 비중조절 신호</p>
+      {narrow ? (
+        // 폰: 로고 · 상태 · 새로고침 · 메뉴 한 줄. 본문이 첫 화면에 보이게 (ROADMAP 8-2)
+        <header className="app-header narrow">
+          <div className="brand">
+            <span className="brand-mark" aria-hidden="true">
+              📈
+            </span>
+            <h1 className="brand-title">신호판</h1>
           </div>
-        </div>
-
-        <div className="header-right">
-          {/* 관리자만. 전체 새로고침은 **전원의** 종목 시세를 다시 받고, 진단에는 남의 종목과
-              오류가 찍혀 있다. 사용자의 시세는 장 마감 뒤 서버가 알아서 받는다. */}
-          {isAdmin && (
-            <>
-              <span
-                className="status-pill"
-                title="이 화면이 서버에서 마지막으로 값을 받은 때입니다. 시세는 장 마감 뒤 서버가 매일 받고, 앱으로 돌아왔을 때 5분이 지났으면 다시 받습니다."
+          <div className="header-right">
+            {statusPill}
+            {isAdmin && (
+              <button
+                onClick={() => void refreshAll()}
+                disabled={refreshing}
+                className="primary icon-action"
+                aria-label="전체 새로고침"
+                title={refreshing ? '갱신 중…' : '전체 새로고침'}
               >
-                <span className={`status-dot ${status.dot}`} aria-hidden="true" />
-                {status.text}
-                {lastSync && (
-                  <span className="mono">갱신 {lastSync.toLocaleTimeString('ko-KR')}</span>
+                <svg
+                  className={refreshing ? 'spin' : undefined}
+                  viewBox="0 0 24 24"
+                  width="20"
+                  height="20"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M20 12a8 8 0 1 1-2.34-5.66" />
+                  <path d="M20 4v4.5h-4.5" />
+                </svg>
+              </button>
+            )}
+            {guest && !pending && <LoginButton label="로그인" />}
+            <HeaderMenu
+              items={phoneItems}
+              head={accountHead}
+              badge={isAdmin ? pendingCount : 0}
+              foot={version && <span className="mono" title={versionTitle}>{version}</span>}
+            />
+          </div>
+        </header>
+      ) : (
+        <header className="app-header">
+          <div className="brand">
+            <span className="brand-mark" aria-hidden="true">
+              📈
+            </span>
+            <div className="brand-text">
+              <h1 className="brand-title">
+                신호판
+                <span className="badge badge-blue">매수·매도 시그널</span>
+                {version && (
+                  <span className="badge badge-grey mono" title={versionTitle}>
+                    {version}
+                  </span>
                 )}
-              </span>
+              </h1>
+              <p className="brand-sub">기술적 타이밍 시그널 · 리밸런싱 가이드 · 비중조절 신호</p>
+            </div>
+          </div>
+
+          <div className="header-right">
+            {/* 관리자만. 전체 새로고침은 **전원의** 종목 시세를 다시 받는다. 사용자의 시세는 장 마감 뒤
+                서버가 알아서 받는다. */}
+            {statusPill}
+            {isAdmin && (
               <button onClick={() => void refreshAll()} disabled={refreshing} className="primary">
                 {refreshing ? '갱신 중…' : '전체 새로고침'}
               </button>
-              <button
-                className="ghost"
-                onClick={() => setShowDiagnostics(true)}
-                title="서버가 남긴 경고·오류 보기"
-              >
-                진단
+            )}
+            {guest && !pending && <LoginButton label="로그인" />}
+            {member && (
+              <button className="ghost" onClick={() => setShowPush(true)} title="알림 설정" aria-label="알림 설정">
+                🔔
               </button>
-              {/* 계정이 있는 것은 구글 로그인뿐이다 — 혼자 쓰는 서버에는 사용자 목록이 없다 */}
-              {mode === 'google' && (
-                <button
-                  className="ghost"
-                  onClick={() => setShowUsers(true)}
-                  title={pendingCount > 0 ? `가입 신청 ${pendingCount}건이 기다리고 있습니다` : '사용자 목록'}
-                >
-                  사용자
-                  {pendingCount > 0 && (
-                    <span className="badge badge-amber count-badge" aria-label={`가입 신청 ${pendingCount}건`}>
-                      {pendingCount}
-                    </span>
-                  )}
-                </button>
-              )}
-            </>
-          )}
-          {guest && !pending && <LoginButton label="로그인" />}
-          {member && (
-            <button className="ghost" onClick={() => setShowPush(true)} title="알림 설정" aria-label="알림 설정">
-              🔔
+            )}
+            {member && (
+              <button className="ghost" onClick={() => setShowAi(true)} title="AI 키 설정" aria-label="AI 키 설정">
+                AI
+              </button>
+            )}
+            {/* 설치할 수 있을 때만 나온다 (이미 설치했거나 PC 크롬이 아니면 숨는다) */}
+            {install.available && (
+              <button className="ghost" onClick={install.start} title="홈 화면에 앱으로 추가합니다">
+                앱 설치
+              </button>
+            )}
+            {/* 누구로 들어와 있는지 — 계정이 여럿인 폰에서 "내 종목이 없어졌다"가 사실은
+                다른 계정으로 들어온 것일 때가 있다. 그걸 한눈에 가릴 수 있어야 한다. */}
+            {signedIn && (
+              <span className="account-chip" title={user.email ?? undefined}>
+                <span className="account-name">{user.name || user.email}</span>
+                {user.is_owner && <span className="badge badge-grey">관리자</span>}
+                {pending && <span className="badge badge-amber">승인 대기</span>}
+              </span>
+            )}
+            {/* 잠긴 서버에서 들어와 있을 때만 — 개인 PC와 손님에게는 나갈 문이 없다.
+                승인을 기다리는 사람은 나갈 수 있다 (다른 계정으로 바꿔 들어오려고) */}
+            {canLogout && (
+              <button className="ghost" onClick={() => void logout()} title="로그아웃">
+                나가기
+              </button>
+            )}
+            {canWithdraw && (
+              <button className="ghost" onClick={() => setConfirmWithdraw(true)}>
+                탈퇴
+              </button>
+            )}
+            <button className="ghost" onClick={toggleTheme} aria-label={themeLabel} title={themeLabel}>
+              {theme === 'dark' ? '☀️' : '🌙'}
             </button>
-          )}
-          {member && (
-            <button className="ghost" onClick={() => setShowAi(true)} title="AI 키 설정" aria-label="AI 키 설정">
-              AI
-            </button>
-          )}
-          {/* 설치할 수 있을 때만 나온다 (이미 설치했거나 PC 크롬이 아니면 숨는다) */}
-          <InstallButton />
-          {/* 누구로 들어와 있는지 — 계정이 여럿인 폰에서 "내 종목이 없어졌다"가 사실은
-              다른 계정으로 들어온 것일 때가 있다. 그걸 한눈에 가릴 수 있어야 한다. */}
-          {mode === 'google' && user && (
-            <span className="account-chip" title={user.email ?? undefined}>
-              <span className="account-name">{user.name || user.email}</span>
-              {user.is_owner && <span className="badge badge-grey">관리자</span>}
-              {pending && <span className="badge badge-amber">승인 대기</span>}
-            </span>
-          )}
-          {/* 잠긴 서버에서 들어와 있을 때만 — 개인 PC와 손님에게는 나갈 문이 없다.
-              승인을 기다리는 사람은 나갈 수 있다 (다른 계정으로 바꿔 들어오려고) */}
-          {locked && (!guest || pending) && (
-            <button className="ghost" onClick={() => void logout()} title="로그아웃">
-              나가기
-            </button>
-          )}
-          {/* 관리자는 탈퇴할 수 없다 (공용 데이터를 돌볼 사람이 사라진다) */}
-          {mode === 'google' && user && !user.is_owner && !pending && (
-            <button className="ghost" onClick={() => setConfirmWithdraw(true)}>
-              탈퇴
-            </button>
-          )}
-          <button
-            className="ghost"
-            onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
-            aria-label={theme === 'dark' ? '밝은 테마로 전환' : '어두운 테마로 전환'}
-            title={theme === 'dark' ? '밝은 테마로 전환' : '어두운 테마로 전환'}
-          >
-            {theme === 'dark' ? '☀️' : '🌙'}
-          </button>
-        </div>
-      </header>
+            {/* 관리자 도구는 메뉴로 — 헤더 버튼이 아홉 개였다 */}
+            {adminItems.length > 0 && <HeaderMenu items={adminItems} badge={pendingCount} />}
+          </div>
+        </header>
+      )}
 
       {refreshError && (
         <div className="header-alert">
@@ -257,22 +338,12 @@ export function AppHeader() {
 
       <GuestNotice />
 
-      <nav className="tabs">
-        {TABS.map((tab) => (
-          <NavLink
-            key={tab.to}
-            to={tab.to}
-            end={tab.end}
-            className={({ isActive }) => `tab${isActive ? ' active' : ''}`}
-          >
-            {tab.label}
-          </NavLink>
-        ))}
-      </nav>
+      <TabBar />
 
       {showDiagnostics && <DiagnosticsModal onClose={() => setShowDiagnostics(false)} />}
       {showPush && <PushModal account={account} onClose={() => setShowPush(false)} />}
       {showAi && <AiKeyModal account={account} onClose={() => setShowAi(false)} />}
+      {install.hint}
       {showUsers && <UsersModal onClose={() => setShowUsers(false)} onChanged={recountPending} />}
 
       {confirmWithdraw && (
