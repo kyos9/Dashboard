@@ -113,6 +113,40 @@ STALE_AFTER_DAYS = {
 
 SEED_SERIES: list[dict] = [
     {
+        # 지수 둘을 맨 앞에 둔다. 다른 지표는 전부 "배경"인데, 이 둘은 **그 배경 속에서
+        # 시장이 실제로 어디 와 있는지**다 — VIX 가 튄 날 지수가 얼마나 빠졌는지를 같이
+        # 봐야 숫자가 읽힌다.
+        #
+        # 폴백은 FRED `SP500` — 같은 지수의 같은 종가다(S&P 다우존스가 FRED 에 준다).
+        # 과거가 10년뿐이라 처음부터 폴백으로 받으면 차트가 10년에서 끝나지만, 값은 같다.
+        "code": "SP500",
+        "name": "S&P 500",
+        "note": "미국 대형주 500개",
+        "source": "yahoo",
+        "source_code": "^GSPC",
+        "fallback_source": "fred",
+        "fallback_code": "SP500",
+        "unit": MacroUnit.level.value,
+        "transform": MacroTransform.none.value,
+        "frequency": MacroFrequency.daily.value,
+        "display_order": 1,
+    },
+    {
+        # 폴백이 없다. FRED 의 한국 주가지수(`SPASTT01KRM661N`)는 **월평균을 2015=100 으로
+        # 바꾼 값**이라 단위가 다르다 — 꽂으면 2,600 이던 카드가 조용히 100 근처가 된다.
+        "code": "KOSPI",
+        "name": "코스피",
+        "note": "한국 대표 지수",
+        "source": "yahoo",
+        "source_code": "^KS11",
+        "fallback_source": None,
+        "fallback_code": None,
+        "unit": MacroUnit.level.value,
+        "transform": MacroTransform.none.value,
+        "frequency": MacroFrequency.daily.value,
+        "display_order": 2,
+    },
+    {
         "code": "VIX",
         "name": "VIX",
         "note": "변동성 지수 · 시장의 공포",
@@ -224,6 +258,19 @@ SEED_SERIES: list[dict] = [
         "transform": MacroTransform.none.value,
         "frequency": MacroFrequency.daily.value,
         "display_order": 80,
+    },
+    {
+        # 매달 첫 금요일(고용보고서)에 나온다. 이미 % 라서 변환하지 않는다 — 전년비로
+        # 바꾸면 "실업률의 변화율"이 되어 아무도 못 읽는다. 직전 달과의 차이(%p)가 뉴스다.
+        "code": "UNRATE",
+        "name": "미 실업률",
+        "note": "고용이 식고 있나",
+        "source": "fred",
+        "source_code": "UNRATE",
+        "unit": MacroUnit.percent.value,
+        "transform": MacroTransform.none.value,
+        "frequency": MacroFrequency.monthly.value,
+        "display_order": 90,
     },
 ]
 

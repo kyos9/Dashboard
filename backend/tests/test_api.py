@@ -294,8 +294,26 @@ def test_refresh_listing_reports_count(api, monkeypatch):
     monkeypatch.setattr(
         "app.services.symbols.refresh_krx_listing", lambda db, timeout=30: 2841
     )
+    monkeypatch.setattr(
+        "app.services.symbols.refresh_us_listing", lambda db, timeout=30: 9876
+    )
     body = client.post("/api/symbols/refresh-listing").json()
-    assert body == {"ok": True, "count": 2841}
+    assert body == {"ok": True, "count": 2841, "us": {"ok": True, "count": 9876}}
+
+
+def test_refresh_listing_reports_each_market_on_its_own(api, monkeypatch):
+    """국내와 미국은 다른 서버다 — 미국이 막혀도 국내 결과는 그대로 온다."""
+    client, _ = api
+    monkeypatch.setattr("app.services.symbols.refresh_krx_listing", lambda db, timeout=30: 2841)
+
+    def blocked(db, timeout=30):
+        raise RuntimeError("나스닥 트레이더 HTTP 403 / SEC HTTP 403")
+
+    monkeypatch.setattr("app.services.symbols.refresh_us_listing", blocked)
+    body = client.post("/api/symbols/refresh-listing").json()
+    assert (body["ok"], body["count"]) == (True, 2841)
+    assert body["us"]["ok"] is False
+    assert "403" in body["us"]["error"]
 
 
 def test_refresh_listing_failure_still_allows_search(api, monkeypatch):

@@ -3,19 +3,62 @@
 수동 새로고침 버튼과 일일 스케줄러(scheduler.py)가 공통으로 사용한다.
 """
 
+import datetime as dt
 import logging
+import threading
+from collections.abc import Callable
 
 import pandas as pd
-from sqlalchemy import func
+from sqlalchemy import and_, exists, func, or_
 from sqlalchemy.orm import Session
 
-from app.markets import Market
-from app.models import Instrument, PriceDaily, User, UserStock
+from app.markets import Market, market_of_stock
+from app.models import Instrument, PriceDaily, PushSubscription, User, UserStock
 from app.services import data_ingestion, fx, limits
 from app.services.users import STATUS_ACTIVE
 from app.services.trading_calendar import last_closed_trading_day
 
 logger = logging.getLogger(__name__)
+
+# 이만큼 안 들어온 사람의 종목은 매일 받는 대상에서 뺀다 (ROADMAP 8-2 — "6개월 넘게 안 들어온
+# 사용자의 종목"). **데이터는 지우지 않는다** — 다시 들어오면 그 자리에서 밀린 만큼 받는다.
+#
+# 로그인 쪽지는 30일짜리이고 늘어나지 않으므로(`auth.SESSION_SECONDS`) 쓰는 사람은 적어도
+# 한 달에 한 번 로그인한다. 그래서 마지막 로그인이 180일 전이면 적어도 다섯 달은 안 쓴 것이다.
+DORMANT_AFTER = dt.timedelta(days=180)
+
+
+def in_use(now: dt.datetime | None = None):
+    """이 사람을 "쓰는 중"으로 셀까 — `User` 에 거는 SQL 조건.
+
+    승인된 사람 중에서 이 가운데 하나면 쓰는 중이다:
+
+    - **관리자** — 공용 데이터를 돌보는 사람이다. 비밀번호 문·잠금 없는 PC 에서는 구글
+      로그인을 안 하므로 로그인 기록이 아예 없다.
+    - **로그인 기록이 없다** — 구글 로그인 전부터 있던 로컬 계정이다. 모르는 것을 안 쓴다고
+      치지 않는다.
+    - **180일 안에 로그인했다.**
+    - **알림을 받는 기기가 남아 있다** — 알림만 보고 앱은 안 여는 사람도 쓰는 사람이다. 받는
+      쪽이 앱을 지우면 푸시 서버가 404·410 을 돌려주고 그 기기는 지워지므로(`push.send`),
+      남아 있다는 것은 아직 닿는다는 뜻이다.
+    """
+    cutoff = (now or dt.datetime.utcnow()) - DORMANT_AFTER
+    return and_(
+        User.status == STATUS_ACTIVE,
+        or_(
+            User.is_owner.is_(True),
+            User.last_login_at.is_(None),
+            User.last_login_at >= cutoff,
+            exists().where(PushSubscription.user_id == User.id),
+        ),
+    )
+
+
+def is_dormant(db: Session, user: User, now: dt.datetime | None = None) -> bool:
+    """승인된 사람인데 `in_use` 에 안 걸리는가 — 그 사람만 담은 종목은 매일 받지 않는다."""
+    if user.status != STATUS_ACTIVE:
+        return False  # 쓸 수 없는 사람은 원래 안 센다 — "안 들어와서"가 아니다
+    return db.query(User.id).filter(User.id == user.id, in_use(now)).first() is None
 
 
 def refresh_and_evaluate_stock(
@@ -29,7 +72,7 @@ def refresh_and_evaluate_stock(
     )
 
 
-def watched(db: Session):
+def watched(db: Session, now: dt.datetime | None = None):
     """**누구 하나라도 보고 있는** 종목 줄 — 매일 받는 대상은 이것의 합집합이다 (ROADMAP 4-4b).
 
     예전에는 담긴 줄마다 돌아서, 둘이 같은 QQQ를 담으면 QQQ를 두 번 받았다. 그리고 한
@@ -39,11 +82,14 @@ def watched(db: Session):
     쓰는 중인 사람의 것만 센다. 승인 대기·거절·차단된 사람은 화면을 볼 수 없으니, 그
     사람만 담은 종목을 매일 받을 이유가 없다 (데이터는 남는다 — 다시 승인되면 그날 밤부터
     다시 받는다).
+
+    반년 넘게 안 들어온 사람도 같다 (`in_use`). 다시 들어오면 그 자리에서 밀린 것을 받는다
+    (`catch_up_in_background`).
     """
     return (
         db.query(UserStock)
         .join(User, User.id == UserStock.user_id)
-        .filter(UserStock.active.is_(True), User.status == STATUS_ACTIVE)
+        .filter(UserStock.active.is_(True), in_use(now))
     )
 
 
@@ -63,8 +109,11 @@ def refresh_all_active_stocks(db: Session, market: Market | None = None) -> list
     by_ticker: dict[str, UserStock] = {}
     for stock in query.order_by(UserStock.ticker, UserStock.user_id):
         by_ticker.setdefault(stock.ticker, stock)
-    stocks = list(by_ticker.values())
+    return _refresh(db, list(by_ticker.values()))
 
+
+def _refresh(db: Session, stocks: list[UserStock]) -> list[dict]:
+    """종목 줄들(티커마다 하나)을 한꺼번에 받고 차례로 저장한다. 환율도 같이."""
     # 지금까지 이 종목을 받아온 제공자를 먼저 시도한다 (여러 곳에서 받아 섞이지 않게)
     fetched = data_ingestion.fetch_many(
         [(stock.ticker, data_ingestion.stored_source(db, stock.ticker)) for stock in stocks]
@@ -107,7 +156,7 @@ def stale_markets(db: Session) -> list[Market]:
         .join(User, User.id == UserStock.user_id)
         .join(Instrument, Instrument.ticker == UserStock.ticker)
         .outerjoin(PriceDaily, PriceDaily.ticker == UserStock.ticker)
-        .filter(UserStock.active.is_(True), User.status == STATUS_ACTIVE)
+        .filter(UserStock.active.is_(True), in_use())
         .group_by(Instrument.market)
         .all()
     )
@@ -138,3 +187,70 @@ def refresh_stale_markets(db: Session) -> dict[str, list[dict]]:
         logger.info("%s 시세가 마지막 거래일보다 뒤처져 있어 따라잡습니다", market.value)
         results[market.value] = refresh_all_active_stocks(db, market=market)
     return results
+
+
+# ---------------------------------------------------------------------------
+#  반년 만에 다시 들어온 사람
+# ---------------------------------------------------------------------------
+
+
+def behind(db: Session, user_id: int) -> list[UserStock]:
+    """이 사람의 (화면에 둔) 종목 중 시세가 마지막 거래일보다 뒤처진 것."""
+    stocks = (
+        db.query(UserStock)
+        .filter(UserStock.user_id == user_id, UserStock.active.is_(True))
+        .order_by(UserStock.ticker)
+        .all()
+    )
+    if not stocks:
+        return []
+    latest = dict(
+        db.query(PriceDaily.ticker, func.max(PriceDaily.date))
+        .filter(PriceDaily.ticker.in_([s.ticker for s in stocks]))
+        .group_by(PriceDaily.ticker)
+        .all()
+    )
+    out = []
+    for stock in stocks:
+        expected = last_closed_trading_day(market_of_stock(stock))
+        have = latest.get(stock.ticker)
+        if have is None or (expected is not None and have < expected):
+            out.append(stock)
+    return out
+
+
+def catch_up_user(db: Session, user_id: int) -> list[dict]:
+    """다시 들어온 사람의 뒤처진 종목만 받는다. 매일 받기에서 빠져 있던 동안 밀린 만큼이다.
+
+    받는 구간은 평소와 같은 2년이라 반년 공백도 한 번에 메워진다 (`data_ingestion.refresh_ticker`).
+    남이 보고 있어 계속 받던 종목은 이미 최신이라 여기서 빠진다.
+    """
+    stocks = behind(db, user_id)
+    if not stocks:
+        return []
+    logger.info("오래 안 들어온 사용자 %s: 밀린 종목 %d개를 받습니다", user_id, len(stocks))
+    return _refresh(db, stocks)
+
+
+def _in_thread(work: Callable[[], None]) -> None:
+    threading.Thread(target=work, name="catch-up", daemon=True).start()
+
+
+# 테스트는 "바로 실행"으로 바꿔 끼운다 (backfill.RUNNER 와 같다)
+RUNNER: Callable[[Callable[[], None]], None] = _in_thread
+
+
+def catch_up_in_background(session_factory, user_id: int) -> None:
+    """로그인 응답을 붙잡지 않게 뒤에서 받는다. 화면은 그동안 받아둔 옛 시세를 보여준다."""
+
+    def work() -> None:
+        db = session_factory()
+        try:
+            catch_up_user(db, user_id)
+        except Exception:
+            logger.warning("사용자 %s 의 밀린 시세를 받지 못했습니다 — 오늘 밤 매일 받기가 다시 합니다",
+                           user_id, exc_info=True)
+        finally:
+            db.close()
+
+    RUNNER(work)

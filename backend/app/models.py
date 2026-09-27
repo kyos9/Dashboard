@@ -590,6 +590,25 @@ class KrxListing(Base):
     updated_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow, nullable=False)
 
 
+class UsListing(Base):
+    """미국 상장 종목 캐시 (이름 -> 티커 해석용). **공용 데이터다.**
+
+    `services/us_listing.py` 가 받아 통째로 갈아 끼운다 — 한국 목록과 달리 상장폐지가 잦아서
+    (스팩·소형주) 쌓아두기만 하면 사라진 종목이 검색에 계속 뜬다. 내장 목록
+    (`us_seed.json`)의 한글 별칭과 합쳐서 검색한다.
+    """
+
+    __tablename__ = "us_listing"
+
+    code: Mapped[str] = mapped_column(String, primary_key=True)  # 야후 모양 티커 (BRK-B)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    exchange: Mapped[str | None] = mapped_column(String, nullable=True)  # NASDAQ / NYSE / NYSE Arca …
+    instrument: Mapped[str] = mapped_column(String, default="STOCK", nullable=False)
+    # 어디서 받았나 — 나스닥 트레이더(ETF 포함) / SEC(회사만). 화면이 "ETF 는 빠져 있다"를 말할 수 있게.
+    source: Mapped[str] = mapped_column(String, nullable=False)
+    updated_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow, nullable=False)
+
+
 def stock_order():
     """종목을 화면에 보여줄 순서.
 

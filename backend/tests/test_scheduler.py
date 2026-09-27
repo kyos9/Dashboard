@@ -184,11 +184,29 @@ def test_listing_job_survives_blocked_network(monkeypatch, caplog):
         raise RuntimeError("CONNECT tunnel failed, 403")
 
     monkeypatch.setattr(symbols, "refresh_krx_listing_if_stale", blocked)
+    monkeypatch.setattr(symbols, "refresh_us_listing_if_stale", blocked)
 
     with caplog.at_level("INFO"):
         scheduler._listing_refresh_job()  # 예외가 새어 나오면 실패
 
     assert "내장 목록으로 검색됩니다" in caplog.text
+
+
+def test_listing_job_tries_the_us_list_even_when_the_korean_one_fails(monkeypatch, caplog):
+    """국내 목록 서버가 막혀도 미국 목록은 받는다 — 다른 서버다."""
+    from app.services import symbols
+
+    def blocked(db, timeout=30):
+        raise RuntimeError("CONNECT tunnel failed, 403")
+
+    monkeypatch.setattr(symbols, "refresh_krx_listing_if_stale", blocked)
+    monkeypatch.setattr(symbols, "refresh_us_listing_if_stale", lambda db, timeout=30: 9876)
+
+    with caplog.at_level("INFO"):
+        scheduler._listing_refresh_job()
+
+    assert "국내 상장목록을 받지 못했습니다" in caplog.text
+    assert "미국 상장목록 9876종목을 받았습니다" in caplog.text
 
 
 def test_one_failed_fetch_does_not_stop_the_rest(db_session, monkeypatch):

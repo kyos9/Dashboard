@@ -15,6 +15,22 @@ export interface ListingStatus {
   seed_count: number
   /** 내장 목록을 정리한 시점 (이후 신규 상장·사명 변경은 들어 있지 않다) */
   seed_as_of: string
+  /** 받아둔 미국 상장목록의 종목 수 (0이면 아직 못 받았다) */
+  us_count?: number
+  us_updated_at?: string | null
+  /** 어디서 받았나 — nasdaqtrader(ETF 포함) / sec(회사만) */
+  us_source?: string | null
+  /** 앱에 내장된 미국 주요 종목·ETF 수 (한글 별칭이 붙어 있다) */
+  us_seed_count?: number
+}
+
+/** 상장목록 다시 받기의 결과 — 국내와 미국은 다른 서버라 따로 성공·실패한다 */
+export interface ListingRefreshResult {
+  ok: boolean
+  count: number
+  error?: string
+  hint?: string
+  us?: { ok: boolean; count: number; error?: string }
 }
 
 /** 종목 검색 결과 한 건 */
@@ -425,6 +441,8 @@ export interface AdminUser {
   created_at: string | null
   last_login_at: string | null
   stock_count: number
+  /** 반년 넘게 안 들어와 이 사람만 담은 종목은 매일 받지 않는다 (다시 들어오면 밀린 만큼 받는다) */
+  dormant?: boolean
 }
 
 export interface AuthStatus {

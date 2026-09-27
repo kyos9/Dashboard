@@ -95,7 +95,8 @@ export function UsersModal({ onClose, onChanged }: { onClose: () => void; onChan
 
           <p className="hint users-intro">
             구글로 처음 들어온 사람은 승인 대기로 시작합니다. 승인하면 바로(다시 로그인하지 않아도) 자기 종목과
-            포트폴리오를 만들 수 있습니다. 거절·차단해도 기록은 지우지 않습니다.
+            포트폴리오를 만들 수 있습니다. 거절·차단해도 기록은 지우지 않습니다. 반년 넘게 안 들어온 사람(알림
+            받는 기기도 없는)이 혼자 담은 종목은 매일 받지 않고, 다시 들어오면 밀린 시세를 받습니다.
           </p>
 
           <div className="users-list">
@@ -110,6 +111,14 @@ export function UsersModal({ onClose, onChanged }: { onClose: () => void; onChan
                       <b>{user.name || user.email || `사용자 ${user.id}`}</b>
                       <span className={`badge ${meta.badge}`}>{meta.label}</span>
                       {user.is_owner && <span className="badge badge-grey">관리자</span>}
+                      {user.dormant && (
+                        <span
+                          className="badge badge-grey"
+                          title="반년 넘게 안 들어와서 이 사람만 담은 종목은 매일 받지 않습니다. 기록은 그대로이고, 다시 들어오면 밀린 시세를 받습니다."
+                        >
+                          반년 미접속 · 수집 쉼
+                        </span>
+                      )}
                     </div>
                     {user.email && <span className="hint user-email">{user.email}</span>}
                     <span className="hint user-meta">

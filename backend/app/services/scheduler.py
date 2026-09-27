@@ -200,14 +200,19 @@ def _listing_refresh_job() -> None:
 
     db = SessionLocal()
     try:
-        count = symbols.refresh_krx_listing_if_stale(db)
-        if count is None:
-            logger.debug("상장목록 캐시가 아직 최신입니다")
-        else:
-            logger.info("상장목록 %s종목을 받았습니다", count)
-    except Exception as exc:
-        # 네트워크가 막혀 있어도 정상 동작이다. 로그를 시끄럽게 만들지 않는다.
-        logger.info("상장목록을 받지 못했습니다 (내장 목록으로 검색됩니다): %s", exc)
+        # 국내와 미국은 **다른 서버**다 — 한쪽이 막혀도 다른 쪽은 받는다.
+        for label, refresh in (("국내", symbols.refresh_krx_listing_if_stale),
+                               ("미국", symbols.refresh_us_listing_if_stale)):
+            try:
+                count = refresh(db)
+                if count is None:
+                    logger.debug("%s 상장목록 캐시가 아직 최신입니다", label)
+                else:
+                    logger.info("%s 상장목록 %s종목을 받았습니다", label, count)
+            except Exception as exc:
+                db.rollback()
+                # 네트워크가 막혀 있어도 정상 동작이다. 로그를 시끄럽게 만들지 않는다.
+                logger.info("%s 상장목록을 받지 못했습니다 (내장 목록으로 검색됩니다): %s", label, exc)
     finally:
         db.close()
 

@@ -20,6 +20,7 @@ function describeMatch(match: SymbolMatch): string {
 const SOURCE_LABEL: Record<string, string> = {
   seed: '내장 목록',
   krx: '거래소 목록',
+  'us-listing': '미국 상장목록',
   yahoo: '야후 검색',
 }
 

@@ -15,12 +15,12 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 from starlette.concurrency import run_in_threadpool
 
 from app.db import get_db
 from app.models import Holding, PushState, PushSubscription, RebalanceSnapshot, User, UserSettings, UserStock
-from app.services import auth
+from app.services import auth, pipeline
 from app.services import google_login as google
 from app.services.users import LOCAL_USER_ID, STATUS_ACTIVE, STATUS_PENDING, current_user_id
 
@@ -315,6 +315,9 @@ def google_callback(
         callback_uri = google.redirect_uri(_base_url(request))
         token = google.exchange_code(code, callback_uri, flow.verifier)
         claims = google.verify_id_token(token, flow.nonce)
+        # 로그인 시각을 고치기 **전에** 본다 — 반년 넘게 안 들어와 매일 받기에서 빠져 있었나
+        existing = db.query(User).filter(User.google_sub == str(claims["sub"])).first()
+        was_dormant = existing is not None and pipeline.is_dormant(db, existing)
         user = google.resolve_user(db, claims)
     except google.LoginFailed as exc:
         # 이메일은 로그에 남기지 않는다 — 누가 거절됐는지는 이유 한 줄이면 충분하다
@@ -326,6 +329,9 @@ def google_callback(
         response, request, auth.issue_user_token(user.id, user.session_epoch, user.google_sub)
     )
     logger.info("구글 로그인: 사용자 %s", user.id)
+    if was_dormant:
+        # 빠져 있던 동안 밀린 시세를 뒤에서 받는다 — 안 그러면 오늘 밤까지 옛 차트를 본다
+        pipeline.catch_up_in_background(sessionmaker(bind=db.get_bind()), user.id)
     return response
 
 

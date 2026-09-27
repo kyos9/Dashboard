@@ -8,6 +8,7 @@ import { NumberInput } from '../components/NumberInput'
 import { SymbolSearch } from '../components/SymbolSearch'
 import { CURRENCY_BY_MARKET, CURRENCY_META, MARKET_LABEL, stockLabel } from '../lib/display'
 import type { ListingStatus, Stock, SymbolMatch } from '../types'
+import { listingHint, listingRefreshNotice } from '../lib/listing'
 import { useRecheck } from '../lib/recheck'
 
 /** 새 종목 입력칸. 숫자도 글자로 들고 있다 — 비워둔 것과 0을 구분해야 한다 */
@@ -165,19 +166,6 @@ function StockRow({
       </td>
     </tr>
   )
-}
-
-/** 지금 무엇으로 검색되고 있는지 한 줄로. 목록이 언제 기준인지 모르면
- *  "검색이 안 된다"의 원인을 사용자가 짐작할 수 없다. */
-function listingHint(listing: ListingStatus | null): string {
-  if (!listing) {
-    return '신규 상장이나 사명이 바뀐 종목이 검색되지 않을 때 누르세요.'
-  }
-  if (listing.cached_count > 0) {
-    const when = listing.updated_at ? listing.updated_at.slice(0, 10) : '최근'
-    return `거래소 목록 ${listing.cached_count.toLocaleString('ko-KR')}종목으로 검색합니다 (${when} 받음). 새로 상장된 종목이 안 나오면 누르세요.`
-  }
-  return `아직 거래소 목록을 받지 못해 내장 목록 ${listing.seed_count.toLocaleString('ko-KR')}종목(${listing.seed_as_of} 기준)으로만 검색합니다. 중소형주를 찾으려면 눌러주세요.`
 }
 
 export function StockManager() {
@@ -339,11 +327,7 @@ export function StockManager() {
     try {
       const result = await api.refreshSymbolListing()
       api.getListingStatus().then(setListing).catch(() => {})
-      setNotice(
-        result.ok
-          ? { tone: 'green', text: `국내 상장목록 ${result.count.toLocaleString('ko-KR')}종목을 받았습니다. 신규 상장·사명 변경이 검색에 반영됩니다.` }
-          : { tone: 'amber', text: result.hint ?? '상장목록을 받지 못했습니다.', detail: result.error },
-      )
+      setNotice(listingRefreshNotice(result))
     } catch (e) {
       setError(e)
     } finally {
@@ -370,7 +354,7 @@ export function StockManager() {
           <h2>종목 관리</h2>
           <p className="hint">
             종목을 추가하면 전체 히스토리를 내려받아 지표·시그널을 계산합니다. 국내주식은 종목명(삼성전자)이나
-            종목코드(005930)로, 해외주식은 티커(VOO)로 찾을 수 있습니다. 구분(지수/알파/안전자산 등)은
+            종목코드(005930)로, 미국주식은 티커(VOO)나 영문 이름(Agilent)으로 찾을 수 있습니다. 구분(지수/알파/안전자산 등)은
             자유 입력이며 대시보드 필터로 쓰입니다.
           </p>
         </div>
@@ -401,7 +385,7 @@ export function StockManager() {
               {listingBusy ? '받는 중…' : '거래소 목록 갱신'}
             </button>
           )}
-          <span className="hint">{listingHint(listing)}</span>
+          <span className="hint">{listingHint(listing, isAdmin)}</span>
         </div>
         <div className="form-grid">
           <div className="field field-wide">

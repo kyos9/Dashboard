@@ -10,7 +10,7 @@
   1. 이미 티커 형태인가 — `VOO`, `005930.KS`, `^GSPC`
   2. 번들 시드 (`krx_seed.json` · `jp_seed.json` · `us_seed.json`) — 네트워크가 막혀도
      주요 종목은 찾을 수 있고, 미국 종목은 한글 이름으로도 찾을 수 있다
-  3. DB에 캐시된 KRX 상장목록
+  3. DB에 캐시된 KRX 상장목록 · 미국 상장목록 (`us_listing.py`)
   4. KRX 상장목록 온라인 조회 (받아오면 DB에 캐시)
   5. 야후 검색 API — 해외 종목과 국내 ETF까지 폭넓게 커버
 """
@@ -61,8 +61,9 @@ JP_SEED_AS_OF = "2026-09"
 # 찾을 수 없다. 자주 보는 종목과 ETF에 **한글 별칭**을 붙여 손으로 적어둔 목록이고,
 # 그래서 갱신되지 않는다. 여기 없는 종목은 티커(`AAPL`)나 영문 이름으로 등록하면 된다.
 #
-# 이름은 상장목록의 공식 표기를 따라 적었다. 사명이 바뀌면 낡을 수 있는데, 나중에 미국
-# 상장목록을 받아오면 한국거래소 목록이 KRX 시드를 덮듯 이 이름도 덮이고 별칭만 남는다.
+# 이름은 상장목록의 공식 표기를 따라 적었다. 미국 상장목록(`us_listing.py`)을 받아도 **이
+# 목록이 이긴다** — 받아온 이름은 별칭으로만 붙는다 (`_us_entries`). 거기 없는 종목만
+# 받아온 이름 그대로 검색된다.
 US_SEED_AS_OF = "2026-09"
 
 # 미국식 티커 모양 (VOO, BRK-B, ^GSPC). 한글이 섞이면 당연히 해당 없음.
@@ -209,10 +210,10 @@ def _score_entry(entry: dict, query: str, query_tight: str) -> float:
     """검색어가 이 종목과 얼마나 맞는지. 0이면 후보 아님."""
     # 미국 코드는 티커라서 대소문자와 하이픈이 섞인다 (`BRK-B`). 양쪽 다 눌러서 비교한다 —
     # 한국 코드는 숫자뿐이라 눌러도 그대로다.
-    if _tight(entry["code"]) == query_tight:
+    code_tight, name_tight, aliases_tight = entry.get("_tight") or _tight_forms(entry)
+    if code_tight == query_tight:
         return SCORE_CODE_EXACT
 
-    name_tight = _tight(entry["name"])
     if name_tight == query_tight:
         return SCORE_NAME_EXACT
     if name_tight.startswith(query_tight):
@@ -221,8 +222,7 @@ def _score_entry(entry: dict, query: str, query_tight: str) -> float:
         return SCORE_NAME_CONTAINS
 
     best = 0.0
-    for alias in entry.get("aliases", ()):
-        alias_tight = _tight(alias)
+    for alias_tight in aliases_tight:
         if alias_tight == query_tight:
             best = max(best, SCORE_ALIAS_EXACT)
         elif alias_tight.startswith(query_tight):
@@ -232,7 +232,62 @@ def _score_entry(entry: dict, query: str, query_tight: str) -> float:
     return best
 
 
+def _tight_forms(entry: dict) -> tuple[str, str, tuple[str, ...]]:
+    return (
+        _tight(entry["code"]),
+        _tight(entry["name"]),
+        tuple(_tight(alias) for alias in entry.get("aliases", ())),
+    )
+
+
+# 검색은 글자를 칠 때마다 온다. 매번 두 목록(국내 수천·미국 1만 줄 가깝게)을 DB 에서 다시
+# 읽고 이름마다 공백·기호를 다시 떼면 검색 한 번이 수십 ms 가 된다. **두 표의 행 수와 받은
+# 시각이 그대로인 동안은** 만들어둔 목록을 쓴다 — 목록을 다시 받으면 받은 시각이 바뀌어
+# 다음 검색이 새로 만든다 (프로세스가 여럿이어도 각자 알아챈다). 목록 안의 사전은
+# 여럿이 같이 읽으므로 **고치지 않는다.**
+_entries_lock = threading.Lock()
+_entries_cache: tuple[tuple | None, list[dict]] = (None, [])
+
+
+def reset_entries_cache() -> None:
+    """테스트용 — DB 가 테스트마다 새로 생기므로 앞 테스트가 만들어둔 목록을 비운다."""
+    global _entries_cache
+    with _entries_lock:
+        _entries_cache = (None, [])
+
+
+def _listing_key(db: Session | None) -> tuple:
+    if db is None:
+        return ("no-db",)
+    from app.models import KrxListing, UsListing
+
+    key: list = []
+    for model in (KrxListing, UsListing):
+        try:
+            key.extend(db.query(func.count(model.code), func.max(model.updated_at)).one())
+        except Exception:
+            # 표가 아직 없거나 읽기 실패 — 있는 것으로 계속 간다 (아래에서 다시 시도한다)
+            db.rollback()
+            key.extend((None, model.__tablename__))
+    return tuple(key)
+
+
 def _local_entries(db: Session | None) -> list[dict]:
+    """시드 + 받아둔 상장목록을 합친 목록 (공백·기호를 뗀 형태까지 미리 만들어 둔다)."""
+    global _entries_cache
+    key = _listing_key(db)
+    cached_key, cached = _entries_cache
+    if key == cached_key:
+        return cached
+    entries = _build_entries(db)
+    for entry in entries:
+        entry["_tight"] = _tight_forms(entry)
+    with _entries_lock:
+        _entries_cache = (key, entries)
+    return entries
+
+
+def _build_entries(db: Session | None) -> list[dict]:
     """시드 + DB 캐시를 합친 목록. 같은 코드는 DB 캐시(한국거래소 공식)를 쓴다."""
     by_code: dict[str, dict] = {
         entry["code"]: {**entry, "source": "seed"} for entry in load_seed()
@@ -275,10 +330,52 @@ def _local_entries(db: Session | None) -> list[dict]:
     entries.extend(
         {**entry, "market": Market.JP.value, "source": "seed-jp"} for entry in load_jp_seed()
     )
-    entries.extend(
-        {**entry, "market": Market.US.value, "source": "seed-us"} for entry in load_us_seed()
-    )
+    entries.extend(_us_entries(db))
     return entries
+
+
+def _us_entries(db: Session | None) -> list[dict]:
+    """내장 미국 목록 + 받아둔 미국 상장목록.
+
+    **같은 티커면 내장 목록이 이긴다.** 손으로 적은 정식 이름과 한글 별칭("애플")이 거기
+    있고, 받아온 쪽 이름(SEC 는 "NVIDIA CORP" 처럼 대문자로 준다)은 별칭으로만 붙인다 —
+    그래도 그 이름으로 찾힌다. 내장 목록에 없는 종목은 받아온 이름 그대로 쓴다.
+    """
+    by_code: dict[str, dict] = {
+        entry["code"]: {**entry, "market": Market.US.value, "source": "seed-us"}
+        for entry in load_us_seed()
+    }
+    for code, name, instrument in _us_listing_rows(db):
+        seeded = by_code.get(code)
+        if seeded is None:
+            by_code[code] = {
+                "code": code,
+                "name": name,
+                "instrument": instrument,
+                "aliases": [],
+                "market": Market.US.value,
+                "source": "us-listing",
+            }
+        elif _tight(seeded["name"]) != _tight(name):
+            seeded["aliases"] = [*seeded.get("aliases", []), name]
+    return list(by_code.values())
+
+
+def _us_listing_rows(db: Session | None) -> list[tuple[str, str, str]]:
+    if db is None:
+        return []
+    from app.models import UsListing
+
+    try:
+        return [
+            (code, name, instrument or "STOCK")
+            for code, name, instrument in db.query(UsListing.code, UsListing.name, UsListing.instrument)
+        ]
+    except Exception:
+        # 표가 아직 없거나 읽기 실패해도 내장 목록만으로 계속 동작해야 한다
+        logger.exception("미국 상장목록 캐시 조회 실패 — 내장 목록만 사용합니다")
+        db.rollback()
+        return []
 
 
 def _search_local(db: Session | None, query: str, limit: int) -> list[SymbolMatch]:
@@ -393,12 +490,70 @@ def listing_status(db: Session) -> dict:
         cached = 0
 
     updated_at = krx_listing_updated_at(db) if cached else None
+    us_count, us_updated_at, us_source = _us_listing_summary(db)
     return {
         "cached_count": cached,
         "updated_at": updated_at.isoformat() if updated_at else None,
         "seed_count": len(load_seed()),
         "seed_as_of": SEED_AS_OF,
+        "us_count": us_count,
+        "us_updated_at": us_updated_at.isoformat() if us_updated_at else None,
+        # 나스닥 트레이더(ETF 포함) / SEC(회사만) — SEC 면 화면이 "ETF 는 빠져 있다"고 말한다
+        "us_source": us_source,
+        "us_seed_count": len(load_us_seed()),
     }
+
+
+def _us_listing_summary(db: Session) -> tuple[int, dt.datetime | None, str | None]:
+    from app.models import UsListing
+
+    try:
+        count, updated_at = db.query(func.count(UsListing.code), func.max(UsListing.updated_at)).one()
+        source = db.query(UsListing.source).limit(1).scalar() if count else None
+    except Exception:
+        logger.exception("미국 상장목록 캐시 조회 실패")
+        return 0, None, None
+    return count or 0, updated_at, source
+
+
+def refresh_us_listing_if_stale(db: Session, timeout: int = 30) -> int | None:
+    """비어 있거나 일주일이 지났을 때만 받는다. 건너뛰었으면 None."""
+    count, updated_at, _ = _us_listing_summary(db)
+    if count and updated_at is not None and dt.datetime.utcnow() - updated_at < LISTING_STALE_AFTER:
+        return None
+    return refresh_us_listing(db, timeout=timeout)
+
+
+def refresh_us_listing(db: Session, timeout: int = 30) -> int:
+    """미국 상장목록을 받아 **통째로 갈아 끼운다.** 저장한 종목 수를 돌려준다.
+
+    한국 목록처럼 덧붙이기만 하면 상장폐지된 종목(미국은 스팩·소형주가 잦다)이 검색에
+    계속 남는다. 잘린 목록으로 덮어쓰는 일은 `us_listing.MIN_ROWS` 가 막는다 — 받는 쪽이
+    실패하면 여기까지 오지 않고 기존 캐시가 그대로 남는다.
+    """
+    from app.models import UsListing
+    from app.services import us_listing
+
+    source, rows = us_listing.fetch_all(timeout=timeout)  # 실패하면 UsListingUnavailable
+    now = dt.datetime.utcnow()
+    try:
+        db.query(UsListing).delete()
+        db.add_all(
+            UsListing(
+                code=row["code"],
+                name=row["name"],
+                exchange=row.get("exchange"),
+                instrument=row.get("instrument") or "STOCK",
+                source=source,
+                updated_at=now,
+            )
+            for row in rows
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    return len(rows)
 
 
 def refresh_krx_listing_if_stale(db: Session, timeout: int = 30) -> int | None:
@@ -433,6 +588,7 @@ def refresh_krx_listing(db: Session, timeout: int = 30) -> int:
     from app.services import krx
 
     listings = krx.fetch_all(timeout=timeout)  # 실패하면 KrxUnavailable
+    now = dt.datetime.utcnow()
     existing = {row.code: row for row in db.query(KrxListing).all()}
 
     for item in listings:
@@ -443,6 +599,9 @@ def refresh_krx_listing(db: Session, timeout: int = 30) -> int:
         row.name = item["name"]
         row.board = item["board"]
         row.instrument = item.get("instrument", "STOCK")
+        # 받을 때마다 찍는다. 새 행에만 찍히던 때는 "언제 받았나"가 **마지막 신규 상장일**이
+        # 되어 화면의 "받음" 날짜가 틀렸고, 검색이 목록이 바뀐 것을 알아채지 못했다.
+        row.updated_at = now
     db.commit()
     _adopt_official_names(db, {item["code"]: item["name"] for item in listings})
     return len(listings)

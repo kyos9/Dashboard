@@ -374,6 +374,52 @@ def test_seed_does_not_resurrect_what_the_user_turned_off(db_session):
     assert "CPIAUCSL" not in [s.code for s in macro.active_series(db_session)]
 
 
+def test_new_indicators_reach_a_database_seeded_before_them(db_session):
+    """실업률·S&P 500·코스피는 서버가 이미 돌던 뒤에 더했다 (작은 일들).
+
+    옛 시드로 채운 DB 에 **새 셋만** 들어가야 한다 — 나머지를 다시 넣거나 사용자가 바꾼
+    순서를 되돌리면 안 된다. 지수는 맨 앞, 실업률은 기준금리 뒤에 선다.
+    """
+    new = {"SP500", "KOSPI", "UNRATE"}
+    for spec in macro.SEED_SERIES:
+        if spec["code"] not in new:
+            db_session.add(MacroSeries(**spec))
+    db_session.commit()
+    db_session.get(MacroSeries, "DFF").display_order = 5
+    db_session.commit()
+
+    assert macro.ensure_seed(db_session) == 3
+    assert db_session.get(MacroSeries, "DFF").display_order == 5
+
+    order = [s.code for s in macro.active_series(db_session)]
+    assert order[:2] == ["SP500", "KOSPI"]
+    assert order.index("UNRATE") == len(order) - 1
+
+
+def test_indices_are_read_as_points_and_unemployment_as_percent():
+    """지수는 레벨 그대로(6,600), 실업률은 이미 % 라 %p 로 비교한다 — 전년비로 바꾸면
+    "실업률의 변화율"이 되어 아무도 못 읽는다."""
+    by_code = {spec["code"]: spec for spec in macro.SEED_SERIES}
+    for code in ("SP500", "KOSPI"):
+        assert by_code[code]["unit"] == "level"
+        assert by_code[code]["transform"] == "none"
+        assert by_code[code]["frequency"] == "daily"
+    assert by_code["UNRATE"]["unit"] == "percent"
+    assert by_code["UNRATE"]["transform"] == "none"
+    assert by_code["UNRATE"]["frequency"] == "monthly"
+
+
+def test_index_fallbacks_are_the_same_number_or_nothing():
+    """폴백은 같은 단위·같은 정의일 때만 — S&P 500 은 FRED 가 같은 종가를 들고 있지만,
+    FRED 의 한국 주가지수는 2015=100 월평균이라 코스피 카드에 꽂으면 값이 조용히 바뀐다."""
+    by_code = {spec["code"]: spec for spec in macro.SEED_SERIES}
+    assert (by_code["SP500"]["source"], by_code["SP500"]["source_code"]) == ("yahoo", "^GSPC")
+    assert (by_code["SP500"]["fallback_source"], by_code["SP500"]["fallback_code"]) == ("fred", "SP500")
+    assert (by_code["KOSPI"]["source"], by_code["KOSPI"]["source_code"]) == ("yahoo", "^KS11")
+    assert by_code["KOSPI"]["fallback_source"] is None
+    assert (by_code["UNRATE"]["source"], by_code["UNRATE"]["source_code"]) == ("fred", "UNRATE")
+
+
 def test_a_revised_value_overwrites_and_is_counted(db_session):
     """CPI·PCE 는 발표 뒤에도 수정된다. 덮어쓴 것을 세어두지 않으면 나중에 왜 달라졌는지 모른다."""
     macro.ensure_seed(db_session)

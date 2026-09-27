@@ -83,6 +83,16 @@ def no_background_push(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def fresh_symbol_cache():
+    """검색 목록(내장 + 상장목록)은 프로세스 안에 만들어 둔다. 테스트마다 DB 가 새로 생기므로 비운다."""
+    from app.services import symbols
+
+    symbols.reset_entries_cache()
+    yield
+    symbols.reset_entries_cache()
+
+
+@pytest.fixture(autouse=True)
 def fresh_limits():
     """새로고침 쿨다운·검색 한도는 프로세스 안에 기억된다. 앞 테스트의 기억을 비운다."""
     from app.services import limits
@@ -151,6 +161,11 @@ def api(monkeypatch):
     from app.services import fundamentals
 
     monkeypatch.setattr(fundamentals, "RUNNER", lambda work: None)
+    # 반년 만에 다시 들어온 사람의 밀린 시세도 뒤에서 받는다 — 시세 조회라 여기서는 돌리지 않는다
+    # (돌리는 쪽은 test_dormant.py 가 본다).
+    from app.services import pipeline
+
+    monkeypatch.setattr(pipeline, "RUNNER", lambda work: None)
 
     # 메모리 SQLite는 연결마다 DB가 따로 생기므로 StaticPool로 하나를 붙들어야 한다
     # (Postgres로 돌 때는 서버가 하나라 해당 없다).

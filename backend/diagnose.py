@@ -583,4 +583,30 @@ if app_modules:
         info("  저쪽이 옮기거나 모양을 바꾸면 여기만 멈춥니다.")
 
 
+# ── 12. 미국 상장목록 ────────────────────────────────────────────────
+# 내장 목록(140여 개)에 없는 미국 종목을 이름으로 찾는 데 쓴다. 나스닥 트레이더가 1순위
+# (ETF 포함)이고, 막히면 SEC 목록(회사만)으로 물러선다. **둘 다 따로 본다** — 합쳐서 보면
+# 나스닥 트레이더가 막힌 것이 SEC 성공 뒤에 가려진다.
+if app_modules:
+    section("12. 미국 상장목록 (이름으로 미국 종목 찾기)")
+
+    from app.services import us_listing
+
+    for label, fetch in (("나스닥 트레이더 (ETF 포함)", us_listing.fetch_nasdaq_trader),
+                         ("SEC (회사만 — 위가 막혔을 때 씀)", us_listing.fetch_sec)):
+        began = time.monotonic()
+        try:
+            rows = fetch(timeout=30)
+            etfs = sum(1 for row in rows if row["instrument"] == "ETF")
+            ok(f"{label}: {len(rows):,}종목 (ETF {etfs:,}) — {time.monotonic() - began:.1f}초")
+            by_code = {row["code"]: row for row in rows}
+            for probe in ("AAPL", "BRK-B", "SCHD", "A"):
+                row = by_code.get(probe)
+                if row:
+                    print(f"         {probe:6s} → {row['name']} [{row['exchange']}, {row['instrument']}]")
+        except Exception as exc:
+            fail(f"{label} ({time.monotonic() - began:.1f}초) — {brief(exc, 300)}")
+    info("→ 둘 다 실패해도 내장 목록(주요 종목·ETF)과 티커 입력, 야후 검색으로 등록할 수 있습니다.")
+
+
 print(f"\n{LINE}\n진단 완료 — 위 출력 전체를 복사해서 공유해주세요.\n{LINE}")

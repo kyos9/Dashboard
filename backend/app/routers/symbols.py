@@ -39,22 +39,32 @@ def listing_status(db: Session = Depends(get_db)):
 
 @router.post("/refresh-listing", dependencies=[Depends(require_owner)])
 def refresh_listing(db: Session = Depends(get_db)):
-    """국내 상장목록(네이버, 안 되면 한국거래소)을 다시 받아 캐시한다.
+    """국내 상장목록(네이버, 안 되면 한국거래소)과 미국 상장목록(나스닥 트레이더, 안 되면 SEC)을
+    다시 받아 캐시한다.
 
     실패해도 번들 시드로 검색은 계속 되므로 500이 아니라 실패 사유를 담아 200으로
-    돌려준다 — 화면에서 "갱신은 실패했지만 검색은 된다"고 안내할 수 있게.
+    돌려준다 — 화면에서 "갱신은 실패했지만 검색은 된다"고 안내할 수 있게. 국내와 미국은
+    다른 서버라 **따로 성공·실패한다** (`ok`·`count` 는 국내, `us` 는 미국).
     """
+    result: dict = {}
     try:
-        count = symbols.refresh_krx_listing(db)
-        return {"ok": True, "count": count}
+        result.update(ok=True, count=symbols.refresh_krx_listing(db))
     except Exception as exc:
+        db.rollback()
         logger.warning("KRX 상장목록 갱신 실패: %s", exc)
-        return {
-            "ok": False,
-            "count": 0,
-            "error": str(exc),
-            "hint": (
+        result.update(
+            ok=False,
+            count=0,
+            error=str(exc),
+            hint=(
                 "국내 상장목록을 받지 못했습니다. 네트워크가 막혀 있어도 "
                 "주요 종목은 내장 목록으로 검색됩니다."
             ),
-        }
+        )
+    try:
+        result["us"] = {"ok": True, "count": symbols.refresh_us_listing(db)}
+    except Exception as exc:
+        db.rollback()
+        logger.warning("미국 상장목록 갱신 실패: %s", exc)
+        result["us"] = {"ok": False, "count": 0, "error": str(exc)}
+    return result

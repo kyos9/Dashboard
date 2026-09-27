@@ -61,6 +61,18 @@ describe('종목 검색', () => {
     expect(screen.getByText(/거래소 목록/)).toBeInTheDocument()
   })
 
+  it('받아둔 미국 상장목록에서 온 후보도 출처를 밝힌다', async () => {
+    const agilent: SymbolMatch = {
+      ticker: 'A', name: 'Agilent Technologies, Inc.', market: 'US', board: null,
+      instrument: 'STOCK', source: 'us-listing', confident: true,
+    }
+    const { user } = setup([agilent])
+    await user.type(screen.getByRole('combobox'), 'agilent')
+
+    expect(await screen.findByText('Agilent Technologies, Inc.')).toBeInTheDocument()
+    expect(screen.getByText(/미국 상장목록/)).toBeInTheDocument()
+  })
+
   it('타이핑마다 요청하지 않는다 (디바운스)', async () => {
     const { user } = setup()
     const spy = vi.mocked(api.searchSymbols)

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppStateProvider } from '../AppState'
 import { api, ApiError } from '../api/client'
 import type { ListingStatus, Settings, Stock, StockCreateResult, SymbolMatch } from '../types'
+import { listingHint, listingRefreshNotice } from '../lib/listing'
 import { StockManager } from './StockManager'
 
 const SAMSUNG: SymbolMatch = {
@@ -365,6 +366,61 @@ describe('거래소 목록 갱신', () => {
 
     await user.click(screen.getByRole('button', { name: '거래소 목록 갱신' }))
     expect(await screen.findByText(/내장 목록으로 검색됩니다/)).toBeInTheDocument()
+  })
+})
+
+describe('미국 상장목록 안내', () => {
+  const base: ListingStatus = {
+    cached_count: 2743,
+    updated_at: '2026-09-16T05:00:00',
+    seed_count: 176,
+    seed_as_of: '2026-09',
+    us_count: 0,
+    us_updated_at: null,
+    us_source: null,
+    us_seed_count: 139,
+  }
+
+  it('미국 목록을 받았으면 몇 종목을 언제 받았는지 따로 말한다', () => {
+    const hint = listingHint({ ...base, us_count: 9876, us_updated_at: '2026-09-27T01:00:00', us_source: 'nasdaqtrader' })
+    expect(hint).toContain('국내는 거래소 목록 2,743종목(2026-09-16 받음)')
+    expect(hint).toContain('미국은 상장목록 9,876종목(2026-09-27 받음)')
+    expect(hint).not.toContain('ETF는')
+  })
+
+  it('SEC 목록(회사만)이면 ETF 는 주요 종목과 티커로 찾는다고 밝힌다', () => {
+    const hint = listingHint({ ...base, us_count: 6100, us_updated_at: '2026-09-27T01:00:00', us_source: 'sec' })
+    expect(hint).toContain('ETF는 주요 종목과 티커로 찾습니다')
+  })
+
+  it('미국 목록이 없으면 주요 종목과 티커로 찾는다고 말한다', () => {
+    expect(listingHint(base)).toContain('미국은 주요 종목 139개와 티커로 찾습니다')
+  })
+
+  it('버튼이 없는 사람에게는 "누르세요"라고 하지 않는다', () => {
+    expect(listingHint(base, true)).toContain('누르세요')
+    expect(listingHint(base, false)).not.toContain('누르세요')
+    expect(listingHint(null, false)).toBe('')
+  })
+
+  it('둘 다 받으면 초록, 한쪽만 실패하면 무엇이 됐고 무엇이 안 됐는지 따로', () => {
+    expect(listingRefreshNotice({ ok: true, count: 2841, us: { ok: true, count: 9876 } })).toEqual({
+      tone: 'green',
+      text: '국내 2,841종목 · 미국 9,876종목을 받았습니다. 신규 상장·사명 변경이 검색에 반영됩니다.',
+    })
+
+    const usFailed = listingRefreshNotice({ ok: true, count: 2841, us: { ok: false, count: 0, error: 'HTTP 403' } })
+    expect(usFailed.tone).toBe('amber')
+    expect(usFailed.text).toContain('국내 상장목록 2,841종목은 받았습니다')
+    expect(usFailed.text).toContain('미국 상장목록은 받지 못했습니다')
+    expect(usFailed.detail).toBe('미국: HTTP 403')
+
+    const krFailed = listingRefreshNotice({
+      ok: false, count: 0, error: '연결 실패', hint: '국내 상장목록을 받지 못했습니다.', us: { ok: true, count: 9876 },
+    })
+    expect(krFailed.tone).toBe('amber')
+    expect(krFailed.text).toContain('미국 상장목록 9,876종목은 받았습니다')
+    expect(krFailed.detail).toBe('국내: 연결 실패')
   })
 })
 

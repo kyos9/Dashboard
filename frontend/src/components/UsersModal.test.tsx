@@ -152,6 +152,14 @@ describe('사용자 목록', () => {
     return { onChanged, onClose }
   }
 
+  it('반년 넘게 안 들어온 사람은 수집을 쉬고 있다고 표시한다 (차단 버튼은 그대로)', async () => {
+    open([FRIEND, person({ id: 8, name: '오래된 친구', dormant: true }), OWNER])
+    const away = await screen.findByTestId('user-8')
+    expect(within(away).getByText('반년 미접속 · 수집 쉼')).toBeInTheDocument()
+    expect(within(away).getByRole('button', { name: '차단' })).toBeInTheDocument()
+    expect(within(screen.getByTestId('user-3')).queryByText('반년 미접속 · 수집 쉼')).not.toBeInTheDocument()
+  })
+
   it('상태마다 할 수 있는 것만 — 관리자 줄에는 버튼이 없다', async () => {
     open([
       WAITING,

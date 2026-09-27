@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models import User, UserStock
+from app.services import pipeline
 from app.services.users import (
     STATUS_ACTIVE,
     STATUS_BLOCKED,
@@ -38,7 +39,7 @@ class StatusChange(BaseModel):
     status: Literal["active", "rejected", "blocked"]
 
 
-def _row(user: User, stock_count: int) -> dict:
+def _row(user: User, stock_count: int, dormant: bool = False) -> dict:
     return {
         "id": user.id,
         "email": user.email,
@@ -48,6 +49,8 @@ def _row(user: User, stock_count: int) -> dict:
         "created_at": user.created_at.isoformat() if user.created_at else None,
         "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
         "stock_count": stock_count,
+        # 반년 넘게 안 들어와 이 사람만 담은 종목은 매일 받지 않는다 (`pipeline.in_use`)
+        "dormant": dormant,
     }
 
 
@@ -62,7 +65,7 @@ def list_users(db: Session = Depends(get_db)) -> list[dict]:
     counts = _stock_counts(db)
     users = db.query(User).all()
     users.sort(key=lambda u: (_ORDER.get(u.status, 9), -(u.created_at.timestamp() if u.created_at else 0)))
-    return [_row(user, counts.get(user.id, 0)) for user in users]
+    return [_row(user, counts.get(user.id, 0), pipeline.is_dormant(db, user)) for user in users]
 
 
 @router.put("/users/{user_id}/status")
@@ -91,4 +94,4 @@ def change_status(user_id: int, payload: StatusChange, db: Session = Depends(get
         user.status = payload.status
         db.commit()
         logger.info("사용자 %s 상태를 %s(으)로 바꿨습니다", user.id, payload.status)
-    return _row(user, _stock_counts(db).get(user.id, 0))
+    return _row(user, _stock_counts(db).get(user.id, 0), pipeline.is_dormant(db, user))
