@@ -51,7 +51,7 @@ describe('방침 화면', () => {
 
   it('모든 화면 아래에 방침 링크가 있다', async () => {
     mock(guest())
-    vi.spyOn(api, 'getMacroPinned').mockResolvedValue({ codes: [], items: [] } as never)
+    vi.spyOn(api, 'getMacroPinned').mockResolvedValue({ codes: [], series: [], badges: [] })
     render(<App />)
     const link = await screen.findByRole('link', { name: '개인정보처리방침 · 이용약관' })
     expect(link).toHaveAttribute('href', '/privacy')
