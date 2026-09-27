@@ -254,6 +254,19 @@ def yoy(v: View, metric: str) -> tuple[float | None, Period | None]:
     return (latest.value / before.value - 1) * 100, latest
 
 
+def yoy_annual(v: View, metric: str) -> tuple[float | None, Period | None]:
+    """최근 연간 vs 그 전해 (%). 분기 값이 없는 출처(야후의 일부 일본 종목)에서만 쓴다."""
+    years = {f.end: f for f in v.of(metric) if f.is_duration and _is_year(f.start, f.end)}
+    if not years:
+        return None, None
+    latest = years[max(years)]
+    basis = _period(v, [latest], latest.value, latest.start, latest.end)
+    before_end = _near(latest.end - dt.timedelta(days=365), years.keys())
+    if before_end is None or years[before_end].value <= 0:
+        return None, basis
+    return (latest.value / years[before_end].value - 1) * 100, basis
+
+
 def shares_now(v: View, near: dt.date | None) -> float | None:
     """주당 순자산에 쓸 주식 수. 표지의 발행주식수가 있으면 그것, 없으면 최근 분기 희석 가중평균."""
     instant = latest_instant(v, "shares")
@@ -326,7 +339,12 @@ def snapshot(facts: list[Fact], price: float | None, day: dt.date | None = None)
     for metric, key in (("revenue", "revenue_yoy"), ("operating_income", "operating_income_yoy"),
                         ("eps_diluted", "eps_yoy")):
         growth, basis = yoy(v, metric)
-        out[key] = _metric(key, growth, basis)
+        note = None
+        if basis is None:
+            # 분기 값이 아예 없으면 연간끼리 — 값 밑에 "연간 비교"라고 적는다
+            growth, basis = yoy_annual(v, metric)
+            note = "연간 비교" if growth is not None else None
+        out[key] = _metric(key, growth, basis, note)
 
     debt = None
     if equity is not None and equity.value > 0:

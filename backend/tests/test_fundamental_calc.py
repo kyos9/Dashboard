@@ -223,3 +223,18 @@ def test_quarter_table_lists_latest_first_with_first_filing_date():
     assert latest["filed_at"] == D(2026, 1, 30)
     # 2024년은 현금흐름이 없다 — 빈칸이지 0 이 아니다
     assert rows[-1]["operating_cf"] is None and rows[-1]["fcf"] is None
+
+
+def test_annual_growth_only_when_there_are_no_quarters():
+    from app.services import fundamental_calc as c
+
+    y = lambda start, end, value, filed: c.Fact("revenue", start, end, value, filed)  # noqa: E731
+    facts = [y(dt.date(2024, 4, 1), dt.date(2025, 3, 31), 80.0, dt.date(2025, 5, 10)),
+             y(dt.date(2025, 4, 1), dt.date(2026, 3, 31), 100.0, dt.date(2026, 5, 10))]
+    snap = c.snapshot(facts, None)
+    assert snap["revenue_yoy"]["value"] == pytest.approx(25.0) and snap["revenue_yoy"]["note"] == "연간 비교"
+    # 그 전해가 0 이하면 비율이 뜻이 없다
+    facts[0] = y(dt.date(2024, 4, 1), dt.date(2025, 3, 31), -5.0, dt.date(2025, 5, 10))
+    snap = c.snapshot(facts, None)
+    assert snap["revenue_yoy"]["value"] is None and snap["revenue_yoy"]["note"] is None
+    assert snap["revenue_yoy"]["period_end"] == dt.date(2026, 3, 31)

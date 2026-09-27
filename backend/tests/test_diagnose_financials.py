@@ -166,5 +166,8 @@ def test_split_basis_compares_old_share_count_with_today(diag):
 
     text = diag.split_basis(Handle())
     assert "5:1" in text and "= 0.20" in text
+    # 분할이 가장 옛 값보다 앞이면 이 종목으로는 알 수 없다 (도요타 2021 분할, 서버 진단 v0.27.0)
+    Handle.splits = pd.Series([5.0], index=[pd.Timestamp("2021-09-29")])
+    assert "확인할 것 없음" in diag.split_basis(Handle()) and "= " not in diag.split_basis(Handle())
     Handle.splits = pd.Series([], dtype=float, index=pd.DatetimeIndex([]))
     assert "분할 없음" in diag.split_basis(Handle())

@@ -121,6 +121,8 @@ export function metricValue(metric: FundamentalMetric | undefined, currency: Cur
 export function metricBasisParts(metric: FundamentalMetric | undefined): string[] {
   if (!metric?.period_end) return ['공시에 없음']
   const parts = [`${quarterLabel(metric.period_end)}까지`]
+  // 값이 있는데 붙은 설명 — "연간 비교"(분기 값이 없는 종목). 값이 없을 때의 설명(적자)은 값 자리에 나온다.
+  if (metric.note && metric.value !== null) parts.push(metric.note)
   if (metric.filed_at) parts.push(`공시 ${metric.filed_at}${metric.estimated ? ' (추정)' : ''}`)
   return parts
 }

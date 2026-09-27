@@ -6,6 +6,7 @@ import {
   currentPer,
   latestQuarter,
   metricBasis,
+  metricBasisParts,
   metricValue,
   perAxis,
   perAxisPos,
@@ -119,5 +120,15 @@ describe('PER 한눈에', () => {
     expect(perTooltip(LOSS)).toContain('지금 PER 없음')
     expect(perTooltip(NEW)).toContain('기록이 없습니다')
     for (const t of [text, perTooltip(NVDA)]) expect(t).not.toMatch(/싸|비싸|저평가|고평가/)
+  })
+})
+
+describe('값 밑의 근거', () => {
+  it('값이 있는 설명(연간 비교)은 근거에, 값이 없는 설명(적자)은 값 자리에', () => {
+    const annual = { ...metric('revenue_yoy'), note: '연간 비교', period_end: '2026-03-31' }
+    expect(metricBasisParts(annual)).toEqual(['2026.03까지', '연간 비교', '공시 2026-07-23'])
+    const loss = { ...metric('per'), value: null, note: '적자' }
+    expect(metricBasisParts(loss)).not.toContain('적자')
+    expect(metricValue(loss, 'USD')).toBe('적자')
   })
 })

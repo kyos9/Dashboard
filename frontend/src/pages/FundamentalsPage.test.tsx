@@ -127,3 +127,14 @@ describe('PER 한눈에', () => {
     expect(await screen.findByRole('dialog')).toBeInTheDocument()
   })
 })
+
+it('분기 값이 없어 연간끼리 비교한 성장은 표에도 그렇게 적는다', async () => {
+  const annual: FundamentalsResponse = {
+    ...GOOG,
+    metrics: GOOG.metrics.map((m) => (m.key === 'revenue_yoy' ? { ...m, value: 7.1, note: '연간 비교' } : m)),
+  }
+  vi.spyOn(api, 'listFundamentals').mockResolvedValue([annual])
+  render(<FundamentalsPage />)
+  const cell = (await screen.findByText('+7.1%')).closest('td') as HTMLElement
+  expect(within(cell).getByText('(연간 비교)')).toBeInTheDocument()
+})

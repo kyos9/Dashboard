@@ -113,6 +113,9 @@ export function FundamentalsPage() {
                         {COLUMNS.slice(1).map((c) => (
                           <td key={c.key} data-label={c.label} className="mono">
                             {metricValue(byKey[c.key], row.currency)}
+                            {byKey[c.key]?.note && byKey[c.key]?.value != null && (
+                              <span className="hint nobr"> ({byKey[c.key].note})</span>
+                            )}
                           </td>
                         ))}
                       </tr>

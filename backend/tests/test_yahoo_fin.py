@@ -269,3 +269,33 @@ def test_sec_facts_are_still_adjusted_for_splits(db_session):
     db_session.commit()
     facts = fundamentals._facts_by_ticker(db_session, ["ACME"])["ACME"]
     assert sorted(f.value for f in facts) == [1.0, 1.0]
+
+
+def test_stock_without_quarterly_income_uses_annual_growth(db_session, fake_yahoo):
+    """서버 진단(v0.27.0) 8035.T: 분기 손익은 EPS 2분기뿐, 매출·순이익 줄이 없고 분기 현금흐름은 비었다."""
+    h = handle()
+    h.frames["quarterly_income_stmt"] = frame({"Diluted EPS": [360.15, 300.0]}, [D(2026, 6, 30), D(2025, 6, 30)])
+    h.frames["quarterly_cashflow"] = pd.DataFrame()
+    fake_yahoo["handle"] = h
+    make_stock(db_session, "8035.T")
+    assert fundamentals.refresh_ticker(db_session, "8035.T", NOW)["state"] == "ok"
+    _prices_for(db_session, "8035.T", 30000.0)
+    metrics = {m["key"]: m for m in fundamentals.detail(db_session, "8035.T", "JPY", today=TODAY)["metrics"]}
+    # 매출·영업이익 성장은 연간끼리 (45 / 42), 값 밑에 "연간 비교"
+    assert metrics["revenue_yoy"]["value"] == pytest.approx((45 / 42 - 1) * 100)
+    assert metrics["revenue_yoy"]["note"] == "연간 비교" and metrics["revenue_yoy"]["period_end"] == D(2026, 3, 31)
+    # EPS 는 분기 두 개(1년 차이)가 있으니 분기끼리 — 표시 없음
+    assert metrics["eps_yoy"]["value"] == pytest.approx((360.15 / 300 - 1) * 100) and metrics["eps_yoy"]["note"] is None
+    # TTM EPS = 연간 + 올해 1분기 − 작년 1분기
+    assert metrics["per"]["value"] == pytest.approx(30000 / (360 + 360.15 - 300))
+    # 현금흐름은 연간 값으로
+    assert metrics["fcf"]["value"] == pytest.approx(5e12 - 2e12)
+
+
+def _prices_for(db, ticker, close):
+    day = D(2022, 1, 3)
+    while day <= TODAY:
+        if day.weekday() < 5:
+            db.add(PriceDaily(ticker=ticker, date=day, open=close, high=close, low=close, close=close, volume=1))
+        day += dt.timedelta(days=1)
+    db.commit()

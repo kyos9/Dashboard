@@ -431,6 +431,10 @@ def split_basis(handle) -> str:
     listed = ", ".join(f"{d} {r:g}:1" for d, r in splits)
     if old is None or old.empty or now is None or now.empty:
         return f"분할 기준: 분할 {listed} — 주식수 줄이 없어 비교 못 함"
+    oldest = old.index[-1].date()
+    if all(day <= oldest for day, _ in splits):
+        return (f"분할 기준: 분할 {listed} 이 가장 옛 연간 값({oldest})보다 앞이라 이 종목으로는 확인할 것 없음"
+                " — 분할 뒤 연간 값이 있는 종목으로 보세요")
     ratio = float(old.iloc[-1]) / float(now.iloc[0])
     return (f"분할 기준: 분할 {listed} · 가장 옛 연간({str(old.index[-1])[:10]}) 희석주식수 ÷ 최근 발행주식수"
             f" = {ratio:.2f} (1 근처면 이미 분할 반영 — 앱의 가정대로)")
