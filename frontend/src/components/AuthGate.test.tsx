@@ -1,9 +1,11 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, GOOGLE_LOGIN_URL, UNAUTHORIZED_EVENT, api } from '../api/client'
 import type { AuthStatus } from '../types'
 import { saveAiSettings } from '../lib/aiKey'
+import { cacheGeneration, peekCache, putCache, useCachedLoad } from '../lib/cache'
 import { AuthGate, LOGIN_ERRORS, browser, useAuth } from './AuthGate'
 import { GuestNotice, LoginButton } from './LoginPrompt'
 
@@ -225,6 +227,50 @@ describe('구글 로그인 서버 — 문 없이 손님으로 둘러본다', () 
     expect(localStorage.getItem('signalboard:ai-key')).toBeNull()
     expect(sessionStorage.getItem('signalboard:ai-key')).toBeNull()
     expect(localStorage.getItem('signalboard:ai-results')).toBeNull()
+  })
+  it('나가면 화면 캐시를 비운다 — 다음 사람에게 앞사람 포트폴리오가 한 프레임도 안 보이게 (8-1)', async () => {
+    vi.spyOn(api, 'getAuthStatus').mockResolvedValue(
+      googleStatus({ authenticated: true, user: { email: 'a@b.c', name: null, is_owner: false } }),
+    )
+    vi.spyOn(api, 'logout').mockResolvedValue({ locked: true, authenticated: false })
+    vi.spyOn(browser, 'go').mockImplementation(() => {})
+    renderProbe()
+    await screen.findByRole('button', { name: '나가기' })
+    putCache('page:dashboard', 'a 의 포트폴리오', cacheGeneration())
+
+    await userEvent.click(screen.getByRole('button', { name: '나가기' }))
+    expect(peekCache('page:dashboard')).toBeUndefined()
+  })
+
+  it('들어오자마자 받은 첫 화면도 캐시에 남는다 — 주인을 정하는 일이 첫 응답을 버리지 않게 (8-1)', async () => {
+    vi.spyOn(api, 'getAuthStatus').mockResolvedValue(
+      googleStatus({ authenticated: true, user: { email: 'a@b.c', name: null, is_owner: false } }),
+    )
+    function FirstScreen() {
+      const [value, setValue] = useState<string | null>(null)
+      useCachedLoad('page:first', () => Promise.resolve('첫 화면'), setValue, () => {}, [])
+      return <p>{value ?? '…'}</p>
+    }
+    render(
+      <AuthGate>
+        <FirstScreen />
+      </AuthGate>,
+    )
+    expect(await screen.findByText('첫 화면')).toBeInTheDocument()
+    expect(peekCache('page:first')).toBe('첫 화면')
+  })
+
+  it('세션이 끊겨도 화면 캐시를 비운다', async () => {
+    vi.spyOn(api, 'getAuthStatus').mockResolvedValue(
+      googleStatus({ authenticated: true, user: { email: 'a@b.c', name: null, is_owner: false } }),
+    )
+    renderProbe()
+    await screen.findByRole('button', { name: '나가기' })
+    putCache('page:dashboard', 'a 의 포트폴리오', cacheGeneration())
+
+    window.dispatchEvent(new Event(UNAUTHORIZED_EVENT))
+    expect(peekCache('page:dashboard')).toBeUndefined()
+    expect(await screen.findByText('손님 / 사용자')).toBeInTheDocument()
   })
 })
 

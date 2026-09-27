@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useAppState } from '../AppState'
 import { api } from '../api/client'
 import { useAuth } from '../components/AuthGate'
@@ -10,6 +10,7 @@ import { CURRENCY_BY_MARKET, CURRENCY_META, MARKET_LABEL, stockLabel } from '../
 import type { ListingStatus, Stock, SymbolMatch } from '../types'
 import { listingHint, listingRefreshNotice } from '../lib/listing'
 import { useRecheck } from '../lib/recheck'
+import { useCachedLoad } from '../lib/cache'
 
 /** 새 종목 입력칸. 숫자도 글자로 들고 있다 — 비워둔 것과 0을 구분해야 한다 */
 interface NewStockForm {
@@ -213,12 +214,8 @@ export function StockManager() {
     [notifyDataChanged],
   )
 
-  useEffect(() => {
-    api
-      .listStocks()
-      .then(applyStocks)
-      .catch(setError)
-  }, [refreshKey, applyStocks])
+  // 탭을 옮겨 와도 들고 있던 값을 먼저 그린다 (ROADMAP 8-1)
+  useCachedLoad('page:stocks', api.listStocks, applyStocks, setError, [refreshKey])
 
   // 받는 중인 종목이 있는 동안만 몇 초마다 다시 묻는다
   const recheck = useCallback(() => {
@@ -231,17 +228,16 @@ export function StockManager() {
 
   // 지금 무엇으로 검색되는지는 "왜 이 종목이 안 나오지?"의 답이므로 화면에 띄워둔다.
   // 실패해도 검색 자체는 되므로 오류로 처리하지 않는다.
-  useEffect(() => {
-    api.getListingStatus().then(setListing).catch(() => setListing(null))
-  }, [refreshKey])
+  useCachedLoad('page:stocks:listing', api.getListingStatus, setListing, () => setListing(null), [refreshKey])
 
   // 목표 비중 합계에 현금 몫도 넣어야 100%가 맞는지 알 수 있다. 못 읽으면 0으로 본다.
-  useEffect(() => {
-    api
-      .getSettings()
-      .then((s) => setCashTarget(s.cash_target_pct))
-      .catch(() => setCashTarget(0))
-  }, [refreshKey])
+  useCachedLoad(
+    'page:stocks:settings',
+    api.getSettings,
+    (s) => setCashTarget(s.cash_target_pct),
+    () => setCashTarget(0),
+    [refreshKey],
+  )
 
   const handleSaved = () => {
     setError(null)

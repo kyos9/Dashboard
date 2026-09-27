@@ -12,7 +12,16 @@ import {
 import { GOOGLE_LOGIN_URL, api, UNAUTHORIZED_EVENT } from '../api/client'
 import { disablePush, forgetPushDevice } from '../lib/push'
 import { clearAi } from '../lib/aiKey'
+import { clearCache, setCacheOwner } from '../lib/cache'
 import type { AuthMode, AuthUser } from '../types'
+
+/**
+ * 화면 캐시의 주인 (ROADMAP 8-1). 바뀌면 캐시를 비운다 — 다른 계정·손님·승인 상태가 바뀐 경우.
+ * 이 값은 이 기기의 메모리에만 있고 어디로도 보내지 않는다.
+ */
+function cacheOwnerOf(user: AuthUser | null): string {
+  return user ? `${user.email ?? ''}|${user.is_owner}|${user.status ?? ''}` : 'guest'
+}
 
 /**
  * 서버에 올려둔 화면 앞에 세우는 문 (ROADMAP 5단계 · 4단계).
@@ -147,6 +156,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
         const current = status.mode ?? (status.locked ? 'password' : 'open')
         modeRef.current = current
         setMode(current)
+        // 화면이 그려지기 **전에** 캐시 주인을 정한다. 효과(useEffect)로 미루면 첫 화면이 먼저
+        // 받으러 떠나고, 뒤늦게 비운 캐시가 그 첫 응답을 "비우기 전 것"으로 버린다.
+        setCacheOwner(cacheOwnerOf(status.user ?? null))
         setUser(status.user ?? null)
         setConfigProblem(status.config_problem ?? null)
         setPendingCount(status.pending_count ?? 0)
@@ -168,6 +180,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     // 세션이 만료되면 어느 화면에서 무슨 요청을 하고 있었든 여기로 돌아온다.
     // 구글 모드는 문이 없으니 손님으로 돌아간다 (내 종목 화면이 로그인 안내로 바뀐다).
     const onUnauthorized = () => {
+      setCacheOwner(cacheOwnerOf(null))
       setLocked(true)
       setUser(null)
       if (modeRef.current !== 'google') setPhase('locked')
@@ -178,6 +191,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   /** 나간 뒤. 구글 모드는 첫 화면을 새로 열어 손님으로, 비밀번호 문은 비밀번호 칸으로. */
   const leave = useCallback(() => {
+    // 캐시는 사람을 넘지 않는다 — 나가는 즉시 비운다 (ROADMAP 8-1). 같은 사람이 비밀번호로
+    // 다시 들어와도 새로 받는다 — 주인 표시만으로는 "나갔다 들어왔다"를 알 수 없다.
+    setCacheOwner(cacheOwnerOf(null))
+    clearCache()
     setPassword('')
     setError(null)
     setUser(null)

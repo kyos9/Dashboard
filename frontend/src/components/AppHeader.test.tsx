@@ -7,6 +7,7 @@ import { ApiError, GOOGLE_LOGIN_URL, api } from '../api/client'
 import type { RefreshResult } from '../types'
 import { AppHeader } from './AppHeader'
 import { AuthGate, browser } from './AuthGate'
+import { cacheGeneration, putCache } from '../lib/cache'
 
 function refreshResult(overrides: Partial<RefreshResult> & { ticker: string }): RefreshResult {
   return { ok: true, rows_upserted: 10, error: null, hint: null, ...overrides }
@@ -269,5 +270,17 @@ describe('구글 계정', () => {
     expect(await screen.findByText('서버 오류')).toBeInTheDocument()
     expect(screen.getByRole('alertdialog')).toBeInTheDocument()
     expect(screen.getByText('친구')).toBeInTheDocument()
+  })
+})
+
+describe('받은 때 (ROADMAP 8-1)', () => {
+  it('"저장된 데이터 표시 중" 대신 서버에서 마지막으로 받은 때를 적는다', async () => {
+    mockHealth()
+    renderHeader()
+    expect(await screen.findByText('연결 확인 중')).toBeInTheDocument()
+
+    putCache('page:dashboard', [], cacheGeneration())
+    expect(await screen.findByText('방금 받음')).toBeInTheDocument()
+    expect(screen.queryByText('저장된 데이터 표시 중')).not.toBeInTheDocument()
   })
 })

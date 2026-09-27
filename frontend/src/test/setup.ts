@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup } from '@testing-library/react'
 import { afterEach } from 'vitest'
+import { clearCache } from '../lib/cache'
 
 // jsdom에는 ResizeObserver가 없다. 차트는 컨테이너 폭을 이걸로 따라가므로 자리만 채워둔다.
 if (!('ResizeObserver' in globalThis)) {
@@ -82,4 +83,6 @@ if (typeof HTMLCanvasElement !== 'undefined') {
 
 afterEach(() => {
   cleanup()
+  // 화면 캐시는 모듈에 산다 — 앞 테스트의 응답이 다음 테스트의 첫 화면에 나오면 안 된다
+  clearCache()
 })

@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import { useAppState } from '../AppState'
+import { useCachedLoad } from '../lib/cache'
 import { macroChange, macroValue, zoneTone } from '../lib/macro'
 import { RegimeBadges } from './RegimeBadges'
 import type { MacroPinned, MacroSeriesInfo } from '../types'
@@ -36,18 +37,10 @@ export function MacroStrip() {
   const { refreshKey } = useAppState()
   const [data, setData] = useState<MacroPinned | null>(null)
 
-  useEffect(() => {
-    let alive = true
-    api
-      .getMacroPinned()
-      .then((body) => alive && setData(body))
-      // **홈에서는 매크로 실패를 띄우지 않는다.** 여기 한 줄이 안 나온다고 종목 표 위에
-      // 빨간 띠가 생기면, 정작 중요한 것을 가린다. 왜 안 나오는지는 매크로 탭이 말한다.
-      .catch(() => alive && setData(null))
-    return () => {
-      alive = false
-    }
-  }, [refreshKey])
+  // **홈에서는 매크로 실패를 띄우지 않는다.** 여기 한 줄이 안 나온다고 종목 표 위에
+  // 빨간 띠가 생기면, 정작 중요한 것을 가린다. 왜 안 나오는지는 매크로 탭이 말한다.
+  // 탭을 옮겨 와도 들고 있던 값을 먼저 그린다 (ROADMAP 8-1)
+  useCachedLoad('strip:macro-pinned', api.getMacroPinned, setData, () => setData(null), [refreshKey])
 
   // 배지와 칩 중 하나라도 있으면 그린다. **배지는 칩과 따로 온다** — 지표를 다 내렸어도
   // 이상한 일이 생기면 알려야 한다 (`services/macro.py` 의 `badges` 주석 참고).

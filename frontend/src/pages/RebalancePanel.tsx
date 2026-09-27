@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useAppState } from '../AppState'
 import { api } from '../api/client'
 import { useAuth } from '../components/AuthGate'
@@ -19,6 +19,8 @@ import {
 } from '../lib/display'
 import { buildOrderPlan, krwRatesOf, NOISE_THRESHOLD_PCT } from '../lib/orderPlan'
 import { applyTrade, type TradeSide } from '../lib/trade'
+import { useCachedLoad } from '../lib/cache'
+import { PageSkeleton } from '../components/Skeleton'
 import type {
   CashRow,
   Currency,
@@ -602,7 +604,6 @@ export function RebalancePanel() {
   const [snapshots, setSnapshots] = useState<RebalanceSnapshot[]>([])
   const [bandInput, setBandInput] = useState('')
   const [error, setError] = useState<unknown>(null)
-  const [loading, setLoading] = useState(true)
 
   const [baseCurrency, setBaseCurrency] = useState<Currency>('KRW')
   const [fx, setFx] = useState<FxInfo | null>(null)
@@ -613,49 +614,49 @@ export function RebalancePanel() {
   /** 이번에 새로 넣을 돈 (계산만 한다 — 저장하지 않는다) */
   const [newMoney, setNewMoney] = useState('')
 
-  const reload = () => {
-    setLoading(true)
-    Promise.all([
-      api.getRebalanceCurrent(),
-      api.listRebalanceTargets(),
-      api.getSettings(),
-      api.listStocks(),
-      api.listSnapshots(),
-    ])
-      .then(([current, targets, s, stocks, snaps]) => {
-        const targetBy = new Map(targets.map((t) => [t.ticker, t]))
-        const stockBy = new Map(stocks.map((st) => [st.ticker, st]))
-        setRows(
-          current.rows.map((c) => ({
-            ticker: c.ticker,
-            current: c,
-            target: targetBy.get(c.ticker) ?? null,
-            stock: stockBy.get(c.ticker) ?? null,
-          })),
-        )
-        setBaseCurrency(current.base_currency)
-        setFx(current.fx)
-        setCash(current.cash)
-        setReview(current.review)
-        setTotals({
-          total: current.total_value_base,
-          pnl: current.unrealized_pnl_base,
-          cost: current.cost_value_base,
-        })
-        setSettings(s)
-        setSnapshots(snaps)
-        setBandInput(String(s.default_rebalance_band_pct))
-        setFxInputs(
-          Object.fromEntries(
-            Object.entries(s.fx_overrides ?? {}).map(([code, rate]) => [code, String(rate)]),
-          ),
-        )
+  // 탭을 옮겨 와도 들고 있던 값을 먼저 그린다 (ROADMAP 8-1)
+  const { loading } = useCachedLoad(
+    'page:rebalance',
+    () =>
+      Promise.all([
+        api.getRebalanceCurrent(),
+        api.listRebalanceTargets(),
+        api.getSettings(),
+        api.listStocks(),
+        api.listSnapshots(),
+      ]),
+    ([current, targets, s, stocks, snaps]) => {
+      const targetBy = new Map(targets.map((t) => [t.ticker, t]))
+      const stockBy = new Map(stocks.map((st) => [st.ticker, st]))
+      setRows(
+        current.rows.map((c) => ({
+          ticker: c.ticker,
+          current: c,
+          target: targetBy.get(c.ticker) ?? null,
+          stock: stockBy.get(c.ticker) ?? null,
+        })),
+      )
+      setBaseCurrency(current.base_currency)
+      setFx(current.fx)
+      setCash(current.cash)
+      setReview(current.review)
+      setTotals({
+        total: current.total_value_base,
+        pnl: current.unrealized_pnl_base,
+        cost: current.cost_value_base,
       })
-      .catch(setError)
-      .finally(() => setLoading(false))
-  }
-
-  useEffect(reload, [refreshKey])
+      setSettings(s)
+      setSnapshots(snaps)
+      setBandInput(String(s.default_rebalance_band_pct))
+      setFxInputs(
+        Object.fromEntries(
+          Object.entries(s.fx_overrides ?? {}).map(([code, rate]) => [code, String(rate)]),
+        ),
+      )
+    },
+    setError,
+    [refreshKey],
+  )
 
   const handleSaved = () => {
     setError(null)
@@ -749,7 +750,7 @@ export function RebalancePanel() {
   const signalled = rows.filter((r) => r.current.rebalance_signal.active)
   const targetOk = Math.abs(plan.targetSum - 100) < 0.01
 
-  if (loading) return <p className="hint">불러오는 중…</p>
+  if (loading) return <PageSkeleton blocks={3} rows={6} />
 
   if (rows.length === 0) {
     return (

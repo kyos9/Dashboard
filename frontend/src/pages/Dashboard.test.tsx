@@ -703,3 +703,52 @@ describe('포트폴리오 배분', () => {
     expect(screen.getByText(/목표 대비 최대 이탈: 삼성전자/)).toBeInTheDocument()
   })
 })
+
+describe('대시보드 · 탭을 옮겨 와도 (ROADMAP 8-1)', () => {
+  it('다시 열면 새 응답을 기다리지 않고 들고 있던 표를 바로 그린다', async () => {
+    mockApi()
+    const first = renderDashboard()
+    await screen.findByRole('button', { name: '삼성전자' })
+    first.unmount()
+
+    // 이번에는 서버가 한참 걸린다
+    vi.spyOn(api, 'getDashboard').mockReturnValue(new Promise(() => {}))
+    renderDashboard()
+    expect(screen.getByRole('button', { name: '삼성전자' })).toBeInTheDocument()
+    expect(screen.queryByText('불러오는 중…')).not.toBeInTheDocument()
+  })
+
+  it('처음 열 때는 표 모양의 자리표시를 보여준다', () => {
+    mockApi()
+    vi.spyOn(api, 'getDashboard').mockReturnValue(new Promise(() => {}))
+    renderDashboard()
+    expect(screen.getByRole('status')).toHaveAttribute('aria-busy', 'true')
+    expect(screen.getByText('불러오는 중…')).toBeInTheDocument()
+  })
+
+  it('종목을 지운 뒤 다시 열면 지우기 전 표를 보이지 않는다', async () => {
+    mockApi()
+    const first = renderDashboard()
+    await screen.findByRole('button', { name: '삼성전자' })
+    first.unmount()
+
+    // 다른 탭에서 지웠다 — 쓰기 요청이 캐시를 비운다 (api/client.ts)
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(null, { status: 204 }))
+    await api.purgeStock('005930.KS')
+
+    vi.spyOn(api, 'getDashboard').mockReturnValue(new Promise(() => {}))
+    renderDashboard()
+    expect(screen.queryByRole('button', { name: '삼성전자' })).not.toBeInTheDocument()
+    expect(screen.getByText('불러오는 중…')).toBeInTheDocument()
+  })
+
+  it('차트 코드를 받는 동안에도 누르자마자 팝업 틀이 뜬다', async () => {
+    mockApi()
+    vi.spyOn(api, 'getHistory').mockReturnValue(new Promise(() => {}))
+    const user = userEvent.setup()
+    renderDashboard()
+    await user.click(await screen.findByRole('button', { name: '삼성전자' }))
+    // 틀이든 진짜 팝업이든 — 누른 즉시 대화상자가 있다
+    expect(screen.getByRole('dialog', { name: /삼성전자/ })).toBeInTheDocument()
+  })
+})

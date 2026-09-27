@@ -1,4 +1,4 @@
-import { Suspense, useCallback, useEffect, useState } from 'react'
+import { Suspense, useCallback, useState } from 'react'
 import { api } from '../api/client'
 import { useAuth } from '../components/AuthGate'
 import { ErrorNotice } from '../components/ErrorNotice'
@@ -6,6 +6,8 @@ import { NumberInput } from '../components/NumberInput'
 import { RegimeBadges } from '../components/RegimeBadges'
 import { useAppState } from '../AppState'
 import { lazyChunk } from '../lib/lazyChunk'
+import { useCachedLoad } from '../lib/cache'
+import { PageSkeleton } from '../components/Skeleton'
 import { pushAccount } from '../lib/push'
 import {
   FREQUENCY_LABEL,
@@ -330,31 +332,24 @@ function MacroCard({
 
 export function MacroPanel() {
   // 별을 켜고 끄면 홈의 매크로 줄이 달라진다. 홈이 그걸 알아야 다음에 열릴 때 다시 읽는다.
-  const { notifyDataChanged } = useAppState()
+  const { notifyDataChanged, refreshKey } = useAppState()
   // 손님은 둘러보기만, 사용자는 별(내 홈)까지, 관리자는 받아오기·예상치(전원 것)까지
   const { guest, isAdmin, pending, user } = useAuth()
   const [aiOpen, setAiOpen] = useState(false)
   const closeAi = useCallback(() => setAiOpen(false), [])
   const [data, setData] = useState<MacroOverview | null>(null)
-  const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<unknown>(null)
   const [open, setOpen] = useState<MacroSeriesInfo | null>(null)
   const [pinning, setPinning] = useState(false)
 
-  const load = useCallback(async () => {
-    try {
-      setData(await api.getMacro())
-    } catch (e) {
-      setError(e)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  // 탭을 옮겨 와도 들고 있던 값을 먼저 그린다 (ROADMAP 8-1)
+  const { loading } = useCachedLoad('page:macro', api.getMacro, setData, setError, [refreshKey])
 
-  useEffect(() => {
-    void load()
-  }, [load])
+  /** 받아오기·예상치 뒤에 다시 읽는다. 실패는 부른 쪽이 보여준다. */
+  const load = useCallback(async () => {
+    setData(await api.getMacro())
+  }, [])
 
   const refresh = async () => {
     setRefreshing(true)
@@ -410,8 +405,8 @@ export function MacroPanel() {
     try {
       await run()
       await load()
-      // 홈의 배지도 달라진다
-      notifyDataChanged()
+      // 홈의 배지도 달라진다 — 저장 요청이 화면 캐시를 이미 비웠으므로(api/client.ts) 홈은
+      // 다음에 열릴 때 새로 읽는다. 여기서 또 다시 읽게 하면 같은 요청을 두 번 보낸다.
       return true
     } catch (e) {
       setError(e)
@@ -465,7 +460,7 @@ export function MacroPanel() {
       <ErrorNotice error={error} onDismiss={() => setError(null)} />
 
       {loading ? (
-        <p className="hint">불러오는 중…</p>
+        <PageSkeleton blocks={6} rows={0} />
       ) : series.length === 0 ? (
         <div className="empty-state">
           <h3>아직 지표가 없습니다</h3>

@@ -8,11 +8,14 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { useAppState } from '../AppState'
 import { api } from '../api/client'
 import { lazyChunk } from '../lib/lazyChunk'
+import { useCachedLoad } from '../lib/cache'
+import { ChartModal, preloadChartModal } from '../lib/chartChunk'
+import { ModalLoading } from '../components/ModalLoading'
+import { PageSkeleton } from '../components/Skeleton'
 import type { ChartTab } from '../lib/fundamentals'
 import { useRecheck } from '../lib/recheck'
 
 // 차트는 누를 때 받는다 (App.tsx의 HistoryChart와 같은 이유)
-const ChartModal = lazyChunk(() => import('../components/ChartModal'), 'ChartModal')
 const AiSummaryModal = lazyChunk(() => import('../components/AiSummaryModal'), 'AiSummaryModal')
 import { useAuth } from '../components/AuthGate'
 import { pushAccount } from '../lib/push'
@@ -341,7 +344,6 @@ export function Dashboard() {
   const [weights, setWeights] = useState<RebalanceRow[]>([])
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null)
   const [baseCurrency, setBaseCurrency] = useState<Currency>('KRW')
-  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<unknown>(null)
   // 팝업과 어느 탭부터 열지 — 종목 이름은 차트, 맨 오른쪽 "AI 분석" 버튼은 AI 탭
   const [chart, setChart] = useState<{ card: DashboardCard; tab: ChartTab } | null>(null)
@@ -372,29 +374,35 @@ export function Dashboard() {
     [],
   )
 
-  useEffect(() => {
-    setLoading(true)
-    setError(null)
-    fetchAll()
-      .then(([c, rebalance, stockList]) => {
-        setCards(c)
-        setWeights(rebalance.rows)
-        setPortfolio({
-          total: rebalance.total_value_base,
-          cash: rebalance.cash,
-          pnl: rebalance.unrealized_pnl_base,
-          cost: rebalance.cost_value_base,
-          review: rebalance.review,
-        })
-        setBaseCurrency(rebalance.base_currency)
-        setStocks(stockList)
-        // 편집 중이던 값은 서버에서 다시 받은 값으로 맞춘다 (저장 직후에 온다)
-        setDrafts(draftsFrom(stockList))
-        setConfirmingPurge(null)
+  // 탭을 옮겨 와도 들고 있던 값을 먼저 그린다 (ROADMAP 8-1)
+  const { loading } = useCachedLoad(
+    'page:dashboard',
+    fetchAll,
+    ([c, rebalance, stockList]) => {
+      setError(null)
+      setCards(c)
+      setWeights(rebalance.rows)
+      setPortfolio({
+        total: rebalance.total_value_base,
+        cash: rebalance.cash,
+        pnl: rebalance.unrealized_pnl_base,
+        cost: rebalance.cost_value_base,
+        review: rebalance.review,
       })
-      .catch(setError)
-      .finally(() => setLoading(false))
-  }, [refreshKey, fetchAll])
+      setBaseCurrency(rebalance.base_currency)
+      setStocks(stockList)
+      // 편집 중이던 값은 서버에서 다시 받은 값으로 맞춘다 (저장 직후에 온다)
+      setDrafts(draftsFrom(stockList))
+      setConfirmingPurge(null)
+    },
+    setError,
+    [refreshKey],
+  )
+
+  // 표가 그려지면 차트 팝업 조각을 미리 받아 둔다 — 이름을 누르자마자 열리게 (ROADMAP 8-1)
+  useEffect(() => {
+    if (cards.length > 0) preloadChartModal()
+  }, [cards.length])
 
   // 방금 등록한 종목의 시세를 서버가 뒤에서 받는 중이면, 다 받을 때까지 몇 초마다 다시 본다.
   // 다 받으면 전체를 새로 그린다(비중·손익까지 그 종목 시세가 들어가야 맞으므로).
@@ -572,7 +580,7 @@ export function Dashboard() {
     onDrop: handleDrop,
   }
 
-  if (loading) return <p className="hint">불러오는 중…</p>
+  if (loading) return <PageSkeleton blocks={4} rows={6} />
   if (error && cards.length === 0) return <ErrorNotice error={error} />
 
   if (cards.length === 0) {
@@ -844,7 +852,11 @@ export function Dashboard() {
       </div>
 
       {chart && (
-        <Suspense fallback={null}>
+        <Suspense
+          fallback={
+            <ModalLoading title={stockLabel(chart.card)} subtitle={chart.card.ticker} onClose={() => setChart(null)} />
+          }
+        >
           <ChartModal
             // 같은 종목이라도 다른 버튼으로 열면 그 탭부터 — 새로 띄운다
             key={`${chart.card.ticker}:${chart.tab}`}

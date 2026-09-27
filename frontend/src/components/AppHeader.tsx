@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { NavLink } from 'react-router-dom'
 import { useAppState } from '../AppState'
 import { api } from '../api/client'
@@ -11,6 +11,7 @@ import { AiKeyModal } from './AiKeyModal'
 import { UsersModal } from './UsersModal'
 import { GuestNotice, LoginButton } from './LoginPrompt'
 import { pushAccount, syncPush } from '../lib/push'
+import { lastLoadedAt, loadedAgoLabel, subscribeCache } from '../lib/cache'
 import type { HealthInfo } from '../types'
 
 type Theme = 'dark' | 'light'
@@ -109,13 +110,22 @@ export function AppHeader() {
     }
   }, [theme])
 
+  // "3분 전 받음" — 화면이 서버에서 마지막으로 값을 받은 때 (ROADMAP 8-1). 30초마다 다시 센다.
+  const loadedAt = useSyncExternalStore(subscribeCache, lastLoadedAt)
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 30_000)
+    return () => clearInterval(timer)
+  }, [])
+  const loadedAgo = loadedAgoLabel(loadedAt, Math.max(now, loadedAt ?? 0))
+
   const status = refreshing
     ? { dot: 'warn', text: '시세 갱신 중…' }
     : refreshError
       ? { dot: 'bad', text: '갱신 실패' }
       : lastSync
         ? { dot: 'ok', text: '시세 연동 정상' }
-        : { dot: 'ok', text: '저장된 데이터 표시 중' }
+        : { dot: 'ok', text: loadedAgo ?? '연결 확인 중' }
 
   return (
     <>
@@ -155,7 +165,10 @@ export function AppHeader() {
               오류가 찍혀 있다. 사용자의 시세는 장 마감 뒤 서버가 알아서 받는다. */}
           {isAdmin && (
             <>
-              <span className="status-pill">
+              <span
+                className="status-pill"
+                title="이 화면이 서버에서 마지막으로 값을 받은 때입니다. 시세는 장 마감 뒤 서버가 매일 받고, 앱으로 돌아왔을 때 5분이 지났으면 다시 받습니다."
+              >
                 <span className={`status-dot ${status.dot}`} aria-hidden="true" />
                 {status.text}
                 {lastSync && (

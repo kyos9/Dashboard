@@ -1,14 +1,17 @@
 import { Suspense, useEffect, useState } from 'react'
 import { api } from '../api/client'
+import { useAppState } from '../AppState'
 import { ErrorNotice } from '../components/ErrorNotice'
 import { PerChart } from '../components/PerChart'
-import { lazyChunk } from '../lib/lazyChunk'
+import { ChartModal, preloadChartModal } from '../lib/chartChunk'
+import { ModalLoading } from '../components/ModalLoading'
+import { PageSkeleton } from '../components/Skeleton'
+import { useCachedLoad } from '../lib/cache'
 import { num, rowLabel } from '../lib/display'
 import { emptyReason, latestQuarter, metricValue, quarterLabel } from '../lib/fundamentals'
 import type { FundamentalKey, FundamentalsResponse } from '../types'
 
 // 팝업은 누를 때 받는다 (대시보드와 같은 이유 — 차트 라이브러리가 크다)
-const ChartModal = lazyChunk(() => import('../components/ChartModal'), 'ChartModal')
 
 /** 표의 칸 — 팝업 재무 탭과 같은 지표, 같은 글자 */
 const COLUMNS: { key: FundamentalKey; label: string; help: string }[] = [
@@ -33,20 +36,17 @@ const PER_POSITION_HELP = '지난 5년 중 PER이 지금 이하였던 날의 비
  * 이름을 누르면 같은 팝업이 재무 탭으로 열린다 — 분기 표와 PER 5년 막대는 거기에 있다.
  */
 export function FundamentalsPage() {
+  const { refreshKey } = useAppState()
   const [rows, setRows] = useState<FundamentalsResponse[] | null>(null)
   const [error, setError] = useState<unknown>(null)
   const [open, setOpen] = useState<FundamentalsResponse | null>(null)
 
+  // 탭을 옮겨 와도 들고 있던 값을 먼저 그린다 (ROADMAP 8-1)
+  useCachedLoad('page:fundamentals', api.listFundamentals, setRows, setError, [refreshKey])
+  // 표가 그려지면 팝업 조각을 미리 받아 둔다 — 이름을 누르자마자 열리게
   useEffect(() => {
-    let alive = true
-    api
-      .listFundamentals()
-      .then((data) => alive && setRows(data))
-      .catch((e) => alive && setError(e))
-    return () => {
-      alive = false
-    }
-  }, [])
+    if (rows && rows.length > 0) preloadChartModal()
+  }, [rows])
 
   const shown = (rows ?? []).filter((r) => r.metrics.length > 0)
   const hidden = (rows ?? []).filter((r) => r.metrics.length === 0)
@@ -67,7 +67,7 @@ export function FundamentalsPage() {
       <ErrorNotice error={error} onDismiss={() => setError(null)} />
 
       {rows === null ? (
-        !error && <p className="hint">불러오는 중…</p>
+        !error && <PageSkeleton blocks={0} rows={5} />
       ) : rows.length === 0 ? (
         <div className="empty-state">
           <h3>담은 종목이 없습니다</h3>
@@ -152,7 +152,7 @@ export function FundamentalsPage() {
       )}
 
       {open && (
-        <Suspense fallback={null}>
+        <Suspense fallback={<ModalLoading title={rowLabel(open)} subtitle={open.ticker} onClose={() => setOpen(null)} />}>
           <ChartModal
             ticker={open.ticker}
             name={rowLabel(open)}

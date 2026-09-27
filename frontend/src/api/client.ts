@@ -38,6 +38,8 @@ import type {
   UserStatus,
 } from '../types'
 
+import { clearCache } from '../lib/cache'
+
 const BASE = '/api'
 
 /** AI 키를 싣는 헤더. 본문에 넣지 않는다 (서버 `routers/ai.py` 참고) */
@@ -99,11 +101,32 @@ async function failure(res: Response, path: string): Promise<ApiError> {
   return parseError(res.status, res.statusText, body)
 }
 
+/**
+ * 서버의 값을 바꾸지 않는 POST — 이것들은 캐시를 비우지 않는다. AI 는 글만 받아 오고,
+ * 시험 알림은 기기에 한 번 울릴 뿐이다.
+ */
+const READ_ONLY_POSTS = [/^\/ai\//, /^\/push\/test$/]
+
+/**
+ * 쓰기 요청이 끝났으면(성공이든 실패든) 화면 캐시를 비운다 (ROADMAP 8-1).
+ *
+ * 화면마다 저장 뒤 `notifyDataChanged` 를 부르지만, 하나라도 빠뜨리면 다른 탭이 고치기 전
+ * 값을 보여준다. 여기서 한 번에 막는다. 실패도 비운다 — 여러 건을 한꺼번에 보내다 일부만
+ * 저장됐을 수 있다. 응답을 받은 **뒤에** 비운다: 먼저 비우면 그 사이에 떠난 읽기가 고치기
+ * 전 값을 새 세대로 담는다.
+ */
+function invalidatesCache(path: string, init?: RequestInit): boolean {
+  const method = (init?.method ?? 'GET').toUpperCase()
+  if (method === 'GET' || method === 'HEAD') return false
+  return !READ_ONLY_POSTS.some((pattern) => pattern.test(path))
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     headers: { 'Content-Type': 'application/json' },
     ...init,
   })
+  if (invalidatesCache(path, init)) clearCache()
   if (!res.ok) throw await failure(res, path)
   if (res.status === 204) return undefined as T
   return (await res.json()) as T

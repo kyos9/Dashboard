@@ -1,5 +1,12 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { api } from './api/client'
+import { clearCache, lastLoadedAt } from './lib/cache'
+
+/**
+ * 앱으로 돌아왔을 때 이보다 오래 전에 받은 화면이면 조용히 다시 받는다 (ROADMAP 8-1).
+ * 폰에 설치한 앱은 며칠씩 떠 있다 — 어제 연 화면이 그대로 남아 오늘 값인 척하면 안 된다.
+ */
+export const STALE_AFTER_MS = 5 * 60 * 1000
 
 interface AppState {
   /** 값이 바뀌면 각 화면이 데이터를 다시 불러온다 */
@@ -21,7 +28,23 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [lastSync, setLastSync] = useState<Date | null>(null)
   const [refreshError, setRefreshError] = useState<string | null>(null)
 
-  const notifyDataChanged = useCallback(() => setRefreshKey((k) => k + 1), [])
+  // 무엇을 고쳤으면 캐시를 비운다 — 다른 탭이 고치기 전 값을 한 순간이라도 보이지 않게
+  const notifyDataChanged = useCallback(() => {
+    clearCache()
+    setRefreshKey((k) => k + 1)
+  }, [])
+
+  // 앱으로 돌아왔는데 받은 지 오래면 다시 받는다. 캐시는 비우지 않는다 — 보던 값은 그대로
+  // 두고 뒤에서 바꾼다(고친 것이 없으니 옛 값이 틀린 게 아니라 오래됐을 뿐이다).
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return
+      const last = lastLoadedAt()
+      if (last !== null && Date.now() - last > STALE_AFTER_MS) setRefreshKey((k) => k + 1)
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [])
 
   const refreshAll = useCallback(async () => {
     setRefreshing(true)
@@ -42,6 +65,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       setRefreshError(e instanceof Error ? e.message : String(e))
     } finally {
       setRefreshing(false)
+      clearCache()
       setRefreshKey((k) => k + 1)
     }
   }, [])

@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../api/client'
+import { AppStateProvider } from '../AppState'
 import { FUNDAMENTALS } from '../test/fundamentalsFixture'
 import type { FundamentalsResponse } from '../types'
 import { FundamentalsPage } from './FundamentalsPage'
@@ -39,7 +40,7 @@ beforeEach(() => {
 describe('재무 화면', () => {
   it('재무가 있는 종목은 표 한 줄 — 지표와 몇 분기까지인지', async () => {
     vi.spyOn(api, 'listFundamentals').mockResolvedValue([GOOG, ETF])
-    render(<FundamentalsPage />)
+    render(<AppStateProvider><FundamentalsPage /></AppStateProvider>)
 
     const table = await screen.findByRole('table')
     const rows = within(table).getAllByRole('row').slice(1)
@@ -58,7 +59,7 @@ describe('재무 화면', () => {
 
   it('재무가 없는 종목은 표에 넣지 않고 이유를 적는다', async () => {
     vi.spyOn(api, 'listFundamentals').mockResolvedValue([GOOG, ETF, NOT_YET])
-    render(<FundamentalsPage />)
+    render(<AppStateProvider><FundamentalsPage /></AppStateProvider>)
 
     const hidden = (await screen.findByText('재무를 보여주지 않는 종목')).closest('.section') as HTMLElement
     expect(within(hidden).getByText('KODEX 미국S&P500')).toBeInTheDocument()
@@ -78,7 +79,7 @@ describe('재무 화면', () => {
     })
     const detail = vi.spyOn(api, 'getFundamentals').mockResolvedValue(FUNDAMENTALS)
     const user = userEvent.setup()
-    render(<FundamentalsPage />)
+    render(<AppStateProvider><FundamentalsPage /></AppStateProvider>)
 
     await user.click(await screen.findByRole('button', { name: 'GOOG' }))
     await waitFor(() => expect(detail).toHaveBeenCalledWith('GOOG'))
@@ -89,13 +90,13 @@ describe('재무 화면', () => {
 
   it('담은 종목이 없으면 그렇게 말한다', async () => {
     vi.spyOn(api, 'listFundamentals').mockResolvedValue([])
-    render(<FundamentalsPage />)
+    render(<AppStateProvider><FundamentalsPage /></AppStateProvider>)
     expect(await screen.findByText('담은 종목이 없습니다')).toBeInTheDocument()
   })
 
   it('못 불러오면 오류를 보여준다', async () => {
     vi.spyOn(api, 'listFundamentals').mockRejectedValue(new Error('백엔드가 응답하지 않습니다'))
-    render(<FundamentalsPage />)
+    render(<AppStateProvider><FundamentalsPage /></AppStateProvider>)
     expect(await screen.findByText(/백엔드가 응답하지 않습니다/)).toBeInTheDocument()
     expect(screen.queryByText('불러오는 중…')).toBeNull()
   })
@@ -111,7 +112,7 @@ describe('PER 한눈에', () => {
       per_range: { ...GOOG.per_range!, min: 25, max: 260, median: 60, current: 180, position_pct: 12 },
     }
     vi.spyOn(api, 'listFundamentals').mockResolvedValue([GOOG, NVDA, ETF])
-    render(<FundamentalsPage />)
+    render(<AppStateProvider><FundamentalsPage /></AppStateProvider>)
 
     const chart = (await screen.findByRole('heading', { name: 'PER 한눈에' })).closest('section') as HTMLElement
     const rows = within(chart).getAllByRole('button', { name: /—/ })
@@ -134,7 +135,7 @@ it('분기 값이 없어 연간끼리 비교한 성장은 표에도 그렇게 �
     metrics: GOOG.metrics.map((m) => (m.key === 'revenue_yoy' ? { ...m, value: 7.1, note: '연간 비교' } : m)),
   }
   vi.spyOn(api, 'listFundamentals').mockResolvedValue([annual])
-  render(<FundamentalsPage />)
+  render(<AppStateProvider><FundamentalsPage /></AppStateProvider>)
   const cell = (await screen.findByText('+7.1%')).closest('td') as HTMLElement
   expect(within(cell).getByText('(연간 비교)')).toBeInTheDocument()
 })
