@@ -2711,6 +2711,176 @@ table.data-table tr.dirty:hover td {
   color: var(--text-faint);
 }
 
+/* PER 한눈에 — 모든 종목을 같은 로그 눈금 위에. 이름 · 그래프 · 값 세 칸. */
+.per-chart-head {
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.per-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0 0 8px;
+}
+
+.per-key-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.per-key-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.per-key-median {
+  width: 2px;
+  height: 12px;
+  background: var(--text-faint);
+}
+
+.per-key-track {
+  width: 22px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border-strong, var(--border));
+}
+
+.per-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.per-row,
+.per-axis {
+  display: grid;
+  grid-template-columns: minmax(96px, 10rem) minmax(0, 1fr) minmax(120px, 12rem);
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.per-row {
+  position: relative;
+  padding: 6px 8px;
+  background: none;
+  border: 0;
+  border-radius: 8px;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.per-row:hover,
+.per-row:focus-visible {
+  background: var(--panel-soft);
+}
+
+.per-row-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.per-row-value {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.per-row-plot {
+  position: relative;
+  height: 18px;
+  margin: 0 8px;
+}
+
+.per-grid {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border);
+  opacity: 0.6;
+}
+
+.per-bar {
+  position: absolute;
+  top: 7px;
+  height: 4px;
+  min-width: 4px;
+  border-radius: 2px;
+  background: var(--border-strong, var(--border));
+}
+
+.per-tip {
+  display: none;
+  position: absolute;
+  z-index: 5;
+  left: 8px;
+  right: 8px;
+  top: calc(100% + 2px);
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 12px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+}
+
+.per-row:hover .per-tip,
+.per-row:focus-visible .per-tip {
+  display: block;
+}
+
+.per-axis {
+  padding: 0 8px;
+}
+
+.per-axis-ticks {
+  position: relative;
+  height: 16px;
+  margin: 0 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.per-axis-ticks span {
+  position: absolute;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+/* 폰 — 이름과 값을 한 줄에, 그래프는 그 아래 전체 폭 */
+@media (max-width: 640px) {
+  .per-row,
+  .per-axis {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 4px 8px;
+  }
+
+  .per-row-plot,
+  .per-axis-ticks {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .per-row-value {
+    text-align: right;
+  }
+
+  .per-axis .per-row-name,
+  .per-axis .per-row-value {
+    display: none;
+  }
+}
+
 .fund-table {
   width: 100%;
   border-collapse: collapse;

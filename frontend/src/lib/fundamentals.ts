@@ -153,3 +153,73 @@ export function latestQuarter(metrics: FundamentalMetric[]): string | null {
   }
   return latest
 }
+
+// --- 모든 종목 PER 한눈에 (재무 화면) ----------------------------------------------
+// 종목마다 한 줄: 지난 5년 범위(막대) · 중앙값(세로 눈금) · 지금(동그라미)을 **같은 눈금** 위에.
+// PER 은 종목마다 몇 배씩 차이가 나서(15배와 200배) 로그 눈금을 쓴다 — 두 배 차이는 어디서나
+// 같은 간격이다.
+
+export interface PerAxis {
+  lo: number
+  hi: number
+  ticks: number[]
+}
+
+const PER_TICKS = [1, 2, 3, 5, 7, 10, 15, 20, 30, 50, 70, 100, 150, 200, 300, 500, 700, 1000, 2000, 5000]
+const PER_TICKS_SPARSE = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000]
+
+/** 그릴 값(범위 양끝·중앙값·지금) 전부를 담는 눈금. 그릴 게 없으면 null. */
+export function perAxis(rows: FundamentalsResponse[]): PerAxis | null {
+  const values: number[] = []
+  for (const row of rows) {
+    const r = row.per_range
+    if (r) values.push(r.min, r.max, r.median)
+    const now = currentPer(row)
+    if (now !== null) values.push(now)
+  }
+  const positive = values.filter((v) => Number.isFinite(v) && v > 0)
+  if (positive.length === 0) return null
+  const lo = Math.min(...positive) / 1.15
+  const hi = Math.max(...positive) * 1.15
+  let ticks = PER_TICKS.filter((t) => t >= lo && t <= hi)
+  if (ticks.length > 6) ticks = PER_TICKS_SPARSE.filter((t) => t >= lo && t <= hi)
+  return { lo, hi, ticks }
+}
+
+/** 눈금 위 위치 (0~100 %). */
+export function perAxisPos(axis: PerAxis, value: number): number {
+  if (!(value > 0) || axis.hi <= axis.lo) return 50
+  const pos = ((Math.log(value) - Math.log(axis.lo)) / (Math.log(axis.hi) - Math.log(axis.lo))) * 100
+  return Math.min(100, Math.max(0, pos))
+}
+
+/** 지금 PER — 지표에 없으면(적자 등) 범위의 current, 그것도 없으면 null. */
+export function currentPer(row: FundamentalsResponse): number | null {
+  const metric = row.metrics.find((m) => m.key === 'per')
+  const value = metric?.value ?? row.per_range?.current ?? null
+  return value !== null && value > 0 ? value : null
+}
+
+export type PerOrder = 'list' | 'position'
+
+/** 그래프에 올릴 종목 — PER 이나 5년 범위 중 하나라도 있는 것. `position` 은 5년 위치 낮은 것부터. */
+export function perChartRows(rows: FundamentalsResponse[], order: PerOrder): FundamentalsResponse[] {
+  const drawable = rows.filter((row) => row.per_range !== null || currentPer(row) !== null)
+  if (order === 'list') return drawable
+  const key = (row: FundamentalsResponse) => row.per_range?.position_pct ?? Number.POSITIVE_INFINITY
+  return [...drawable].sort((a, b) => key(a) - key(b))
+}
+
+/** 한 줄에 마우스를 올렸을 때 나오는 설명 — 판단 없이 숫자만. */
+export function perTooltip(row: FundamentalsResponse): string {
+  const now = currentPer(row)
+  const r = row.per_range
+  const parts = [now === null ? '지금 PER 없음 (최근 1년 이익이 0 이하)' : `지금 ${num(now, 1)}배`]
+  if (r) {
+    parts.push(`${quarterLabel(r.since)}부터 최저 ${num(r.min, 1)} · 중앙값 ${num(r.median, 1)} · 최고 ${num(r.max, 1)}`)
+    if (r.position_pct !== null) parts.push(`지금 이하였던 날 ${num(r.position_pct, 0)}%`)
+  } else {
+    parts.push('5년 범위를 그릴 만큼 기록이 없습니다')
+  }
+  return parts.join(' · ')
+}

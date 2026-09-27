@@ -419,6 +419,23 @@ def check_dart(tickers: list[str]) -> None:
 # ── 3. 야후 ───────────────────────────────────────────────────────────────
 
 
+def split_basis(handle) -> str:
+    """최근 6년 분할과, 가장 옛 연간 희석주식수 ÷ 최근 발행주식수."""
+    since = dt.date.today() - dt.timedelta(days=365 * 6)
+    splits = [(d.date(), float(r)) for d, r in handle.splits.items() if d.date() >= since]
+    if not splits:
+        return "분할 기준: 최근 6년 분할 없음 (확인할 것 없음)"
+    annual, sheet = handle.income_stmt, handle.quarterly_balance_sheet
+    old = annual.loc["Diluted Average Shares"].dropna() if "Diluted Average Shares" in annual.index else None
+    now = sheet.loc["Ordinary Shares Number"].dropna() if "Ordinary Shares Number" in sheet.index else None
+    listed = ", ".join(f"{d} {r:g}:1" for d, r in splits)
+    if old is None or old.empty or now is None or now.empty:
+        return f"분할 기준: 분할 {listed} — 주식수 줄이 없어 비교 못 함"
+    ratio = float(old.iloc[-1]) / float(now.iloc[0])
+    return (f"분할 기준: 분할 {listed} · 가장 옛 연간({str(old.index[-1])[:10]}) 희석주식수 ÷ 최근 발행주식수"
+            f" = {ratio:.2f} (1 근처면 이미 분할 반영 — 앱의 가정대로)")
+
+
 def check_yahoo(tickers: list[str]) -> None:
     section("3. 야후 (일본 1순위, 나머지의 폴백)")
     try:
@@ -462,6 +479,12 @@ def check_yahoo(tickers: list[str]) -> None:
                       f"{str(annual.columns[0])[:10]})")
         except Exception as exc:
             print(f"         연간 손익 실패 — {brief(exc, 120)}")
+        # 분할 기준 — 앱은 야후의 주당 값이 이미 지금 주식 기준(분할 반영)이라고 보고 다시 나누지
+        # 않는다. 옛 연간 희석주식수가 지금 발행주식수와 비슷하면 그 가정이 맞다.
+        try:
+            print(f"         {split_basis(handle)}")
+        except Exception as exc:
+            print(f"         분할 기준 확인 실패 — {brief(exc, 120)}")
         # 실적 발표일 — 있으면 일본 종목의 '추정 공시일' 대신 쓸 수 있다
         try:
             dates = handle.get_earnings_dates(limit=12)

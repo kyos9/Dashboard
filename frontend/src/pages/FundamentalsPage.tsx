@@ -1,6 +1,7 @@
 import { Suspense, useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { ErrorNotice } from '../components/ErrorNotice'
+import { PerChart } from '../components/PerChart'
 import { lazyChunk } from '../lib/lazyChunk'
 import { num, rowLabel } from '../lib/display'
 import { emptyReason, latestQuarter, metricValue, quarterLabel } from '../lib/fundamentals'
@@ -74,6 +75,7 @@ export function FundamentalsPage() {
         </div>
       ) : (
         <>
+          <PerChart rows={shown} onOpen={setOpen} />
           {shown.length > 0 ? (
             <div className="table-scroll">
               <table className="data-table fund-list">

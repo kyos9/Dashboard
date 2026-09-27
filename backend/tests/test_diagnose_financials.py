@@ -152,3 +152,19 @@ def test_dart_candidates_show_similar_accounts_when_the_standard_name_is_missing
     ]
     assert diag.dart_candidates(rows, "설비투자") == ["-표준계정코드 미사용- '유형자산의 취득' 당기=-5"]
     assert diag.dart_candidates(rows, "EPS(기본)") == []
+
+
+def test_split_basis_compares_old_share_count_with_today(diag):
+    import pandas as pd
+
+    class Handle:
+        splits = pd.Series([5.0], index=[pd.Timestamp.now() - pd.Timedelta(days=400)])
+        income_stmt = pd.DataFrame({pd.Timestamp("2023-03-31"): {"Diluted Average Shares": 2.6e9},
+                                    pd.Timestamp("2025-03-31"): {"Diluted Average Shares": 13e9}})[
+            [pd.Timestamp("2025-03-31"), pd.Timestamp("2023-03-31")]]
+        quarterly_balance_sheet = pd.DataFrame({pd.Timestamp("2026-06-30"): {"Ordinary Shares Number": 13e9}})
+
+    text = diag.split_basis(Handle())
+    assert "5:1" in text and "= 0.20" in text
+    Handle.splits = pd.Series([], dtype=float, index=pd.DatetimeIndex([]))
+    assert "분할 없음" in diag.split_basis(Handle())

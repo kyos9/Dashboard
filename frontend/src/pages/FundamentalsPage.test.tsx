@@ -100,3 +100,30 @@ describe('재무 화면', () => {
     expect(screen.queryByText('불러오는 중…')).toBeNull()
   })
 })
+
+describe('PER 한눈에', () => {
+  it('재무가 있는 종목마다 한 줄 — 누르면 그 종목 재무 팝업', async () => {
+    const NVDA: FundamentalsResponse = {
+      ...GOOG,
+      ticker: 'NVDA',
+      name: null,
+      metrics: GOOG.metrics.map((m) => (m.key === 'per' ? { ...m, value: 180 } : m)),
+      per_range: { ...GOOG.per_range!, min: 25, max: 260, median: 60, current: 180, position_pct: 12 },
+    }
+    vi.spyOn(api, 'listFundamentals').mockResolvedValue([GOOG, NVDA, ETF])
+    render(<FundamentalsPage />)
+
+    const chart = (await screen.findByRole('heading', { name: 'PER 한눈에' })).closest('section') as HTMLElement
+    const rows = within(chart).getAllByRole('button', { name: /—/ })
+    expect(rows.map((b) => b.getAttribute('aria-label')?.split(' — ')[0])).toEqual(['GOOG', 'NVDA'])
+    expect(within(chart).getByText('180.0배')).toBeInTheDocument()
+    expect(within(chart).getByText(/5년 위치 71%/)).toBeInTheDocument()
+
+    await userEvent.click(within(chart).getByRole('button', { name: '5년 위치 순' }))
+    expect(within(chart).getAllByRole('button', { name: /—/ }).map((b) => b.getAttribute('aria-label')?.split(' — ')[0]))
+      .toEqual(['NVDA', 'GOOG'])
+
+    await userEvent.click(within(chart).getAllByRole('button', { name: /—/ })[1])
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+  })
+})

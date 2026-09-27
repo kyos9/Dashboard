@@ -10,7 +10,7 @@
 - 새 종목은 등록하자마자 뒤에서 받는다.
 - 실패했으면 다음 날 다시 본다.
 
-어디서 받나 — 미국은 SEC(키 없음), 한국은 DART(운영자 키 `DART_API_KEY`). 일본은 아직 없다.
+어디서 받나 — 미국은 SEC(키 없음), 한국은 DART(운영자 키 `DART_API_KEY`), 일본은 야후(발표일, 없으면 추정).
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ from sqlalchemy.orm import Session
 from app.markets import Market, market_of
 from app.models import FundamentalFact, FundamentalStatus, PriceDaily, StockSplit
 from app.services import fundamental_calc as calc
-from app.services.providers import dart, sec
+from app.services.providers import dart, sec, yahoo_fin
 
 logger = logging.getLogger(__name__)
 
@@ -49,15 +49,13 @@ METRIC_LABELS = {
     "capex": "설비투자",
 }
 
-NOT_YET = {
-    Market.JP: "일본 종목 재무는 다음 단계(야후)에서 붙입니다",
-}
-
 # 재무제표가 아예 없을 때 화면에 적는 말 (출처마다 이유가 다르다)
 EMPTY_MESSAGES = {
     sec.SOURCE: "재무제표가 없는 종목입니다 (ETF·펀드 등)",
     dart.SOURCE: "DART 에 정기보고서(분기·반기·사업보고서)가 아직 없습니다",
+    yahoo_fin.SOURCE: "야후에 재무제표가 없는 종목입니다",
 }
+SOURCES = {Market.US: sec.SOURCE, Market.KR: dart.SOURCE, Market.JP: yahoo_fin.SOURCE}
 
 
 # --- 언제 받나 --------------------------------------------------------------------
@@ -106,12 +104,17 @@ def _save_splits(db: Session, ticker: str, splits: list[tuple[dt.date, float]]) 
             db.add(StockSplit(ticker=ticker, date=day, ratio=ratio))
 
 
-def _save_facts(db: Session, ticker: str, rows: list[dict]) -> int:
+def _save_facts(db: Session, ticker: str, rows: list[dict], today: dt.date | None = None) -> int:
     """없는 줄만 넣는다. **있는 줄은 고치지 않는다** — 정정은 다른 공시일의 새 줄로 온다.
 
     같은 기간을 **더 늦은 공시일에 같은 값**으로 다시 받으면 넣지 않는다. DART 는 정정 공시가
     나오면 정정일로 다시 주는데, 값이 그대로인 항목까지 줄이 늘면 "정정됨"으로 잘못 보인다.
+
+    야후는 공시일이 없다(발표일 목록에서 찾거나 추정). 이미 받은 기간을 다시 받으면 **가장 최근 값과
+    비교해** 같으면 날짜가 달라도 새 줄이 아니고, 다르면 **오늘 안 것**으로 적는다 — 옛 날짜로 넣으면
+    그때 알던 것처럼 된다.
     """
+    today = today or dt.date.today()
     have: set[tuple] = set()
     earlier: dict[tuple, list[tuple[dt.date, float]]] = {}
     for source, metric, start, end, filed, value in db.query(
@@ -123,9 +126,13 @@ def _save_facts(db: Session, ticker: str, rows: list[dict]) -> int:
     added = 0
     for row in rows:
         period = (row["source"], row["metric"], row["period_start"], row["period_end"])
+        versions = earlier.get(period, [])
+        if row["source"] == yahoo_fin.SOURCE and versions:
+            # 이미 받은 기간 — 날짜는 오늘로 두고, 아래에서 가장 최근 값과 같으면 건너뛴다
+            row = {**row, "filed_at": max(today, row["filed_at"]), "filed_estimated": True}
         if (*period, row["filed_at"]) in have:
             continue
-        prior = [version for version in earlier.get(period, []) if version[0] < row["filed_at"]]
+        prior = [version for version in versions if version[0] < row["filed_at"]]
         if prior and _same(max(prior)[1], row["value"]):
             continue
         have.add((*period, row["filed_at"]))
@@ -164,6 +171,8 @@ def _fetch(db: Session, ticker: str, market: Market, today: dt.date) -> tuple[st
     if market == Market.US:
         data = sec.fetch_companyfacts(sec.cik_for(ticker))
         return sec.SOURCE, sec.parse_companyfacts(data, today=today) if data else sec.ParsedFacts(empty=True)
+    if market == Market.JP:
+        return yahoo_fin.SOURCE, yahoo_fin.parse(yahoo_fin.fetch(ticker), today)
     # DART 는 보고서마다 한 번씩 묻는다 — 처음에만 7년을, 그 뒤로는 최근 보고서만
     return dart.SOURCE, dart.collect(ticker, today, backfill=not _has_facts(db, ticker, dart.SOURCE))
 
@@ -172,14 +181,10 @@ def refresh_ticker(db: Session, ticker: str, now: dt.datetime | None = None) -> 
     """한 종목의 재무를 받는다. 실패해도 예외를 올리지 않고 결과에 적는다 (받아둔 값은 그대로)."""
     now = now or dt.datetime.utcnow()
     market = market_of(ticker)
-    if market not in (Market.US, Market.KR):
-        _set_status(db, ticker, STATE_UNSUPPORTED, NOT_YET.get(market), None, now)
-        db.commit()
-        return {"ticker": ticker, "state": STATE_UNSUPPORTED}
-    source = sec.SOURCE if market == Market.US else dart.SOURCE
+    source = SOURCES[market]
     try:
         source, parsed = _fetch(db, ticker, market, now.date())
-    except (sec.NotListed, dart.NotListed) as exc:
+    except (sec.NotListed, dart.NotListed, yahoo_fin.NotListed) as exc:
         _set_status(db, ticker, STATE_NONE, str(exc), source, now)
         db.commit()
         return {"ticker": ticker, "state": STATE_NONE}
@@ -188,7 +193,7 @@ def refresh_ticker(db: Session, ticker: str, now: dt.datetime | None = None) -> 
         _set_status(db, ticker, STATE_UNSUPPORTED, str(exc), source, now)
         db.commit()
         return {"ticker": ticker, "state": STATE_UNSUPPORTED}
-    except (sec.SecError, dart.DartError) as exc:
+    except (sec.SecError, dart.DartError, yahoo_fin.YahooError) as exc:
         db.rollback()
         _set_status(db, ticker, STATE_ERROR, str(exc), source, now)
         db.commit()
@@ -204,7 +209,7 @@ def refresh_ticker(db: Session, ticker: str, now: dt.datetime | None = None) -> 
         db.commit()
         return {"ticker": ticker, "state": STATE_NONE}
 
-    added = _save_facts(db, ticker, parsed.rows)
+    added = _save_facts(db, ticker, parsed.rows, now.date())
     try:
         _save_splits(db, ticker, fetch_splits(ticker))
     except Exception as exc:  # 분할은 드물다 — 못 받아도 지난번 것으로 계산한다
@@ -271,17 +276,20 @@ def _facts_by_ticker(db: Session, tickers: list[str]) -> dict[str, list[calc.Fac
     out: dict[str, list[calc.Fact]] = {t: [] for t in tickers}
     if not tickers:
         return out
+    # 야후 값은 이미 지금 주식 기준(분할 반영)으로 온다 — 다시 나누지 않는다
+    adjusted: dict[str, list[calc.Fact]] = {t: [] for t in tickers}
     rows = db.query(
         FundamentalFact.ticker, FundamentalFact.metric, FundamentalFact.period_start,
         FundamentalFact.period_end, FundamentalFact.value, FundamentalFact.filed_at,
-        FundamentalFact.filed_estimated,
+        FundamentalFact.filed_estimated, FundamentalFact.source,
     ).filter(FundamentalFact.ticker.in_(tickers))
-    for t, metric, start, end, value, filed, estimated in rows:
-        out[t].append(calc.Fact(metric, start, end, value, filed, bool(estimated)))
+    for t, metric, start, end, value, filed, estimated, source in rows:
+        target = adjusted if source == yahoo_fin.SOURCE else out
+        target[t].append(calc.Fact(metric, start, end, value, filed, bool(estimated)))
     splits: dict[str, list[tuple[dt.date, float]]] = {}
     for row in db.query(StockSplit).filter(StockSplit.ticker.in_(tickers)):
         splits.setdefault(row.ticker, []).append((row.date, row.ratio))
-    return {t: calc.adjust_for_splits(facts, splits.get(t, [])) for t, facts in out.items()}
+    return {t: calc.adjust_for_splits(facts, splits.get(t, [])) + adjusted[t] for t, facts in out.items()}
 
 
 def detail(db: Session, ticker: str, currency: str, today: dt.date | None = None,

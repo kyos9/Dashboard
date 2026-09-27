@@ -41,14 +41,20 @@ def isolated_session_key(tmp_path, monkeypatch):
 
 @pytest.fixture(autouse=True)
 def no_real_dart(monkeypatch):
-    """개발 PC 의 환경에 DART 키가 있어도 테스트는 진짜 DART 를 부르지 않는다.
+    """개발 PC 의 환경에 DART 키가 있어도 테스트는 진짜 DART·야후 재무를 부르지 않는다.
 
     키가 필요한 테스트는 `monkeypatch.setenv` 로 넣고 `dart._get` 을 가짜로 바꾼다.
     회사 목록·결산월은 프로세스 안에 기억해 두므로 테스트마다 비운다.
     """
     from app.services.providers import dart
 
+    from app.services.providers import yahoo_fin
+
+    def no_yahoo(ticker):
+        raise AssertionError("테스트가 진짜 야후 재무를 불렀다 — yahoo_fin.fetch 를 가짜로 바꾸세요")
+
     monkeypatch.delenv("DART_API_KEY", raising=False)
+    monkeypatch.setattr(yahoo_fin, "fetch", no_yahoo)
     dart.reset()
     yield
     dart.reset()
