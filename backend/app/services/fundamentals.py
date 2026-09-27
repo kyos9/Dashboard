@@ -9,6 +9,8 @@
   엔비디아는 7월 말, 알파벳은 6월 말에 분기가 끝나므로 둘의 "시즌"은 한 달 가까이 어긋난다.
 - 새 종목은 등록하자마자 뒤에서 받는다.
 - 실패했으면 다음 날 다시 본다.
+
+어디서 받나 — 미국은 SEC(키 없음), 한국은 DART(운영자 키 `DART_API_KEY`). 일본은 아직 없다.
 """
 
 from __future__ import annotations
@@ -24,7 +26,7 @@ from sqlalchemy.orm import Session
 from app.markets import Market, market_of
 from app.models import FundamentalFact, FundamentalStatus, PriceDaily, StockSplit
 from app.services import fundamental_calc as calc
-from app.services.providers import sec
+from app.services.providers import dart, sec
 
 logger = logging.getLogger(__name__)
 
@@ -48,8 +50,13 @@ METRIC_LABELS = {
 }
 
 NOT_YET = {
-    Market.KR: "한국 종목 재무는 다음 단계(DART)에서 붙입니다",
     Market.JP: "일본 종목 재무는 다음 단계(야후)에서 붙입니다",
+}
+
+# 재무제표가 아예 없을 때 화면에 적는 말 (출처마다 이유가 다르다)
+EMPTY_MESSAGES = {
+    sec.SOURCE: "재무제표가 없는 종목입니다 (ETF·펀드 등)",
+    dart.SOURCE: "DART 에 정기보고서(분기·반기·사업보고서)가 아직 없습니다",
 }
 
 
@@ -100,23 +107,36 @@ def _save_splits(db: Session, ticker: str, splits: list[tuple[dt.date, float]]) 
 
 
 def _save_facts(db: Session, ticker: str, rows: list[dict]) -> int:
-    """없는 줄만 넣는다. **있는 줄은 고치지 않는다** — 정정은 다른 공시일의 새 줄로 온다."""
-    have = {
-        (r.source, r.metric, r.period_start, r.period_end, r.filed_at)
-        for r in db.query(
-            FundamentalFact.source, FundamentalFact.metric, FundamentalFact.period_start,
-            FundamentalFact.period_end, FundamentalFact.filed_at,
-        ).filter(FundamentalFact.ticker == ticker)
-    }
+    """없는 줄만 넣는다. **있는 줄은 고치지 않는다** — 정정은 다른 공시일의 새 줄로 온다.
+
+    같은 기간을 **더 늦은 공시일에 같은 값**으로 다시 받으면 넣지 않는다. DART 는 정정 공시가
+    나오면 정정일로 다시 주는데, 값이 그대로인 항목까지 줄이 늘면 "정정됨"으로 잘못 보인다.
+    """
+    have: set[tuple] = set()
+    earlier: dict[tuple, list[tuple[dt.date, float]]] = {}
+    for source, metric, start, end, filed, value in db.query(
+        FundamentalFact.source, FundamentalFact.metric, FundamentalFact.period_start,
+        FundamentalFact.period_end, FundamentalFact.filed_at, FundamentalFact.value,
+    ).filter(FundamentalFact.ticker == ticker):
+        have.add((source, metric, start, end, filed))
+        earlier.setdefault((source, metric, start, end), []).append((filed, value))
     added = 0
     for row in rows:
-        key = (row["source"], row["metric"], row["period_start"], row["period_end"], row["filed_at"])
-        if key in have:
+        period = (row["source"], row["metric"], row["period_start"], row["period_end"])
+        if (*period, row["filed_at"]) in have:
             continue
-        have.add(key)
+        prior = [version for version in earlier.get(period, []) if version[0] < row["filed_at"]]
+        if prior and _same(max(prior)[1], row["value"]):
+            continue
+        have.add((*period, row["filed_at"]))
+        earlier.setdefault(period, []).append((row["filed_at"], row["value"]))
         db.add(FundamentalFact(ticker=ticker, **row))
         added += 1
     return added
+
+
+def _same(a: float, b: float) -> bool:
+    return abs(a - b) <= 1e-9 * max(1.0, abs(a), abs(b))
 
 
 def _set_status(db: Session, ticker: str, state: str, message: str | None, source: str | None,
@@ -133,35 +153,54 @@ def _set_status(db: Session, ticker: str, state: str, message: str | None, sourc
         status.ok_at = now
 
 
+def _has_facts(db: Session, ticker: str, source: str) -> bool:
+    return db.query(FundamentalFact.id).filter(
+        FundamentalFact.ticker == ticker, FundamentalFact.source == source
+    ).first() is not None
+
+
+def _fetch(db: Session, ticker: str, market: Market, today: dt.date) -> tuple[str, sec.ParsedFacts]:
+    """출처에서 받아 저장할 모양으로. 출처의 예외(`NotListed`·`…Error`)는 그대로 올린다."""
+    if market == Market.US:
+        data = sec.fetch_companyfacts(sec.cik_for(ticker))
+        return sec.SOURCE, sec.parse_companyfacts(data, today=today) if data else sec.ParsedFacts(empty=True)
+    # DART 는 보고서마다 한 번씩 묻는다 — 처음에만 7년을, 그 뒤로는 최근 보고서만
+    return dart.SOURCE, dart.collect(ticker, today, backfill=not _has_facts(db, ticker, dart.SOURCE))
+
+
 def refresh_ticker(db: Session, ticker: str, now: dt.datetime | None = None) -> dict:
     """한 종목의 재무를 받는다. 실패해도 예외를 올리지 않고 결과에 적는다 (받아둔 값은 그대로)."""
     now = now or dt.datetime.utcnow()
     market = market_of(ticker)
-    if market != Market.US:
+    if market not in (Market.US, Market.KR):
         _set_status(db, ticker, STATE_UNSUPPORTED, NOT_YET.get(market), None, now)
         db.commit()
         return {"ticker": ticker, "state": STATE_UNSUPPORTED}
+    source = sec.SOURCE if market == Market.US else dart.SOURCE
     try:
-        cik = sec.cik_for(ticker)
-        data = sec.fetch_companyfacts(cik)
-    except sec.NotListed as exc:
-        _set_status(db, ticker, STATE_NONE, str(exc), sec.SOURCE, now)
+        source, parsed = _fetch(db, ticker, market, now.date())
+    except (sec.NotListed, dart.NotListed) as exc:
+        _set_status(db, ticker, STATE_NONE, str(exc), source, now)
         db.commit()
         return {"ticker": ticker, "state": STATE_NONE}
-    except sec.SecError as exc:
+    except dart.NoKey as exc:
+        # 오류가 아니라 설정이다 — 매일 되묻지 않고 평소 주기(7일)로 본다
+        _set_status(db, ticker, STATE_UNSUPPORTED, str(exc), source, now)
+        db.commit()
+        return {"ticker": ticker, "state": STATE_UNSUPPORTED}
+    except (sec.SecError, dart.DartError) as exc:
         db.rollback()
-        _set_status(db, ticker, STATE_ERROR, str(exc), sec.SOURCE, now)
+        _set_status(db, ticker, STATE_ERROR, str(exc), source, now)
         db.commit()
         logger.warning("재무 %s: %s", ticker, exc)
         return {"ticker": ticker, "state": STATE_ERROR, "error": str(exc)}
 
-    parsed = sec.parse_companyfacts(data, today=now.date()) if data else sec.ParsedFacts(empty=True)
     if parsed.unsupported:
-        _set_status(db, ticker, STATE_UNSUPPORTED, parsed.unsupported, sec.SOURCE, now)
+        _set_status(db, ticker, STATE_UNSUPPORTED, parsed.unsupported, source, now)
         db.commit()
         return {"ticker": ticker, "state": STATE_UNSUPPORTED}
     if parsed.empty:
-        _set_status(db, ticker, STATE_NONE, "재무제표가 없는 종목입니다 (ETF·펀드 등)", sec.SOURCE, now)
+        _set_status(db, ticker, STATE_NONE, EMPTY_MESSAGES[source], source, now)
         db.commit()
         return {"ticker": ticker, "state": STATE_NONE}
 
@@ -173,9 +212,15 @@ def refresh_ticker(db: Session, ticker: str, now: dt.datetime | None = None) -> 
     message = None
     if parsed.missing:
         message = "공시에 없는 항목: " + ", ".join(METRIC_LABELS.get(m, m) for m in parsed.missing)
-    _set_status(db, ticker, STATE_OK, message, sec.SOURCE, now)
+    _set_status(db, ticker, STATE_OK, message, source, now)
     db.commit()
     return {"ticker": ticker, "state": STATE_OK, "added": added}
+
+
+def _key_arrived(status: FundamentalStatus | None) -> bool:
+    """키가 없어 건너뛴 한국 종목 — 운영자가 키를 넣고 다시 띄웠으면 7일을 기다리지 않는다."""
+    return (status is not None and status.state == STATE_UNSUPPORTED
+            and status.message == dart.NO_KEY_MESSAGE and bool(dart.api_key()))
 
 
 def refresh_due(db: Session, tickers: list[str], now: dt.datetime | None = None) -> list[dict]:
@@ -185,7 +230,8 @@ def refresh_due(db: Session, tickers: list[str], now: dt.datetime | None = None)
     }
     results = []
     for ticker in tickers:
-        if not is_due(statuses.get(ticker), _latest_end(db, ticker), now):
+        status = statuses.get(ticker)
+        if not (is_due(status, _latest_end(db, ticker), now) or _key_arrived(status)):
             continue
         try:
             results.append(refresh_ticker(db, ticker, now))

@@ -24,8 +24,8 @@ const ETF: FundamentalsResponse = {
   ticker: '379800.KS',
   name: 'KODEX 미국S&P500',
   currency: 'KRW',
-  state: 'unsupported',
-  message: '한국 종목 재무는 다음 단계(DART)에서 붙입니다',
+  state: 'none',
+  message: 'DART 상장사 목록에 없습니다 — ETF·ETN·우선주이거나 상장사가 아닙니다',
   metrics: [],
   per_range: null,
   quarters: [],
@@ -62,7 +62,7 @@ describe('재무 화면', () => {
 
     const hidden = (await screen.findByText('재무를 보여주지 않는 종목')).closest('.section') as HTMLElement
     expect(within(hidden).getByText('KODEX 미국S&P500')).toBeInTheDocument()
-    expect(within(hidden).getByText(/다음 단계\(DART\)/)).toBeInTheDocument()
+    expect(within(hidden).getByText(/DART 상장사 목록에 없습니다/)).toBeInTheDocument()
     expect(within(hidden).getByText('NEW')).toBeInTheDocument()
     expect(within(hidden).getByText(/아직 재무를 받지 않았습니다/)).toBeInTheDocument()
     expect(within(screen.getByRole('table')).queryByText('KODEX 미국S&P500')).toBeNull()
