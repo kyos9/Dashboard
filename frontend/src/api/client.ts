@@ -4,6 +4,7 @@ import type {
   AiContext,
   AiModelsResponse,
   AiProviderName,
+  AiTarget,
   AuthStatus,
   DashboardCard,
   FxInfo,
@@ -88,21 +89,105 @@ function parseError(status: number, statusText: string, body: string): ApiError 
   return new ApiError(status, null, body || `${status} ${statusText}`)
 }
 
+async function failure(res: Response, path: string): Promise<ApiError> {
+  const body = await res.text().catch(() => '')
+  // 로그인 자체가 실패한 401은 로그인 화면이 직접 다루므로 신호를 보내지 않는다
+  if (res.status === 401 && !path.startsWith('/auth/')) {
+    window.dispatchEvent(new Event(UNAUTHORIZED_EVENT))
+  }
+  return parseError(res.status, res.statusText, body)
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     headers: { 'Content-Type': 'application/json' },
     ...init,
   })
-  if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    // 로그인 자체가 실패한 401은 로그인 화면이 직접 다루므로 신호를 보내지 않는다
-    if (res.status === 401 && !path.startsWith('/auth/')) {
-      window.dispatchEvent(new Event(UNAUTHORIZED_EVENT))
-    }
-    throw parseError(res.status, res.statusText, body)
-  }
+  if (!res.ok) throw await failure(res, path)
   if (res.status === 204) return undefined as T
   return (await res.json()) as T
+}
+
+// --- 써지는 대로 받기 (AI, 3c-2) ---------------------------------------------
+// 서버는 text/event-stream 으로 start → delta… → done (또는 error) 을 보낸다. EventSource 는
+// POST·헤더를 못 쓰므로(키는 헤더로 간다) fetch 로 받아 직접 나눈다.
+
+export interface SseEvent {
+  event: string
+  data: string
+}
+
+/** 받은 글에서 끝난 이벤트(빈 줄로 끝난 것)만 떼어 내고, 남은 조각을 돌려준다. */
+export function takeSseEvents(buffer: string): { events: SseEvent[]; rest: string } {
+  const events: SseEvent[] = []
+  const blocks = buffer.replace(/\r\n?/g, '\n').split('\n\n')
+  const rest = blocks.pop() ?? ''
+  for (const block of blocks) {
+    let event = 'message'
+    const data: string[] = []
+    for (const line of block.split('\n')) {
+      if (line.startsWith('event:')) event = line.slice(6).trim()
+      else if (line.startsWith('data:')) data.push(line.slice(5).replace(/^ /, ''))
+    }
+    if (data.length) events.push({ event, data: data.join('\n') })
+  }
+  return { events, rest }
+}
+
+export interface AiStreamStart {
+  provider: AiProviderName
+  model: string
+  as_of: string | null
+}
+
+export interface AiStreamHandlers {
+  onStart?: (info: AiStreamStart) => void
+  /** 새로 온 글 조각 */
+  onDelta: (text: string) => void
+  /** 멈추기·팝업 닫기 — 끊으면 서버가 제공자와의 연결도 닫는다 */
+  signal?: AbortSignal
+}
+
+/** 흘려받기가 done 없이 끝났다 — 서버나 중간 연결이 끊겼다 */
+const CUT_HINT = 'AI 글을 받는 도중에 연결이 끊겼습니다. 다시 받아 보세요.'
+
+async function streamAi(path: string, key: string, body: unknown, handlers: AiStreamHandlers): Promise<AiAnalysis> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', [AI_KEY_HEADER]: key },
+    body: JSON.stringify(body),
+    signal: handlers.signal,
+  })
+  // 글을 쓰기 전의 거절(키·한도·모델)은 평소 오류와 같은 JSON 으로 온다
+  if (!res.ok) throw await failure(res, path)
+
+  let result: AiAnalysis | null = null
+  const handle = (ev: SseEvent) => {
+    const data = JSON.parse(ev.data)
+    if (ev.event === 'start') handlers.onStart?.(data as AiStreamStart)
+    else if (ev.event === 'delta') handlers.onDelta(String(data.text ?? ''))
+    else if (ev.event === 'done') result = data as AiAnalysis
+    else if (ev.event === 'error') throw new ApiError(data.status ?? 502, data.hint ?? null, data.message ?? '', data.code ?? null)
+  }
+
+  let buffer = ''
+  if (res.body) {
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    for (;;) {
+      const { value, done } = await reader.read()
+      buffer += done ? decoder.decode() : decoder.decode(value, { stream: true })
+      const taken = takeSseEvents(done ? `${buffer}\n\n` : buffer)
+      buffer = taken.rest
+      taken.events.forEach(handle)
+      if (done) break
+    }
+  } else {
+    // 흘려받기를 못 하는 브라우저 — 다 온 뒤에 한 번에 나눈다
+    takeSseEvents(`${await res.text()}\n\n`).events.forEach(handle)
+  }
+  if (!result) throw new ApiError(502, CUT_HINT, 'stream ended without done', 'cut')
+  return result
 }
 
 export const api = {
@@ -249,17 +334,30 @@ export const api = {
       body: JSON.stringify({ provider }),
     }),
   /** AI 에게 보내는 내용 그대로 — 키 없이도 볼 수 있다 */
-  aiContext: (ticker: string, question = '') =>
+  aiContext: (target: AiTarget, question = '') =>
     request<AiContext>(
-      `/ai/context/${encodeURIComponent(ticker)}${question.trim() ? `?question=${encodeURIComponent(question)}` : ''}`,
+      `${target.kind === 'stock' ? `/ai/context/${encodeURIComponent(target.ticker)}` : `/ai/${target.kind}/context`}${
+        question.trim() ? `?question=${encodeURIComponent(question)}` : ''
+      }`,
     ),
-  /** `question` — 사용자가 붙이는 요청 (선택). 비우면 기본 정리 */
-  aiAnalyze: (ticker: string, provider: AiProviderName, model: string, key: string, question = '') =>
-    request<AiAnalysis>(`/ai/analyze/${encodeURIComponent(ticker)}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', [AI_KEY_HEADER]: key },
-      body: JSON.stringify({ provider, model, question: question.trim() || null }),
-    }),
+  /**
+   * 정리를 써지는 대로 받는다 (3c-2). `question` — 사용자가 붙이는 요청 (선택, 비우면 기본 정리).
+   * 다 쓰면 한 번에 받을 때와 같은 모양의 결과로 끝난다.
+   */
+  aiAnalyzeStream: (
+    target: AiTarget,
+    provider: AiProviderName,
+    model: string,
+    key: string,
+    question: string,
+    handlers: AiStreamHandlers,
+  ) =>
+    streamAi(
+      target.kind === 'stock' ? `/ai/analyze/${encodeURIComponent(target.ticker)}/stream` : `/ai/${target.kind}/stream`,
+      key,
+      { provider, model, question: question.trim() || null },
+      handlers,
+    ),
 
   getLogs: (level: 'warning' | 'all' = 'warning') =>
     request<LogsResponse>(`/logs?level=${level}`),

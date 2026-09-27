@@ -206,7 +206,7 @@ export function ChartModal({ ticker, name, initialTab = 'chart', onClose }: Prop
         </div>
 
         {activeTab === 'ai' ? (
-          <AiPanel ticker={ticker} account={pushAccount(user)} />
+          <AiPanel target={{ kind: 'stock', ticker }} account={pushAccount(user)} />
         ) : activeTab === 'fundamentals' && fundamentals ? (
           <FundamentalsPanel data={fundamentals} />
         ) : (

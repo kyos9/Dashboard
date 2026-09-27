@@ -644,16 +644,28 @@ export interface AiModelsResponse {
   models: AiModel[]
 }
 
+/**
+ * 무엇을 정리하나 (3c-2) — 종목 하나, 담은 종목 전체, 매크로.
+ * 전체·매크로도 공용 숫자만 보낸다 (보유·비중·평단가는 어느 쪽도 보내지 않는다).
+ */
+export type AiTarget = { kind: 'stock'; ticker: string } | { kind: 'watchlist' } | { kind: 'macro' }
+
+export type AiScope = AiTarget['kind']
+
 /** AI 에게 보내는 내용 그대로 */
 export interface AiContext {
-  ticker: string
+  scope: AiScope
+  /** 종목 정리일 때만 */
+  ticker: string | null
   as_of: string | null
   system: string
   prompt: string
 }
 
 export interface AiAnalysis {
-  ticker: string
+  scope: AiScope
+  /** 종목 정리일 때만 */
+  ticker: string | null
   /** 이 글을 받을 때 붙인 요청 (없으면 기본 정리) */
   question?: string | null
   provider: AiProviderName

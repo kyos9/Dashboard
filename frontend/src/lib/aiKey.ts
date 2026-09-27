@@ -10,7 +10,7 @@
  * - 나가기·탈퇴 때 지운다 (`AuthGate`).
  */
 import { useEffect, useState } from 'react'
-import type { AiAnalysis, AiProviderName } from '../types'
+import type { AiAnalysis, AiProviderName, AiScope, AiTarget } from '../types'
 
 const KEY_STORE = 'signalboard:ai-key'
 const RESULT_STORE = 'signalboard:ai-results'
@@ -154,29 +154,34 @@ export function useAiSettings(account: string): AiSettings | null {
 }
 
 // --- 받아 둔 정리 글 --------------------------------------------------------
-// 다시 열 때마다 돈을 내고 새로 받지 않게, 마지막 글을 종목마다 하나씩 둔다.
+// 다시 열 때마다 돈을 내고 새로 받지 않게, 마지막 글을 종목마다(전체·매크로도 하나씩) 둔다.
+
+/** 받아 둔 글을 찾는 이름 — 종목은 티커, 전체·매크로는 티커와 겹치지 않는 이름 */
+export function aiTargetKey(target: AiTarget): string {
+  return target.kind === 'stock' ? target.ticker : `@${target.kind}`
+}
 
 interface ResultStore {
   account: string
   items: Record<string, AiAnalysis>
 }
 
-export function readAiResult(account: string, ticker: string): AiAnalysis | null {
+export function readAiResult(account: string, key: string): AiAnalysis | null {
   try {
     const found = readJson<ResultStore>(localStorage, RESULT_STORE)
     if (!found || found.account !== account) return null
-    return found.items[ticker] ?? null
+    return found.items[key] ?? null
   } catch {
     return null
   }
 }
 
-export function saveAiResult(account: string, result: AiAnalysis): void {
+export function saveAiResult(account: string, key: string, result: AiAnalysis): void {
   try {
     const found = readJson<ResultStore>(localStorage, RESULT_STORE)
     const items = found && found.account === account ? { ...found.items } : {}
-    delete items[result.ticker]
-    items[result.ticker] = result
+    delete items[key]
+    items[key] = result
     const kept = Object.entries(items).slice(-MAX_RESULTS)
     localStorage.setItem(RESULT_STORE, JSON.stringify({ account, items: Object.fromEntries(kept) }))
   } catch {
@@ -185,24 +190,38 @@ export function saveAiResult(account: string, result: AiAnalysis): void {
 }
 
 // --- 내 요청 ----------------------------------------------------------------
-// 사용자가 AI 에게 붙이는 말. 종목마다가 아니라 하나 — "초보자용으로" 같은 요청은 종목을 바꿔도
-// 그대로 쓰는 일이 많다. 이 기기에, 넣은 계정과 함께 둔다.
+// 사용자가 AI 에게 붙이는 말. 종목마다가 아니라 **정리의 종류마다** 하나 — "초보자용으로" 같은 요청은
+// 종목을 바꿔도 그대로 쓰는 일이 많지만, 매크로에 붙인 "금리만"이 종목 정리에 따라가면 이상하다.
+// 이 기기에, 넣은 계정과 함께 둔다.
 
 /** 서버의 한도와 같다 (`ai_analysis.QUESTION_MAX`) */
 export const QUESTION_MAX = 1000
 
-export function readAiQuestion(account: string): string {
+interface QuestionStore {
+  account: string
+  /** v0.25.1 에 저장된 모양 — 종목 정리의 요청 */
+  text?: string
+  texts?: Partial<Record<AiScope, string>>
+}
+
+export function readAiQuestion(account: string, scope: AiScope = 'stock'): string {
   try {
-    const found = readJson<{ account: string; text: string }>(localStorage, QUESTION_STORE)
-    return found && found.account === account ? found.text : ''
+    const found = readJson<QuestionStore>(localStorage, QUESTION_STORE)
+    if (!found || found.account !== account) return ''
+    return found.texts?.[scope] ?? (scope === 'stock' ? found.text ?? '' : '')
   } catch {
     return ''
   }
 }
 
-export function saveAiQuestion(account: string, text: string): void {
+export function saveAiQuestion(account: string, text: string, scope: AiScope = 'stock'): void {
   try {
-    if (text.trim()) localStorage.setItem(QUESTION_STORE, JSON.stringify({ account, text }))
+    const found = readJson<QuestionStore>(localStorage, QUESTION_STORE)
+    const texts: Partial<Record<AiScope, string>> =
+      found && found.account === account ? { ...(found.texts ?? (found.text ? { stock: found.text } : {})) } : {}
+    if (text.trim()) texts[scope] = text
+    else delete texts[scope]
+    if (Object.keys(texts).length) localStorage.setItem(QUESTION_STORE, JSON.stringify({ account, texts }))
     else localStorage.removeItem(QUESTION_STORE)
   } catch {
     // 저장이 막힌 브라우저 — 이번에만 쓴다

@@ -303,6 +303,13 @@ h4 {
   margin: 4px 0 0;
 }
 
+/* 제목 옆 버튼 여럿 — 좁으면 줄을 바꾼다 */
+.page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .section {
   margin-top: 26px;
 }
@@ -3075,6 +3082,11 @@ table.data-table tr.dirty:hover td {
   width: min(600px, 100%);
 }
 
+/* AI 전체·매크로 정리 (3c-2) — 글 읽기 좋은 폭 */
+.ai-summary-modal {
+  width: min(820px, 100%);
+}
+
 .ai-key-form {
   display: flex;
   flex-direction: column;
@@ -3335,4 +3347,20 @@ table.data-table tr.dirty:hover td {
 
 .card-actions .ai-open {
   align-self: flex-start;
+}
+
+/* AI 글이 써지는 중 (3c-2) — 움직임을 꺼 둔 사람에게는 깜빡이지 않는다 */
+.ai-writing {
+  color: var(--accent, var(--fg));
+  animation: ai-writing 1.2s ease-in-out infinite;
+}
+@keyframes ai-writing {
+  50% {
+    opacity: 0.45;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ai-writing {
+    animation: none;
+  }
 }

@@ -12,6 +12,16 @@
 {
 	# 인증서에 문제가 생기면 여기로 알려준다. 비워둬도 동작한다.
 	email {$ACME_EMAIL}
+
+	# 사용자의 AI 키(X-AI-Key 헤더)를 Caddy 로그에 남기지 않는다.
+	# Caddy 는 요청이 도중에 끊기면(AI 글을 받다가 "멈추기"·창 닫기) 경고와 함께 요청 헤더를
+	# 통째로 적는다. Cookie·Authorization 은 알아서 가리지만 우리 헤더는 모른다 — 그래서 뺀다.
+	# 앱은 키를 저장·기록하지 않는데 앞문이 적으면 소용없다 (ROADMAP 3c-2).
+	log {
+		format filter {
+			request>headers>X-Ai-Key delete
+		}
+	}
 }
 
 {$DOMAIN} {

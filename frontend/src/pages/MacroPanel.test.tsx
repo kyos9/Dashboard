@@ -601,6 +601,20 @@ describe('손님·사용자·관리자', () => {
     expect(screen.queryByRole('button', { name: /홈 화면에 올리기/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '지금 받아오기' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '예상치 입력' })).not.toBeInTheDocument()
+    // AI 는 자기 키로 쓰는 사람만 — 손님에게는 버튼이 없다
+    expect(screen.queryByRole('button', { name: '✦ AI 정리' })).not.toBeInTheDocument()
+  })
+
+  it('사용자는 "AI 정리"로 매크로 정리 창을 연다 — 여는 것만으로 부르지는 않는다', async () => {
+    const analyze = vi.spyOn(api, 'aiAnalyzeStream')
+    renderAs({ authenticated: true, user: { email: 'f@x.y', name: '친구', is_owner: false } })
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: '✦ AI 정리' }))
+    const dialog = await screen.findByRole('dialog', { name: 'AI 매크로 정리' })
+    expect(within(dialog).getByText(/앞으로의 방향은 점치지 않도록/)).toBeInTheDocument()
+    expect(analyze).not.toHaveBeenCalled()
+    await user.click(within(dialog).getByRole('button', { name: '닫기' }))
+    expect(screen.queryByRole('dialog', { name: 'AI 매크로 정리' })).not.toBeInTheDocument()
   })
 
   it('사용자는 내 홈의 별까지 — 전원이 보는 받아오기·예상치는 관리자 몫이다', async () => {

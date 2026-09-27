@@ -251,6 +251,15 @@ cd Dashboard && git pull && docker compose --profile https pull && docker compos
 `git pull`은 `docker-compose.yml`·`Caddyfile` 같은 설정을 맞추려고, `compose pull`은
 새 이미지를 받으려고 합니다. **둘 다 해야 합니다.**
 
+**`Caddyfile` 이 바뀐 업데이트**(릴리스 안내에 적습니다 — 예: v0.28.0)는 Caddy 를 한 번 새로 띄워야
+합니다. `up -d` 는 설정 파일만 바뀐 컨테이너를 다시 띄우지 않습니다:
+
+```bash
+docker compose --profile https up -d --force-recreate caddy
+```
+
+인증서는 `caddy-data` 볼륨에 남아 있어 다시 받지 않습니다. 몇 초 동안 접속이 끊깁니다.
+
 ARM(A1.Flex)이라면 `compose pull` 대신 `--build` 입니다 — 6번 참고:
 `cd Dashboard && git pull && docker compose --profile https up -d --build`
 

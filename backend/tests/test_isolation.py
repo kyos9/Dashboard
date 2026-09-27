@@ -138,6 +138,10 @@ ENDPOINTS: dict[tuple[str, str], tuple[str, str]] = {
     ("POST", "/api/ai/models"): (SHARED, USER),
     ("GET", "/api/ai/context/{ticker}"): (MINE, USER),
     ("POST", "/api/ai/analyze/{ticker}"): (MINE, USER),
+    ("POST", "/api/ai/analyze/{ticker}/stream"): (MINE, USER),
+    # 담은 종목 전체 · 매크로 정리 (3c-2) — 전체 정리는 **내 목록**이 들어간다
+    ("GET", "/api/ai/{scope}/context"): (MINE, USER),
+    ("POST", "/api/ai/{scope}/stream"): (MINE, USER),
 }
 
 
@@ -443,6 +447,53 @@ def check_ai_analyze(w: World):
     assert "B의 QQQ(QQQ)" in sent[0]["json"]["messages"][0]["content"]
 
 
+def _fake_stream(w: World) -> list:
+    from app.services.providers import ai
+
+    sent = []
+
+    def fake(url, headers, json, params=None):
+        sent.append(json)
+        lines = ['data: {"type": "content_block_delta", "delta": {"type": "text_delta", "text": "정리"}}', ""]
+        return ai.StreamResponse(200, None, iter(lines), lambda: None)
+
+    w.monkeypatch.setattr(ai, "send_stream", fake)
+    return sent
+
+
+def check_ai_analyze_stream(w: World):
+    sent = _fake_stream(w)
+    client = w.as_user(B)
+    body = {"provider": "anthropic", "model": "m"}
+    key = {"X-AI-Key": "sk-ant-test-key-for-b"}
+    assert client.post("/api/ai/analyze/VOO/stream", json=body, headers=key).status_code == 404
+    assert sent == []
+    res = client.post("/api/ai/analyze/QQQ/stream", json=body, headers=key)
+    assert res.status_code == 200 and "event: done" in res.text
+    assert "B의 QQQ(QQQ)" in sent[0]["messages"][0]["content"]
+
+
+def check_ai_scope_context(w: World):
+    prompt = w.as_user(B).get("/api/ai/watchlist/context").json()["prompt"]
+    # 내 목록만 — A 가 붙인 이름·A 만 담은 종목은 없다
+    assert "B의 QQQ(QQQ)" in prompt and f"삼성전자({SAMSUNG})" in prompt
+    assert "A의" not in prompt and "VOO" not in prompt
+    # 보유수량·평단가·목표비중은 전체 정리에도 가지 않는다
+    for mine in ("390", "30.0", "70.0"):
+        assert mine not in prompt
+    theirs = w.as_user(A).get("/api/ai/watchlist/context").json()["prompt"]
+    assert "A의 VOO(VOO)" in theirs and "B의" not in theirs
+
+
+def check_ai_scope_stream(w: World):
+    sent = _fake_stream(w)
+    res = w.as_user(B).post("/api/ai/watchlist/stream", json={"provider": "anthropic", "model": "m"},
+                            headers={"X-AI-Key": "sk-ant-test-key-for-b"})
+    assert res.status_code == 200 and "event: done" in res.text
+    content = sent[0]["messages"][0]["content"]
+    assert "B의 QQQ(QQQ)" in content and "A의" not in content and "VOO" not in content
+
+
 def check_targets(w: World):
     got = {t["ticker"]: t for t in w.as_user(B).get("/api/rebalance/targets").json()}
     assert set(got) == {SAMSUNG, "QQQ"}
@@ -702,6 +753,9 @@ CHECKS = {
     ("POST", "/api/push/test"): check_push_test,
     ("GET", "/api/ai/context/{ticker}"): check_ai_context,
     ("POST", "/api/ai/analyze/{ticker}"): check_ai_analyze,
+    ("POST", "/api/ai/analyze/{ticker}/stream"): check_ai_analyze_stream,
+    ("GET", "/api/ai/{scope}/context"): check_ai_scope_context,
+    ("POST", "/api/ai/{scope}/stream"): check_ai_scope_stream,
 }
 
 

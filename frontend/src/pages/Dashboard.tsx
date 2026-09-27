@@ -13,6 +13,9 @@ import { useRecheck } from '../lib/recheck'
 
 // 차트는 누를 때 받는다 (App.tsx의 HistoryChart와 같은 이유)
 const ChartModal = lazyChunk(() => import('../components/ChartModal'), 'ChartModal')
+const AiSummaryModal = lazyChunk(() => import('../components/AiSummaryModal'), 'AiSummaryModal')
+import { useAuth } from '../components/AuthGate'
+import { pushAccount } from '../lib/push'
 import { ErrorNotice } from '../components/ErrorNotice'
 import {
   amount,
@@ -344,6 +347,9 @@ export function Dashboard() {
   const [chart, setChart] = useState<{ card: DashboardCard; tab: ChartTab } | null>(null)
   const openChart = useCallback((card: DashboardCard) => setChart({ card, tab: 'chart' }), [])
   const openAi = useCallback((card: DashboardCard) => setChart({ card, tab: 'ai' }), [])
+  const [aiAll, setAiAll] = useState(false)
+  const closeAiAll = useCallback(() => setAiAll(false), [])
+  const { user } = useAuth()
   const [stocks, setStocks] = useState<Stock[]>([])
   const [reordering, setReordering] = useState(false)
   const [dragging, setDragging] = useState<string | null>(null)
@@ -791,6 +797,10 @@ export function Dashboard() {
           >
             ⚙ 설정
           </button>
+          {/* 담은 종목 전체를 AI 가 한 장으로 (3c-2). 누르면 창만 열린다 — 부르는 것은 창에서 한 번 더 */}
+          <button className="chip" onClick={() => setAiAll(true)}>
+            ✦ AI 전체 정리
+          </button>
         </div>
       </div>
 
@@ -843,6 +853,12 @@ export function Dashboard() {
             initialTab={chart.tab}
             onClose={() => setChart(null)}
           />
+        </Suspense>
+      )}
+
+      {aiAll && (
+        <Suspense fallback={null}>
+          <AiSummaryModal kind="watchlist" account={pushAccount(user)} onClose={closeAiAll} />
         </Suspense>
       )}
 

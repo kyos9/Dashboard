@@ -451,7 +451,7 @@ describe('대시보드 · 차트 열기', () => {
       coverage: { first_date: null, last_date: null, rows: 0 },
     })
     vi.spyOn(api, 'getFundamentals').mockRejectedValue(new Error('none'))
-    const analyze = vi.spyOn(api, 'aiAnalyze')
+    const analyze = vi.spyOn(api, 'aiAnalyzeStream')
     const user = userEvent.setup()
     renderDashboard()
 
@@ -462,6 +462,17 @@ describe('대시보드 · 차트 열기', () => {
 
     const dialog = await screen.findByRole('dialog', { name: /삼성전자 차트/ })
     expect(within(dialog).getByRole('tab', { name: 'AI 분석' })).toHaveAttribute('aria-selected', 'true')
+    expect(analyze).not.toHaveBeenCalled()
+  })
+
+  it('"AI 전체 정리"는 창만 연다 — 보유는 보내지 않는다고 적고, 부르는 것은 창에서 한 번 더', async () => {
+    mockApi()
+    const analyze = vi.spyOn(api, 'aiAnalyzeStream')
+    const user = userEvent.setup()
+    renderDashboard()
+    await user.click(await screen.findByRole('button', { name: '✦ AI 전체 정리' }))
+    const dialog = await screen.findByRole('dialog', { name: 'AI 전체 정리' })
+    expect(within(dialog).getByText(/보유수량·비중·평단가는 보내지 않습니다/)).toBeInTheDocument()
     expect(analyze).not.toHaveBeenCalled()
   })
 

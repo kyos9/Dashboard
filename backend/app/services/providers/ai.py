@@ -6,7 +6,8 @@
 (OpenAI 는 "Incorrect API key provided: sk-...abcd" 라고 적는다).
 
 제공자마다 주소·헤더·응답 모양·오류 모양이 다르다. 시세 제공자(`providers/`)처럼 겉을
-하나로 맞춘다 — `list_models(key)` 와 `generate(key, model, system, prompt)`.
+하나로 맞춘다 — `list_models(key)`, `generate(key, model, system, prompt)`, 그리고 글이 써지는
+대로 받는 `stream(...)` (3c-2).
 
 **오류를 번역한다.** "안 돼요" 하나로 뭉치면 사용자가 할 일을 모른다. 키가 틀린 것,
 잔액이 없는 것, 그 모델을 쓸 권한이 없는 것, 잠깐 막힌 것은 할 일이 전부 다르다.
@@ -19,6 +20,8 @@ from __future__ import annotations
 
 import logging
 import re
+import json as jsonlib
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -74,6 +77,7 @@ ERRORS: dict[str, tuple[int, str]] = {
     "bad_model": (400, "모델 이름이 올바르지 않습니다. 모델 목록에서 골라 주세요."),
     "unknown_provider": (400, "지원하지 않는 AI 제공자입니다."),
     "question_too_long": (400, "요청이 너무 깁니다. 1000자 안으로 줄여 주세요."),
+    "nothing": (400, "정리할 숫자가 아직 없습니다. 종목을 담거나 지표를 받은 뒤 다시 해 보세요."),
 }
 
 
@@ -141,6 +145,69 @@ def send(method: str, url: str, headers: dict, json: dict | None = None,
     return Response(res.status_code, body)
 
 
+@dataclass
+class StreamResponse:
+    """흘려받는 응답. 성공(200)이면 `lines` 로 한 줄씩, 아니면 `body` 에 오류 본문."""
+
+    status: int
+    body: Any
+    lines: Iterator[str]
+    close: Callable[[], None]
+
+
+def send_stream(url: str, headers: dict, json: dict, params: dict | None = None) -> StreamResponse:
+    """제공자에 보내고 **답이 오는 대로** 한 줄씩 읽는다. 테스트는 이 함수를 바꿔 끼운다.
+
+    상태부터 본다 — 키가 틀렸으면 글을 한 자도 받기 전에 알 수 있다. 그래야 화면에 보내는 응답도
+    평소처럼 오류(JSON)로 돌려줄 수 있다. 예외 문장은 `send` 처럼 올리지 않는다.
+    """
+    try:
+        res = requests.post(url, headers=headers, json=json, params=params, stream=True,
+                            timeout=(CONNECT_TIMEOUT, READ_TIMEOUT))
+    except requests.Timeout:
+        raise error("timeout", "provider timed out") from None
+    except requests.RequestException as exc:
+        raise error("network", f"connection failed ({type(exc).__name__})") from None
+    if res.status_code != 200:
+        try:
+            body: Any = res.json()
+        except ValueError:
+            body = res.text
+        res.close()
+        return StreamResponse(res.status_code, body, iter(()), lambda: None)
+    # text/event-stream 은 charset 을 안 적어 보내기도 한다 — requests 는 그때 latin-1 로 읽어 한글이 깨진다
+    res.encoding = "utf-8"
+
+    def lines() -> Iterator[str]:
+        try:
+            yield from res.iter_lines(chunk_size=1024, decode_unicode=True)
+        except requests.Timeout:
+            raise error("timeout", "provider stopped sending") from None
+        except requests.RequestException as exc:
+            raise error("network", f"stream broke ({type(exc).__name__})") from None
+
+    return StreamResponse(200, None, lines(), res.close)
+
+
+def sse_events(lines) -> Iterator[tuple[str | None, str]]:
+    """서버 전송 이벤트(SSE)를 (이벤트 이름, 데이터) 로. 빈 줄이 한 이벤트의 끝이다."""
+    event: str | None = None
+    data: list[str] = []
+    for line in lines:
+        if line == "":
+            if data:
+                yield event, "\n".join(data)
+            event, data = None, []
+        elif line.startswith(":"):
+            continue  # 주석 (연결 유지용)
+        elif line.startswith("event:"):
+            event = line[6:].strip()
+        elif line.startswith("data:"):
+            data.append(line[5:].removeprefix(" "))
+    if data:
+        yield event, "\n".join(data)
+
+
 def _provider_message(body: Any) -> str:
     """제공자 오류 본문에서 사람이 읽을 문장 하나. 세 제공자 모두 `error.message` 에 둔다."""
     if isinstance(body, dict):
@@ -162,6 +229,8 @@ class AiProvider(Protocol):
 
     def generate(self, key: str, model: str, system: str, prompt: str) -> Reply: ...
 
+    def stream(self, key: str, model: str, system: str, prompt: str) -> Streamed: ...
+
 
 def _fail(provider: str, code: str, res: Response, key: str) -> AiError:
     detail = scrub(_provider_message(res.body), key)
@@ -178,6 +247,54 @@ def _check(provider, res: Response, key: str) -> None:
         raise _fail(provider.name, "provider_error", res, key)
 
 
+class Streamed:
+    """흘려받는 중인 답. 돌리면 글 조각이 나오고, 다 돌고 나면 `reply` 가 채워져 있다.
+
+    만들 때 이미 제공자에 연결해 상태를 봤다(틀린 키는 여기까지 오지 않는다). 도중에 끊기거나
+    제공자가 오류 이벤트를 보내면 `AiError` 를 던진다 — 받는 쪽이 그때까지의 글과 함께 알린다.
+    """
+
+    def __init__(self, provider, key: str, model: str, res: StreamResponse) -> None:
+        self._provider = provider
+        self._key = key
+        self._res = res
+        self.reply = Reply(text="", model=model)
+
+    def __iter__(self) -> Iterator[str]:
+        try:
+            for event, data in sse_events(self._res.lines):
+                if data.strip() == "[DONE]":
+                    break
+                try:
+                    body = jsonlib.loads(data)
+                except ValueError:
+                    continue
+                if not isinstance(body, dict):
+                    continue
+                if event == "error" or "error" in body:
+                    code = self._provider.classify(Response(200, body))
+                    raise _fail(self._provider.name, "provider_error" if code == "bad_request" else code,
+                                Response(200, body), self._key)
+                piece = self._provider.read_chunk(self.reply, body)
+                if piece:
+                    self.reply.text += piece
+                    yield piece
+        finally:
+            self.close()
+        self.reply.text = self.reply.text.strip()
+
+    def close(self) -> None:
+        self._res.close()
+
+
+def _open(provider, key: str, model: str, url: str, headers: dict, body: dict,
+          params: dict | None = None) -> Streamed:
+    res = send_stream(url, headers, body, params)
+    if res.status != 200:
+        raise _fail(provider.name, provider.classify(res), res, key)
+    return Streamed(provider, key, model, res)
+
+
 # ---------------------------------------------------------------------------
 #  Anthropic (Claude)
 # ---------------------------------------------------------------------------
@@ -188,7 +305,8 @@ class Anthropic:
     label = "Claude (Anthropic)"
     BASE = "https://api.anthropic.com/v1"
     VERSION = "2023-06-01"
-    MAX_TOKENS = 3000
+    # 담은 종목 전체 정리는 2500자까지 쓴다 — 한국어는 글자당 토큰이 많다 (쓴 만큼만 청구된다)
+    MAX_TOKENS = 5000
 
     def _headers(self, key: str) -> dict:
         return {"x-api-key": key, "anthropic-version": self.VERSION, "content-type": "application/json"}
@@ -223,14 +341,16 @@ class Anthropic:
             if isinstance(m, dict) and m.get("id")
         ]
 
-    def generate(self, key: str, model: str, system: str, prompt: str) -> Reply:
-        body = {
+    def _body(self, model: str, system: str, prompt: str) -> dict:
+        return {
             "model": model,
             "max_tokens": self.MAX_TOKENS,
             "system": system,
             "messages": [{"role": "user", "content": prompt}],
         }
-        res = send("POST", f"{self.BASE}/messages", self._headers(key), json=body)
+
+    def generate(self, key: str, model: str, system: str, prompt: str) -> Reply:
+        res = send("POST", f"{self.BASE}/messages", self._headers(key), json=self._body(model, system, prompt))
         _check(self, res, key)
         parts = [p.get("text", "") for p in res.body.get("content") or [] if p.get("type") == "text"]
         usage = res.body.get("usage") or {}
@@ -241,6 +361,26 @@ class Anthropic:
             input_tokens=usage.get("input_tokens"),
             output_tokens=usage.get("output_tokens"),
         )
+
+    def stream(self, key: str, model: str, system: str, prompt: str) -> Streamed:
+        body = {**self._body(model, system, prompt), "stream": True}
+        return _open(self, key, model, f"{self.BASE}/messages", self._headers(key), body)
+
+    @staticmethod
+    def read_chunk(reply: Reply, body: dict) -> str:
+        kind = body.get("type")
+        if kind == "message_start":
+            message = body.get("message") or {}
+            reply.model = message.get("model") or reply.model
+            reply.input_tokens = (message.get("usage") or {}).get("input_tokens")
+        elif kind == "content_block_delta":
+            delta = body.get("delta") or {}
+            if delta.get("type") == "text_delta":
+                return str(delta.get("text") or "")
+        elif kind == "message_delta":
+            reply.truncated = (body.get("delta") or {}).get("stop_reason") == "max_tokens"
+            reply.output_tokens = (body.get("usage") or {}).get("output_tokens", reply.output_tokens)
+        return ""
 
 
 # ---------------------------------------------------------------------------
@@ -300,8 +440,8 @@ class OpenAI:
         rows.sort(key=lambda m: m.get("created") or 0, reverse=True)
         return [{"id": m["id"], "label": m["id"]} for m in rows]
 
-    def generate(self, key: str, model: str, system: str, prompt: str) -> Reply:
-        body = {
+    def _body(self, model: str, system: str, prompt: str) -> dict:
+        return {
             "model": model,
             # `max_tokens` 는 추론 모델이 거절한다. 온도도 건드리지 않는다 (추론 모델이 거절한다).
             "max_completion_tokens": self.MAX_TOKENS,
@@ -310,7 +450,10 @@ class OpenAI:
                 {"role": "user", "content": prompt},
             ],
         }
-        res = send("POST", f"{self.BASE}/chat/completions", self._headers(key), json=body)
+
+    def generate(self, key: str, model: str, system: str, prompt: str) -> Reply:
+        res = send("POST", f"{self.BASE}/chat/completions", self._headers(key),
+                   json=self._body(model, system, prompt))
         _check(self, res, key)
         choice = (res.body.get("choices") or [{}])[0]
         usage = res.body.get("usage") or {}
@@ -321,6 +464,23 @@ class OpenAI:
             input_tokens=usage.get("prompt_tokens"),
             output_tokens=usage.get("completion_tokens"),
         )
+
+    def stream(self, key: str, model: str, system: str, prompt: str) -> Streamed:
+        # 쓴 토큰 수는 따로 청해야 마지막 조각에 온다
+        body = {**self._body(model, system, prompt), "stream": True, "stream_options": {"include_usage": True}}
+        return _open(self, key, model, f"{self.BASE}/chat/completions", self._headers(key), body)
+
+    @staticmethod
+    def read_chunk(reply: Reply, body: dict) -> str:
+        reply.model = body.get("model") or reply.model
+        usage = body.get("usage") or {}
+        if usage:
+            reply.input_tokens = usage.get("prompt_tokens")
+            reply.output_tokens = usage.get("completion_tokens")
+        choice = (body.get("choices") or [{}])[0]
+        if choice.get("finish_reason"):
+            reply.truncated = choice["finish_reason"] == "length"
+        return str((choice.get("delta") or {}).get("content") or "")
 
 
 # ---------------------------------------------------------------------------
@@ -381,13 +541,16 @@ class Gemini:
             out.append({"id": model_id, "label": m.get("displayName") or model_id})
         return out
 
-    def generate(self, key: str, model: str, system: str, prompt: str) -> Reply:
-        body = {
+    def _body(self, system: str, prompt: str) -> dict:
+        return {
             "systemInstruction": {"parts": [{"text": system}]},
             "contents": [{"role": "user", "parts": [{"text": prompt}]}],
             "generationConfig": {"maxOutputTokens": self.MAX_TOKENS},
         }
-        res = send("POST", f"{self.BASE}/models/{model}:generateContent", self._headers(key), json=body)
+
+    def generate(self, key: str, model: str, system: str, prompt: str) -> Reply:
+        res = send("POST", f"{self.BASE}/models/{model}:generateContent", self._headers(key),
+                   json=self._body(system, prompt))
         _check(self, res, key)
         candidate = (res.body.get("candidates") or [{}])[0]
         parts = (candidate.get("content") or {}).get("parts") or []
@@ -401,6 +564,25 @@ class Gemini:
             input_tokens=usage.get("promptTokenCount"),
             output_tokens=usage.get("candidatesTokenCount"),
         )
+
+    def stream(self, key: str, model: str, system: str, prompt: str) -> Streamed:
+        # alt=sse — 조각을 SSE 로 (기본은 JSON 배열 하나를 조금씩)
+        return _open(self, key, model, f"{self.BASE}/models/{model}:streamGenerateContent", self._headers(key),
+                     self._body(system, prompt), params={"alt": "sse"})
+
+    @staticmethod
+    def read_chunk(reply: Reply, body: dict) -> str:
+        reply.model = body.get("modelVersion") or reply.model
+        usage = body.get("usageMetadata") or {}
+        if usage:
+            # 조각마다 지금까지의 합이 온다 — 마지막 것이 전체
+            reply.input_tokens = usage.get("promptTokenCount", reply.input_tokens)
+            reply.output_tokens = usage.get("candidatesTokenCount", reply.output_tokens)
+        candidate = (body.get("candidates") or [{}])[0]
+        if candidate.get("finishReason"):
+            reply.truncated = candidate["finishReason"] == "MAX_TOKENS"
+        parts = (candidate.get("content") or {}).get("parts") or []
+        return "".join(p.get("text", "") for p in parts if isinstance(p, dict) and not p.get("thought"))
 
 
 PROVIDERS: dict[str, AiProvider] = {p.name: p for p in (Anthropic(), OpenAI(), Gemini())}

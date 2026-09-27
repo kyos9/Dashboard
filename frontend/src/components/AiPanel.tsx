@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ApiError, api } from '../api/client'
 import {
   QUESTION_MAX,
+  aiTargetKey,
   providerLabel,
   readAiQuestion,
   readAiResult,
@@ -9,18 +10,40 @@ import {
   saveAiResult,
   useAiSettings,
 } from '../lib/aiKey'
-import type { AiAnalysis, AiContext } from '../types'
+import type { AiAnalysis, AiContext, AiProviderName, AiScope, AiTarget } from '../types'
 import { AiKeyForm } from './AiKeyForm'
 import { AiText } from './AiText'
 import { ErrorNotice } from './ErrorNotice'
 
-/** 누르면 요청 칸을 채우는 예시 — 무엇을 물어도 되는지 감을 주려는 것이다 */
-const QUESTION_EXAMPLES = [
-  '초보자도 알 수 있게 쉽게 설명해 줘',
-  '재무 숫자 위주로 정리해 줘',
-  '매수 시그널 네 조건이 각각 어떤 상태인지 자세히',
-  '다섯 줄로 짧게',
-]
+/** 정리의 종류마다 다른 글 — 무엇을 보내는지, 무엇을 물을 수 있는지 */
+const COPY: Record<AiScope, { intro: string; examples: string[]; help: string; placeholder: string }> = {
+  stock: {
+    intro:
+      '앱이 계산한 이 종목의 숫자(시세·지표·시그널·재무·시장 배경)를 AI 가 글로 풀어 줍니다. 사라·팔라는 말은 하지 않도록 요청합니다. 보유수량·비중 같은 내 포트폴리오는 보내지 않습니다.',
+    examples: [
+      '초보자도 알 수 있게 쉽게 설명해 줘',
+      '재무 숫자 위주로 정리해 줘',
+      '매수 시그널 네 조건이 각각 어떤 상태인지 자세히',
+      '다섯 줄로 짧게',
+    ],
+    help: '무엇을 물어도 이 종목의 숫자를 보고 답하고, 사라·팔라는 판단이나 가격 예측은 하지 않습니다. 요청은 이 기기에 기억해 다른 종목에도 그대로 씁니다.',
+    placeholder: '예: 최근 1년 흐름을 초보자도 알 수 있게 설명해 줘',
+  },
+  watchlist: {
+    intro:
+      '대시보드에 담은 종목 전체(활성 종목, 30개까지)의 공용 숫자를 AI 가 한 장으로 정리합니다. 보유수량·비중·평단가는 보내지 않습니다 — 담아 둔 목록의 숫자만 봅니다. 어느 종목을 고르라는 말은 하지 않도록 요청합니다.',
+    examples: ['종목별로 한 줄씩만', '오늘 매수 시그널이 뜬 종목 위주로', '재무 숫자를 나란히 비교해 줘', '초보자도 알 수 있게 쉽게'],
+    help: '무엇을 물어도 담은 종목의 숫자를 보고 답하고, 사라·팔라는 판단이나 순위 매기기, 가격 예측은 하지 않습니다.',
+    placeholder: '예: 요즘 흐름이 비슷한 종목끼리 묶어서 정리해 줘',
+  },
+  macro: {
+    intro:
+      '앱이 모아 둔 매크로 지표와 국면 배지를 AI 가 글로 풀어 줍니다. 각 지표가 무엇을 재는지, 지금 값이 어디쯤인지를 설명하고 앞으로의 방향은 점치지 않도록 요청합니다.',
+    examples: ['초보자도 알 수 있게 쉽게 설명해 줘', '금리 지표만 자세히', '각 지표가 무엇을 재는지부터', '다섯 줄로 짧게'],
+    help: '무엇을 물어도 지표의 숫자를 보고 답하고, 금리·주가가 어떻게 될지는 점치지 않습니다.',
+    placeholder: '예: 장단기 금리차가 무엇인지부터 설명해 줘',
+  },
+}
 
 /** 키를 다시 넣어야 풀리는 오류 — 이때는 키 입력을 바로 펼친다 */
 const KEY_PROBLEMS = new Set(['key_invalid', 'bad_key_shape', 'model_denied'])
@@ -30,32 +53,62 @@ function when(iso: string): string {
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' })
 }
 
+/** 어느 시점의 숫자로 쓴 글인가 — 종목은 종가, 매크로는 발표된 지표 */
+function basis(scope: AiScope, asOf: string | null): string {
+  if (!asOf) return ''
+  return scope === 'macro' ? `${asOf}까지 발표된 지표 · ` : `${asOf} 종가까지 · `
+}
+
+function isAbort(e: unknown): boolean {
+  return (e as { name?: string } | null)?.name === 'AbortError'
+}
+
+/** 받는 중이거나 도중에 멈춘 글 */
+interface Draft {
+  text: string
+  provider: AiProviderName
+  model: string
+  as_of: string | null
+  /** 멈추기·오류로 끝까지 쓰지 않았다 */
+  cut: boolean
+}
+
 /**
- * 차트 팝업의 "AI 분석" 탭 (ROADMAP 3c). 대시보드 맨 오른쪽 "AI 분석" 버튼도 여기로 연다.
+ * AI 정리 (ROADMAP 3c) — 종목 팝업의 "AI 분석" 탭, 대시보드의 "AI 전체 정리", 매크로의 "AI 정리".
+ *
+ * **써지는 대로 보인다 (3c-2).** 긴 글은 30초~1분 걸린다. 다 쓸 때까지 빈 화면을 두지 않고 받는
+ * 대로 붙인다. **멈추기**(또는 팝업 닫기)를 누르면 서버가 AI 와의 연결을 끊어 더 쓰지 않는다 —
+ * 요금은 그때까지 쓴 만큼이다. 멈춘 글은 화면에만 남기고 저장하지 않는다(끝까지 쓴 글이 아니다).
  *
  * **내 요청을 붙일 수 있다** — 비우면 정해진 형식의 정리, 넣으면 그 요청에 맞춰 답한다. 다만 서버의
- * 지시문(권유·예측·가치 판단 금지)은 요청이 무엇이든 그대로다. 요청은 종목을 바꿔도 이어 쓰도록
- * 이 기기에 하나만 기억한다.
+ * 지시문(권유·예측·가치 판단 금지)은 요청이 무엇이든 그대로다. 요청은 정리의 종류마다 이 기기에
+ * 하나 기억한다.
  *
- * **누를 때만 부른다** — 탭을 여는 것만으로 남의 돈(사용자의 키)이 나가면 안 된다. 받은 글은
- * 이 기기에 종목마다 하나씩 남겨, 다시 열면 그걸 먼저 보여준다.
+ * **누를 때만 부른다** — 여는 것만으로 남의 돈(사용자의 키)이 나가면 안 된다. 받은 글은 이 기기에
+ * 하나씩 남겨, 다시 열면 그걸 먼저 보여준다.
  */
-export function AiPanel({ ticker, account }: { ticker: string; account: string }) {
+export function AiPanel({ target, account }: { target: AiTarget; account: string }) {
+  const scope = target.kind
+  const copy = COPY[scope]
+  const storeKey = aiTargetKey(target)
+  const domId = storeKey.replace(/[^A-Za-z0-9_-]/g, '_')
   const settings = useAiSettings(account)
-  const [result, setResult] = useState<AiAnalysis | null>(() => readAiResult(account, ticker))
+  const [result, setResult] = useState<AiAnalysis | null>(() => readAiResult(account, storeKey))
+  const [draft, setDraft] = useState<Draft | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>(null)
   const [editing, setEditing] = useState(false)
   const [context, setContext] = useState<AiContext | null>(null)
   const [contextError, setContextError] = useState<unknown>(null)
   const [loadingContext, setLoadingContext] = useState(false)
-  const [question, setQuestion] = useState(() => readAiQuestion(account))
+  const [question, setQuestion] = useState(() => readAiQuestion(account, scope))
   const alive = useRef(true)
+  const running = useRef<AbortController | null>(null)
   const tooLong = question.trim().length > QUESTION_MAX
 
   function changeQuestion(text: string) {
     setQuestion(text)
-    saveAiQuestion(account, text)
+    saveAiQuestion(account, text, scope)
     // 보내는 내용이 바뀌었다 — 펼쳐 볼 때 다시 받는다
     setContext(null)
   }
@@ -64,24 +117,44 @@ export function AiPanel({ ticker, account }: { ticker: string; account: string }
     alive.current = true
     return () => {
       alive.current = false
+      // 팝업을 닫으면 받던 것도 멈춘다 — 아무도 안 보는 글에 요금이 나가지 않게
+      running.current?.abort()
     }
   }, [])
 
   async function run() {
     if (!settings) return
+    const controller = new AbortController()
+    running.current = controller
     setBusy(true)
     setError(null)
+    setDraft({ text: '', provider: settings.provider, model: settings.model, as_of: null, cut: false })
     try {
-      const got = await api.aiAnalyze(ticker, settings.provider, settings.model, settings.key, question)
-      saveAiResult(account, got)
-      if (alive.current) setResult(got)
+      const got = await api.aiAnalyzeStream(target, settings.provider, settings.model, settings.key, question, {
+        signal: controller.signal,
+        onStart: (info) => alive.current && setDraft((d) => d && { ...d, ...info }),
+        onDelta: (text) => alive.current && setDraft((d) => d && { ...d, text: d.text + text }),
+      })
+      saveAiResult(account, storeKey, got)
+      if (alive.current) {
+        setResult(got)
+        setDraft(null)
+      }
     } catch (e) {
       if (!alive.current) return
+      // 쓰던 글은 남긴다 — 멈췄든 끊겼든, 거기까지 읽은 것을 지우지 않는다
+      setDraft((d) => (d && d.text.trim() ? { ...d, cut: true } : null))
+      if (isAbort(e)) return
       setError(e)
       if (e instanceof ApiError && e.code && KEY_PROBLEMS.has(e.code)) setEditing(true)
     } finally {
+      if (running.current === controller) running.current = null
       if (alive.current) setBusy(false)
     }
+  }
+
+  function stop() {
+    running.current?.abort()
   }
 
   function loadContext() {
@@ -89,7 +162,7 @@ export function AiPanel({ ticker, account }: { ticker: string; account: string }
     setContextError(null)
     setLoadingContext(true)
     api
-      .aiContext(ticker, question)
+      .aiContext(target, question)
       .then((c) => alive.current && setContext(c))
       .catch((e) => alive.current && setContextError(e))
       .finally(() => alive.current && setLoadingContext(false))
@@ -97,10 +170,7 @@ export function AiPanel({ ticker, account }: { ticker: string; account: string }
 
   return (
     <div className="ai-panel">
-      <p className="hint ai-intro">
-        앱이 계산한 이 종목의 숫자(시세·지표·시그널·재무·시장 배경)를 AI 가 글로 풀어 줍니다. 사라·팔라는 말은
-        하지 않도록 요청합니다. 보유수량·비중 같은 내 포트폴리오는 보내지 않습니다.
-      </p>
+      <p className="hint ai-intro">{copy.intro}</p>
 
       {!settings || editing ? (
         <section className="ai-key-box">
@@ -119,33 +189,41 @@ export function AiPanel({ ticker, account }: { ticker: string; account: string }
         </section>
       ) : (
         <div className="ai-run">
-          <button className="primary" onClick={() => void run()} disabled={busy || tooLong}>
-            {busy ? '분석하는 중…' : result ? '다시 받기' : 'AI 분석 받기'}
-          </button>
+          {busy ? (
+            <button className="ghost" onClick={stop}>
+              ■ 멈추기
+            </button>
+          ) : (
+            <button className="primary" onClick={() => void run()} disabled={tooLong}>
+              {result ? '다시 받기' : 'AI 분석 받기'}
+            </button>
+          )}
           <span className="hint ai-using">
             {providerLabel(settings.provider)} · <span className="mono">{settings.model}</span>{' '}
-            <button className="link-btn" onClick={() => setEditing(true)}>
-              키·모델 바꾸기
-            </button>
+            {!busy && (
+              <button className="link-btn" onClick={() => setEditing(true)}>
+                키·모델 바꾸기
+              </button>
+            )}
           </span>
         </div>
       )}
 
       <section className="ai-question">
-        <label htmlFor={`ai-question-${ticker}`}>
+        <label htmlFor={`ai-question-${domId}`}>
           내 요청 <span className="hint">(선택 — 비우면 정해진 형식으로 정리합니다)</span>
         </label>
         <textarea
-          id={`ai-question-${ticker}`}
+          id={`ai-question-${domId}`}
           value={question}
           onChange={(e) => changeQuestion(e.target.value)}
           rows={3}
-          placeholder="예: 최근 1년 흐름을 초보자도 알 수 있게 설명해 줘"
-          aria-describedby={`ai-question-help-${ticker}`}
+          placeholder={copy.placeholder}
+          aria-describedby={`ai-question-help-${domId}`}
         />
         <div className="ai-question-foot">
           <div className="chip-row ai-examples">
-            {QUESTION_EXAMPLES.map((example) => (
+            {copy.examples.map((example) => (
               <button key={example} className="chip" onClick={() => changeQuestion(example)}>
                 {example}
               </button>
@@ -160,37 +238,72 @@ export function AiPanel({ ticker, account }: { ticker: string; account: string }
             {question.trim().length.toLocaleString('ko-KR')}/{QUESTION_MAX.toLocaleString('ko-KR')}
           </span>
         </div>
-        <p id={`ai-question-help-${ticker}`} className="hint">
-          무엇을 물어도 이 종목의 숫자를 보고 답하고, 사라·팔라는 판단이나 가격 예측은 하지 않습니다. 요청은 이
-          기기에 기억해 다른 종목에도 그대로 씁니다.
+        <p id={`ai-question-help-${domId}`} className="hint">
+          {copy.help}
         </p>
       </section>
 
-      {busy && <p className="hint">AI 가 쓰는 중입니다. 보통 20초~1분 걸립니다. 팝업을 닫아도 요금은 청구될 수 있습니다.</p>}
       <ErrorNotice error={error} onDismiss={() => setError(null)} />
 
-      {result && (
-        <article className="ai-result" aria-label="AI 분석">
+      {draft ? (
+        <article className="ai-result" aria-label="AI 분석" aria-busy={busy}>
           <p className="hint ai-meta">
-            {result.as_of ? `${result.as_of} 종가까지 · ` : ''}
-            {providerLabel(result.provider)} <span className="mono">{result.model}</span> · {when(result.generated_at)}
-            {result.input_tokens != null && result.output_tokens != null &&
-              ` · 토큰 ${result.input_tokens.toLocaleString('ko-KR')} + ${result.output_tokens.toLocaleString('ko-KR')}`}
+            {basis(scope, draft.as_of)}
+            {providerLabel(draft.provider)} <span className="mono">{draft.model}</span> ·{' '}
+            {busy ? (
+              <span className="ai-writing">쓰는 중…</span>
+            ) : (
+              <>
+                <span className="error-inline">끝까지 쓰지 않은 글입니다 — 저장하지 않았습니다</span>
+                {result && (
+                  <>
+                    {' '}
+                    <button className="link-btn" onClick={() => setDraft(null)}>
+                      지난 글 보기
+                    </button>
+                  </>
+                )}
+              </>
+            )}
           </p>
-          {result.question && (
-            <p className="ai-asked">
-              <span className="hint">내 요청</span> {result.question}
+          {draft.text.trim() ? (
+            <AiText text={draft.text} />
+          ) : (
+            <p className="hint">
+              AI 가 숫자를 읽고 있습니다. 글이 써지는 대로 여기에 보입니다 (다 쓰는 데 보통 20초~1분). 멈추거나 창을
+              닫으면 거기서 멈추고, 그때까지 쓴 만큼만 요금이 나갑니다.
             </p>
-          )}
-          <AiText text={result.text} />
-          {result.truncated && (
-            <p className="hint">⚠ 길이 제한에 걸려 끝부분이 잘렸습니다. 다시 받거나 다른 모델을 골라 보세요.</p>
           )}
           <p className="ai-disclaimer">
             AI 가 앱의 숫자를 풀어 쓴 참고 글이며 틀릴 수 있습니다. 투자 권유가 아니고, 판단과 책임은 본인에게
             있습니다.
           </p>
         </article>
+      ) : (
+        result && (
+          <article className="ai-result" aria-label="AI 분석">
+            <p className="hint ai-meta">
+              {basis(scope, result.as_of)}
+              {providerLabel(result.provider)} <span className="mono">{result.model}</span> · {when(result.generated_at)}
+              {result.input_tokens != null &&
+                result.output_tokens != null &&
+                ` · 토큰 ${result.input_tokens.toLocaleString('ko-KR')} + ${result.output_tokens.toLocaleString('ko-KR')}`}
+            </p>
+            {result.question && (
+              <p className="ai-asked">
+                <span className="hint">내 요청</span> {result.question}
+              </p>
+            )}
+            <AiText text={result.text} />
+            {result.truncated && (
+              <p className="hint">⚠ 길이 제한에 걸려 끝부분이 잘렸습니다. 다시 받거나 다른 모델을 골라 보세요.</p>
+            )}
+            <p className="ai-disclaimer">
+              AI 가 앱의 숫자를 풀어 쓴 참고 글이며 틀릴 수 있습니다. 투자 권유가 아니고, 판단과 책임은 본인에게
+              있습니다.
+            </p>
+          </article>
+        )
       )}
 
       <details className="ai-context" onToggle={(e) => (e.currentTarget as HTMLDetailsElement).open && loadContext()}>

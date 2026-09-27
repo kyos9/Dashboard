@@ -608,14 +608,17 @@ class AiAnalyzeIn(BaseModel):
 class AiContextOut(BaseModel):
     """AI 에게 보내는 내용 그대로 — 사용자가 확인할 수 있게."""
 
-    ticker: str
+    # stock(종목 하나) · watchlist(담은 종목 전체) · macro (3c-2)
+    scope: str = "stock"
+    ticker: Optional[str] = None
     as_of: Optional[dt.date] = None
     system: str
     prompt: str
 
 
 class AiAnalysisOut(BaseModel):
-    ticker: str
+    scope: str = "stock"
+    ticker: Optional[str] = None
     # 이 글을 받을 때 붙인 요청 (없으면 기본 정리)
     question: Optional[str] = None
     provider: str

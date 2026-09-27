@@ -6,6 +6,7 @@ import { NumberInput } from '../components/NumberInput'
 import { RegimeBadges } from '../components/RegimeBadges'
 import { useAppState } from '../AppState'
 import { lazyChunk } from '../lib/lazyChunk'
+import { pushAccount } from '../lib/push'
 import {
   FREQUENCY_LABEL,
   checkedLabel,
@@ -19,6 +20,7 @@ import type { MacroOverview, MacroSeriesInfo, TermSpread } from '../types'
 
 // 차트는 누를 때 받는다 (App.tsx의 HistoryChart와 같은 이유)
 const MacroChartModal = lazyChunk(() => import('../components/MacroChartModal'), 'MacroChartModal')
+const AiSummaryModal = lazyChunk(() => import('../components/AiSummaryModal'), 'AiSummaryModal')
 
 /**
  * 장단기 금리차 한 줄.
@@ -330,7 +332,9 @@ export function MacroPanel() {
   // 별을 켜고 끄면 홈의 매크로 줄이 달라진다. 홈이 그걸 알아야 다음에 열릴 때 다시 읽는다.
   const { notifyDataChanged } = useAppState()
   // 손님은 둘러보기만, 사용자는 별(내 홈)까지, 관리자는 받아오기·예상치(전원 것)까지
-  const { guest, isAdmin } = useAuth()
+  const { guest, isAdmin, pending, user } = useAuth()
+  const [aiOpen, setAiOpen] = useState(false)
+  const closeAi = useCallback(() => setAiOpen(false), [])
   const [data, setData] = useState<MacroOverview | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -437,12 +441,26 @@ export function MacroPanel() {
             들어가지 않습니다.
           </p>
         </div>
-        {isAdmin && (
-          <button className="primary" onClick={() => void refresh()} disabled={refreshing}>
-            {refreshing ? '받는 중…' : '지금 받아오기'}
-          </button>
-        )}
+        <div className="page-actions">
+          {/* 지표를 AI 가 글로 (3c-2). 손님·승인 대기는 AI 를 쓰지 않는다 — 키도 계정에 묶여 있다 */}
+          {!guest && !pending && series.length > 0 && (
+            <button className="ghost" onClick={() => setAiOpen(true)}>
+              ✦ AI 정리
+            </button>
+          )}
+          {isAdmin && (
+            <button className="primary" onClick={() => void refresh()} disabled={refreshing}>
+              {refreshing ? '받는 중…' : '지금 받아오기'}
+            </button>
+          )}
+        </div>
       </div>
+
+      {aiOpen && (
+        <Suspense fallback={null}>
+          <AiSummaryModal kind="macro" account={pushAccount(user)} onClose={closeAi} />
+        </Suspense>
+      )}
 
       <ErrorNotice error={error} onDismiss={() => setError(null)} />
 
