@@ -2176,6 +2176,42 @@ table.data-table tr.dirty:hover td {
   color: var(--text);
 }
 
+/* 느린 요청 (8-5) — 로그 위에 짧게 */
+.diag-slow {
+  padding: 8px 8px 12px;
+  border-bottom: 1px solid var(--border-strong);
+}
+
+.diag-slow h4 {
+  margin: 0 0 4px;
+  font-size: var(--fs-sub);
+}
+
+.diag-slow h4 .hint {
+  font-weight: normal;
+  font-size: var(--fs-caption);
+}
+
+.diag-slow ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.diag-slow-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 12px;
+  padding: 4px 0;
+  font-size: var(--fs-caption);
+}
+
+.diag-slow-route {
+  /* 경로 틀은 길다 — 폰에서는 줄을 바꾼다 */
+  word-break: break-all;
+  color: var(--text);
+}
+
 /* 관리자 — 사용자 목록 · 가입 승인 */
 .users-modal {
   width: min(720px, 100%);

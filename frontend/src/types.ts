@@ -522,6 +522,23 @@ export interface LogsResponse {
   counts: Record<string, number>
 }
 
+/** 서버를 켠 뒤로 느렸던 요청 — 경로의 틀과 시간뿐이다 (ROADMAP 8-5) */
+export interface SlowRequestStat {
+  method: string
+  route: string
+  count: number
+  max_ms: number
+  last_ms: number
+  last_status: number
+  last_at: string | null
+}
+
+export interface SlowRequestsResponse {
+  threshold_ms: number
+  since: string
+  items: SlowRequestStat[]
+}
+
 /* ---------- 매크로 지표 ---------- */
 
 /** 차트에 찍을 점 하나. 변환까지 끝난 값이다 (CPI라면 지수가 아니라 전년비) */

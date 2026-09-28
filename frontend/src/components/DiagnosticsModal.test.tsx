@@ -1,8 +1,8 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../api/client'
-import type { LogsResponse } from '../types'
+import type { LogsResponse, SlowRequestsResponse } from '../types'
 import { DiagnosticsModal, summarize } from './DiagnosticsModal'
 
 /**
@@ -120,3 +120,70 @@ describe('요약 문구', () => {
     expect(summarize(logs({ counts: { INFO: 9 } }))).toBe('최근 기록에 경고·오류가 없습니다')
   })
 })
+
+describe('느린 요청 (ROADMAP 8-5)', () => {
+  const slow = (items: SlowRequestsResponse['items']): SlowRequestsResponse => ({
+    threshold_ms: 1000,
+    since: '2026-09-28T09:00:00',
+    items,
+  })
+
+  it('서버를 켠 뒤로 느렸던 경로를 자주 느렸던 것부터 보여준다', async () => {
+    vi.spyOn(api, 'getLogs').mockResolvedValue(logs())
+    vi.spyOn(api, 'getSlowRequests').mockResolvedValue(
+      slow([
+        { method: 'POST', route: '/api/stocks/refresh-all', count: 4, max_ms: 8200, last_ms: 3100, last_status: 200, last_at: '2026-09-28T10:12:03' },
+        { method: 'GET', route: '/api/dashboard', count: 1, max_ms: 1450, last_ms: 1450, last_status: 200, last_at: '2026-09-28T09:30:00' },
+      ]),
+    )
+    render(<DiagnosticsModal onClose={() => {}} />)
+
+    const section = await screen.findByRole('region', { name: /느린 요청/ })
+    expect(section).toHaveTextContent('1.0초 넘게 · 서버를 켠 09-28 09:00 뒤로')
+    const rows = within(section).getAllByRole('listitem')
+    expect(rows[0]).toHaveTextContent('POST /api/stocks/refresh-all')
+    expect(rows[0]).toHaveTextContent('4번 · 가장 길게 8.2초 · 최근 3.1초 (09-28 10:12)')
+    expect(rows[1]).toHaveTextContent('GET /api/dashboard')
+  })
+
+  it('없으면 "없습니다" — 칸은 남아 잘 돌고 있다는 것을 알려준다', async () => {
+    vi.spyOn(api, 'getLogs').mockResolvedValue(logs())
+    vi.spyOn(api, 'getSlowRequests').mockResolvedValue(slow([]))
+    render(<DiagnosticsModal onClose={() => {}} />)
+    const section = await screen.findByRole('region', { name: /느린 요청/ })
+    expect(section).toHaveTextContent('없습니다.')
+  })
+
+  it('못 받으면(옛 서버) 칸을 그리지 않고 로그는 그대로 보여준다', async () => {
+    vi.spyOn(api, 'getLogs').mockResolvedValue(logs())
+    vi.spyOn(api, 'getSlowRequests').mockRejectedValue(new Error('404'))
+    render(<DiagnosticsModal onClose={() => {}} />)
+    await screen.findByText(/시세가 비었습니다/)
+    expect(screen.queryByRole('region', { name: /느린 요청/ })).toBeNull()
+    // 오류로 띄우지도 않는다 — 옛 서버에 없는 것뿐, 주인이 할 일이 없다
+    expect(screen.queryByText(/404/)).toBeNull()
+  })
+
+  it('틀이 많아도 위의 10개만 — 고칠 곳은 위에 있다', async () => {
+    vi.spyOn(api, 'getLogs').mockResolvedValue(logs())
+    vi.spyOn(api, 'getSlowRequests').mockResolvedValue(
+      slow(
+        Array.from({ length: 12 }, (_, i) => ({
+          method: 'GET',
+          route: `/api/r${i}`,
+          count: 12 - i,
+          max_ms: 1200,
+          last_ms: 1100,
+          last_status: 200,
+          last_at: null,
+        })),
+      ),
+    )
+    render(<DiagnosticsModal onClose={() => {}} />)
+    const section = await screen.findByRole('region', { name: /느린 요청/ })
+    const rows = within(section).getAllByRole('listitem')
+    expect(rows).toHaveLength(10)
+    expect(rows[9]).toHaveTextContent('/api/r9')
+  })
+})
+

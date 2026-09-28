@@ -1,17 +1,15 @@
-import { Suspense } from 'react'
-import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { Suspense, useEffect, type ReactNode } from 'react'
+import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { AppStateProvider } from './AppState'
 import { AppHeader } from './components/AppHeader'
 import { AuthGate, useAuth } from './components/AuthGate'
 import { RequireLogin } from './components/LoginPrompt'
+import { PageBoundary } from './components/PageBoundary'
+import { PageSkeleton } from './components/Skeleton'
 import { Dashboard } from './pages/Dashboard'
-import { FundamentalsPage } from './pages/FundamentalsPage'
 import { GuestHome } from './pages/GuestHome'
-import { MacroPanel } from './pages/MacroPanel'
-import { Policy } from './pages/Policy'
-import { RebalancePanel } from './pages/RebalancePanel'
-import { StockManager } from './pages/StockManager'
 import { lazyChunk } from './lib/lazyChunk'
+import { FundamentalsPage, MacroPanel, Policy, RebalancePanel, StockManager, preloadPages } from './lib/pageChunks'
 import { POLICY_PATH } from './lib/policy'
 
 // 차트 라이브러리(lightweight-charts)는 번들의 3분의 1이다. 차트를 열 때만 받는다 —
@@ -24,12 +22,32 @@ function Home() {
   return guest ? <GuestHome /> : <Dashboard />
 }
 
+/**
+ * 나눠 받는 탭을 감싼다 (ROADMAP 8-5) — 받는 동안은 회색 틀, 못 받으면 이 자리에만 안내.
+ * 주소가 바뀌면 새로 만든다: 한 탭에서 넘어졌어도 다른 탭은 다시 그려 본다.
+ */
+function Tab({ children }: { children: ReactNode }) {
+  const { pathname } = useLocation()
+  return (
+    <PageBoundary key={pathname}>
+      <Suspense fallback={<PageSkeleton />}>{children}</Suspense>
+    </PageBoundary>
+  )
+}
+
+/** 첫 화면이 그려진 뒤 한가할 때 다른 탭 코드를 받아 둔다 */
+function PreloadTabs() {
+  useEffect(() => preloadPages(), [])
+  return null
+}
+
 function App() {
   return (
     <AuthGate>
       <AppStateProvider>
         <BrowserRouter>
           <AppHeader />
+          <PreloadTabs />
           <main className="page">
             {/* 탭은 손님에게도 다 보인다 — 무엇이 있는지는 보여주고, 내 종목이 필요한
                 화면에서 로그인을 권한다. 매크로만 로그인 없이 열린다. */}
@@ -39,9 +57,9 @@ function App() {
                 path="/history"
                 element={
                   <RequireLogin title="로그인하면 담은 종목의 차트를 볼 수 있습니다">
-                    <Suspense fallback={<p className="hint">차트를 불러오는 중…</p>}>
+                    <Tab>
                       <HistoryChart />
-                    </Suspense>
+                    </Tab>
                   </RequireLogin>
                 }
               />
@@ -49,18 +67,36 @@ function App() {
                 path="/fundamentals"
                 element={
                   <RequireLogin title="로그인하면 담은 종목의 재무를 볼 수 있습니다">
-                    <FundamentalsPage />
+                    <Tab>
+                      <FundamentalsPage />
+                    </Tab>
                   </RequireLogin>
                 }
               />
-              <Route path="/macro" element={<MacroPanel />} />
+              <Route
+                path="/macro"
+                element={
+                  <Tab>
+                    <MacroPanel />
+                  </Tab>
+                }
+              />
               {/* 방침은 로그인 전에도 열린다 — 구글 동의 화면이 이 주소를 가리킨다 */}
-              <Route path={POLICY_PATH} element={<Policy />} />
+              <Route
+                path={POLICY_PATH}
+                element={
+                  <Tab>
+                    <Policy />
+                  </Tab>
+                }
+              />
               <Route
                 path="/rebalance"
                 element={
                   <RequireLogin title="로그인하면 내 포트폴리오의 비중을 볼 수 있습니다">
-                    <RebalancePanel />
+                    <Tab>
+                      <RebalancePanel />
+                    </Tab>
                   </RequireLogin>
                 }
               />
@@ -68,7 +104,9 @@ function App() {
                 path="/stocks"
                 element={
                   <RequireLogin title="로그인하면 종목을 담을 수 있습니다">
-                    <StockManager />
+                    <Tab>
+                      <StockManager />
+                    </Tab>
                   </RequireLogin>
                 }
               />

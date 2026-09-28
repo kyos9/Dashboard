@@ -27,4 +27,15 @@ describe('팝업 틀 (조각을 받는 동안)', () => {
     await userEvent.click(screen.getByText('여는 중…'))
     expect(onClose).not.toHaveBeenCalled()
   })
+
+  it('작은 팝업(헤더 메뉴의 설정)은 차트 크기의 틀을 깔지 않는다 (8-5)', () => {
+    const { container, rerender } = render(<ModalLoading title="VOO" onClose={() => {}} />)
+    expect(container.querySelector('.chart-modal')).not.toBeNull()
+    expect(container.querySelector('.skeleton-chart')).not.toBeNull()
+
+    rerender(<ModalLoading plain title="화면 설정" onClose={() => {}} />)
+    expect(container.querySelector('.chart-modal')).toBeNull()
+    expect(container.querySelector('.skeleton-chart')).toBeNull()
+    expect(screen.getByRole('dialog', { name: '화면 설정' })).toHaveAttribute('aria-busy', 'true')
+  })
 })

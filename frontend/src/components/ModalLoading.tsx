@@ -6,7 +6,18 @@ import { useEffect } from 'react'
  * 누르자마자 팝업이 열린다 — 제목과 닫기 버튼이 먼저 보이고, 안쪽만 나중에 채워진다.
  * 전에는 조각을 다 받을 때까지 아무것도 안 떠서, 한 번 더 누르게 됐다.
  */
-export function ModalLoading({ title, subtitle, onClose }: { title: string; subtitle?: string; onClose: () => void }) {
+export function ModalLoading({
+  title,
+  subtitle,
+  plain = false,
+  onClose,
+}: {
+  title: string
+  subtitle?: string
+  /** 차트가 아닌 작은 팝업(헤더 메뉴의 설정들) — 차트 크기의 틀을 깔지 않는다 */
+  plain?: boolean
+  onClose: () => void
+}) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
     document.addEventListener('keydown', onKey)
@@ -16,7 +27,7 @@ export function ModalLoading({ title, subtitle, onClose }: { title: string; subt
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div
-        className="modal chart-modal"
+        className={plain ? 'modal' : 'modal chart-modal'}
         role="dialog"
         aria-modal="true"
         aria-label={title}
@@ -32,7 +43,7 @@ export function ModalLoading({ title, subtitle, onClose }: { title: string; subt
             ✕
           </button>
         </div>
-        <div className="skeleton skeleton-chart" aria-hidden="true" />
+        {!plain && <div className="skeleton skeleton-chart" aria-hidden="true" />}
         <p className="hint">여는 중…</p>
       </div>
     </div>

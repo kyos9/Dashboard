@@ -15,8 +15,9 @@ import re
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 
+from app import slow_requests
 from app.logging_setup import LOG_FILE
-from app.schemas import LogEntry, LogsOut
+from app.schemas import LogEntry, LogsOut, SlowRequestStat, SlowRequestsOut
 from app.services.users import require_owner
 
 router = APIRouter(prefix="/api/logs", tags=["logs"])
@@ -123,4 +124,15 @@ def download_logs() -> FileResponse:
     stamp = dt.datetime.now().strftime("%Y%m%d-%H%M")
     return FileResponse(
         LOG_FILE, media_type="text/plain", filename=f"signalboard-{stamp}.log"
+    )
+
+
+@router.get("/slow", response_model=SlowRequestsOut, dependencies=[Depends(require_owner)])
+def read_slow_requests() -> SlowRequestsOut:
+    """서버를 켠 뒤로 느렸던 요청을 틀마다 모은 것 (ROADMAP 8-5). 경로의 틀과 시간뿐이다."""
+    since, items = slow_requests.snapshot()
+    return SlowRequestsOut(
+        threshold_ms=slow_requests.threshold_ms(),
+        since=since,
+        items=[SlowRequestStat(**vars(item)) for item in items],
     )

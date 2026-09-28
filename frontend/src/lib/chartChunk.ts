@@ -1,4 +1,4 @@
-import { lazyChunk } from './lazyChunk'
+import { lazyChunk, saveData } from './lazyChunk'
 
 /**
  * 종목 차트 팝업 조각 — 대시보드·재무 화면이 같이 쓴다.
@@ -13,9 +13,10 @@ export const ChartModal = lazyChunk(load, 'ChartModal')
 
 let preloaded = false
 
-/** 한가할 때 한 번만 받아 둔다. 못 받아도 조용히 넘어간다 — 누를 때 다시 받는다. */
+/** 한가할 때 한 번만 받아 둔다. 못 받아도 조용히 넘어간다 — 누를 때 다시 받는다.
+ * 데이터 절약 모드면 미리 받지 않는다(탭 조각과 같은 규칙). */
 export function preloadChartModal(): void {
-  if (preloaded) return
+  if (preloaded || saveData()) return
   preloaded = true
   const run = () => void load().catch(() => {})
   const idle = (globalThis as { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback

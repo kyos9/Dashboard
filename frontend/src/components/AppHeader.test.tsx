@@ -93,6 +93,8 @@ describe('화면 설정', () => {
     renderHeader()
 
     await user.click(screen.getByRole('button', { name: '화면' }))
+    // 팝업 코드는 누를 때 받는다(8-5) — 받는 동안의 틀을 지나 진짜 팝업을 기다린다
+    await screen.findByRole('group', { name: '테마' })
     const dialog = screen.getByRole('dialog', { name: '화면 설정' })
     await user.click(within(within(dialog).getByRole('group', { name: '테마' })).getByRole('button', { name: '밝게' }))
     expect(document.documentElement.dataset.theme).toBe('light')
@@ -109,6 +111,7 @@ describe('화면 설정', () => {
     const user = userEvent.setup()
     renderHeader()
     await user.click(screen.getByRole('button', { name: '화면' }))
+    await screen.findByRole('group', { name: '테마' })
     const dialog = screen.getByRole('dialog', { name: '화면 설정' })
     expect(within(within(dialog).getByRole('group', { name: '상승 색' })).getByRole('button', { name: '초록' })).toHaveAttribute('aria-pressed', 'true')
     expect(within(within(dialog).getByRole('group', { name: '테마' })).getByRole('button', { name: '기기 설정' })).toHaveAttribute('aria-pressed', 'true')
@@ -223,7 +226,7 @@ describe('구글 계정', () => {
   it('들어온 사람에게는 AI 키 버튼 — 누르면 키 설정 팝업', async () => {
     renderSignedIn({ email: 'friend@example.com', name: '친구', is_owner: false })
     await userEvent.click(await screen.findByRole('button', { name: 'AI 키 설정' }))
-    expect(screen.getByRole('dialog', { name: 'AI 키 설정' })).toBeInTheDocument()
+    expect(await screen.findByRole('dialog', { name: 'AI 키 설정' })).toBeInTheDocument()
     expect(screen.getByText(/이 기기의 브라우저에만/)).toBeInTheDocument()
   })
 

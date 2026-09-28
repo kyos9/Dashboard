@@ -388,6 +388,22 @@ class LogsOut(BaseModel):
     counts: dict[str, int]  # 읽어들인 구간의 레벨별 건수
 
 
+class SlowRequestStat(BaseModel):
+    method: str
+    route: str  # 주소의 틀 (/api/stocks/{ticker}) — 실제 주소는 담지 않는다
+    count: int
+    max_ms: int
+    last_ms: int
+    last_status: int
+    last_at: Optional[dt.datetime]
+
+
+class SlowRequestsOut(BaseModel):
+    threshold_ms: int
+    since: dt.datetime  # 서버를 켠 시각 — 이때부터 모았다
+    items: list[SlowRequestStat]  # 자주 느렸던 것부터
+
+
 # --- 매크로 지표 -----------------------------------------------------------
 
 

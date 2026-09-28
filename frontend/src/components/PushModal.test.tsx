@@ -189,7 +189,8 @@ describe('헤더', () => {
     await userEvent.click(await screen.findByRole('button', { name: '알림 설정' }))
     expect(await screen.findByRole('dialog', { name: '알림' })).toBeInTheDocument()
     expect(syncPush).toHaveBeenCalledWith('friend@example.com')
-    expect(pushState).toHaveBeenCalledWith('friend@example.com')
+    // 팝업 코드는 누를 때 받는다(8-5) — 받고 나서 이 기기 상태를 읽는다
+    await waitFor(() => expect(pushState).toHaveBeenCalledWith('friend@example.com'))
   })
 
   it('손님·승인 대기에게는 없다 — 보낼 것이 없다', async () => {

@@ -1,20 +1,17 @@
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { Suspense, useEffect, useState, useSyncExternalStore } from 'react'
 import { useAppState } from '../AppState'
 import { api } from '../api/client'
 import { useAuth } from './AuthGate'
 import { ConfirmDialog } from './ConfirmDialog'
-import { DiagnosticsModal } from './DiagnosticsModal'
 import { HeaderMenu, type MenuItem } from './HeaderMenu'
 import { TabBar } from './TabBar'
-import { PushModal } from './PushModal'
-import { AiKeyModal } from './AiKeyModal'
-import { DisplayModal } from './DisplayModal'
-import { UsersModal } from './UsersModal'
+import { ModalLoading } from './ModalLoading'
 import { GuestNotice, LoginButton } from './LoginPrompt'
 import { pushAccount, syncPush } from '../lib/push'
 import { lastLoadedAt, loadedAgoLabel, subscribeCache } from '../lib/cache'
 import { useInstall } from '../lib/install'
 import { useNarrow } from '../lib/narrow'
+import { AiKeyModal, DiagnosticsModal, DisplayModal, PushModal, UsersModal } from '../lib/pageChunks'
 import type { HealthInfo } from '../types'
 
 /** 이미지를 만든 시각을 "9/21 16:11" 로. 읽을 수 없는 값이면 빈 문자열.
@@ -37,8 +34,7 @@ export function buildLabel(builtAt?: string | null): string {
 
 export function AppHeader() {
   const { refreshAll, refreshing, lastSync, refreshError } = useAppState()
-  const { locked, mode, user, guest, pending, pendingCount, recountPending, isAdmin, logout, withdraw } =
-    useAuth()
+  const { locked, mode, user, guest, pending, pendingCount, recountPending, isAdmin, logout, withdraw } = useAuth()
   const [showUsers, setShowUsers] = useState(false)
   const [confirmWithdraw, setConfirmWithdraw] = useState(false)
   const [withdrawing, setWithdrawing] = useState(false)
@@ -70,7 +66,10 @@ export function AppHeader() {
 
   // 실행 중인 백엔드 버전을 헤더에 띄운다 — 업데이트 후 서버를 다시 켰는지 한눈에 확인하려고.
   useEffect(() => {
-    api.getHealth().then(setHealth).catch(() => setHealth(null))
+    api
+      .getHealth()
+      .then(setHealth)
+      .catch(() => setHealth(null))
   }, [])
 
   // "3분 전 받음" — 화면이 서버에서 마지막으로 값을 받은 때 (ROADMAP 8-1). 30초마다 다시 센다.
@@ -217,7 +216,13 @@ export function AppHeader() {
               items={phoneItems}
               head={accountHead}
               badge={isAdmin ? pendingCount : 0}
-              foot={version && <span className="mono" title={versionTitle}>{version}</span>}
+              foot={
+                version && (
+                  <span className="mono" title={versionTitle}>
+                    {version}
+                  </span>
+                )
+              }
             />
           </div>
         </header>
@@ -308,12 +313,33 @@ export function AppHeader() {
 
       <TabBar />
 
-      {showDiagnostics && <DiagnosticsModal onClose={() => setShowDiagnostics(false)} />}
-      {showPush && <PushModal account={account} onClose={() => setShowPush(false)} />}
-      {showAi && <AiKeyModal account={account} onClose={() => setShowAi(false)} />}
-      {showDisplay && <DisplayModal onClose={() => setShowDisplay(false)} />}
+      {/* 팝업 코드는 누를 때 받는다(8-5) — 받는 동안 제목과 닫기 버튼이 있는 틀을 먼저 띄운다 */}
+      {showDiagnostics && (
+        <Suspense fallback={<ModalLoading plain title="진단" onClose={() => setShowDiagnostics(false)} />}>
+          <DiagnosticsModal onClose={() => setShowDiagnostics(false)} />
+        </Suspense>
+      )}
+      {showPush && (
+        <Suspense fallback={<ModalLoading plain title="알림" onClose={() => setShowPush(false)} />}>
+          <PushModal account={account} onClose={() => setShowPush(false)} />
+        </Suspense>
+      )}
+      {showAi && (
+        <Suspense fallback={<ModalLoading plain title="AI 키" onClose={() => setShowAi(false)} />}>
+          <AiKeyModal account={account} onClose={() => setShowAi(false)} />
+        </Suspense>
+      )}
+      {showDisplay && (
+        <Suspense fallback={<ModalLoading plain title="화면 설정" onClose={() => setShowDisplay(false)} />}>
+          <DisplayModal onClose={() => setShowDisplay(false)} />
+        </Suspense>
+      )}
       {install.hint}
-      {showUsers && <UsersModal onClose={() => setShowUsers(false)} onChanged={recountPending} />}
+      {showUsers && (
+        <Suspense fallback={<ModalLoading plain title="사용자" onClose={() => setShowUsers(false)} />}>
+          <UsersModal onClose={() => setShowUsers(false)} onChanged={recountPending} />
+        </Suspense>
+      )}
 
       {confirmWithdraw && (
         <ConfirmDialog
@@ -331,8 +357,8 @@ export function AppHeader() {
             내 종목 목록·보유수량·매수 기록·설정이 전부 지워집니다. <strong>되돌릴 수 없습니다.</strong>
           </p>
           <p className="hint">
-            다시 들어오면 빈 화면에서 새로 시작합니다. 시세·매크로 같은 공용 데이터는 남고,
-            거기에는 나를 가리키는 것이 없습니다.
+            다시 들어오면 빈 화면에서 새로 시작합니다. 시세·매크로 같은 공용 데이터는 남고, 거기에는 나를 가리키는 것이
+            없습니다.
           </p>
           {withdrawError && <p className="error-text">{withdrawError}</p>}
         </ConfirmDialog>

@@ -144,7 +144,8 @@ describe('메뉴 항목', () => {
     await openMenu()
     await userEvent.click(screen.getByRole('button', { name: 'AI 키 설정' }))
     expect(screen.queryByRole('group', { name: '메뉴' })).not.toBeInTheDocument()
-    expect(screen.getByRole('dialog', { name: 'AI 키 설정' })).toBeInTheDocument()
+    // 팝업 코드는 누를 때 받는다(8-5) — 받는 동안의 틀이 아니라 진짜 팝업이 뜨는지 본다
+    expect(await screen.findByRole('dialog', { name: 'AI 키 설정' })).not.toHaveAttribute('aria-busy')
     expect(screen.getByRole('button', { name: '메뉴' })).toHaveAttribute('aria-expanded', 'false')
   })
 

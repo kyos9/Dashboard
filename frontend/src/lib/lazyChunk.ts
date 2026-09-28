@@ -39,6 +39,15 @@ export function lazyChunk<M extends Record<K, AnyComponent>, K extends keyof M>(
   return lazy(() => loadChunk(load).then((module) => ({ default: module[name] })))
 }
 
+/**
+ * 데이터 절약 모드인가 — 켜 두었으면 미리 받지 않는다. 쓸지 모르는 코드를 받느라 데이터를 쓰지
+ * 않게, 누를 때 받는다 (탭 조각·차트 조각 공통, ROADMAP 8-5).
+ */
+export function saveData(): boolean {
+  const connection = (navigator as { connection?: { saveData?: boolean } }).connection
+  return connection?.saveData === true
+}
+
 function alreadyReloaded(): boolean {
   try {
     return sessionStorage.getItem(RELOADED) === '1'

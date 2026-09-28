@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app import version, web
 from app.db import init_db
 from app.logging_setup import setup_logging
+from app.slow_requests import SlowRequestLog
 from app.routers import (
     admin, ai, auth, dashboard, fundamentals, history, logs, macro, push, rebalance, stocks, symbols,
 )
@@ -58,6 +59,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 느린 요청 기록은 가장 바깥에 — 문지기(세션 확인)에 든 시간까지 잰다 (ROADMAP 8-5)
+app.add_middleware(SlowRequestLog)
 
 app.include_router(auth.router)
 app.include_router(stocks.router)

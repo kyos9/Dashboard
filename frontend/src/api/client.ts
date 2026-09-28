@@ -22,6 +22,7 @@ import type {
   SymbolMatch,
   HealthInfo,
   LogsResponse,
+  SlowRequestsResponse,
   MacroHistory,
   MacroOverview,
   MacroPinned,
@@ -389,4 +390,5 @@ export const api = {
     request<LogsResponse>(`/logs?level=${level}`),
   /** 로그 파일 원본 주소. fetch가 아니라 브라우저가 직접 받게 둔다 */
   logsDownloadUrl: () => `${BASE}/logs/download`,
+  getSlowRequests: () => request<SlowRequestsResponse>('/logs/slow'),
 }
