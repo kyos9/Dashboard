@@ -19,6 +19,7 @@ import {
   signed,
   signedAmount,
   stockLabel,
+  reasonBadge,
   trafficLight,
 } from './display'
 
@@ -155,6 +156,21 @@ describe('종합 신호등', () => {
 
   it('아무 조건도 없으면 관망', () => {
     expect(trafficLight(card({})).state).toBe('watch')
+  })
+
+  it('신호등 이름은 한 단어, 풀이는 설명에', () => {
+    expect(trafficLight(card({ knee_buy_v2: true }))).toMatchObject({ label: '매수', desc: expect.stringMatching(/^매수 시그널 — /) })
+    expect(trafficLight(card({ shoulder_sell_ref: true }))).toMatchObject({ label: '매도', desc: expect.stringMatching(/^매도 시그널 — /) })
+    expect(trafficLight(card({ data_stale: true })).label).toBe('갱신 필요')
+  })
+})
+
+describe('신호 칸의 짧은 이름 (8-4)', () => {
+  it('서버의 사유 글을 할 일로 줄인다 — 모르는 사유는 그대로', () => {
+    expect(reasonBadge('밴드 미달(매수 검토)')).toEqual({ label: '매수 검토', desc: expect.stringMatching(/^밴드 미달/), rebalance: true })
+    expect(reasonBadge('밴드 초과(매도 검토)')).toEqual({ label: '매도 검토', desc: expect.stringMatching(/^밴드 초과/), rebalance: true })
+    expect(reasonBadge('정기 리뷰 도래')).toEqual({ label: '정기 리뷰', desc: expect.stringMatching(/^정기 리뷰 도래/), rebalance: false })
+    expect(reasonBadge('새 사유')).toEqual({ label: '새 사유', desc: '새 사유', rebalance: false })
   })
 })
 

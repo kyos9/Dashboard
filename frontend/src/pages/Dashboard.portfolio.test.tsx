@@ -384,7 +384,13 @@ describe('신호 점', () => {
     const schd = await holdingRow('SCHD')
     const dot = within(schd).getByRole('button', { name: /SCHD 신호/ })
     expect(dot).toHaveAccessibleName('SCHD 신호: 매수 시그널 · 과중 — 매도 검토. 시그널 보기로')
-    expect(dot.querySelector('.signal-dot')).toHaveClass('buy')
+    // 색만으로 가리지 않게 모양이 붙는다 — 매수 ▲ 와 비중조절 ◆ (8-4)
+    expect([...dot.querySelectorAll('.signal-shape')].map((el) => el.getAttribute('class'))).toEqual([
+      'signal-shape buy',
+      'signal-shape rebalance',
+    ])
+    // 모양 풀이가 아래에 있다
+    expect(screen.getByLabelText('신호 모양 풀이')).toHaveTextContent('매수 시그널')
     expect(within(await holdingRow('QQQ')).queryByRole('button', { name: /신호/ })).not.toBeInTheDocument()
     expect(within(await holdingRow('삼성전자')).queryByRole('button', { name: /신호/ })).not.toBeInTheDocument()
   })

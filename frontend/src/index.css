@@ -20,28 +20,40 @@
 
   --text: #e6edf3;
   --text-dim: #9fb0c3;
-  --text-faint: #6b7d92;
+  --text-faint: #7b8b9e;  /* 글자색은 배경·패널·배지 바탕 어디서든 4.5:1 이상 (8-4 에서 잼) */
 
   --green: #22c55e;
   --green-soft: rgba(34, 197, 94, 0.14);
   --amber: #f0b429;
   --amber-soft: rgba(240, 180, 41, 0.14);
-  --red: #f05252;
+  --red: #f26a6a;
   --red-soft: rgba(240, 82, 82, 0.14);
-  --blue: #3b82f6;
+  --blue: #5d98f8;
   --blue-soft: rgba(59, 130, 246, 0.14);
-  --purple: #a855f7;
+  --purple: #ba77f8;
   --purple-soft: rgba(168, 85, 247, 0.14);
   --slate-soft: rgba(159, 176, 195, 0.12);
 
   --accent: #38bdf8;
+  --on-accent: #05202b; /* 강조색 버튼 위 글자 */
 
   --radius: 12px;
   --radius-sm: 8px;
-  --gap: 14px;
+  --gap: 16px;
+
+  /*
+   * 글자 크기는 이 여섯 개뿐이다 (ROADMAP 8-4). 새 크기를 만들지 말고 가까운 것을 쓴다.
+   * 폰에서도 12px 아래는 없다.
+   */
+  --fs-caption: 12px; /* 설명·단위·표 머리 */
+  --fs-sub: 13px; /* 보조 글·배지·버튼 */
+  --fs-body: 14px; /* 본문 */
+  --fs-strong: 16px; /* 강조 — 카드 숫자·소제목 */
+  --fs-title: 20px; /* 화면 제목 */
+  --fs-big: 26px; /* 큰 숫자 — 총 평가금액 */
 
   /* 화면 좌우 여백. 헤더·탭·본문이 같은 선에서 시작하도록 한 군데서 정한다. */
-  --gutter: clamp(14px, 3vw, 28px);
+  --gutter: clamp(16px, 3vw, 28px);
 
   /*
    * 거기에 "가려지는 두께"를 더한 값. index.html 의 viewport-fit=cover 로 화면
@@ -70,13 +82,13 @@
 
   --text: #16202e;
   --text-dim: #52627a;
-  --text-faint: #78889d;
+  --text-faint: #617186;
 
-  --green: #15803d;
+  --green: #137538;
   --green-soft: rgba(21, 128, 61, 0.1);
-  --amber: #b45309;
+  --amber: #a64d09;
   --amber-soft: rgba(180, 83, 9, 0.1);
-  --red: #c81e1e;
+  --red: #c41d1d;
   --red-soft: rgba(200, 30, 30, 0.1);
   --blue: #1d4ed8;
   --blue-soft: rgba(29, 78, 216, 0.1);
@@ -85,6 +97,22 @@
   --slate-soft: rgba(82, 98, 122, 0.1);
 
   --accent: #0369a1;
+  --on-accent: #ffffff;
+}
+
+/*
+ * 오르내림 색 (ROADMAP 8-4). 가격 등락·수익률·평가손익만 이 둘을 쓴다.
+ * 기본은 오르면 초록 · 내리면 빨강. 화면 설정에서 "빨강"을 고르면 오르면 빨강 · 내리면 파랑이다
+ * (한국 증권 앱 방식). 시그널 색(매수 초록 · 매도 빨강)은 이것과 따로다 — .tone-buy / .tone-sell.
+ */
+:root {
+  --up: var(--green);
+  --down: var(--red);
+}
+
+:root[data-rise='red'] {
+  --up: var(--red);
+  --down: var(--blue);
 }
 
 * {
@@ -100,7 +128,7 @@ body,
 body {
   margin: 0;
   font-family: var(--font-sans);
-  font-size: 14px;
+  font-size: var(--fs-body);
   line-height: 1.55;
   background: var(--bg);
   color: var(--text);
@@ -129,7 +157,7 @@ h4 {
   align-items: center;
   gap: 12px;
   /* 상태바가 비쳐 보이는 설정(black-translucent)이라 위쪽도 피해야 한다 */
-  padding: calc(14px + env(safe-area-inset-top, 0px)) var(--gutter-right) 14px var(--gutter-left);
+  padding: calc(16px + env(safe-area-inset-top, 0px)) var(--gutter-right) 16px var(--gutter-left);
   background: linear-gradient(180deg, var(--bg-elevated), var(--panel));
   border-bottom: 1px solid var(--border);
 }
@@ -137,7 +165,7 @@ h4 {
 .brand {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
 }
 
@@ -149,7 +177,7 @@ h4 {
   place-items: center;
   border-radius: 10px;
   background: linear-gradient(135deg, var(--accent), var(--purple));
-  font-size: 19px;
+  font-size: var(--fs-title);
 }
 
 .brand-text {
@@ -161,7 +189,7 @@ h4 {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  font-size: 17px;
+  font-size: var(--fs-strong);
   font-weight: 800;
   letter-spacing: -0.01em;
   margin: 0;
@@ -169,14 +197,14 @@ h4 {
 
 .brand-sub {
   margin: 1px 0 0;
-  font-size: 12px;
+  font-size: var(--fs-caption);
   color: var(--text-faint);
 }
 
 .header-right {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
   margin-left: auto;
 }
@@ -185,10 +213,10 @@ h4 {
 .account-chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   min-width: 0;
   max-width: 240px;
-  font-size: 12px;
+  font-size: var(--fs-caption);
   color: var(--text-dim);
 }
 
@@ -204,11 +232,11 @@ h4 {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 12px;
+  padding: 8px 12px;
   border-radius: 999px;
   background: var(--panel-soft);
   border: 1px solid var(--border);
-  font-size: 12px;
+  font-size: var(--fs-caption);
   color: var(--text-dim);
 }
 
@@ -234,13 +262,13 @@ h4 {
 
 .header-alert {
   display: flex;
-  gap: 9px;
+  gap: 8px;
   align-items: flex-start;
-  padding: 10px var(--gutter-right) 10px var(--gutter-left);
+  padding: 8px var(--gutter-right) 8px var(--gutter-left);
   background: var(--red-soft);
   border-bottom: 1px solid rgba(240, 82, 82, 0.35);
   color: var(--red);
-  font-size: 13px;
+  font-size: var(--fs-sub);
   line-height: 1.55;
   word-break: keep-all;
 }
@@ -249,9 +277,9 @@ h4 {
 
 .tabs {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
-  padding: 10px var(--gutter-right) 10px var(--gutter-left);
+  padding: 8px var(--gutter-right) 8px var(--gutter-left);
   border-bottom: 1px solid var(--border);
   background: var(--bg-elevated);
 }
@@ -262,7 +290,7 @@ h4 {
   text-decoration: none;
   color: var(--text-dim);
   font-weight: 600;
-  font-size: 13.5px;
+  font-size: var(--fs-sub);
   border: 1px solid transparent;
 }
 
@@ -289,7 +317,7 @@ button.menu-btn {
   display: inline-grid;
   place-items: center;
   min-width: 40px;
-  padding-inline: 10px;
+  padding-inline: 8px;
 }
 
 .menu-glyph {
@@ -303,11 +331,11 @@ button.menu-btn {
   right: -6px;
   min-width: 18px;
   height: 18px;
-  padding: 0 5px;
+  padding: 0 4px;
   border-radius: 999px;
   background: var(--amber);
   color: #1a1203;
-  font-size: 12px;
+  font-size: var(--fs-caption);
   font-weight: 700;
   line-height: 18px;
   text-align: center;
@@ -323,7 +351,7 @@ button.menu-btn {
   width: max-content;
   min-width: 210px;
   max-width: min(300px, calc(100vw - 2 * var(--gutter)));
-  padding: 6px;
+  padding: 8px;
   background: var(--bg-elevated);
   border: 1px solid var(--border-strong);
   border-radius: 12px;
@@ -333,7 +361,7 @@ button.menu-btn {
 button.menu-item {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   width: 100%;
   min-height: 44px;
   padding: 8px 12px;
@@ -342,7 +370,7 @@ button.menu-item {
   border: 0;
   border-radius: 8px;
   color: var(--text);
-  font-size: 14px;
+  font-size: var(--fs-body);
 }
 
 button.menu-item:hover:not(:disabled),
@@ -355,7 +383,7 @@ button.menu-item.danger {
 }
 
 .menu-head {
-  padding: 8px 12px 10px;
+  padding: 8px 12px 8px;
   margin-bottom: 4px;
   border-bottom: 1px solid var(--border);
 }
@@ -375,14 +403,14 @@ button.menu-item.danger {
 }
 
 .menu-email {
-  font-size: 12px;
+  font-size: var(--fs-caption);
   color: var(--text-faint);
   overflow-wrap: anywhere;
 }
 
 .menu-account-badges {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   margin-top: 4px;
 }
 
@@ -390,7 +418,7 @@ button.menu-item.danger {
   padding: 8px 12px 4px;
   margin-top: 4px;
   border-top: 1px solid var(--border);
-  font-size: 12px;
+  font-size: var(--fs-caption);
   color: var(--text-faint);
 }
 
@@ -413,7 +441,7 @@ button.menu-item.danger {
   width: 32px;
   height: 32px;
   border-radius: 9px;
-  font-size: 17px;
+  font-size: var(--fs-strong);
 }
 
 .app-header.narrow .brand-title {
@@ -435,8 +463,8 @@ button.menu-item.danger {
 
 .status-pill.compact {
   min-width: 0;
-  padding: 4px 10px;
-  gap: 6px;
+  padding: 4px 8px;
+  gap: 8px;
 }
 
 button.icon-action {
@@ -492,7 +520,7 @@ button.bottom-tab {
   border-radius: 10px;
   color: var(--text-faint);
   text-decoration: none;
-  font-size: 12px;
+  font-size: var(--fs-caption);
   font-weight: 600;
 }
 
@@ -525,7 +553,7 @@ button.bottom-tab.active {
   display: flex;
   flex-direction: column;
   min-width: 170px;
-  padding: 6px;
+  padding: 8px;
   background: var(--bg-elevated);
   border: 1px solid var(--border-strong);
   border-radius: 12px;
@@ -536,9 +564,9 @@ button.bottom-tab.active {
   display: flex;
   align-items: center;
   min-height: 44px;
-  padding: 8px 14px;
+  padding: 8px 16px;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: var(--fs-body);
 }
 
 /* ---------- 페이지 ---------- */
@@ -546,7 +574,7 @@ button.bottom-tab.active {
 .page {
   max-width: 1440px;
   margin: 0 auto;
-  padding: 22px var(--gutter-right) calc(72px + env(safe-area-inset-bottom, 0px)) var(--gutter-left);
+  padding: 24px var(--gutter-right) calc(72px + env(safe-area-inset-bottom, 0px)) var(--gutter-left);
 }
 
 .page-head {
@@ -560,11 +588,42 @@ button.bottom-tab.active {
 
 .page-head h2 {
   margin: 0;
-  font-size: 19px;
+  font-size: var(--fs-title);
 }
 
 .page-head .hint {
   margin: 4px 0 0;
+}
+
+/* 안내는 한 줄 + "자세히" (8-4). 한 줄 전체가 누르는 자리다 */
+.page-intro summary {
+  display: block;
+  cursor: pointer;
+  list-style: none;
+}
+
+.page-intro summary::-webkit-details-marker {
+  display: none;
+}
+
+.intro-more {
+  color: var(--accent);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.page-intro p {
+  margin: 4px 0 0;
+}
+
+@media (max-width: 720px) {
+  .page-intro summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0 4px;
+    min-height: 44px;
+  }
 }
 
 /* 제목 옆 버튼 여럿 — 좁으면 줄을 바꾼다 */
@@ -575,20 +634,20 @@ button.bottom-tab.active {
 }
 
 .section {
-  margin-top: 26px;
+  margin-top: 24px;
 }
 
 .section-head {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 10px;
-  margin-bottom: 10px;
+  gap: 8px;
+  margin-bottom: 8px;
 }
 
 .section-head h3 {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--fs-strong);
 }
 
 /* ---------- 패널 / 카드 ---------- */
@@ -605,18 +664,18 @@ button.bottom-tab.active {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: var(--gap);
-  margin-bottom: 18px;
+  margin-bottom: 16px;
 }
 
 .kpi {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 14px 16px;
+  padding: 16px 16px;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .kpi-head {
@@ -628,14 +687,14 @@ button.bottom-tab.active {
 }
 
 .kpi-title {
-  font-size: 12.5px;
+  font-size: var(--fs-sub);
   font-weight: 700;
   color: var(--text-dim);
   letter-spacing: 0.01em;
 }
 
 .kpi-foot {
-  font-size: 11.5px;
+  font-size: var(--fs-caption);
   color: var(--text-faint);
   margin: 0;
 }
@@ -650,7 +709,7 @@ button.bottom-tab.active {
   flex: 1 1 auto;
   min-width: 78px;
   border-radius: var(--radius-sm);
-  padding: 8px 10px;
+  padding: 8px 8px;
   border: 1px solid var(--border);
   background: var(--panel-soft);
   text-align: center;
@@ -659,14 +718,14 @@ button.bottom-tab.active {
 .count-chip .num {
   display: block;
   font-family: var(--font-mono);
-  font-size: 20px;
+  font-size: var(--fs-title);
   font-weight: 700;
   line-height: 1.2;
 }
 
 .count-chip .lbl {
   display: block;
-  font-size: 11px;
+  font-size: var(--fs-caption);
   color: var(--text-dim);
   margin-top: 2px;
 }
@@ -709,7 +768,7 @@ button.bottom-tab.active {
 
 .kpi-figure .big {
   font-family: var(--font-mono);
-  font-size: 26px;
+  font-size: var(--fs-big);
   font-weight: 700;
   line-height: 1.15;
 }
@@ -735,22 +794,16 @@ button.bottom-tab.active {
   display: flex;
   flex-wrap: wrap;
   gap: 4px 12px;
-  font-size: 11.5px;
+  font-size: var(--fs-caption);
   color: var(--text-dim);
 }
 
 .weight-legend > span {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
 }
 
-.legend-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 2px;
-  flex: none;
-}
 
 /* 현금 — 종목 색과 섞이지 않게 무채색 빗금 */
 .cash-slice {
@@ -767,12 +820,12 @@ button.bottom-tab.active {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 14px;
+  gap: 8px;
+  margin-bottom: 16px;
 }
 
 .toolbar-label {
-  font-size: 12.5px;
+  font-size: var(--fs-sub);
   color: var(--text-faint);
   font-weight: 600;
 }
@@ -780,17 +833,17 @@ button.bottom-tab.active {
 .chip-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
   min-width: 0;
 }
 
 .chip {
-  padding: 6px 13px;
+  padding: 8px 12px;
   border-radius: 999px;
   border: 1px solid var(--border);
   background: var(--panel);
   color: var(--text-dim);
-  font-size: 12.5px;
+  font-size: var(--fs-sub);
   font-weight: 600;
   cursor: pointer;
   white-space: normal;
@@ -821,11 +874,11 @@ button.bottom-tab.active {
   align-self: flex-start;
   align-items: center;
   gap: 8px;
-  padding: 5px 12px;
+  padding: 4px 12px;
   border-radius: 999px;
   border: 1px solid var(--border);
   background: var(--panel-soft);
-  font-size: 12px;
+  font-size: var(--fs-caption);
   font-weight: 700;
   white-space: normal;
   word-break: keep-all;
@@ -834,7 +887,7 @@ button.bottom-tab.active {
 
 .traffic-lamp {
   display: inline-flex;
-  gap: 3px;
+  gap: 4px;
   flex: none;
 }
 
@@ -881,14 +934,15 @@ button.bottom-tab.active {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 7px;
+  padding: 2px 8px;
   border-radius: 5px;
-  font-size: 11px;
+  font-size: var(--fs-caption);
   font-weight: 600;
   line-height: 1.45;
   border: 1px solid var(--border);
   background: var(--slate-soft);
-  color: var(--text-faint);
+  /* 못 맞춘 조건도 읽혀야 한다 — 흐린 글자는 회색 바탕 위에서 4.5:1 이 안 나왔다 (8-4) */
+  color: var(--text-dim);
   white-space: normal;
   word-break: keep-all;
   max-width: 100%;
@@ -910,16 +964,16 @@ button.bottom-tab.active {
 .badge-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
+  gap: 4px;
 }
 
 .badge {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 3px 9px;
+  gap: 4px;
+  padding: 4px 8px;
   border-radius: 6px;
-  font-size: 11.5px;
+  font-size: var(--fs-caption);
   font-weight: 700;
   line-height: 1.45;
   white-space: normal;
@@ -962,9 +1016,9 @@ button.bottom-tab.active {
 /* 종목 구분(카테고리) 태그 */
 .cat-tag {
   display: inline-block;
-  padding: 2px 7px;
+  padding: 2px 8px;
   border-radius: 5px;
-  font-size: 11px;
+  font-size: var(--fs-caption);
   font-weight: 700;
   background: var(--slate-soft);
   color: var(--text-dim);
@@ -986,17 +1040,17 @@ button.bottom-tab.active {
 table.data-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: var(--fs-sub);
 }
 
 table.data-table th {
   position: sticky;
   top: 0;
   text-align: left;
-  padding: 11px 12px;
+  padding: 12px 12px;
   background: var(--panel-soft);
   border-bottom: 1px solid var(--border-strong);
-  font-size: 11.5px;
+  font-size: var(--fs-caption);
   font-weight: 700;
   color: var(--text-dim);
   letter-spacing: 0.02em;
@@ -1006,7 +1060,7 @@ table.data-table th {
 }
 
 table.data-table td {
-  padding: 11px 12px;
+  padding: 12px 12px;
   border-bottom: 1px solid var(--border);
   vertical-align: middle;
   white-space: normal;
@@ -1025,7 +1079,7 @@ table.data-table tr.inactive {
 }
 
 table.data-table tfoot td {
-  padding: 11px 12px;
+  padding: 12px 12px;
   border-top: 1px solid var(--border-strong);
   font-weight: 700;
   background: var(--panel-soft);
@@ -1041,7 +1095,7 @@ table.data-table tfoot td {
 .metric {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
   min-width: 0;
 }
 
@@ -1053,7 +1107,7 @@ table.data-table tfoot td {
 }
 
 .metric-note {
-  font-size: 11px;
+  font-size: var(--fs-caption);
   color: var(--text-faint);
   word-break: keep-all;
 }
@@ -1063,7 +1117,7 @@ table.data-table tfoot td {
   padding: 2px 8px;
   border-radius: 6px;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--fs-caption);
   font-weight: 700;
   border: 1px solid var(--border);
   background: var(--slate-soft);
@@ -1094,13 +1148,13 @@ table.data-table tfoot td {
 .ticker-cell {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
   min-width: 0;
 }
 
 .ticker-name {
   font-weight: 700;
-  font-size: 14px;
+  font-size: var(--fs-body);
   word-break: keep-all;
 }
 
@@ -1108,7 +1162,7 @@ table.data-table tfoot td {
    칸이 항상 테두리를 두르고 있으면 종목 목록이 입력 양식처럼 보인다. */
 .name-input {
   font-weight: 700;
-  font-size: 14px;
+  font-size: var(--fs-body);
   width: 100%;
   min-width: 90px;
   padding: 2px 4px;
@@ -1135,14 +1189,24 @@ table.data-table tfoot td {
 
 .ticker-sub {
   font-family: var(--font-mono);
-  font-size: 11.5px;
+  font-size: var(--fs-caption);
   color: var(--text-faint);
 }
 
 .up {
-  color: var(--green);
+  color: var(--up);
 }
 .down {
+  color: var(--down);
+}
+
+/* 가격이 아닌 뜻의 색 — 상승 색을 바꿔도 그대로다 */
+.tone-buy,
+.tone-good {
+  color: var(--green);
+}
+.tone-sell,
+.tone-bad {
   color: var(--red);
 }
 
@@ -1158,18 +1222,18 @@ table.data-table tfoot td {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 15px;
+  padding: 16px;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 11px;
+  gap: 12px;
 }
 
 .stock-card-head {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
@@ -1183,7 +1247,7 @@ table.data-table tfoot td {
 
 .stock-card-price .big {
   font-family: var(--font-mono);
-  font-size: 21px;
+  font-size: var(--fs-title);
   font-weight: 700;
   line-height: 1.2;
 }
@@ -1198,13 +1262,13 @@ table.data-table tfoot td {
   background: var(--panel-soft);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 8px 10px;
+  padding: 8px 8px;
   min-width: 0;
 }
 
 .stat-box .k {
   display: block;
-  font-size: 11px;
+  font-size: var(--fs-caption);
   color: var(--text-faint);
   word-break: keep-all;
 }
@@ -1212,14 +1276,14 @@ table.data-table tfoot td {
 .stat-box .v {
   display: block;
   font-family: var(--font-mono);
-  font-size: 14px;
+  font-size: var(--fs-body);
   font-weight: 600;
   margin-top: 2px;
 }
 
 .card-actions {
   border-top: 1px solid var(--border);
-  padding-top: 11px;
+  padding-top: 12px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1229,19 +1293,24 @@ table.data-table tfoot td {
 
 .callout {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   align-items: flex-start;
-  padding: 11px 14px;
+  padding: 12px 16px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   background: var(--panel-soft);
-  font-size: 13px;
+  font-size: var(--fs-sub);
   word-break: keep-all;
 }
 
 .callout .ico {
   flex: none;
   line-height: 1.5;
+}
+
+.callout .hint {
+  /* 색 바탕 위의 흐린 글자는 대비가 모자란다 — 한 단계 진하게 */
+  color: var(--text-dim);
 }
 
 .callout.amber {
@@ -1267,7 +1336,7 @@ table.data-table tfoot td {
 
 .empty-state {
   text-align: center;
-  padding: 54px 20px;
+  padding: 56px 20px;
   border: 1px dashed var(--border-strong);
   border-radius: var(--radius);
   background: var(--panel);
@@ -1275,15 +1344,15 @@ table.data-table tfoot td {
 }
 
 .empty-state h3 {
-  margin: 0 0 6px;
-  font-size: 16px;
+  margin: 0 0 8px;
+  font-size: var(--fs-strong);
   color: var(--text);
 }
 
 .empty-state p {
   margin: 0 auto;
   max-width: 460px;
-  font-size: 13px;
+  font-size: var(--fs-sub);
 }
 
 /* 손님에게 내 종목 화면 대신 보이는 안내 (components/LoginPrompt.tsx) */
@@ -1291,7 +1360,7 @@ table.data-table tfoot td {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
   padding: 40px 20px;
 }
 
@@ -1302,10 +1371,10 @@ table.data-table tfoot td {
 
 .guest-features {
   margin: 0;
-  padding-left: 18px;
+  padding-left: 16px;
   max-width: 460px;
   text-align: left;
-  font-size: 13px;
+  font-size: var(--fs-sub);
   line-height: 1.6;
 }
 
@@ -1331,12 +1400,12 @@ table.data-table tfoot td {
 .field {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 4px;
   min-width: 0;
 }
 
 .field > label {
-  font-size: 11.5px;
+  font-size: var(--fs-caption);
   font-weight: 600;
   color: var(--text-dim);
   word-break: keep-all;
@@ -1382,7 +1451,7 @@ table.data-table tfoot td {
   align-items: flex-start;
   gap: 2px;
   width: 100%;
-  padding: 7px 9px;
+  padding: 8px 8px;
   border: 0;
   border-radius: 6px;
   background: transparent;
@@ -1399,20 +1468,20 @@ table.data-table tfoot td {
 }
 
 .symbol-option-name {
-  font-size: 13px;
+  font-size: var(--fs-sub);
   font-weight: 600;
   color: var(--text);
   line-height: 1.35;
 }
 
 .symbol-option-meta {
-  font-size: 11.5px;
+  font-size: var(--fs-caption);
   color: var(--text-dim);
 }
 
 .symbol-search-status {
-  margin: 5px 0 0;
-  font-size: 11.5px;
+  margin: 4px 0 0;
+  font-size: var(--fs-caption);
   color: var(--text-dim);
   word-break: keep-all;
   line-height: 1.45;
@@ -1423,8 +1492,8 @@ table.data-table tfoot td {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 7px 9px;
+  gap: 8px;
+  padding: 8px 8px;
   min-height: 38px;
   border: 1px solid var(--accent);
   border-radius: var(--radius-sm);
@@ -1439,13 +1508,13 @@ table.data-table tfoot td {
 }
 
 .symbol-picked-name {
-  font-size: 13px;
+  font-size: var(--fs-sub);
   font-weight: 600;
   word-break: keep-all;
 }
 
 .symbol-picked-meta {
-  font-size: 11.5px;
+  font-size: var(--fs-caption);
   color: var(--text-dim);
 }
 
@@ -1454,7 +1523,7 @@ select,
 button,
 textarea {
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--fs-sub);
   color: var(--text);
 }
 
@@ -1465,7 +1534,7 @@ input[type='date'],
 select {
   width: 100%;
   min-width: 0;
-  padding: 8px 10px;
+  padding: 8px 8px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg-elevated);
@@ -1491,7 +1560,7 @@ input::placeholder {
 }
 
 button {
-  padding: 8px 14px;
+  padding: 8px 16px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   background: var(--panel-soft);
@@ -1510,7 +1579,7 @@ button:hover:not(:disabled) {
 button.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #05202b;
+  color: var(--on-accent);
 }
 
 button.primary:hover:not(:disabled) {
@@ -1529,8 +1598,8 @@ button.ghost {
 }
 
 button.sm {
-  padding: 5px 10px;
-  font-size: 12px;
+  padding: 4px 8px;
+  font-size: var(--fs-caption);
 }
 
 button:disabled {
@@ -1541,7 +1610,7 @@ button:disabled {
 .btn-group {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
   align-items: center;
 }
 
@@ -1558,7 +1627,7 @@ button:disabled {
 .input-with-button {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
+  gap: 4px;
   align-items: center;
 }
 
@@ -1568,7 +1637,7 @@ button:disabled {
 }
 
 .input-with-button .unit {
-  font-size: 12px;
+  font-size: var(--fs-caption);
   color: var(--text-faint);
   white-space: nowrap;
 }
@@ -1594,7 +1663,7 @@ button:disabled {
 
 .hint {
   color: var(--text-faint);
-  font-size: 12px;
+  font-size: var(--fs-caption);
   word-break: keep-all;
 }
 
@@ -1603,15 +1672,15 @@ button:disabled {
   background: var(--red-soft);
   border: 1px solid rgba(240, 82, 82, 0.35);
   border-radius: var(--radius-sm);
-  padding: 11px 14px;
-  margin: 0 0 14px;
-  font-size: 13px;
+  padding: 12px 16px;
+  margin: 0 0 16px;
+  font-size: var(--fs-sub);
   word-break: keep-all;
 }
 
 .error-head {
   display: flex;
-  gap: 9px;
+  gap: 8px;
   align-items: flex-start;
   line-height: 1.55;
 }
@@ -1624,14 +1693,14 @@ button:disabled {
 }
 
 .error-detail {
-  margin-top: 9px;
+  margin-top: 8px;
   border-top: 1px solid rgba(240, 82, 82, 0.25);
   padding-top: 8px;
 }
 
 .error-detail summary {
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--fs-caption);
   font-weight: 600;
   opacity: 0.85;
 }
@@ -1639,7 +1708,7 @@ button:disabled {
 .error-detail p {
   margin: 8px 0 0;
   font-family: var(--font-mono);
-  font-size: 11.5px;
+  font-size: var(--fs-caption);
   line-height: 1.6;
   /* 긴 예외 메시지는 URL·경로가 섞여 있어 어절 단위로는 넘칠 수 있다 */
   overflow-wrap: break-word;
@@ -1652,22 +1721,22 @@ button:disabled {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 10px;
+  padding: 8px;
 }
 
 .legend-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 16px;
+  gap: 8px 16px;
   margin-top: 12px;
-  font-size: 12px;
+  font-size: var(--fs-caption);
   color: var(--text-dim);
 }
 
 .legend-row > span {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
 /* ---------- 좁은 화면 ---------- */
@@ -1682,11 +1751,11 @@ button:disabled {
     padding-bottom: 12px;
   }
   .page {
-    padding-top: 18px;
+    padding-top: 16px;
     padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
   }
   .kpi-figure .big {
-    font-size: 22px;
+    font-size: var(--fs-title);
   }
 }
 
@@ -1708,7 +1777,7 @@ button:disabled {
   width: min(1040px, 100%);
   max-height: calc(100vh - 40px);
   overflow-y: auto;
-  padding: 18px;
+  padding: 16px;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -1719,8 +1788,8 @@ button:disabled {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px 14px;
-  margin-bottom: 14px;
+  gap: 8px 16px;
+  margin-bottom: 16px;
 }
 
 /* 제목은 남는 자리를 먹고, 닫기 버튼은 항상 오른쪽 끝 */
@@ -1734,7 +1803,7 @@ button:disabled {
 
 .modal-title h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--fs-strong);
 }
 
 .modal-head .icon-btn {
@@ -1749,7 +1818,7 @@ button:disabled {
   align-items: center;
   justify-content: center;
   padding: 0;
-  font-size: 14px;
+  font-size: var(--fs-body);
   color: var(--text-dim);
   background: transparent;
   border: 1px solid var(--border);
@@ -1768,7 +1837,7 @@ button:disabled {
 }
 
 .confirm-body {
-  font-size: 13px;
+  font-size: var(--fs-sub);
   line-height: 1.65;
   color: var(--text);
   word-break: keep-all;
@@ -1793,23 +1862,23 @@ button:disabled {
 }
 
 .install-hint-body {
-  font-size: 13px;
+  font-size: var(--fs-sub);
   line-height: 1.7;
   color: var(--text);
   word-break: keep-all;
 }
 
 .install-hint-body p {
-  margin: 0 0 10px;
+  margin: 0 0 8px;
 }
 
 .install-hint-body ol {
-  margin: 0 0 10px;
+  margin: 0 0 8px;
   padding-left: 20px;
 }
 
 .install-hint-body li {
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 
 .install-hint-body .hint-note {
@@ -1872,13 +1941,13 @@ button.danger:hover:not(:disabled) {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   min-width: 0;
 }
 
 .stock-name {
   font-weight: 700;
-  font-size: 14px;
+  font-size: var(--fs-body);
   word-break: keep-all;
   color: var(--text);
 }
@@ -1912,7 +1981,7 @@ button.stock-name:hover {
   border-radius: 7px;
   border: 1px solid transparent;
   color: var(--text-faint);
-  font-size: 15px;
+  font-size: var(--fs-strong);
   line-height: 1;
   cursor: grab;
   user-select: none;
@@ -1954,9 +2023,9 @@ tr.dragging td {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 10px;
-  padding: 10px 12px;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 8px 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--panel-soft);
@@ -1978,13 +2047,13 @@ table.data-table tr.dirty:hover td {
 .metric-line {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   min-width: 0;
   white-space: nowrap;
 }
 
 .metric-line .metric-note {
-  font-size: 11.5px;
+  font-size: var(--fs-caption);
 }
 
 /* 조건 충족 표시 — 기호 하나 */
@@ -1996,10 +2065,10 @@ table.data-table tr.dirty:hover td {
   height: 18px;
   flex: none;
   border-radius: 50%;
-  font-size: 11px;
+  font-size: var(--fs-caption);
   font-weight: 700;
   line-height: 1;
-  color: var(--text-faint);
+  color: var(--text-dim);
   background: var(--slate-soft);
   border: 1px solid var(--border);
   cursor: help;
@@ -2019,8 +2088,8 @@ table.data-table tr.dirty:hover td {
 
 .th-cond {
   display: block;
-  margin-top: 3px;
-  font-size: 10.5px;
+  margin-top: 4px;
+  font-size: var(--fs-caption);
   font-weight: 600;
   color: var(--text-faint);
   font-family: var(--font-mono);
@@ -2032,7 +2101,7 @@ table.data-table tr.dirty:hover td {
 
 /* 차트 아래 저장 구간 안내 */
 .chart-coverage {
-  margin-top: 6px;
+  margin-top: 8px;
 }
 
 /* 글 속에 섞이는 버튼 (전체 기간 다시 받기 등) */
@@ -2070,8 +2139,8 @@ table.data-table tr.dirty:hover td {
 .diag-row {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 8px 6px;
+  gap: 8px;
+  padding: 8px 8px;
   border-bottom: 1px solid var(--border);
 }
 
@@ -2081,7 +2150,7 @@ table.data-table tr.dirty:hover td {
 
 .diag-time {
   flex: 0 0 auto;
-  font-size: 11.5px;
+  font-size: var(--fs-caption);
   padding-top: 2px;
 }
 
@@ -2094,13 +2163,13 @@ table.data-table tr.dirty:hover td {
 }
 
 .diag-text .hint {
-  font-size: 11px;
+  font-size: var(--fs-caption);
 }
 
 .diag-text pre {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--fs-caption);
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
@@ -2113,7 +2182,7 @@ table.data-table tr.dirty:hover td {
 }
 
 .users-intro {
-  margin: 0 0 10px;
+  margin: 0 0 8px;
 }
 
 .users-list {
@@ -2125,8 +2194,8 @@ table.data-table tr.dirty:hover td {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px 14px;
-  padding: 10px 4px;
+  gap: 8px 16px;
+  padding: 8px 4px;
   border-bottom: 1px solid var(--border);
 }
 
@@ -2138,7 +2207,7 @@ table.data-table tr.dirty:hover td {
   display: flex;
   flex: 1 1 260px;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
   min-width: 0;
 }
 
@@ -2146,20 +2215,20 @@ table.data-table tr.dirty:hover td {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   overflow-wrap: anywhere;
 }
 
 .user-email,
 .user-meta {
-  font-size: 12px;
+  font-size: var(--fs-caption);
   overflow-wrap: anywhere;
 }
 
 .user-actions {
   display: flex;
   flex: 0 0 auto;
-  gap: 6px;
+  gap: 8px;
   margin-left: auto;
 }
 
@@ -2173,7 +2242,7 @@ table.data-table tr.dirty:hover td {
 .push-kinds {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   padding: 12px 0;
   border-bottom: 1px solid var(--border);
 }
@@ -2192,7 +2261,7 @@ table.data-table tr.dirty:hover td {
 
 /* 켤 수 없는 이유 + 할 일. 길어도 잘리지 않고 줄바꿈된다 */
 .push-blocked {
-  padding: 10px 12px;
+  padding: 8px 12px;
   border-radius: var(--radius-sm);
   background: var(--amber-soft);
   line-height: 1.55;
@@ -2205,7 +2274,7 @@ table.data-table tr.dirty:hover td {
 .push-kind {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
+  gap: 8px;
   cursor: pointer;
   line-height: 1.45;
   overflow-wrap: anywhere;
@@ -2225,8 +2294,8 @@ table.data-table tr.dirty:hover td {
 
 /* 헤더 버튼 안의 작은 숫자 (기다리는 가입 신청 수) */
 .count-badge {
-  margin-left: 6px;
-  padding: 0 6px;
+  margin-left: 8px;
+  padding: 0 8px;
   min-width: 18px;
   justify-content: center;
 }
@@ -2236,7 +2305,7 @@ table.data-table tr.dirty:hover td {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
   margin-top: 12px;
   padding-top: 12px;
   border-top: 1px solid var(--border);
@@ -2249,8 +2318,8 @@ table.data-table tr.dirty:hover td {
 
 .diag-download {
   flex: 0 0 auto;
-  padding: 6px 12px;
-  font-size: 12.5px;
+  padding: 8px 12px;
+  font-size: var(--fs-sub);
   color: var(--text-dim);
   text-decoration: none;
   background: transparent;
@@ -2284,22 +2353,22 @@ table.data-table tr.dirty:hover td {
   max-width: 340px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
 }
 
 .login-brand {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .login-brand span {
-  font-size: 26px;
+  font-size: var(--fs-big);
 }
 
 .login-brand h1 {
   margin: 0;
-  font-size: 20px;
+  font-size: var(--fs-title);
   letter-spacing: -0.01em;
 }
 
@@ -2330,19 +2399,9 @@ table.data-table tr.dirty:hover td {
   input,
   select,
   textarea {
-    font-size: 16px;
+    font-size: var(--fs-strong);
   }
 
-  /* 손끝이 닿는 면적. 12px 남짓한 버튼은 옆 버튼과 구분되지 않는다 */
-  button,
-  .tab {
-    min-height: 40px;
-  }
-
-  .icon-btn {
-    width: 38px;
-    height: 38px;
-  }
 
   /* 길게 눌렀을 때 글자가 선택되며 파랗게 뜨는 것을 막는다 (누른 건 버튼이다) */
   button,
@@ -2365,7 +2424,7 @@ table.data-table tr.dirty:hover td {
   .modal {
     max-height: 100dvh;
     /* 홈 인디케이터에 버튼이 가리지 않게 */
-    padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
     /* 팝업 안에서 끝까지 내렸을 때 뒤 화면이 따라 움직이지 않게 */
     overscroll-behavior: contain;
   }
@@ -2374,7 +2433,7 @@ table.data-table tr.dirty:hover td {
 /* ---------- 매크로 지표 카드 ---------- */
 
 .macro-card {
-  gap: 9px;
+  gap: 8px;
 }
 
 .macro-card-name {
@@ -2389,7 +2448,7 @@ table.data-table tr.dirty:hover td {
 /* 이름을 누르면 차트가 뜬다 — 종목 화면에서 종목명을 누르는 것과 같은 동작이라
    따로 "차트" 버튼을 두지 않는다. 글자 크기는 카드 제목이므로 본문보다 키운다. */
 .macro-title {
-  font-size: 15px;
+  font-size: var(--fs-strong);
   font-weight: 650;
   text-align: left;
   color: var(--text);
@@ -2413,19 +2472,19 @@ table.data-table tr.dirty:hover td {
 .macro-figure {
   display: flex;
   align-items: baseline;
-  gap: 9px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
 .macro-figure .big {
-  font-size: 24px;
+  font-size: var(--fs-big);
   font-weight: 700;
   line-height: 1.15;
 }
 
 /* 변화폭은 색으로 좋고 나쁨을 말하지 않는다 (lib/macro.ts 참고) — 부호만 보여준다 */
 .macro-change {
-  font-size: 13px;
+  font-size: var(--fs-sub);
   color: var(--text-dim);
 }
 
@@ -2449,15 +2508,14 @@ table.data-table tr.dirty:hover td {
   flex-direction: column;
   align-items: flex-start;
   gap: 2px;
-  padding: 7px 11px;
-  font-size: 13px;
+  padding: 8px 12px;
+  font-size: var(--fs-sub);
 }
 
 .regime-detail {
   font-family: var(--font-mono);
-  font-size: 11.5px;
+  font-size: var(--fs-caption);
   font-weight: 500;
-  opacity: 0.85;
 }
 
 .regime-quiet {
@@ -2472,7 +2530,7 @@ table.data-table tr.dirty:hover td {
   min-width: 0;
   border: none;
   background: none;
-  font-size: 17px;
+  font-size: var(--fs-strong);
   line-height: 1;
   color: var(--text-faint);
   cursor: pointer;
@@ -2494,19 +2552,19 @@ table.data-table tr.dirty:hover td {
   display: inline-flex;
   align-items: baseline;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
   align-self: flex-start;
   margin: 0;
-  padding: 4px 10px;
+  padding: 4px 8px;
   border-radius: 6px;
   border: 1px solid transparent;
-  font-size: 13px;
+  font-size: var(--fs-sub);
   font-weight: 700;
 }
 
 .macro-zone-range {
   font-family: var(--font-mono);
-  font-size: 11.5px;
+  font-size: var(--fs-caption);
   font-weight: 500;
   opacity: 0.8;
 }
@@ -2518,7 +2576,7 @@ table.data-table tr.dirty:hover td {
    "예상을 넘었다"는 사실은 국면 배지가 따로 말한다. */
 .macro-forecast {
   margin: 0;
-  font-size: 12.5px;
+  font-size: var(--fs-sub);
   line-height: 1.55;
   color: var(--text-dim);
 }
@@ -2531,7 +2589,7 @@ table.data-table tr.dirty:hover td {
 /* 카드 안에서 여는 입력칸. 설정 화면으로 보내면 어떤 값이 나왔는지 보면서 적을 수가 없다 */
 .forecast-open {
   align-self: flex-start;
-  font-size: 12.5px;
+  font-size: var(--fs-sub);
 }
 
 .forecast-form {
@@ -2539,7 +2597,7 @@ table.data-table tr.dirty:hover td {
   flex-wrap: wrap;
   align-items: flex-end;
   gap: 8px;
-  padding: 10px;
+  padding: 8px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--panel-soft);
@@ -2548,7 +2606,7 @@ table.data-table tr.dirty:hover td {
 .forecast-form label {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
   /* 폰에서 두 칸이 한 줄에 안 들어가면 각자 한 줄을 쓰게 둔다 */
   flex: 1 1 110px;
   min-width: 0;
@@ -2562,14 +2620,14 @@ table.data-table tr.dirty:hover td {
 .forecast-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
   flex: 1 1 auto;
 }
 
 .forecast-actions button {
   flex: 0 0 auto;
-  padding: 6px 12px;
-  font-size: 12.5px;
+  padding: 8px 12px;
+  font-size: var(--fs-sub);
 }
 
 /* ---------- 홈 화면 매크로 한 줄 ---------- */
@@ -2589,7 +2647,7 @@ table.data-table tr.dirty:hover td {
   flex: 0 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
   padding: 8px 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -2603,7 +2661,7 @@ table.data-table tr.dirty:hover td {
 }
 
 .macro-chip-name {
-  font-size: 11.5px;
+  font-size: var(--fs-caption);
   color: var(--text-dim);
   white-space: nowrap;
 }
@@ -2611,21 +2669,21 @@ table.data-table tr.dirty:hover td {
 .macro-chip-value {
   display: flex;
   align-items: baseline;
-  gap: 6px;
-  font-size: 15px;
+  gap: 8px;
+  font-size: var(--fs-strong);
   font-weight: 700;
   white-space: nowrap;
 }
 
 .macro-chip-change {
-  font-size: 11.5px;
+  font-size: var(--fs-caption);
   font-weight: 500;
   color: var(--text-dim);
 }
 
 /* 칩 안에서는 배지 테두리까지 그리면 상자 안의 상자가 된다 — 글자색만 쓴다 */
 .macro-chip-zone {
-  font-size: 11.5px;
+  font-size: var(--fs-caption);
   font-weight: 700;
   background: none !important;
   border: none !important;
@@ -2676,17 +2734,17 @@ table.data-table tr.dirty:hover td {
 .review-controls {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px 16px;
+  gap: 8px 16px;
   align-items: flex-end;
 }
 
 .review-controls .field > span {
-  font-size: 12px;
+  font-size: var(--fs-caption);
   color: var(--text-dim);
 }
 
 .review-due-text {
-  margin: 10px 0 0;
+  margin: 8px 0 0;
   color: var(--text);
 }
 
@@ -2703,12 +2761,12 @@ table.data-table tr.dirty:hover td {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px 12px;
-  margin-bottom: 10px;
+  gap: 8px 12px;
+  margin-bottom: 8px;
 }
 
 .new-money > label {
-  font-size: 12.5px;
+  font-size: var(--fs-sub);
   color: var(--text-dim);
 }
 
@@ -2758,7 +2816,7 @@ table.data-table tr.dirty:hover td {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--panel);
-  padding: 10px 12px;
+  padding: 8px 12px;
 }
 
 .snapshot > summary {
@@ -2770,7 +2828,7 @@ table.data-table tr.dirty:hover td {
 }
 
 .snapshot[open] > summary {
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .snapshot-total {
@@ -2793,7 +2851,7 @@ table.data-table tr.dirty:hover td {
 }
 
 .card-actions > .k {
-  font-size: 11.5px;
+  font-size: var(--fs-caption);
   color: var(--text-faint);
 }
 
@@ -2802,7 +2860,7 @@ table.data-table tr.dirty:hover td {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
   padding: 36px 20px;
 }
 
@@ -2811,7 +2869,7 @@ table.data-table tr.dirty:hover td {
   padding-left: 20px;
   max-width: 520px;
   text-align: left;
-  font-size: 13px;
+  font-size: var(--fs-sub);
   line-height: 1.7;
   overflow-wrap: anywhere;
 }
@@ -2823,7 +2881,7 @@ table.data-table tr.dirty:hover td {
 /* 버튼처럼 보이는 링크 — 다른 화면으로 가는 것이라 <button> 이 아니다 */
 .link-button {
   display: inline-block;
-  padding: 8px 14px;
+  padding: 8px 16px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--accent);
   background: var(--accent);
@@ -2841,14 +2899,14 @@ table.data-table tr.dirty:hover td {
 .policy {
   max-width: 760px;
   margin: 0 auto;
-  font-size: 14px;
+  font-size: var(--fs-body);
   line-height: 1.75;
   overflow-wrap: anywhere;
 }
 
 .policy h2 {
   margin: 8px 0 4px;
-  font-size: 20px;
+  font-size: var(--fs-title);
 }
 
 .policy h2 + .hint {
@@ -2856,8 +2914,8 @@ table.data-table tr.dirty:hover td {
 }
 
 .policy h3 {
-  margin: 22px 0 6px;
-  font-size: 15px;
+  margin: 24px 0 8px;
+  font-size: var(--fs-strong);
 }
 
 .policy ul {
@@ -2875,16 +2933,16 @@ table.data-table tr.dirty:hover td {
 .consent-line {
   margin: 0;
   max-width: 460px;
-  font-size: 12px;
+  font-size: var(--fs-caption);
 }
 
 .site-footer {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 4px 14px;
-  padding: 18px 16px 28px;
-  font-size: 12px;
+  gap: 4px 16px;
+  padding: 16px 16px 28px;
+  font-size: var(--fs-caption);
   color: var(--text-dim);
   text-align: center;
 }
@@ -2917,12 +2975,12 @@ table.data-table tr.dirty:hover td {
 .fund-groups {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 14px;
+  gap: 16px;
 }
 
 .fund-group h4 {
   margin: 0 0 8px;
-  font-size: 13px;
+  font-size: var(--fs-sub);
   font-weight: 600;
   color: var(--text-dim);
 }
@@ -2940,7 +2998,7 @@ table.data-table tr.dirty:hover td {
 .per-range {
   position: relative;
   height: 18px;
-  margin: 6px 8px 0;
+  margin: 8px 8px 0;
 }
 
 .per-track {
@@ -2968,7 +3026,7 @@ table.data-table tr.dirty:hover td {
   top: 2px;
   width: 14px;
   height: 14px;
-  margin-left: -7px;
+  margin-left: -8px;
   border-radius: 50%;
   background: var(--accent);
   border: 2px solid var(--panel);
@@ -2979,9 +3037,9 @@ table.data-table tr.dirty:hover td {
   flex-wrap: wrap;
   justify-content: space-between;
   gap: 4px 12px;
-  margin: 4px 0 6px;
+  margin: 4px 0 8px;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--fs-caption);
   color: var(--text-faint);
 }
 
@@ -3001,7 +3059,7 @@ table.data-table tr.dirty:hover td {
 .per-key-item {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
 .per-key-dot {
@@ -3041,7 +3099,7 @@ table.data-table tr.dirty:hover td {
 
 .per-row {
   position: relative;
-  padding: 6px 8px;
+  padding: 8px 8px;
   background: none;
   border: 0;
   border-radius: 8px;
@@ -3062,7 +3120,7 @@ table.data-table tr.dirty:hover td {
 }
 
 .per-row-value {
-  font-size: 13px;
+  font-size: var(--fs-sub);
   overflow-wrap: anywhere;
 }
 
@@ -3097,12 +3155,12 @@ table.data-table tr.dirty:hover td {
   left: 8px;
   right: 8px;
   top: calc(100% + 2px);
-  padding: 6px 10px;
+  padding: 8px 8px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--panel);
   color: var(--text);
-  font-size: 12px;
+  font-size: var(--fs-caption);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
   pointer-events: none;
 }
@@ -3121,7 +3179,7 @@ table.data-table tr.dirty:hover td {
   height: 16px;
   margin: 0 8px;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--fs-caption);
   color: var(--text-faint);
 }
 
@@ -3158,19 +3216,19 @@ table.data-table tr.dirty:hover td {
 .fund-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: var(--fs-caption);
 }
 
 .fund-table th,
 .fund-table td {
-  padding: 6px 8px;
+  padding: 8px 8px;
   text-align: right;
   border-bottom: 1px solid var(--border);
   vertical-align: top;
 }
 
 .fund-table thead th {
-  font-size: 11px;
+  font-size: var(--fs-caption);
   font-weight: 500;
   color: var(--text-faint);
   word-break: keep-all;
@@ -3188,7 +3246,7 @@ table.data-table tr.dirty:hover td {
 .fund-table th[scope='row'] .hint {
   display: block;
   font-weight: 400;
-  font-size: 11px;
+  font-size: var(--fs-caption);
 }
 
 /* "재무" 화면 목록 — PC 는 한 표. 칸이 많아 좁으면 표 안에서만 옆으로 민다 (페이지는 안 밀린다) */
@@ -3219,11 +3277,11 @@ table.data-table tr.dirty:hover td {
 .fund-list th[scope='row'] .hint {
   display: block;
   font-weight: 400;
-  font-size: 11px;
+  font-size: var(--fs-caption);
 }
 
 .fund-foot {
-  margin-top: 10px;
+  margin-top: 8px;
   overflow-wrap: anywhere;
 }
 
@@ -3233,14 +3291,14 @@ table.data-table tr.dirty:hover td {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .fund-hidden li {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 2px 10px;
+  gap: 2px 8px;
   overflow-wrap: anywhere;
 }
 
@@ -3307,8 +3365,8 @@ table.data-table tr.dirty:hover td {
   .fund-list tr {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 2px 14px;
-    padding: 10px 12px;
+    gap: 2px 16px;
+    padding: 8px 12px;
     border-bottom: 1px solid var(--border);
   }
 
@@ -3328,7 +3386,7 @@ table.data-table tr.dirty:hover td {
     flex-wrap: wrap;
     align-items: baseline;
     justify-content: flex-start;
-    gap: 2px 10px;
+    gap: 2px 8px;
     padding-bottom: 4px;
   }
 
@@ -3365,13 +3423,13 @@ table.data-table tr.dirty:hover td {
 .ai-model-pick label {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 4px;
   min-width: 0;
 }
 
 .ai-key-grid label > span,
 .ai-model-pick label > span {
-  font-size: 11.5px;
+  font-size: var(--fs-caption);
   font-weight: 600;
   color: var(--text-dim);
   word-break: keep-all;
@@ -3409,7 +3467,7 @@ table.data-table tr.dirty:hover td {
 
 .ai-key-notes {
   margin: 0;
-  padding-left: 18px;
+  padding-left: 16px;
   line-height: 1.55;
 }
 
@@ -3447,8 +3505,8 @@ table.data-table tr.dirty:hover td {
 .ai-key-box {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 14px;
+  gap: 8px;
+  padding: 16px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg-elevated);
@@ -3470,7 +3528,7 @@ table.data-table tr.dirty:hover td {
 }
 
 .ai-result {
-  padding: 14px 16px;
+  padding: 16px 16px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
 }
@@ -3482,8 +3540,8 @@ table.data-table tr.dirty:hover td {
 }
 
 .ai-text h4 {
-  margin: 16px 0 6px;
-  font-size: 14px;
+  margin: 16px 0 8px;
+  font-size: var(--fs-body);
 }
 
 .ai-text h4:first-child {
@@ -3491,7 +3549,7 @@ table.data-table tr.dirty:hover td {
 }
 
 .ai-text p {
-  margin: 6px 0;
+  margin: 8px 0;
 }
 
 .ai-text ul,
@@ -3501,15 +3559,15 @@ table.data-table tr.dirty:hover td {
 }
 
 .ai-text li + li {
-  margin-top: 3px;
+  margin-top: 4px;
 }
 
 .ai-disclaimer {
-  margin: 14px 0 0;
-  padding-top: 10px;
+  margin: 16px 0 0;
+  padding-top: 8px;
   border-top: 1px solid var(--border);
   color: var(--text-faint);
-  font-size: 12px;
+  font-size: var(--fs-caption);
   line-height: 1.55;
   word-break: keep-all;
 }
@@ -3517,24 +3575,24 @@ table.data-table tr.dirty:hover td {
 .ai-context summary {
   cursor: pointer;
   color: var(--text-dim);
-  font-size: 12.5px;
+  font-size: var(--fs-sub);
 }
 
 .ai-context h5 {
-  margin: 10px 0 4px;
-  font-size: 12px;
+  margin: 8px 0 4px;
+  font-size: var(--fs-caption);
   color: var(--text-dim);
 }
 
 /* 보내는 내용은 줄 모양 그대로 보이되, 길면 줄을 바꾼다 — 옆으로 밀려 잘리지 않게 */
 .ai-context pre {
   margin: 0;
-  padding: 10px 12px;
+  padding: 8px 12px;
   max-height: 320px;
   overflow-y: auto;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  font-size: 12px;
+  font-size: var(--fs-caption);
   line-height: 1.5;
   background: var(--bg-elevated);
   border-radius: var(--radius-sm);
@@ -3544,11 +3602,11 @@ table.data-table tr.dirty:hover td {
 .ai-question {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .ai-question > label {
-  font-size: 12.5px;
+  font-size: var(--fs-sub);
   font-weight: 600;
   color: var(--text-dim);
   word-break: keep-all;
@@ -3561,7 +3619,7 @@ table.data-table tr.dirty:hover td {
 .ai-question textarea {
   width: 100%;
   min-width: 0;
-  padding: 8px 10px;
+  padding: 8px 8px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg-elevated);
@@ -3580,7 +3638,7 @@ table.data-table tr.dirty:hover td {
   flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 6px 12px;
+  gap: 8px 12px;
 }
 
 /* 예시는 길다 — 칩이 한 줄에 안 들어가면 다음 줄로, 칩 안의 글자도 줄을 바꾼다 */
@@ -3601,7 +3659,7 @@ table.data-table tr.dirty:hover td {
 
 .ai-asked {
   margin: 4px 0 8px;
-  padding: 8px 10px;
+  padding: 8px 8px;
   border-left: 3px solid var(--border);
   line-height: 1.55;
   overflow-wrap: anywhere;
@@ -3707,13 +3765,13 @@ table.data-table tr.dirty:hover td {
 .view-head {
   display: flex;
   justify-content: flex-start;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
 }
 
 /* 두 칸 전환. 누르는 자리는 44px */
 .view-switch {
   display: inline-flex;
-  padding: 3px;
+  padding: 4px;
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--panel);
@@ -3727,7 +3785,7 @@ table.data-table tr.dirty:hover td {
   border-radius: 999px;
   background: none;
   color: var(--text-dim);
-  font-size: 13.5px;
+  font-size: var(--fs-sub);
   font-weight: 700;
   cursor: pointer;
 }
@@ -3743,8 +3801,8 @@ table.data-table tr.dirty:hover td {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  gap: 14px 28px;
-  padding: 16px 18px;
+  gap: 16px 28px;
+  padding: 16px 16px;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -3758,7 +3816,7 @@ table.data-table tr.dirty:hover td {
 }
 
 .money-big {
-  font-size: 26px;
+  font-size: var(--fs-big);
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
@@ -3768,7 +3826,7 @@ table.data-table tr.dirty:hover td {
 .money-facts {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px 26px;
+  gap: 8px 24px;
   margin: 0;
   min-width: 0;
 }
@@ -3776,18 +3834,18 @@ table.data-table tr.dirty:hover td {
 .money-facts div {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
   min-width: 0;
 }
 
 .money-facts dt {
-  font-size: 12px;
+  font-size: var(--fs-caption);
   color: var(--text-faint);
 }
 
 .money-facts dd {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--fs-strong);
   font-weight: 700;
   overflow-wrap: anywhere;
 }
@@ -3806,9 +3864,9 @@ table.data-table tr.dirty:hover td {
   flex-wrap: wrap;
   justify-content: space-between;
   align-items: baseline;
-  gap: 6px 14px;
+  gap: 8px 16px;
   margin: 8px 2px 0;
-  font-size: 13px;
+  font-size: var(--fs-sub);
   color: var(--text-dim);
 }
 
@@ -3821,7 +3879,7 @@ table.data-table tr.dirty:hover td {
   align-items: center;
   gap: 8px;
   margin-left: auto;
-  font-size: 12.5px;
+  font-size: var(--fs-sub);
   color: var(--text-dim);
 }
 
@@ -3830,7 +3888,7 @@ table.data-table tr.dirty:hover td {
 }
 
 .empty-state.compact {
-  padding: 22px 16px;
+  padding: 24px 16px;
 }
 
 .holdings-table {
@@ -3855,7 +3913,7 @@ table.data-table tr.dirty:hover td {
 }
 
 .stock-line .hint.mono {
-  font-size: 12px;
+  font-size: var(--fs-caption);
 }
 
 .price-change {
@@ -3871,11 +3929,11 @@ table.data-table tr.dirty:hover td {
 
 .fx-missing {
   display: inline-block;
-  margin-left: 6px;
-  padding: 1px 6px;
+  margin-left: 8px;
+  padding: 1px 8px;
   border: 1px solid var(--border-strong);
   border-radius: 999px;
-  font-size: 11px;
+  font-size: var(--fs-caption);
   font-family: var(--font-sans, inherit);
   color: var(--text-faint);
   white-space: nowrap;
@@ -3889,7 +3947,7 @@ table.data-table tr.dirty:hover td {
   background: none;
   color: var(--blue);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--fs-sub);
   text-decoration: underline;
   text-underline-offset: 3px;
   cursor: pointer;
@@ -3903,7 +3961,7 @@ table.data-table tr.dirty:hover td {
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
-  gap: 6px;
+  gap: 8px;
 }
 
 .cost-entry input {
@@ -3918,6 +3976,16 @@ table.data-table tr.dirty:hover td {
   width: 44px;
   height: 44px;
   flex: 0 0 44px;
+  /* 빈칸(신호 없음)이 글자 기준선에 앉으면 그 줄만 5px 높아진다 (8-4 에서 잼) */
+  vertical-align: middle;
+}
+
+.signal-cell-row {
+  align-items: center;
+}
+
+.signal-cell-row .traffic {
+  align-self: center;
 }
 
 .signal-dot-btn {
@@ -3933,33 +4001,50 @@ table.data-table tr.dirty:hover td {
   background: var(--panel-soft);
 }
 
-.signal-dot {
-  width: 11px;
-  height: 11px;
-  border-radius: 50%;
+/* 시그널 모양 — 매수 ▲ 초록 · 매도 ▼ 빨강 · 비중조절 ◆ 보라 (8-4). 색은 상승 색 설정과 무관하다 */
+.signal-shape {
+  flex: none;
 }
 
-.signal-dot.buy {
-  background: var(--green);
-  box-shadow: 0 0 0 3px var(--green-soft);
+.signal-dot-btn {
+  gap: 4px;
 }
 
-.signal-dot.sell {
-  background: var(--red);
-  box-shadow: 0 0 0 3px var(--red-soft);
+.signal-shape.buy {
+  color: var(--green);
 }
 
-.signal-dot.over,
-.signal-dot.under {
-  background: var(--purple);
-  box-shadow: 0 0 0 3px var(--purple-soft);
+.signal-shape.sell {
+  color: var(--red);
+}
+
+.signal-shape.rebalance {
+  color: var(--purple);
+}
+
+.signal-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 12px 0 0;
+}
+
+.signal-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 짧은 배지는 안에서 꺾이지 않는다 — 좁아지면 배지째 다음 줄로 간다 */
+.badge-nowrap {
+  white-space: nowrap;
 }
 
 /* 관심 종목 — 한 줄에 이름·현재가·점 */
 .watch-list {
   list-style: none;
   margin: 0;
-  padding: 0 4px 0 14px;
+  padding: 0 4px 0 16px;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -4011,7 +4096,7 @@ table.data-table tr.dirty:hover td {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 10px 0 10px 12px;
+  padding: 8px 0 8px 12px;
   border: none;
   background: none;
   color: var(--text);
@@ -4031,18 +4116,18 @@ table.data-table tr.dirty:hover td {
 
 .holding-name {
   font-weight: 700;
-  font-size: 14.5px;
+  font-size: var(--fs-body);
   word-break: keep-all;
   min-width: 0;
 }
 
 .holding-value {
   font-weight: 700;
-  font-size: 14.5px;
+  font-size: var(--fs-body);
 }
 
 .holding-bottom {
-  font-size: 12.5px;
+  font-size: var(--fs-sub);
   color: var(--text-dim);
 }
 
@@ -4051,14 +4136,14 @@ table.data-table tr.dirty:hover td {
   flex-wrap: wrap;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
   padding: 0 12px 12px;
 }
 
 .holding-detail dl {
   display: grid;
   grid-template-columns: max-content 1fr;
-  gap: 6px 14px;
+  gap: 8px 16px;
   margin: 0;
   flex: 1 1 220px;
   min-width: 0;
@@ -4069,13 +4154,13 @@ table.data-table tr.dirty:hover td {
 }
 
 .holding-detail dt {
-  font-size: 12px;
+  font-size: var(--fs-caption);
   color: var(--text-faint);
 }
 
 .holding-detail dd {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--fs-sub);
   overflow-wrap: anywhere;
 }
 
@@ -4103,11 +4188,11 @@ table.data-table tr.dirty:hover td {
 
 @media (max-width: 720px) {
   .money-line {
-    padding: 14px;
-    gap: 10px 20px;
+    padding: 16px;
+    gap: 8px 20px;
   }
   .money-big {
-    font-size: 24px;
+    font-size: var(--fs-big);
   }
   .money-facts {
     display: grid;
@@ -4145,7 +4230,7 @@ table.data-table tr.dirty:hover td {
   border-radius: var(--radius-sm);
   background: var(--panel-soft);
   color: var(--text);
-  font-size: 14px;
+  font-size: var(--fs-body);
   cursor: pointer;
 }
 
@@ -4156,9 +4241,9 @@ table.data-table tr.dirty:hover td {
 
 /* 리밸런싱 — 한 번에 저장 · 폰 카드 · 설정 접기 (ROADMAP 8-3) */
 .dirty-mark {
-  margin-left: 6px;
+  margin-left: 8px;
   color: var(--amber);
-  font-size: 10px;
+  font-size: var(--fs-caption);
   vertical-align: middle;
 }
 
@@ -4174,14 +4259,14 @@ tr.dirty td {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 8px 14px;
-  margin-top: 10px;
-  padding: 10px 14px;
+  gap: 8px 16px;
+  margin-top: 8px;
+  padding: 8px 16px;
   background: var(--bg-elevated);
   border: 1px solid var(--amber);
   border-radius: var(--radius);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
-  font-size: 13px;
+  font-size: var(--fs-sub);
 }
 
 .save-bar span {
@@ -4193,9 +4278,9 @@ tr.dirty td {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 10px;
+  gap: 8px;
   min-height: 44px;
-  padding: 6px 0;
+  padding: 8px 0;
   cursor: pointer;
   list-style: none;
 }
@@ -4206,7 +4291,7 @@ tr.dirty td {
 
 .settings-fold > summary h3 {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--fs-strong);
 }
 
 .settings-fold > summary h3::before {
@@ -4225,9 +4310,9 @@ tr.dirty td {
 .toggle-line {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   min-height: 44px;
-  font-size: 13.5px;
+  font-size: var(--fs-sub);
   font-weight: 600;
   cursor: pointer;
 }
@@ -4253,7 +4338,7 @@ tr.dirty td {
 }
 
 .order-card {
-  padding: 12px 14px;
+  padding: 12px 16px;
   background: var(--panel);
   border: 1px solid var(--border);
   border-left: 3px solid var(--border-strong);
@@ -4277,13 +4362,13 @@ tr.dirty td {
 }
 
 .order-card-head b {
-  font-size: 14.5px;
+  font-size: var(--fs-body);
   word-break: keep-all;
 }
 
 .order-card-line {
-  margin: 4px 0 6px;
-  font-size: 12.5px;
+  margin: 4px 0 8px;
+  font-size: var(--fs-sub);
   color: var(--text-dim);
   overflow-wrap: anywhere;
 }
@@ -4293,7 +4378,7 @@ tr.dirty td {
 }
 
 .holding-edit {
-  padding: 12px 14px;
+  padding: 12px 16px;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -4307,8 +4392,8 @@ tr.dirty td {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 4px 10px;
-  margin-bottom: 10px;
+  gap: 4px 8px;
+  margin-bottom: 8px;
 }
 
 .holding-edit-pnl {
@@ -4319,7 +4404,7 @@ tr.dirty td {
 .holding-edit-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px 12px;
+  gap: 8px 12px;
 }
 
 .holding-edit-grid label {
@@ -4327,7 +4412,7 @@ tr.dirty td {
   flex-direction: column;
   gap: 4px;
   min-width: 0;
-  font-size: 12px;
+  font-size: var(--fs-caption);
   color: var(--text-faint);
 }
 
@@ -4338,12 +4423,12 @@ tr.dirty td {
 }
 
 .holding-edit .trade-toggle {
-  margin-top: 10px;
+  margin-top: 8px;
   min-height: 44px;
 }
 
 .holding-edit .trade-form {
-  margin-top: 10px;
+  margin-top: 8px;
 }
 
 /* 폰에서 누르는 자리는 44px (E2E 에서 잰 것) */
@@ -4360,6 +4445,74 @@ tr.dirty td {
     min-height: 44px;
   }
   .record-row button {
+    min-height: 44px;
+  }
+}
+
+/* ---------- 화면 설정 (8-4) ---------- */
+
+.display-modal {
+  max-width: 440px;
+}
+
+.display-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+
+.display-row h4 {
+  margin: 0;
+  font-size: var(--fs-body);
+}
+
+.display-row .hint {
+  margin: 0;
+}
+
+.display-row .view-switch button {
+  min-width: 72px;
+}
+
+.rise-sample {
+  display: flex;
+  gap: 16px;
+  margin: 0;
+  font-size: var(--fs-strong);
+  font-weight: 700;
+}
+
+/*
+ * 손끝이 닿는 면적은 44px (8-4). 손가락으로 쓰는 기기이거나 폰 폭이면 — 폰을 PC 처럼 보는 설정이나
+ * 좁은 창의 터치 노트북도 있어서 둘 중 하나만 맞아도 키운다. 12px 남짓한 버튼은 옆 버튼과
+ * 구분되지 않고, 40px 도 모자랐다(8-4 E2E 에서 폰 전체를 잼).
+ *
+ * **파일 맨 끝에 둔다** — 앞의 규칙(`.pin-btn { min-width: 0 }` 같은)이 같은 무게라 뒤에 오는 쪽이 이긴다.
+ */
+@media (pointer: coarse), (max-width: 720px) {
+  button,
+  .tab,
+  .chip,
+  select {
+    min-height: 44px;
+  }
+
+  button {
+    min-width: 44px;
+  }
+
+  .icon-btn,
+  .pin-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .site-footer a {
+    display: inline-flex;
+    align-items: center;
     min-height: 44px;
   }
 }

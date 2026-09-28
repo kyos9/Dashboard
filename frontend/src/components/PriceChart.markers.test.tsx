@@ -68,11 +68,13 @@ describe('차트 마커', () => {
     expect(sell.position).toBe('aboveBar')
   })
 
-  it('점만 찍고 글자는 붙이지 않는다', () => {
+  it('모양만 찍고 글자는 붙이지 않는다 — 매수 ▲ · 매도 ▼', () => {
     // 몇 달치를 한 화면에 놓으면 라벨끼리 겹쳐 선이 보이지 않았다
-    render(<PriceChart history={history([{ date: '2026-09-16', kind: 'sell' }])} />)
-    expect(lastMarkers()[0].text).toBeUndefined()
-    expect(lastMarkers()[0].shape).toBe('circle')
+    render(<PriceChart history={history([{ date: '2026-09-15', kind: 'buy' }, { date: '2026-09-16', kind: 'sell' }])} />)
+    const [buy, sell] = lastMarkers()
+    expect(buy.text).toBeUndefined()
+    expect(buy.shape).toBe('arrowUp')
+    expect(sell.shape).toBe('arrowDown')
   })
 
   it('연달아 뜬 날은 점 하나로 묶는다', () => {

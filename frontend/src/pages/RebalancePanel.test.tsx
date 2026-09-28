@@ -137,6 +137,10 @@ describe('리밸런싱 · 통화 표기', () => {
     // 목표 60% x 210만 = 126만 → 조정 -4만원 = -30.77달러 → 500달러 종가로 -0.06주
     const us = await orderRow('VOO')
     expect(within(us).getByText(/-0\.06주/)).toBeInTheDocument()
+    // 파는 주문은 매도 색 — 가격 오르내림 색(상승 색 설정)을 따르지 않는다 (8-4)
+    const adjust = within(us).getByText(/^−?-?₩40,000$/).closest('td')!
+    expect(adjust).toHaveClass('tone-sell')
+    expect(adjust).not.toHaveClass('down')
   })
 
   it('합계는 기준통화 하나로만 더한다', async () => {

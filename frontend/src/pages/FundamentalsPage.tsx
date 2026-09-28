@@ -2,6 +2,7 @@ import { Suspense, useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { useAppState } from '../AppState'
 import { ErrorNotice } from '../components/ErrorNotice'
+import { PageIntro } from '../components/PageIntro'
 import { PerChart } from '../components/PerChart'
 import { ChartModal, preloadChartModal } from '../lib/chartChunk'
 import { ModalLoading } from '../components/ModalLoading'
@@ -57,10 +58,10 @@ export function FundamentalsPage() {
       <div className="page-head">
         <div>
           <h2>재무</h2>
-          <p className="hint">
-            공시된 숫자로 계산했습니다. PER·PBR·배당수익률은 최근 종가{priceDate ? `(${priceDate})` : ''} 기준이고,
-            성장은 1년 전 같은 분기와 비교한 값입니다. 종목 이름을 누르면 분기 표와 PER 5년 위치가 열립니다.
-          </p>
+          <PageIntro line="공시된 숫자로 계산한 가치·성장입니다." firstVisit={rows === null ? null : rows.length === 0}>
+            PER·PBR·배당수익률은 최근 종가{priceDate ? `(${priceDate})` : ''} 기준이고, 성장은 1년 전 같은 분기와
+            비교한 값입니다. 종목 이름을 누르면 분기 표와 PER 5년 위치가 열립니다.
+          </PageIntro>
         </div>
       </div>
 

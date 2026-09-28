@@ -2,6 +2,7 @@ import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, use
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { MacroStrip } from '../components/MacroStrip'
 import { PortfolioView } from '../components/PortfolioView'
+import { ReasonTag, SellTooTag, SignalShape } from '../components/SignalShape'
 import { useNarrow } from '../lib/narrow'
 import { loadView, saveView, type DashboardView } from '../lib/portfolio'
 import { NumberInput } from '../components/NumberInput'
@@ -50,13 +51,18 @@ type QuickFilter = 'all' | 'knee' | 'rebalance'
 /** 표 / 카드 / 설정(편집) — 같은 목록을 다른 형태로 보는 것이라 한 자리에서 고른다 */
 type ViewMode = 'table' | 'card' | 'edit'
 
+/** 신호등 — 매수 ▲ · 매도 ▼ 는 모양이 붙는다. 색만으로 가리지 않는다 (8-4) */
 function TrafficBadge({ traffic }: { traffic: Traffic }) {
   return (
     <span className={`traffic ${traffic.tone}`} title={traffic.desc}>
-      <span className="traffic-lamp" aria-hidden="true">
-        <i />
-        <i />
-      </span>
+      {traffic.state === 'buy' || traffic.state === 'hot' ? (
+        <SignalShape kind={traffic.state === 'buy' ? 'buy' : 'sell'} />
+      ) : (
+        <span className="traffic-lamp" aria-hidden="true">
+          <i />
+          <i />
+        </span>
+      )}
       {traffic.label}
     </span>
   )
@@ -263,7 +269,7 @@ function LastBuySignal({ card }: { card: DashboardCard }) {
   return (
     <div className="metric-line" title="매수 시그널(무릎매수 v2)이 마지막으로 뜬 날">
       <span className="metric-value mono">{date}</span>
-      <span className={`metric-note ${days !== null && days <= 7 ? 'up' : ''}`}>{relativeDay(days)}</span>
+      <span className={`metric-note ${days !== null && days <= 7 ? 'tone-buy' : ''}`}>{relativeDay(days)}</span>
     </div>
   )
 }
@@ -689,7 +695,9 @@ export function Dashboard() {
           <div className="kpi-counts">
             <span className="count-chip green">
               <span className="num">{summary.buy}</span>
-              <span className="lbl">매수 시그널</span>
+              <span className="lbl">
+                <SignalShape kind="buy" size={9} /> 매수 시그널
+              </span>
             </span>
             <span className="count-chip amber">
               <span className="num">{summary.watch}</span>
@@ -697,7 +705,9 @@ export function Dashboard() {
             </span>
             <span className="count-chip red">
               <span className="num">{summary.hot}</span>
-              <span className="lbl">매도 시그널</span>
+              <span className="lbl">
+                <SignalShape kind="sell" size={9} /> 매도 시그널
+              </span>
             </span>
           </div>
           <p className="kpi-foot">
@@ -716,8 +726,19 @@ export function Dashboard() {
             <span className="hint">종목에서 발생</span>
           </div>
           <div className="badge-row">
-            {summary.sellReview > 0 && <span className="badge badge-red">매도 검토 {summary.sellReview}</span>}
-            {summary.buyReview > 0 && <span className="badge badge-blue">매수 검토 {summary.buyReview}</span>}
+            {/* 비중조절은 보라 ◆ — 매도·매수 시그널(빨강·초록)이나 오르내림 색과 섞이지 않게 (8-4) */}
+            {summary.sellReview > 0 && (
+              <span className="badge badge-purple badge-nowrap">
+                <SignalShape kind="rebalance" size={9} />
+                매도 검토 {summary.sellReview}
+              </span>
+            )}
+            {summary.buyReview > 0 && (
+              <span className="badge badge-purple badge-nowrap">
+                <SignalShape kind="rebalance" size={9} />
+                매수 검토 {summary.buyReview}
+              </span>
+            )}
             {summary.periodicReview > 0 && (
               <span className="badge badge-purple">정기 리뷰 {summary.periodicReview}</span>
             )}
@@ -952,7 +973,8 @@ function SignalMatrix({
             <th style={{ width: 112 }}>
               <MetricHead title="200일선" sub="(장기 추세)" />
             </th>
-            <th style={{ width: 128 }}>종합 신호등</th>
+            {/* 신호등과 사유 배지가 한 줄에 들어가는 폭 — "관망 ◆ 매수 검토" (8-4) */}
+            <th style={{ width: 196 }}>종합 신호등</th>
             <th style={{ width: 136 }}>
               <MetricHead title="마지막 매수" sub="시그널" />
             </th>
@@ -1019,22 +1041,14 @@ function SignalMatrix({
                   <Metric value={signed(ma200.pct, 1, '%')} tone={ma200.tone} note={ma200.note} />
                 </td>
                 <td>
-                  <div className="metric">
+                  {/* 신호등과 사유 배지를 한 줄에 — 줄마다 높이가 달라지지 않게 (8-4). 좁으면 배지째 줄을 바꾼다 */}
+                  <div className="badge-row signal-cell-row">
                     <TrafficBadge traffic={trafficLight(card)} />
-                    {(card.rebalance_signal.reasons.length > 0 ||
-                      (card.knee_buy_v2 && card.shoulder_sell_ref)) && (
-                      <div className="badge-row">
-                        {/* 둘 다 뜨면 신호등은 매수를 보여준다 — 매도 쪽이 조용히 사라지지 않게 */}
-                        {card.knee_buy_v2 && card.shoulder_sell_ref && (
-                          <span className="badge badge-amber">매도 조건도 충족</span>
-                        )}
-                        {card.rebalance_signal.reasons.map((r) => (
-                          <span className="badge badge-purple" key={r}>
-                            {r}
-                          </span>
-                        ))}
-                      </div>
-                    )}
+                    {/* 둘 다 뜨면 신호등은 매수를 보여준다 — 매도 쪽이 조용히 사라지지 않게 */}
+                    {card.knee_buy_v2 && card.shoulder_sell_ref && <SellTooTag />}
+                    {card.rebalance_signal.reasons.map((r) => (
+                      <ReasonTag key={r} reason={r} />
+                    ))}
                   </div>
                 </td>
                 <td>
@@ -1279,13 +1293,9 @@ function SignalCards({
 
             {(card.rebalance_signal.active || (card.knee_buy_v2 && card.shoulder_sell_ref)) && (
               <div className="badge-row">
-                {card.knee_buy_v2 && card.shoulder_sell_ref && (
-                  <span className="badge badge-amber">매도 조건도 충족</span>
-                )}
+                {card.knee_buy_v2 && card.shoulder_sell_ref && <SellTooTag />}
                 {card.rebalance_signal.reasons.map((r) => (
-                  <span className="badge badge-purple" key={r}>
-                    {r}
-                  </span>
+                  <ReasonTag key={r} reason={r} />
                 ))}
               </div>
             )}

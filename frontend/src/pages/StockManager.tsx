@@ -4,6 +4,7 @@ import { api } from '../api/client'
 import { useAuth } from '../components/AuthGate'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ErrorNotice } from '../components/ErrorNotice'
+import { PageIntro } from '../components/PageIntro'
 import { NumberInput } from '../components/NumberInput'
 import { SymbolSearch } from '../components/SymbolSearch'
 import { CURRENCY_BY_MARKET, CURRENCY_META, MARKET_LABEL, stockLabel } from '../lib/display'
@@ -221,7 +222,7 @@ export function StockManager() {
   )
 
   // 탭을 옮겨 와도 들고 있던 값을 먼저 그린다 (ROADMAP 8-1)
-  useCachedLoad('page:stocks', api.listStocks, applyStocks, setError, [refreshKey])
+  const { loading: stocksLoading } = useCachedLoad('page:stocks', api.listStocks, applyStocks, setError, [refreshKey])
 
   // 받는 중인 종목이 있는 동안만 몇 초마다 다시 묻는다
   const recheck = useCallback(() => {
@@ -355,11 +356,10 @@ export function StockManager() {
       <div className="page-head">
         <div>
           <h2>종목 관리</h2>
-          <p className="hint">
-            종목을 추가하면 전체 히스토리를 내려받아 지표·시그널을 계산합니다. 국내주식은 종목명(삼성전자)이나
-            종목코드(005930)로, 미국주식은 티커(VOO)나 영문 이름(Agilent)으로 찾을 수 있습니다. 구분(지수/알파/안전자산 등)은
-            자유 입력이며 대시보드 필터로 쓰입니다.
-          </p>
+          <PageIntro line="종목을 추가하면 전체 히스토리를 받아 지표·시그널을 계산합니다." firstVisit={stocksLoading ? null : stocks.length === 0}>
+            국내주식은 종목명(삼성전자)이나 종목코드(005930)로, 미국주식은 티커(VOO)나 영문 이름(Agilent)으로 찾을 수
+            있습니다. 구분(지수/알파/안전자산 등)은 자유 입력이며 대시보드 필터로 쓰입니다.
+          </PageIntro>
         </div>
       </div>
 

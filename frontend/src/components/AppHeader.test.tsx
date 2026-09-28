@@ -86,30 +86,32 @@ describe('버전 표시', () => {
   })
 })
 
-describe('테마 전환', () => {
-  it('기본은 다크 테마', async () => {
-    mockHealth()
-    renderHeader()
-    await waitFor(() => expect(document.documentElement.dataset.theme).toBe('dark'))
-  })
-
-  it('토글하면 라이트로 바뀌고 브라우저에 저장된다', async () => {
+describe('화면 설정', () => {
+  it('"화면"을 누르면 테마·상승 색 팝업이 열리고, 고르는 즉시 바뀐다', async () => {
     mockHealth()
     const user = userEvent.setup()
     renderHeader()
 
-    await user.click(screen.getByRole('button', { name: '밝은 테마로 전환' }))
-
+    await user.click(screen.getByRole('button', { name: '화면' }))
+    const dialog = screen.getByRole('dialog', { name: '화면 설정' })
+    await user.click(within(within(dialog).getByRole('group', { name: '테마' })).getByRole('button', { name: '밝게' }))
     expect(document.documentElement.dataset.theme).toBe('light')
-    expect(localStorage.getItem('signalboard.theme')).toBe('light')
+    await user.click(within(within(dialog).getByRole('group', { name: '상승 색' })).getByRole('button', { name: '빨강' }))
+    expect(document.documentElement.dataset.rise).toBe('red')
+
+    await user.click(within(dialog).getByRole('button', { name: '닫기' }))
+    expect(screen.queryByRole('dialog', { name: '화면 설정' })).not.toBeInTheDocument()
   })
 
-  it('저장된 테마를 기억한다', async () => {
-    localStorage.setItem('signalboard.theme', 'light')
+  it('앞 테스트가 고른 설정이 새지 않는다 — 기본은 기기 설정 · 초록', async () => {
+    // 화면 설정은 모듈에 산다. 테스트마다 비우지 않으면 바로 위 테스트의 "밝게 · 빨강"이 남는다
     mockHealth()
+    const user = userEvent.setup()
     renderHeader()
-
-    await waitFor(() => expect(document.documentElement.dataset.theme).toBe('light'))
+    await user.click(screen.getByRole('button', { name: '화면' }))
+    const dialog = screen.getByRole('dialog', { name: '화면 설정' })
+    expect(within(within(dialog).getByRole('group', { name: '상승 색' })).getByRole('button', { name: '초록' })).toHaveAttribute('aria-pressed', 'true')
+    expect(within(within(dialog).getByRole('group', { name: '테마' })).getByRole('button', { name: '기기 설정' })).toHaveAttribute('aria-pressed', 'true')
   })
 })
 

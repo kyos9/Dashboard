@@ -228,15 +228,48 @@ export function providerLabel(source: string | null | undefined): string | null 
 
 export function trafficLight(card: DashboardCard): Traffic {
   if (card.data_stale) {
-    return { state: 'stale', tone: 'grey', label: '데이터 갱신 필요', desc: '최근 시세가 없어 판정할 수 없습니다.' }
+    return { state: 'stale', tone: 'grey', label: '갱신 필요', desc: '최근 시세가 없어 판정할 수 없습니다.' }
   }
   if (card.knee_buy_v2) {
-    return { state: 'buy', tone: 'green', label: '매수 시그널', desc: '매수 조건 4개를 모두 만족합니다.' }
+    return { state: 'buy', tone: 'green', label: '매수', desc: '매수 시그널 — 매수 조건 4개를 모두 만족합니다.' }
   }
   if (card.shoulder_sell_ref) {
-    return { state: 'hot', tone: 'red', label: '매도 시그널', desc: '매도 조건 충족(참고) — 실제 매도 실행일은 리뷰 마감일입니다.' }
+    return { state: 'hot', tone: 'red', label: '매도', desc: '매도 시그널 — 매도 조건 충족(참고). 실제 매도 실행일은 리뷰 마감일입니다.' }
   }
   return { state: 'watch', tone: 'amber', label: '관망', desc: '매수·매도 어느 조건도 충족하지 않습니다.' }
+}
+
+/* ---------- 비중조절 사유 — 배지는 짧게, 풀이는 설명으로 (8-4) ----------
+   서버가 주는 사유 글("밴드 미달(매수 검토)")을 그대로 배지에 쓰면 신호 칸이 꺾인다. 배지에는 할 일만
+   ("매수 검토") 쓰고 왜 그런지는 설명(툴팁)과 범례로 옮긴다. 모르는 사유가 오면 그대로 보여준다. */
+
+export interface ReasonBadge {
+  label: string
+  desc: string
+  /** 비중조절(과중·미달)이면 ◆ — 정기 리뷰는 모든 종목에 걸리는 날짜라 모양을 붙이지 않는다 */
+  rebalance: boolean
+}
+
+const REASON_BADGE: Record<string, ReasonBadge> = {
+  '밴드 초과(매도 검토)': {
+    label: '매도 검토',
+    desc: '밴드 초과 — 목표 비중보다 밴드 이상 많습니다. 줄일지 검토하세요.',
+    rebalance: true,
+  },
+  '밴드 미달(매수 검토)': {
+    label: '매수 검토',
+    desc: '밴드 미달 — 목표 비중보다 밴드 이상 적습니다. 채울지 검토하세요.',
+    rebalance: true,
+  },
+  '정기 리뷰 도래': {
+    label: '정기 리뷰',
+    desc: '정기 리뷰 도래 — 리뷰 마감일이 됐습니다. 전체 비중을 맞춰 보세요.',
+    rebalance: false,
+  },
+}
+
+export function reasonBadge(reason: string): ReasonBadge {
+  return REASON_BADGE[reason] ?? { label: reason, desc: reason, rebalance: false }
 }
 
 /* ---------- 매수 조건 분해 ----------

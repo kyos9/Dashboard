@@ -11,6 +11,7 @@ import {
   type Time,
 } from 'lightweight-charts'
 import type { HistoryResponse } from '../types'
+import { SignalShape } from './SignalShape'
 
 /* 차트에는 매수/매도 두 가지 점만 찍는다. 색은 대시보드 신호등과 같은 뜻으로 맞춘다
    (초록 = 사라는 신호, 빨강 = 팔라는 신호). */
@@ -135,13 +136,13 @@ export function PriceChart({ history, height = 440 }: Props) {
     )
 
     // 글자는 붙이지 않는다 — 몇 달치를 한 화면에 놓으면 라벨끼리 겹쳐서 선이 안 보인다.
-    // 매수는 선 아래, 매도는 선 위에 찍어 색과 위치 두 가지로 구분된다.
+    // 매수는 선 아래 ▲, 매도는 선 위 ▼ — 색·위치·모양 셋으로 구분된다 (화면의 시그널 모양과 같다, 8-4).
     const dots = (kind: 'buy' | 'sell'): SeriesMarker<Time>[] =>
       collapseStreaks(history.markers.filter((m) => m.kind === kind)).map(({ head }) => ({
         time: head.date as Time,
         position: kind === 'buy' ? 'belowBar' : 'aboveBar',
         color: MARKER_COLOR[kind],
-        shape: 'circle',
+        shape: kind === 'buy' ? 'arrowUp' : 'arrowDown',
       }))
 
     const markers = [...dots('buy'), ...dots('sell')].sort((a, b) =>
@@ -188,11 +189,11 @@ export function ChartLegend({
   return (
     <div className="legend-row">
       <span>
-        <i className="legend-dot" style={{ background: MARKER_COLOR.buy }} aria-hidden="true" />
+        <SignalShape kind="buy" />
         매수 {counts.buy.streaks}구간 · {counts.buy.days}일
       </span>
       <span>
-        <i className="legend-dot" style={{ background: MARKER_COLOR.sell }} aria-hidden="true" />
+        <SignalShape kind="sell" />
         매도 {counts.sell.streaks}구간 · {counts.sell.days}일
       </span>
       <span className="hint">

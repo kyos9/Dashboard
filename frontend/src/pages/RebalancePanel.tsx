@@ -4,6 +4,7 @@ import { api } from '../api/client'
 import { useAuth } from '../components/AuthGate'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ErrorNotice } from '../components/ErrorNotice'
+import { PageIntro } from '../components/PageIntro'
 import { NumberInput } from '../components/NumberInput'
 import { MoneyLine } from '../components/PortfolioView'
 import {
@@ -25,6 +26,7 @@ import { buildOrderPlan, krwRatesOf, NOISE_THRESHOLD_PCT, orderTitle, type Order
 import { applyTrade, type TradeSide } from '../lib/trade'
 import { useCachedLoad } from '../lib/cache'
 import { PageSkeleton } from '../components/Skeleton'
+import { ReasonTag, SignalShape } from '../components/SignalShape'
 import type {
   CashRow,
   Currency,
@@ -771,11 +773,14 @@ function SignalBadges({ current }: { current: RebalanceRow }) {
   return (
     <div className="badge-row">
       {current.rebalance_signal.reasons.map((r) => (
-        <span key={r} className="badge badge-purple">
-          {r}
-        </span>
+        <ReasonTag key={r} reason={r} />
       ))}
-      {current.shoulder_signal_fired_in_period && <span className="badge badge-amber">기간 내 매도 시그널</span>}
+      {current.shoulder_signal_fired_in_period && (
+        <span className="badge badge-red badge-nowrap" title="이번 리뷰 기간에 매도 시그널(참고)이 한 번 이상 떴습니다.">
+          <SignalShape kind="sell" size={9} />
+          기간 내 매도
+        </span>
+      )}
       {!current.rebalance_signal.active && !current.shoulder_signal_fired_in_period && (
         <span className="hint">밴드 이내</span>
       )}
@@ -1026,10 +1031,18 @@ export function RebalancePanel() {
       <div className="page-head">
         <div>
           <h2>리밸런싱</h2>
-          <p className="hint">
-            목표는 <b>현금을 포함한 전체 자금</b> 중의 비중입니다. 주문은 참고이고, 실제로 사고파는 것은 리뷰 때
-            정합니다.
-          </p>
+          <PageIntro
+            line={
+              <>
+                목표는 <b>현금을 포함한 전체 자금</b> 중의 비중입니다.
+              </>
+            }
+            firstVisit={loading ? null : rows.length === 0}
+          >
+            주문 가이드는 지금 가격으로 목표 비중에 맞추려면 무엇을 얼마나 사고팔지 보여주는 참고입니다. 실제로
+            사고파는 것은 리뷰 때 정합니다. 보유·목표를 고치면 아래에 "바뀐 줄 저장"이 뜨고, 설정(리뷰 주기·현금·환율·
+            밴드)은 맨 아래에 접혀 있습니다.
+          </PageIntro>
         </div>
       </div>
 
@@ -1154,7 +1167,7 @@ export function RebalancePanel() {
                         </div>
                       </td>
                       <td className="num-cell">{amount(targetValue, baseCurrency)}</td>
-                      <td className={`num-cell ${adjust > 0 ? 'up' : adjust < 0 ? 'down' : ''}`}>
+                      <td className={`num-cell ${adjust > 0 ? 'tone-buy' : adjust < 0 ? 'tone-sell' : ''}`}>
                         <div className="metric">
                           <span className="metric-value">{signedAmount(adjust, baseCurrency)}</span>
                           {isForeign && action !== 'hold' && (
@@ -1196,7 +1209,7 @@ export function RebalancePanel() {
                   </td>
                   <td className="num-cell">{amount(plan.cash.current, baseCurrency)}</td>
                   <td className="num-cell">{amount(plan.cash.targetValue, baseCurrency)}</td>
-                  <td className={`num-cell ${plan.cash.adjust > 0 ? 'up' : plan.cash.adjust < 0 ? 'down' : ''}`}>
+                  <td className={`num-cell ${plan.cash.adjust > 0 ? 'tone-buy' : plan.cash.adjust < 0 ? 'tone-sell' : ''}`}>
                     {signedAmount(plan.cash.adjust, baseCurrency)}
                   </td>
                   <td>
@@ -1438,7 +1451,7 @@ export function RebalancePanel() {
               <span className="kpi-title">목표 비중 합계</span>
             </div>
             <div className="kpi-figure">
-              <span className={`big ${targetOk ? 'up' : 'down'}`}>{num(plan.targetSum, 1)}%</span>
+              <span className={`big ${targetOk ? 'tone-good' : 'tone-bad'}`}>{num(plan.targetSum, 1)}%</span>
             </div>
             <p className="kpi-foot">
               {plan.cash.targetPct > 0 && `현금 ${num(plan.cash.targetPct, 1)}% 포함 · `}

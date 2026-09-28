@@ -304,6 +304,46 @@ describe('대시보드 · 상태 표시', () => {
   })
 })
 
+describe('대시보드 · 신호 칸은 짧게, 모양으로도 (ROADMAP 8-4)', () => {
+  it('신호등은 "매수"·"매도" 글자와 ▲·▼ 모양, 비중조절은 "매수 검토"·"매도 검토"와 ◆ — 풀이는 설명으로', async () => {
+    mockApi([
+      card({ ticker: 'VOO', knee_buy_v2: true, rebalance_signal: { active: true, reasons: ['밴드 미달(매수 검토)'] } }),
+      card({ ticker: 'QQQ', shoulder_sell_ref: true, rebalance_signal: { active: true, reasons: ['밴드 초과(매도 검토)', '정기 리뷰 도래'] } }),
+      card({ ticker: 'SCHD', knee_buy_v2: true, shoulder_sell_ref: true }),
+    ])
+    renderDashboard()
+
+    const badges = (row: HTMLElement) =>
+      [...row.querySelectorAll('.signal-cell-row > *')].map(
+        (el) => `${el.querySelector('.signal-shape')?.getAttribute('class')?.split(' ')[1] ?? '-'}:${el.textContent?.trim()}`,
+      )
+    const voo = await cardRow('VOO')
+    expect(badges(voo)).toEqual(['buy:매수', 'rebalance:매수 검토'])
+    expect(within(voo).getByText('매수 검토').closest('.badge')).toHaveAttribute('title', expect.stringMatching(/^밴드 미달/))
+    expect(within(voo).getByText('매수').closest('.traffic')).toHaveAttribute('title', expect.stringMatching(/^매수 시그널/))
+
+    // 정기 리뷰는 모든 종목에 걸리는 날짜라 모양을 붙이지 않는다
+    expect(badges(await cardRow('QQQ'))).toEqual(['sell:매도', 'rebalance:매도 검토', '-:정기 리뷰'])
+    // 둘 다 뜨면 신호등은 매수, 매도 쪽은 ▼ 배지로 남는다
+    expect(badges(await cardRow('SCHD'))).toEqual(['buy:매수', 'sell:매도 조건도'])
+  })
+
+  it('맨 위 요약도 같은 모양 — 매수 ▲ · 매도 ▼ · 비중조절 ◆ (보라, 파랑이 아니다)', async () => {
+    mockApi([
+      card({ ticker: 'VOO', knee_buy_v2: true, rebalance_signal: { active: true, reasons: ['밴드 미달(매수 검토)'] } }),
+      card({ ticker: 'QQQ', rebalance_signal: { active: true, reasons: ['밴드 초과(매도 검토)'] } }),
+    ])
+    renderDashboard()
+    await cardRow('VOO')
+    const review = screen.getByText(/^매수 검토 1$/).closest('.badge')!
+    expect(review).toHaveClass('badge-purple')
+    expect(review.querySelector('.signal-shape.rebalance')).not.toBeNull()
+    expect(screen.getByText(/^매도 검토 1$/).closest('.badge')).toHaveClass('badge-purple')
+    expect(document.querySelector('.count-chip.green .signal-shape.buy')).not.toBeNull()
+    expect(document.querySelector('.count-chip.red .signal-shape.sell')).not.toBeNull()
+  })
+})
+
 describe('대시보드 · 조건 표시', () => {
   it('조건은 그 조건이 나온 지표 칸에 붙는다', async () => {
     // "DI 약세"가 어느 숫자에서 나온 말인지 눈으로 이어지게 하는 것이 요점이다

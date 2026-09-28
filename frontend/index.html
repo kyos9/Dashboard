@@ -16,8 +16,31 @@
     <!-- 아이폰은 manifest 의 아이콘을 보지 않는다. 홈 화면 아이콘은 이 링크로만 정해진다. -->
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
-    <!-- 주소창·상태바 색. 테마를 바꾸면 화면이 이 값을 고쳐 쓴다(AppHeader). -->
+    <!-- 주소창·상태바 색. 테마를 바꾸면 화면이 이 값을 고쳐 쓴다(lib/prefs). -->
     <meta name="theme-color" content="#0a0e14" />
+
+    <!--
+      화면 설정(테마·상승 색)을 첫 그림 전에 붙인다 — React 를 기다리면 밝은 테마인 사람에게 어두운
+      화면이 한 번 번쩍인다. 규칙은 src/lib/prefs.ts 와 같다(테스트가 둘을 맞춰 본다).
+    -->
+    <script>
+      (function () {
+        var theme = null, rise = 'green'
+        try {
+          theme = localStorage.getItem('dashboard.theme')
+          if (theme !== 'light' && theme !== 'dark') theme = localStorage.getItem('signalboard.theme') === 'light' ? 'light' : null
+          if (localStorage.getItem('dashboard.rise') === 'red') rise = 'red'
+        } catch (e) {}
+        if (!theme) {
+          var mm = window.matchMedia
+          theme = mm && !mm('(prefers-color-scheme: dark)').matches && mm('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
+        }
+        var root = document.documentElement
+        root.setAttribute('data-theme', theme)
+        root.setAttribute('data-rise', rise)
+        if (theme === 'light') document.querySelector('meta[name="theme-color"]').setAttribute('content', '#f4f6fa')
+      })()
+    </script>
 
     <!-- 아이폰에서 홈 화면 아이콘으로 열면 사파리 껍데기 없이 뜨게 한다. -->
     <meta name="apple-mobile-web-app-capable" content="yes" />

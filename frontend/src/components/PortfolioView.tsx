@@ -25,12 +25,14 @@ import {
   sortItems,
   tone,
   type PortfolioItem,
+  type SignalKind,
   type SignalMark,
   type SortKey,
 } from '../lib/portfolio'
 import type { Currency, DashboardCard, RebalanceCurrent } from '../types'
 import { MacroStrip } from './MacroStrip'
 import { NumberInput } from './NumberInput'
+import { SignalShape, type ShapeKind } from './SignalShape'
 
 interface Props {
   current: RebalanceCurrent
@@ -126,6 +128,8 @@ export function PortfolioView({ current, cards, narrow, onChart, onSignal, onSav
           <WatchList items={watching} onChart={onChart} onSignal={onSignal} />
         </section>
       )}
+
+      {signalCount > 0 && <SignalLegend />}
     </div>
   )
 }
@@ -228,6 +232,8 @@ function SignalDot({ label, signals, onSignal, ticker }: {
   // 신호가 없는 종목은 빈칸 — 누를 것이 없다
   if (signals.length === 0) return <span className="signal-slot" aria-hidden="true" />
   const text = signals.map((s) => s.label).join(' · ')
+  // 모양은 종류마다 하나 — 과중·미달은 같은 ◆ 다 (한 종목에 둘이 같이 뜰 수는 없다)
+  const shapes = [...new Set(signals.map((s) => SHAPE_OF[s.kind]))]
   return (
     <button
       className="signal-slot signal-dot-btn"
@@ -235,8 +241,30 @@ function SignalDot({ label, signals, onSignal, ticker }: {
       title={`${text} — 눌러서 시그널 보기`}
       aria-label={`${label} 신호: ${text}. 시그널 보기로`}
     >
-      <span className={`signal-dot ${signals[0].kind}`} aria-hidden="true" />
+      {shapes.map((shape) => (
+        <SignalShape key={shape} kind={shape} size={11} />
+      ))}
     </button>
+  )
+}
+
+const SHAPE_OF: Record<SignalKind, ShapeKind> = { buy: 'buy', sell: 'sell', over: 'rebalance', under: 'rebalance' }
+
+/** 모양 풀이 — 신호가 있을 때만. 색을 못 가리는 사람도 모양으로 읽는다 (8-4) */
+function SignalLegend() {
+  return (
+    <p className="signal-legend hint" aria-label="신호 모양 풀이">
+      <span>
+        <SignalShape kind="buy" size={9} /> 매수 시그널
+      </span>
+      <span>
+        <SignalShape kind="sell" size={9} /> 매도 시그널
+      </span>
+      <span>
+        <SignalShape kind="rebalance" size={9} /> 비중조절(과중·미달)
+      </span>
+      <span>— 누르면 시그널 보기</span>
+    </p>
   )
 }
 

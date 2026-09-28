@@ -93,14 +93,14 @@ beforeEach(() => {
 afterEach(() => forgetPhone())
 
 describe('폰 헤더는 한 줄', () => {
-  it('사용자: 헤더에는 메뉴 하나 — 알림·AI 키·테마·나가기·탈퇴는 메뉴 안', async () => {
+  it('사용자: 헤더에는 메뉴 하나 — 알림·AI 키·화면 설정·나가기·탈퇴는 메뉴 안', async () => {
     renderAs(FRIEND)
     await screen.findByRole('button', { name: '메뉴' })
     expect(headerButtons()).toEqual(['메뉴'])
     expect(document.querySelector('.brand-sub')).toBeNull()
 
     await openMenu()
-    expect(menuButtons()).toEqual(['알림 설정', 'AI 키 설정', '밝은 테마로 전환', '나가기', '탈퇴'])
+    expect(menuButtons()).toEqual(['알림 설정', 'AI 키 설정', '화면 설정', '나가기', '탈퇴'])
     // 누구로 들어왔는지는 메뉴 맨 위에
     const menu = screen.getByRole('group', { name: '메뉴' })
     expect(within(menu).getByText('친구')).toBeInTheDocument()
@@ -116,16 +116,16 @@ describe('폰 헤더는 한 줄', () => {
     expect(document.querySelector('.status-pill')).not.toBeNull()
 
     await userEvent.click(menuButton)
-    expect(menuButtons()).toEqual(['알림 설정', 'AI 키 설정', '밝은 테마로 전환', '진단', '사용자2', '나가기'])
+    expect(menuButtons()).toEqual(['알림 설정', 'AI 키 설정', '화면 설정', '진단', '사용자2', '나가기'])
     expect(within(screen.getByRole('button', { name: /사용자/ })).getByLabelText('가입 신청 2건')).toBeInTheDocument()
   })
 
-  it('손님: 로그인 · 메뉴(테마만) — 나가기·관리자 도구는 없다', async () => {
+  it('손님: 로그인 · 메뉴(화면 설정만) — 나가기·관리자 도구는 없다', async () => {
     renderAs(GUEST)
     await screen.findByRole('button', { name: '로그인' })
     expect(headerButtons()).toEqual(['로그인', '메뉴'])
     await openMenu()
-    expect(menuButtons()).toEqual(['밝은 테마로 전환'])
+    expect(menuButtons()).toEqual(['화면 설정'])
   })
 
   it('폰을 눕혀 넓어지면 PC 배치로 바뀐다', async () => {
@@ -148,13 +148,12 @@ describe('메뉴 항목', () => {
     expect(screen.getByRole('button', { name: '메뉴' })).toHaveAttribute('aria-expanded', 'false')
   })
 
-  it('테마를 바꾸면 다음에 열 때 반대 말이 적혀 있다', async () => {
+  it('화면 설정 — 메뉴를 닫고 팝업을 연다', async () => {
     renderAs(FRIEND)
     await openMenu()
-    await userEvent.click(screen.getByRole('button', { name: '밝은 테마로 전환' }))
-    expect(document.documentElement.dataset.theme).toBe('light')
-    await openMenu()
-    expect(screen.getByRole('button', { name: '어두운 테마로 전환' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: '화면 설정' }))
+    expect(screen.queryByRole('group', { name: '메뉴' })).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: '화면 설정' })).toBeInTheDocument()
   })
 
   it('탈퇴는 한 번 더 묻는다', async () => {

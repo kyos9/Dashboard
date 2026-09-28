@@ -32,6 +32,7 @@ import { DiagnosticsModal } from '../components/DiagnosticsModal'
 import { InstallButton } from '../components/InstallButton'
 import { MacroChartModal } from '../components/MacroChartModal'
 import { PushModal } from '../components/PushModal'
+import { DisplayModal } from '../components/DisplayModal'
 import { UsersModal } from '../components/UsersModal'
 import { resetBackToClose } from '../lib/backToClose'
 
@@ -68,6 +69,7 @@ it.each([
   ['진단', (close: () => void) => <DiagnosticsModal onClose={close} />],
   ['사용자', (close: () => void) => <UsersModal onClose={close} onChanged={() => {}} />],
   ['알림', (close: () => void) => <PushModal account="me@example.com" onClose={close} />],
+  ['화면 설정', (close: () => void) => <DisplayModal onClose={close} />],
   [
     '확인 창',
     (close: () => void) => (

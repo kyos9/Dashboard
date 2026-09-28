@@ -8,6 +8,7 @@ import { HeaderMenu, type MenuItem } from './HeaderMenu'
 import { TabBar } from './TabBar'
 import { PushModal } from './PushModal'
 import { AiKeyModal } from './AiKeyModal'
+import { DisplayModal } from './DisplayModal'
 import { UsersModal } from './UsersModal'
 import { GuestNotice, LoginButton } from './LoginPrompt'
 import { pushAccount, syncPush } from '../lib/push'
@@ -15,20 +16,6 @@ import { lastLoadedAt, loadedAgoLabel, subscribeCache } from '../lib/cache'
 import { useInstall } from '../lib/install'
 import { useNarrow } from '../lib/narrow'
 import type { HealthInfo } from '../types'
-
-type Theme = 'dark' | 'light'
-
-const THEME_KEY = 'signalboard.theme'
-
-function readStoredTheme(): Theme {
-  try {
-    const saved = localStorage.getItem(THEME_KEY)
-    if (saved === 'light' || saved === 'dark') return saved
-  } catch {
-    // 브라우저가 저장소를 막아둔 경우 기본값으로 진행
-  }
-  return 'dark'
-}
 
 /** 이미지를 만든 시각을 "9/21 16:11" 로. 읽을 수 없는 값이면 빈 문자열.
  *
@@ -67,11 +54,11 @@ export function AppHeader() {
       setWithdrawing(false)
     }
   }
-  const [theme, setTheme] = useState<Theme>(readStoredTheme)
   const [health, setHealth] = useState<HealthInfo | null>(null)
   const [showDiagnostics, setShowDiagnostics] = useState(false)
   const [showPush, setShowPush] = useState(false)
   const [showAi, setShowAi] = useState(false)
+  const [showDisplay, setShowDisplay] = useState(false)
   // 들어와 쓰는 사람만 알림이 있다 (손님·승인 대기에게는 보낼 것이 없다)
   const member = !guest && !pending
   const account = pushAccount(user)
@@ -85,23 +72,6 @@ export function AppHeader() {
   useEffect(() => {
     api.getHealth().then(setHealth).catch(() => setHealth(null))
   }, [])
-
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme)
-
-    // 폰에 설치해 열면 주소창·상태바가 이 색으로 칠해진다. 테마를 바꿨는데 위쪽만
-    // 어두운 채로 남으면 앱이 덜 그려진 것처럼 보인다. index.css의 --bg를 그대로
-    // 읽어 쓴다 — 색을 여기에 또 적으면 언젠가 둘이 어긋난다.
-    const meta = document.querySelector('meta[name="theme-color"]')
-    const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()
-    if (meta && bg) meta.setAttribute('content', bg)
-
-    try {
-      localStorage.setItem(THEME_KEY, theme)
-    } catch {
-      // 저장 실패는 무시 — 이번 세션에만 적용된다
-    }
-  }, [theme])
 
   // "3분 전 받음" — 화면이 서버에서 마지막으로 값을 받은 때 (ROADMAP 8-1). 30초마다 다시 센다.
   const loadedAt = useSyncExternalStore(subscribeCache, lastLoadedAt)
@@ -123,8 +93,6 @@ export function AppHeader() {
   const narrow = useNarrow()
   const install = useInstall()
   const signedIn = mode === 'google' && user
-  const themeLabel = theme === 'dark' ? '밝은 테마로 전환' : '어두운 테마로 전환'
-  const toggleTheme = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))
   const canLogout = locked && (!guest || pending)
   // 관리자는 탈퇴할 수 없다 (공용 데이터를 돌볼 사람이 사라진다)
   const canWithdraw = mode === 'google' && user && !user.is_owner && !pending
@@ -175,7 +143,7 @@ export function AppHeader() {
     ...(member ? [{ key: 'push', label: '알림 설정', onSelect: () => setShowPush(true) }] : []),
     ...(member ? [{ key: 'ai', label: 'AI 키 설정', onSelect: () => setShowAi(true) }] : []),
     ...(install.available ? [{ key: 'install', label: '앱 설치', onSelect: install.start }] : []),
-    { key: 'theme', label: themeLabel, onSelect: toggleTheme },
+    { key: 'display', label: '화면 설정', title: '테마 · 상승 색', onSelect: () => setShowDisplay(true) },
     ...adminItems,
     ...(canLogout ? [{ key: 'logout', label: '나가기', onSelect: () => void logout() }] : []),
     ...(canWithdraw
@@ -320,8 +288,8 @@ export function AppHeader() {
                 탈퇴
               </button>
             )}
-            <button className="ghost" onClick={toggleTheme} aria-label={themeLabel} title={themeLabel}>
-              {theme === 'dark' ? '☀️' : '🌙'}
+            <button className="ghost" onClick={() => setShowDisplay(true)} title="테마 · 상승 색">
+              화면
             </button>
             {/* 관리자 도구는 메뉴로 — 헤더 버튼이 아홉 개였다 */}
             {adminItems.length > 0 && <HeaderMenu items={adminItems} badge={pendingCount} />}
@@ -343,6 +311,7 @@ export function AppHeader() {
       {showDiagnostics && <DiagnosticsModal onClose={() => setShowDiagnostics(false)} />}
       {showPush && <PushModal account={account} onClose={() => setShowPush(false)} />}
       {showAi && <AiKeyModal account={account} onClose={() => setShowAi(false)} />}
+      {showDisplay && <DisplayModal onClose={() => setShowDisplay(false)} />}
       {install.hint}
       {showUsers && <UsersModal onClose={() => setShowUsers(false)} onChanged={recountPending} />}
 
