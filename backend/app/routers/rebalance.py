@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.markets import Currency
+from app.markets import Currency, currency_of_stock
 from app.models import Holding, RebalanceSnapshot, ReviewPeriod, UserSettings, UserStock
 from app.schemas import (
     FxOut,
@@ -106,10 +106,38 @@ def update_holding(
         holding.quantity = payload.quantity
     if "avg_cost" in payload.model_fields_set:
         holding.avg_cost = payload.avg_cost
+    if "avg_fx" in payload.model_fields_set:
+        holding.avg_fx = check_avg_fx(stock, payload.avg_fx)
     holding.updated_at = dt.datetime.utcnow()
     db.commit()
     db.refresh(holding)
     return HoldingOut.model_validate(holding)
+
+
+def check_avg_fx(stock: UserStock, avg_fx: float | None) -> float | None:
+    """산 환율을 받기 전에 본다. 원화 종목에는 뜻이 없고, 자릿수가 틀린 값은 손익을 몇십 배로 만든다.
+
+    엔은 화면이 "원/100엔"으로 받아 1엔 값으로 바꿔 보낸다 — 900을 그대로 보내면 여기서 걸린다.
+    """
+    if avg_fx is None:
+        return None
+    currency = currency_of_stock(stock)
+    if currency is Currency.KRW:
+        raise HTTPException(
+            status_code=400,
+            detail={"hint": "원화 종목에는 산 환율이 없습니다.", "message": "avg_fx on KRW stock"},
+        )
+    low, high = fx_service.VALID_RANGE[currency]
+    if not low <= avg_fx <= high:
+        unit = "1엔" if currency is Currency.JPY else "1달러"
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "hint": f"산 환율이 {unit}에 {avg_fx:g}원입니다. 단위를 확인해주세요.",
+                "message": f"avg_fx out of range: {avg_fx}",
+            },
+        )
+    return avg_fx
 
 
 def _settings_out(db: Session, settings: UserSettings) -> SettingsOut:
@@ -122,6 +150,7 @@ def _settings_out(db: Session, settings: UserSettings) -> SettingsOut:
         review_date_override=settings.review_date_override,
         cash={c.value: v for c, v in rebalance_service.cash_amounts(settings).items()},
         cash_target_pct=settings.cash_target_pct,
+        include_fx_effect=settings.include_fx_effect,
     )
 
 
@@ -184,6 +213,18 @@ def update_settings(
                 cash.pop(currency.value, None)
         # JSON 컬럼은 같은 객체를 고쳐 넣으면 바뀐 걸 모른다. 새 객체로 갈아끼운다.
         settings.cash = cash or None
+    if changes.get("include_fx_effect") is not None:
+        # 켜는 것은 기준통화가 원일 때만 (같은 요청에서 기준통화를 바꾸면 바뀐 쪽으로 본다).
+        # 달러로 바꾸면서 꺼 두지는 않는다 — 원으로 돌아오면 고른 대로 다시 쓴다.
+        if changes["include_fx_effect"] and settings.base_currency != Currency.KRW.value:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "hint": "환율 효과는 기준통화가 원일 때만 켤 수 있습니다.",
+                    "message": "fx effect needs KRW base",
+                },
+            )
+        settings.include_fx_effect = changes["include_fx_effect"]
 
     db.commit()
     db.refresh(settings)

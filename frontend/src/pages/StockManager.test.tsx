@@ -162,6 +162,40 @@ describe('종목 등록', () => {
     expect(sent.target_weight_pct).toBe(0)
   })
 
+  it('외화 종목을 고르면 산 환율 칸이 생기고, 엔은 100엔 값을 1엔 값으로 보낸다 (ROADMAP 8-3)', async () => {
+    mockApi()
+    vi.spyOn(api, 'searchSymbols').mockResolvedValue([
+      { ...SAMSUNG, ticker: '7203.T', name: '도요타', market: 'JP' },
+    ])
+    const create = vi.spyOn(api, 'createStock').mockResolvedValue(created())
+    const user = userEvent.setup()
+    renderManager()
+
+    // 고르기 전에는 없다 — 이름만 치면 원화 종목일 수도 있다
+    expect(screen.queryByLabelText(/산 환율/)).not.toBeInTheDocument()
+    await user.type(symbolInput(), '도요타')
+    await user.click(await screen.findByText('도요타'))
+    await user.type(screen.getByLabelText('보유 수량'), '100')
+    await user.type(screen.getByLabelText('산 환율 (원/100엔)'), '910')
+    await user.click(screen.getByRole('button', { name: /종목 추가/ }))
+
+    await waitFor(() => expect(create).toHaveBeenCalled())
+    expect(create.mock.calls[0][0]).toMatchObject({ ticker: '7203.T', quantity: 100, avg_fx: 9.1 })
+  })
+
+  it('원화 종목에는 산 환율 칸이 없다', async () => {
+    mockApi()
+    const create = vi.spyOn(api, 'createStock').mockResolvedValue(created())
+    const user = userEvent.setup()
+    renderManager()
+    await user.type(symbolInput(), '삼성전자')
+    await user.click(await screen.findByText('삼성전자'))
+    expect(screen.queryByLabelText(/산 환율/)).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /종목 추가/ }))
+    await waitFor(() => expect(create).toHaveBeenCalled())
+    expect(create.mock.calls[0][0]).not.toHaveProperty('avg_fx')
+  })
+
   it('적립 금액·주기 칸은 없다 — 리밸런싱에는 수량과 목표만 있으면 된다', () => {
     mockApi()
     renderManager()

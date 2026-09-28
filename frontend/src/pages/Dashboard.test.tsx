@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppStateProvider } from '../AppState'
 import { api } from '../api/client'
 import type {
@@ -11,6 +11,7 @@ import type {
   RebalanceRow,
   Stock,
 } from '../types'
+import { forgetPhone, pretendPhone } from '../test/phone'
 import { Dashboard } from './Dashboard'
 
 const INDICATORS: LatestIndicators = {
@@ -215,6 +216,8 @@ beforeEach(() => {
   vi.restoreAllMocks()
   // 표 보기가 기본이 되도록 넓은 화면을 가정한다
   vi.stubGlobal('innerWidth', 1440)
+  // 이 파일은 시그널 보기(예전 대시보드)를 본다 — 포트폴리오 보기는 Dashboard.portfolio.test.tsx
+  localStorage.setItem('dashboard.view', 'signal')
 })
 
 describe('대시보드 · 통화 구분', () => {
@@ -255,66 +258,6 @@ describe('대시보드 · 통화 구분', () => {
     await cardRow('VOO')
     expect(screen.queryByRole('button', { name: /매수완료/ })).not.toBeInTheDocument()
     expect(screen.queryByText(/이번 기간/)).not.toBeInTheDocument()
-  })
-
-  it('포트폴리오 총액은 기준통화 환산으로 합산한다', async () => {
-    mockApi()
-    renderDashboard()
-
-    // 현지 금액끼리 더했다면 801,000이 나왔을 것이다
-    expect(await screen.findByText(/총 ₩2,100,000/)).toBeInTheDocument()
-  })
-
-  it('현금도 배분 막대와 범례에 한 칸으로 들어간다', async () => {
-    mockApi(CARDS, {
-      ...REBALANCE,
-      total_value_base: 3_000_000,
-      cash: { amounts: { KRW: 900_000 }, value_base: 900_000, target_pct: 30, actual_pct: 30, excess_pct: 0 },
-    })
-    renderDashboard()
-
-    expect(await screen.findByText(/총 ₩3,000,000/)).toBeInTheDocument()
-    expect(screen.getByTitle('현금 30.0%')).toBeInTheDocument()
-  })
-
-  it('평단가를 넣었으면 평가손익을 같이 보여준다', async () => {
-    mockApi(CARDS, { ...REBALANCE, cost_value_base: 2_000_000, unrealized_pnl_base: 100_000 })
-    renderDashboard()
-
-    const foot = await screen.findByText(/평가손익/)
-    expect(foot.textContent).toContain('+₩100,000')
-    expect(foot.textContent).toContain('+5.0%')
-  })
-})
-
-describe('대시보드 · 다음 리뷰', () => {
-  it('리뷰할 때가 되면 그렇게 알리고 기록을 남기라고 한다', async () => {
-    mockApi(CARDS, {
-      ...REBALANCE,
-      review: { period: 'quarterly', next_date: '2026-09-30', due: true, override: null, last_snapshot_at: null },
-    })
-    renderDashboard()
-
-    expect(await screen.findByText('리뷰할 때')).toBeInTheDocument()
-    expect(screen.getByText(/기록을 남기세요/)).toBeInTheDocument()
-  })
-
-  it('아직이면 날짜와 마지막 기록을 보여준다', async () => {
-    mockApi(CARDS, {
-      ...REBALANCE,
-      review: {
-        period: 'semiannual',
-        next_date: '2099-12-31',
-        due: false,
-        override: null,
-        last_snapshot_at: '2026-06-30T09:00:00',
-      },
-    })
-    renderDashboard()
-
-    expect(await screen.findByText('2099-12-31')).toBeInTheDocument()
-    expect(screen.getByText(/다음 리뷰 · 반기/)).toBeInTheDocument()
-    expect(screen.getByText('마지막 기록 2026-06-30')).toBeInTheDocument()
   })
 })
 
@@ -684,26 +627,6 @@ describe('방금 등록한 종목의 시세를 받는 동안', () => {
   }, 10000)
 })
 
-describe('포트폴리오 배분', () => {
-  it('국내 종목은 종목명, 해외 종목은 티커로 적는다 (표와 같은 규칙)', async () => {
-    const rows = REBALANCE.rows.map((r) =>
-      r.ticker === '005930.KS' ? { ...r, name: '삼성전자', excess_pct: 8.1 } : r,
-    )
-    mockApi(CARDS, { ...REBALANCE, rows })
-    const { container } = renderDashboard()
-
-    const legend = await waitFor(() => {
-      const found = container.querySelector('.weight-legend')
-      expect(found).not.toBeNull()
-      return found as HTMLElement
-    })
-    expect(legend).toHaveTextContent('삼성전자 38.1%')
-    expect(legend).toHaveTextContent('VOO 61.9%')
-    expect(legend).not.toHaveTextContent('005930')
-    expect(screen.getByText(/목표 대비 최대 이탈: 삼성전자/)).toBeInTheDocument()
-  })
-})
-
 describe('대시보드 · 탭을 옮겨 와도 (ROADMAP 8-1)', () => {
   it('다시 열면 새 응답을 기다리지 않고 들고 있던 표를 바로 그린다', async () => {
     mockApi()
@@ -750,5 +673,33 @@ describe('대시보드 · 탭을 옮겨 와도 (ROADMAP 8-1)', () => {
     await user.click(await screen.findByRole('button', { name: '삼성전자' }))
     // 틀이든 진짜 팝업이든 — 누른 즉시 대화상자가 있다
     expect(screen.getByRole('dialog', { name: /삼성전자/ })).toBeInTheDocument()
+  })
+})
+
+describe('폰의 순서 편집 (ROADMAP 8-3)', () => {
+  beforeEach(() => {
+    pretendPhone()
+  })
+  afterEach(() => forgetPhone())
+
+  it('끄는 손잡이 대신 "순서 편집"을 켜면 44px ▲▼ 로 옮긴다', async () => {
+    mockApi()
+    const save = vi.spyOn(api, 'updateStockOrder').mockResolvedValue(undefined as never)
+    renderDashboard()
+
+    await screen.findAllByRole('button', { name: /AI 분석/ })
+    // 폰에서는 끄는 손잡이가 없다 — 손가락으로는 끌기가 시작되지 않는다
+    expect(screen.queryByRole('button', { name: /순서 바꾸기/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /위로|아래로/ })).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: '↕ 순서 편집' }))
+    expect(screen.getByRole('button', { name: '삼성전자 위로' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'VOO 아래로' })).toBeDisabled()
+
+    await userEvent.click(screen.getByRole('button', { name: '삼성전자 아래로' }))
+    await waitFor(() => expect(save).toHaveBeenCalledWith(['VOO', '005930.KS']))
+
+    await userEvent.click(screen.getByRole('button', { name: '순서 편집 끝' }))
+    expect(screen.queryByRole('button', { name: /위로|아래로/ })).not.toBeInTheDocument()
   })
 })

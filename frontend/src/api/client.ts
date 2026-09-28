@@ -278,11 +278,15 @@ export const api = {
     }),
 
   listHoldings: () => request<Holding[]>('/rebalance/holdings'),
-  /** 평단가(`avgCost`)는 넘겼을 때만 바뀐다. null이면 "모름"으로 지운다 */
-  updateHolding: (ticker: string, quantity: number, avgCost?: number | null) =>
+  /** 평단가(`avgCost`)·산 환율(`avgFx`)은 넘겼을 때만 바뀐다. null이면 "모름"으로 지운다 */
+  updateHolding: (ticker: string, quantity: number, avgCost?: number | null, avgFx?: number | null) =>
     request<Holding>(`/rebalance/holdings/${ticker}`, {
       method: 'PUT',
-      body: JSON.stringify(avgCost === undefined ? { quantity } : { quantity, avg_cost: avgCost }),
+      body: JSON.stringify({
+        quantity,
+        ...(avgCost === undefined ? {} : { avg_cost: avgCost }),
+        ...(avgFx === undefined ? {} : { avg_fx: avgFx }),
+      }),
     }),
 
   getSettings: () => request<Settings>('/rebalance/settings'),

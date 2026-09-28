@@ -262,14 +262,14 @@ export function AppHeader() {
             <div className="brand-text">
               <h1 className="brand-title">
                 신호판
-                <span className="badge badge-blue">매수·매도 시그널</span>
+                <span className="badge badge-blue">내 포트폴리오</span>
                 {version && (
                   <span className="badge badge-grey mono" title={versionTitle}>
                     {version}
                   </span>
                 )}
               </h1>
-              <p className="brand-sub">기술적 타이밍 시그널 · 리밸런싱 가이드 · 비중조절 신호</p>
+              <p className="brand-sub">평가금액·수익률 · 리밸런싱 가이드 · 매수·매도 시그널(참고)</p>
             </div>
           </div>
 

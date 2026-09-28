@@ -1,3 +1,4 @@
+import { amount, qty } from './display'
 import type { Currency, FxInfo, RebalanceRow } from '../types'
 
 /** 통화코드 -> "1단위 = 몇 원". 원은 언제나 1이라 표에 넣지 않는다. */
@@ -155,4 +156,12 @@ export function buildOrderPlan(
     targetSum,
     orders,
   }
+}
+
+/** "SCHD 78주 팔기" — 폰 카드의 제목. 주수를 모르면(시세 없음) 금액으로 */
+export function orderTitle(label: string, order: Pick<OrderLine, 'action' | 'shares' | 'adjustNative' | 'currency'>): string {
+  if (order.action === 'hold') return `${label} 유지`
+  const verb = order.action === 'buy' ? '사기' : '팔기'
+  if (order.shares === null) return `${label} ${amount(Math.abs(order.adjustNative), order.currency)}어치 ${verb}`
+  return `${label} ${qty(Math.abs(Number(order.shares.toFixed(2))))}주 ${verb}`
 }

@@ -17,6 +17,7 @@ from app.schemas import (
     StockUpdate,
 )
 from app.services import backfill, data_ingestion, fundamentals, limits, symbols
+from app.routers.rebalance import check_avg_fx
 from app.services.instruments import ensure_instrument
 from app.services.pipeline import refresh_all_active_stocks, refresh_and_evaluate_stock
 from app.services.trading_calendar import last_closed_trading_day
@@ -198,10 +199,12 @@ def create_stock(
         target_weight_pct=payload.target_weight_pct,
         rebalance_band_pct=payload.rebalance_band_pct,
     )
+    # 단위가 틀린 산 환율은 등록 전에 막는다 — 종목만 들어가고 보유가 빠지면 다시 적어야 한다
+    avg_fx = check_avg_fx(stock, payload.avg_fx)
     db.add(stock)
     # 이미 들고 있는 종목이면 수량·평단가를 같이 받는다 — 등록하고 리밸런싱 탭으로 가서
     # 한 번 더 적게 하면, 대개 그 두 번째를 잊고 비중이 0%로 보인다.
-    if payload.quantity or payload.avg_cost is not None:
+    if payload.quantity or payload.avg_cost is not None or payload.avg_fx is not None:
         db.flush()
         db.add(
             Holding(
@@ -209,6 +212,7 @@ def create_stock(
                 ticker=stock.ticker,
                 quantity=payload.quantity or 0.0,
                 avg_cost=payload.avg_cost,
+                avg_fx=avg_fx,
             )
         )
     db.commit()

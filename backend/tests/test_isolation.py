@@ -253,14 +253,14 @@ def world(api, monkeypatch) -> World:
         _shared_market_data(db, SAMSUNG, 70000.0)
 
         make_holding(db, "VOO", 10.0, user_id=A, avg_cost=450.0)
-        make_holding(db, "QQQ", 10.0, user_id=A, avg_cost=350.0)
-        make_holding(db, "QQQ", 3.0, user_id=B, avg_cost=390.0)
+        make_holding(db, "QQQ", 10.0, user_id=A, avg_cost=350.0, avg_fx=1250.0)
+        make_holding(db, "QQQ", 3.0, user_id=B, avg_cost=390.0, avg_fx=1400.0)
         make_holding(db, SAMSUNG, 5.0, user_id=B)
 
         make_settings(db, user_id=A, default_rebalance_band_pct=7.0, base_currency="KRW",
                       fx_overrides={"USD": 1300.0}, pinned_macro=["VIX"],
                       cash={"KRW": 1_000_000}, cash_target_pct=10.0, review_period="annual",
-                      push_kinds=["buy", "signup"])
+                      push_kinds=["buy", "signup"], include_fx_effect=True)
         make_settings(db, user_id=B, default_rebalance_band_pct=3.0, base_currency="USD",
                       pinned_macro=["DGS10"], cash={"USD": 50})
 
@@ -286,6 +286,7 @@ def _a_is_untouched(w: World) -> None:
         assert mine["QQQ"].sort_order == 1
         assert db.get(Holding, (A, "QQQ")).quantity == 10.0
         assert db.get(Holding, (A, "QQQ")).avg_cost == 350.0
+        assert db.get(Holding, (A, "QQQ")).avg_fx == 1250.0
         assert db.get(Holding, (A, "VOO")).quantity == 10.0
         settings = db.get(UserSettings, A)
         assert settings.default_rebalance_band_pct == 7.0
@@ -293,6 +294,7 @@ def _a_is_untouched(w: World) -> None:
         assert settings.pinned_macro == ["VIX"]
         assert settings.cash == {"KRW": 1_000_000}
         assert settings.review_period == "annual"
+        assert settings.include_fx_effect is True
         assert [(r.id, r.note) for r in db.query(RebalanceSnapshot).filter_by(user_id=A)] == [
             (w.snapshots[A], "A의 기록")
         ]
@@ -511,20 +513,22 @@ def check_update_target(w: World):
 
 
 def check_holdings(w: World):
-    got = {h["ticker"]: (h["quantity"], h["avg_cost"])
+    got = {h["ticker"]: (h["quantity"], h["avg_cost"], h["avg_fx"])
            for h in w.as_user(B).get("/api/rebalance/holdings").json()}
-    assert got == {SAMSUNG: (5.0, None), "QQQ": (3.0, 390.0)}
-    theirs = {h["ticker"]: (h["quantity"], h["avg_cost"])
+    assert got == {SAMSUNG: (5.0, None, None), "QQQ": (3.0, 390.0, 1400.0)}
+    theirs = {h["ticker"]: (h["quantity"], h["avg_cost"], h["avg_fx"])
               for h in w.as_user(A).get("/api/rebalance/holdings").json()}
-    assert theirs == {"VOO": (10.0, 450.0), "QQQ": (10.0, 350.0)}
+    assert theirs == {"VOO": (10.0, 450.0, None), "QQQ": (10.0, 350.0, 1250.0)}
 
 
 def check_update_holding(w: World):
     client = w.as_user(B)
     assert client.put("/api/rebalance/holdings/VOO", json={"quantity": 1}).status_code == 404
-    res = client.put("/api/rebalance/holdings/QQQ", json={"quantity": 99, "avg_cost": 1.0})
+    res = client.put("/api/rebalance/holdings/QQQ",
+                     json={"quantity": 99, "avg_cost": 1.0, "avg_fx": 1500.0})
     assert res.status_code == 200
-    assert (w.get(Holding, B, "QQQ").quantity, w.get(Holding, B, "QQQ").avg_cost) == (99.0, 1.0)
+    mine = w.get(Holding, B, "QQQ")
+    assert (mine.quantity, mine.avg_cost, mine.avg_fx) == (99.0, 1.0, 1500.0)
     _a_is_untouched(w)
 
 
@@ -555,6 +559,10 @@ def check_update_settings(w: World):
         assert mine.fx_overrides == {"USD": 1111.0}
         assert mine.cash == {"USD": 50.0, "KRW": 5.0}
         assert (mine.cash_target_pct, mine.review_period) == (20.0, "semiannual")
+    # 환율 효과 켜기도 B 것만 — A는 켜 둔 그대로다(_a_is_untouched)
+    res = client.put("/api/rebalance/settings", json={"base_currency": "KRW", "include_fx_effect": False})
+    assert res.status_code == 200, res.text
+    assert w.get(UserSettings, B).include_fx_effect is False
     _a_is_untouched(w)
 
 
@@ -565,12 +573,18 @@ def check_current(w: World):
     assert set(rows) == {SAMSUNG, "QQQ"}
     assert rows["QQQ"]["quantity"] == 3.0
     assert rows["QQQ"]["avg_cost"] == 390.0
+    # B는 환율 효과를 켜지 않았다 — A가 켠 것이 B의 손익을 원화로 바꾸지 않는다
+    assert (got["include_fx_effect"], rows["QQQ"]["shown_currency"]) == (False, "USD")
     assert got["cash"]["amounts"] == {"USD": 50.0}
     assert got["review"]["period"] == "quarterly"
     theirs = w.as_user(A).get("/api/rebalance/current").json()
     assert theirs["base_currency"] == "KRW"
     assert {r["ticker"]: r["quantity"] for r in theirs["rows"]} == {"VOO": 10.0, "QQQ": 10.0}
     assert {r["ticker"]: r["avg_cost"] for r in theirs["rows"]} == {"VOO": 450.0, "QQQ": 350.0}
+    # A의 QQQ는 A가 적은 산 환율(1250)로 — B의 1400이 섞이지 않는다
+    qqq = {r["ticker"]: r for r in theirs["rows"]}["QQQ"]
+    assert (theirs["include_fx_effect"], qqq["shown_currency"], qqq["avg_fx"]) == (True, "KRW", 1250.0)
+    assert qqq["fx_split"]["fx_pct"] == pytest.approx((1300.0 / 1250.0 - 1) * 100)
     assert theirs["cash"]["amounts"] == {"KRW": 1_000_000}
     assert theirs["review"]["period"] == "annual"
 

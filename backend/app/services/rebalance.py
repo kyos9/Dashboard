@@ -201,20 +201,36 @@ def cash_amounts(settings: UserSettings | None) -> dict[Currency, float]:
     return out
 
 
+def fx_effect_on(settings: UserSettings | None, base: Currency) -> bool:
+    """환율 효과를 실제로 쓰는가. **기준통화가 원일 때만** — 달러 기준이면 "산 환율"의 뜻이
+    종목마다 달라진다(원화 종목은 원/$, 엔 종목은 엔/$를 따져야 한다)."""
+    return bool(settings and settings.include_fx_effect) and base is Currency.KRW
+
+
 def compute_positions(
     db: Session,
     user_id: int,
     stocks: list[UserStock],
     rate: fx.FxRates | None = None,
     base: Currency | None = None,
+    include_fx: bool = False,
 ) -> dict[str, dict]:
     """그 사람의 종목별 보유수량/평단가/최신 종가/평가금액/손익을 한 번에 계산한다.
 
     `value`는 종목의 거래 통화 기준, `value_base`는 기준통화로 환산한 값이다.
     비중 계산에는 반드시 `value_base`를 써야 한다.
 
-    손익은 **거래 통화 기준**이다 — 달러로 산 VOO의 수익률은 달러로 재야 한다. 원화로
-    환산한 손익은 환율 변동까지 섞이는데, 평단가를 달러로 받았으니 산 날의 환율을 모른다.
+    손익(`unrealized_pnl`·`return_pct`)은 **거래 통화 기준**이다 — 달러로 산 VOO의 수익률은
+    달러로 재야 한다. 원화로 환산하면 환율 변동까지 섞이는데, 산 날의 환율은 사람이 적어 줘야
+    안다(`avg_fx`).
+
+    **화면에 보일 손익(`shown_*`)은 따로 둔다** (ROADMAP 8-3 환율 효과). 환율 효과를 켜고
+    (`include_fx`) 산 환율을 적은 외화 종목만 원화로 따지고 — `원화 평가금액 ÷ (수량 × 평단가 ×
+    산 환율) − 1` — 나머지는 거래 통화 그대로다. 둘로 나눈 값(`fx_split`)은 주가 몫과 환율 몫이며,
+    합계는 둘의 합이 아니라 곱 `(1+주가)(1+환율)−1` 이다.
+
+    **최근 거래일 대비**(`day_change`)는 그 종목의 **자기 시장** 마지막 두 거래일로 잰다 — 한국과
+    미국은 마지막 거래일이 서로 다르다. 기준통화 환산은 지금 환율 하나로 한다(어제 환율은 모른다).
 
     종가는 공용이고 보유수량은 사람마다 다르다 — 같은 VOO라도 A와 B의 수량은 따로다.
     """
@@ -224,7 +240,7 @@ def compute_positions(
         base = fx.base_currency(db, user_id)
 
     tickers = [stock.ticker for stock in stocks]
-    closes = queries.latest_closes(db, tickers)
+    recent = queries.recent_prices(db, tickers, limit=2)
     holdings = {
         holding.ticker: holding
         for holding in db.query(Holding)
@@ -235,26 +251,70 @@ def compute_positions(
     positions: dict[str, dict] = {}
     for stock in stocks:
         currency = currency_of_stock(stock)
-        close = closes.get(stock.ticker)
+        prices = recent.get(stock.ticker, [])
+        close = prices[0].close if prices else None
+        prev_close = prices[1].close if len(prices) > 1 else None
         holding = holdings.get(stock.ticker)
         qty = holding.quantity if holding else 0.0
         avg_cost = holding.avg_cost if holding else None
+        # 원화 종목의 "산 환율"은 뜻이 없다 — 적혀 있어도 쓰지 않는다
+        avg_fx = holding.avg_fx if holding and currency is not Currency.KRW else None
         value = (qty * close) if close is not None else 0.0
+        value_base = fx.convert(value, currency, base, rate)
 
         cost = qty * avg_cost if avg_cost is not None and qty > 0 else None
         pnl = value - cost if cost is not None and close is not None else None
         return_pct = (pnl / cost * 100) if pnl is not None and cost else None
 
+        change_pct = (close / prev_close - 1) * 100 if close is not None and prev_close else None
+        day_change = qty * (close - prev_close) if close is not None and prev_close else None
+
+        # 화면에 보일 손익 — 기본은 거래 통화 그대로
+        shown_currency, shown_pnl, shown_return, shown_cost_base = currency, pnl, return_pct, None
+        fx_split = None
+        fx_missing = False
+        if include_fx and currency is not Currency.KRW and pnl is not None and cost:
+            if avg_fx:
+                cost_krw = cost * avg_fx
+                shown_currency = Currency.KRW
+                shown_pnl = value_base - cost_krw
+                shown_return = (value_base / cost_krw - 1) * 100
+                shown_cost_base = cost_krw
+                fx_split = {
+                    "price_pct": return_pct,
+                    "fx_pct": (rate.krw_rate(currency) / avg_fx - 1) * 100,
+                }
+            else:
+                fx_missing = True
+
         positions[stock.ticker] = {
             "quantity": qty,
             "avg_cost": avg_cost,
+            "avg_fx": avg_fx,
             "last_close": close,
+            "prev_close": prev_close,
+            "change_pct": change_pct,
             "currency": currency,
             "value": value,
-            "value_base": fx.convert(value, currency, base, rate),
+            "value_base": value_base,
+            "day_change": day_change,
+            "day_change_base": (
+                fx.convert(day_change, currency, base, rate) if day_change is not None else None
+            ),
             "cost_value": cost,
             "unrealized_pnl": pnl,
             "return_pct": return_pct,
+            "shown_currency": shown_currency,
+            "shown_pnl": shown_pnl,
+            "shown_return_pct": shown_return,
+            # 합계에 더할 원가(기준통화). 환율 효과를 쓴 줄만 산 환율로 — 나머지는 지금 환율로
+            "cost_base": (
+                shown_cost_base
+                if shown_cost_base is not None
+                else fx.convert(cost, currency, base, rate) if pnl is not None and cost is not None else None
+            ),
+            "fx_split": fx_split,
+            "fx_missing": fx_missing,
         }
     return positions
 
@@ -309,7 +369,8 @@ def compute_rebalance_current(db: Session, user_id: int, today: dt.date | None =
         stock.ticker: today or market_today(market_of_stock(stock)) for stock in stocks
     }
 
-    positions = compute_positions(db, user_id, stocks, rate=rate, base=base)
+    include_fx = fx_effect_on(settings, base)
+    positions = compute_positions(db, user_id, stocks, rate=rate, base=base, include_fx=include_fx)
     shoulder_flags = _shoulder_flags(db, stocks, today_by_ticker, period)
 
     cash = cash_amounts(settings)
@@ -323,6 +384,10 @@ def compute_rebalance_current(db: Session, user_id: int, today: dt.date | None =
     rows = []
     cost_base = 0.0
     priced_base = 0.0  # 평단가를 아는 종목의 평가금액 (손익 합계는 이것끼리만 비교한다)
+    day_change_base = 0.0
+    day_known = False  # 전일 종가를 아는 보유 종목이 하나라도 있는가
+    unpriced = 0  # 들고 있는데 평단가를 모르는 종목 수 — 손익 합계에서 빠진다
+    fx_missing = 0  # 환율 효과를 켰는데 산 환율이 없는 외화 종목 수
     for stock in stocks:
         position = positions[stock.ticker]
         actual = weight(position["value_base"])
@@ -330,9 +395,16 @@ def compute_rebalance_current(db: Session, user_id: int, today: dt.date | None =
         band = band_for_stock(stock, default_band)
         active, reasons = compute_rebalance_signal(excess, band, review["due"])
 
-        if position["cost_value"] is not None and position["unrealized_pnl"] is not None:
-            cost_base += fx.convert(position["cost_value"], position["currency"], base, rate)
+        if position["cost_base"] is not None:
+            cost_base += position["cost_base"]
             priced_base += position["value_base"]
+        elif position["quantity"] > 0:
+            unpriced += 1
+        if position["quantity"] > 0 and position["day_change_base"] is not None:
+            day_change_base += position["day_change_base"]
+            day_known = True
+        if position["fx_missing"]:
+            fx_missing += 1
 
         rows.append(
             {
@@ -348,15 +420,27 @@ def compute_rebalance_current(db: Session, user_id: int, today: dt.date | None =
                 "quantity": position["quantity"],
                 "avg_cost": position["avg_cost"],
                 "last_close": position["last_close"],
+                "prev_close": position["prev_close"],
+                "change_pct": position["change_pct"],
                 "current_value": position["value"],
                 "current_value_base": position["value_base"],
+                "day_change": position["day_change"],
+                "day_change_base": position["day_change_base"],
                 "cost_value": position["cost_value"],
                 "unrealized_pnl": position["unrealized_pnl"],
                 "return_pct": position["return_pct"],
+                "avg_fx": position["avg_fx"],
+                "shown_pnl": position["shown_pnl"],
+                "shown_return_pct": position["shown_return_pct"],
+                "shown_currency": position["shown_currency"].value,
+                "fx_split": position["fx_split"],
+                "fx_missing": position["fx_missing"],
             }
         )
 
     cash_actual = weight(cash_base)
+    # 최근 거래일 대비 — 어제의 전체 자금(현금 포함) 대비 %. 현금은 어제도 같았다고 본다
+    previous_total = total_base - day_change_base
     target_sum = sum(stock.target_weight_pct for stock in stocks) + settings.cash_target_pct
     return {
         "base_currency": base.value,
@@ -366,6 +450,13 @@ def compute_rebalance_current(db: Session, user_id: int, today: dt.date | None =
         # 평단가를 아는 종목끼리의 합계. 하나도 모르면 None (0원 손익으로 보이면 거짓말이다)
         "cost_value_base": cost_base if priced_base > 0 else None,
         "unrealized_pnl_base": (priced_base - cost_base) if priced_base > 0 else None,
+        "unpriced_count": unpriced,
+        "day_change_base": day_change_base if day_known else None,
+        "day_change_pct": (
+            day_change_base / previous_total * 100 if day_known and previous_total > 0 else None
+        ),
+        "include_fx_effect": include_fx,
+        "fx_missing_count": fx_missing,
         "cash": {
             "amounts": {currency.value: amount for currency, amount in cash.items()},
             "value_base": cash_base,

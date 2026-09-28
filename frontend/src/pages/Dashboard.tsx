@@ -1,6 +1,9 @@
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { MacroStrip } from '../components/MacroStrip'
+import { PortfolioView } from '../components/PortfolioView'
+import { useNarrow } from '../lib/narrow'
+import { loadView, saveView, type DashboardView } from '../lib/portfolio'
 import { NumberInput } from '../components/NumberInput'
 import { dropSide, moveOne, placeAt } from '../lib/reorder'
 import { useReorderAnimation } from '../lib/flip'
@@ -21,7 +24,6 @@ import { useAuth } from '../components/AuthGate'
 import { pushAccount } from '../lib/push'
 import { ErrorNotice } from '../components/ErrorNotice'
 import {
-  amount,
   CATEGORY_UNSET,
   categoryOf,
   conditionMark,
@@ -36,29 +38,13 @@ import {
   readMa200,
   readVolume,
   relativeDay,
-  REVIEW_PERIOD_LABEL,
-  reviewCountdown,
   signed,
-  signedAmount,
-  rowLabel,
   stockLabel,
   trafficLight,
   type MetricKey,
   type Traffic,
 } from '../lib/display'
-import type {
-  CashRow,
-  Currency,
-  DashboardCard,
-  KneeConditions,
-  RebalanceRow,
-  ReviewStatus,
-  Stock,
-  StockUpdateInput,
-} from '../types'
-
-/* 비중 스택 바에 쓰는 색 (최대 8종목까지 구분되고, 그 이상은 반복) */
-const SLICE_COLORS = ['#38bdf8', '#a855f7', '#22c55e', '#f0b429', '#f05252', '#2dd4bf', '#f472b6', '#818cf8']
+import type { DashboardCard, KneeConditions, RebalanceCurrent, Stock, StockUpdateInput } from '../types'
 
 type QuickFilter = 'all' | 'knee' | 'rebalance'
 /** 표 / 카드 / 설정(편집) — 같은 목록을 다른 형태로 보는 것이라 한 자리에서 고른다 */
@@ -131,7 +117,12 @@ function MetricHead({ title, sub, metric }: { title: string; sub: string; metric
   )
 }
 
-/** 끌어서 순서 바꾸기. 마우스를 못 쓰는 상황을 위해 위아래 화살표 키도 받는다. */
+/**
+ * 끌어서 순서 바꾸기. 마우스를 못 쓰는 상황을 위해 위아래 화살표 키도 받는다.
+ *
+ * **폰에서는 끌지 않는다** (ROADMAP 8-3). 손가락으로는 끌기가 시작되지 않고, 26px 손잡이는 누르기도
+ * 어렵다. 대신 "순서 편집"을 켜면 이 자리에 44px ▲▼ 버튼이 선다 — 켜지 않으면 아무것도 없다.
+ */
 function DragHandle({
   ticker,
   label,
@@ -141,6 +132,28 @@ function DragHandle({
   label: string
   controls: RowControlProps
 }) {
+  if (controls.narrow) {
+    if (!controls.ordering) return null
+    const index = controls.tickers.indexOf(ticker)
+    return (
+      <span className="move-buttons">
+        <button
+          aria-label={`${label} 위로`}
+          disabled={controls.busy || index <= 0}
+          onClick={() => controls.onMove(ticker, 'up')}
+        >
+          ▲
+        </button>
+        <button
+          aria-label={`${label} 아래로`}
+          disabled={controls.busy || index === controls.tickers.length - 1}
+          onClick={() => controls.onMove(ticker, 'down')}
+        >
+          ▼
+        </button>
+      </span>
+    )
+  }
   return (
     <span
       className="drag-handle"
@@ -296,55 +309,13 @@ export function isDirty(stock: Stock, draft: Draft | undefined): boolean {
   )
 }
 
-/** 대시보드가 리밸런싱 현황에서 빌려 쓰는 것 — 전체 자금·현금·손익·리뷰 일정 */
-interface Portfolio {
-  total: number
-  cash: CashRow
-  pnl: number | null
-  cost: number | null
-  review: ReviewStatus
-}
-
-/** 다음 리뷰까지 — 리뷰할 때면 리밸런싱 화면으로 부른다 */
-function ReviewKpi({ review }: { review: ReviewStatus | null }) {
-  return (
-    <div className="kpi">
-      <div className="kpi-head">
-        <span className="kpi-title">
-          다음 리뷰{review && ` · ${REVIEW_PERIOD_LABEL[review.period]}`}
-        </span>
-        <Link to="/rebalance" className="hint">
-          리밸런싱 →
-        </Link>
-      </div>
-      {review ? (
-        <>
-          <div className="kpi-figure">
-            <span className="big">{review.due ? '리뷰할 때' : reviewCountdown(review)}</span>
-            <span className="hint mono">{review.next_date}</span>
-          </div>
-          <p className="kpi-foot">
-            {review.due
-              ? '비중을 확인하고 정리한 뒤 리밸런싱 화면에서 기록을 남기세요.'
-              : review.last_snapshot_at
-                ? `마지막 기록 ${review.last_snapshot_at.slice(0, 10)}`
-                : '아직 남긴 리밸런싱 기록이 없습니다.'}
-          </p>
-        </>
-      ) : (
-        <p className="kpi-foot">—</p>
-      )}
-    </div>
-  )
-}
-
 export function Dashboard() {
   const { refreshKey, notifyDataChanged } = useAppState()
   const [cards, setCards] = useState<DashboardCard[]>([])
-  const [weights, setWeights] = useState<RebalanceRow[]>([])
-  const [portfolio, setPortfolio] = useState<Portfolio | null>(null)
-  const [baseCurrency, setBaseCurrency] = useState<Currency>('KRW')
+  // 리밸런싱과 같은 응답 — 대시보드와 리밸런싱의 합계가 원 단위까지 같다 (ROADMAP 8-3)
+  const [current, setCurrent] = useState<RebalanceCurrent | null>(null)
   const [error, setError] = useState<unknown>(null)
+  const narrow = useNarrow()
   // 팝업과 어느 탭부터 열지 — 종목 이름은 차트, 맨 오른쪽 "AI 분석" 버튼은 AI 탭
   const [chart, setChart] = useState<{ card: DashboardCard; tab: ChartTab } | null>(null)
   const openChart = useCallback((card: DashboardCard) => setChart({ card, tab: 'chart' }), [])
@@ -354,6 +325,8 @@ export function Dashboard() {
   const { user } = useAuth()
   const [stocks, setStocks] = useState<Stock[]>([])
   const [reordering, setReordering] = useState(false)
+  // 폰의 "순서 편집" — 켜면 줄마다 ▲▼ 가 선다
+  const [ordering, setOrdering] = useState(false)
   const [dragging, setDragging] = useState<string | null>(null)
   // 끄는 동안 보여줄 임시 순서. 놓기 전에도 자리가 벌어지는 게 보여야
   // "여기 놓으면 여기로 간다"를 손이 아니라 눈으로 확인할 수 있다.
@@ -381,15 +354,7 @@ export function Dashboard() {
     ([c, rebalance, stockList]) => {
       setError(null)
       setCards(c)
-      setWeights(rebalance.rows)
-      setPortfolio({
-        total: rebalance.total_value_base,
-        cash: rebalance.cash,
-        pnl: rebalance.unrealized_pnl_base,
-        cost: rebalance.cost_value_base,
-        review: rebalance.review,
-      })
-      setBaseCurrency(rebalance.base_currency)
+      setCurrent(rebalance)
       setStocks(stockList)
       // 편집 중이던 값은 서버에서 다시 받은 값으로 맞춘다 (저장 직후에 온다)
       setDrafts(draftsFrom(stockList))
@@ -520,18 +485,6 @@ export function Dashboard() {
     }
   }, [cards])
 
-  const allocation = useMemo(() => {
-    // 평가금액은 반드시 기준통화 환산값으로 합산한다 (현지 통화끼리 더하면 비중이 틀어진다).
-    // 비중은 서버가 현금까지 더한 전체 자금 대비로 준다 — 막대도 현금 한 칸을 같이 그린다.
-    const invested = weights.filter((w) => w.current_value_base > 0)
-    const total = portfolio?.total ?? invested.reduce((s, w) => s + w.current_value_base, 0)
-    const worst = weights.reduce<RebalanceRow | null>(
-      (acc, w) => (acc === null || Math.abs(w.excess_pct) > Math.abs(acc.excess_pct) ? w : acc),
-      null,
-    )
-    return { invested, total, worst, cash: portfolio?.cash ?? null }
-  }, [weights, portfolio])
-
   const categories = useMemo(() => {
     const counts = new Map<string, number>()
     cards.forEach((c) => {
@@ -568,6 +521,8 @@ export function Dashboard() {
   const rowControls: RowControlProps = {
     tickers: visible.map((c) => c.ticker),
     busy: reordering,
+    narrow,
+    ordering,
     dragging,
     onMove: handleMove,
     onDragStart: setDragging,
@@ -579,6 +534,72 @@ export function Dashboard() {
     onDragOverRow: handleDragOverRow,
     onDrop: handleDrop,
   }
+
+  /* ---------- 포트폴리오 | 시그널 ----------
+     고른 쪽은 기기에 기억한다. 신호 점을 눌러 넘어간 것은 기억하지 않고 **뒤로가기 한 칸**을 쌓는다 —
+     폰에서 뒤로가기를 누르면 포트폴리오의 보던 자리로 돌아온다. */
+  const [params, setParams] = useSearchParams()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const [storedView, setStoredView] = useState<DashboardView>(loadView)
+  const urlView = params.get('view')
+  const mode: DashboardView = urlView === 'signal' || urlView === 'portfolio' ? urlView : storedView
+  const fromDot = (location.state as { fromDot?: boolean } | null)?.fromDot === true
+  const portfolioScroll = useRef<number | null>(null)
+
+  const chooseView = (next: DashboardView) => {
+    if (next === mode) return
+    if (fromDot && next === 'portfolio') {
+      // 점을 눌러 온 칸을 거두면 포트폴리오로 돌아간다 — 헛도는 칸이 남지 않는다
+      navigate(-1)
+      return
+    }
+    if (next === 'signal') portfolioScroll.current = window.scrollY
+    saveView(next)
+    setStoredView(next)
+    if (urlView !== null) setParams({}, { replace: true })
+  }
+
+  const goToSignal = (ticker: string) => {
+    portfolioScroll.current = window.scrollY
+    navigate({ search: '?view=signal' }, { state: { fromDot: true, focus: ticker } })
+  }
+
+  // 시그널 보기로 넘어온 종목 — 필터가 가리고 있으면 "모두 보기"로 돌리고, 편집 중이면 보기로 바꾼다
+  const focus = mode === 'signal' ? ((location.state as { focus?: string } | null)?.focus ?? null) : null
+  const focusKey = focus ? location.key : null
+  useEffect(() => {
+    if (!focus) return
+    const target = cards.find((c) => c.ticker === focus)
+    if (!target) return
+    if (category !== '전체' && categoryOf(target.category) !== category) setCategory('전체')
+    if (quick === 'knee' && !target.knee_buy_v2) setQuick('all')
+    if (quick === 'rebalance' && !target.rebalance_signal.active) setQuick('all')
+    if (view === 'edit') setView(narrow ? 'card' : 'table')
+    // 필터를 고른 뒤의 화면에서 찾는다 — 한 번만 (같은 칸으로 다시 오면 다시)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusKey, cards.length])
+
+  useEffect(() => {
+    if (!focusKey || !focus) return
+    const frame = requestAnimationFrame(() => {
+      const element = listRef.current?.querySelector<HTMLElement>(`[data-ticker="${CSS.escape(focus)}"]`)
+      if (!element) return
+      element.scrollIntoView?.({ block: 'center' })
+      element.classList.add('flash')
+      window.setTimeout(() => element.classList.remove('flash'), 2000)
+    })
+    return () => cancelAnimationFrame(frame)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusKey, visible.length, view])
+
+  // 포트폴리오로 돌아오면 보던 자리로
+  useLayoutEffect(() => {
+    if (mode !== 'portfolio' || portfolioScroll.current === null) return
+    const y = portfolioScroll.current
+    portfolioScroll.current = null
+    window.scrollTo?.(0, y)
+  }, [mode])
 
   if (loading) return <PageSkeleton blocks={4} rows={6} />
   if (error && cards.length === 0) return <ErrorNotice error={error} />
@@ -598,8 +619,8 @@ export function Dashboard() {
             적으면 비중이 얼마나 벗어났는지 알려줍니다.
           </li>
           <li>
-            <b>시그널 보기</b> — 이 화면에 종목마다 매수·매도 시그널이 뜹니다. 시세는 장 마감 뒤 매일 새로
-            받습니다.
+            <b>내 포트폴리오 보기</b> — 이 화면에 평가금액·수익률이 나오고, 위의 "시그널"을 누르면 종목마다
+            매수·매도 시그널이 보입니다. 시세는 장 마감 뒤 매일 새로 받습니다.
           </li>
         </ol>
         <Link to="/stocks" className="link-button">
@@ -614,12 +635,16 @@ export function Dashboard() {
 
   return (
     <div>
-      {/* 구분 입력 추천값 — 편집 모드의 구분 칸에서 쓴다 */}
-      <datalist id="category-options">
-        {categories.map(([name]) => (
-          <option key={name} value={name === CATEGORY_UNSET ? '' : name} />
-        ))}
-      </datalist>
+      <div className="view-head">
+        <div className="view-switch" role="group" aria-label="대시보드 보기">
+          <button aria-pressed={mode === 'portfolio'} onClick={() => chooseView('portfolio')}>
+            포트폴리오
+          </button>
+          <button aria-pressed={mode === 'signal'} onClick={() => chooseView('signal')}>
+            시그널
+          </button>
+        </div>
+      </div>
 
       <ErrorNotice error={error} onDismiss={() => setError(null)} />
 
@@ -632,6 +657,25 @@ export function Dashboard() {
           </div>
         </div>
       )}
+
+      {mode === 'portfolio' && current ? (
+        <PortfolioView
+          current={current}
+          cards={cards}
+          narrow={narrow}
+          onChart={openChart}
+          onSignal={goToSignal}
+          onSaved={notifyDataChanged}
+          onError={setError}
+        />
+      ) : (
+      <>
+      {/* 구분 입력 추천값 — 편집 모드의 구분 칸에서 쓴다 */}
+      <datalist id="category-options">
+        {categories.map(([name]) => (
+          <option key={name} value={name === CATEGORY_UNSET ? '' : name} />
+        ))}
+      </datalist>
 
       {/* 매크로는 한 줄만. 홈의 주인공은 종목이다 (components/MacroStrip.tsx) */}
       <MacroStrip />
@@ -663,8 +707,6 @@ export function Dashboard() {
           </p>
         </div>
 
-        <ReviewKpi review={portfolio?.review ?? null} />
-
         <div className="kpi">
           <div className="kpi-head">
             <span className="kpi-title">비중조절 신호</span>
@@ -683,75 +725,6 @@ export function Dashboard() {
           </div>
         </div>
 
-        <div className="kpi">
-          <div className="kpi-head">
-            <span className="kpi-title">포트폴리오 배분</span>
-            <Link to="/rebalance" className="hint">
-              리밸런싱 →
-            </Link>
-          </div>
-          {allocation.total > 0 ? (
-            <>
-              <div className="weight-bar">
-                {allocation.invested.map((w, i) => (
-                  <span
-                    key={w.ticker}
-                    style={{
-                      width: `${w.actual_weight_pct}%`,
-                      background: SLICE_COLORS[i % SLICE_COLORS.length],
-                    }}
-                    title={`${rowLabel(w)} ${num(w.actual_weight_pct, 1)}%`}
-                  />
-                ))}
-                {allocation.cash && allocation.cash.actual_pct > 0 && (
-                  <span
-                    className="cash-slice"
-                    style={{ width: `${allocation.cash.actual_pct}%` }}
-                    title={`현금 ${num(allocation.cash.actual_pct, 1)}%`}
-                  />
-                )}
-              </div>
-              <div className="weight-legend">
-                {allocation.invested.map((w, i) => (
-                  <span key={w.ticker}>
-                    <i
-                      className="legend-dot"
-                      style={{ background: SLICE_COLORS[i % SLICE_COLORS.length] }}
-                      aria-hidden="true"
-                    />
-                    {rowLabel(w)} <span className="mono">{num(w.actual_weight_pct, 1)}%</span>
-                  </span>
-                ))}
-                {allocation.cash && allocation.cash.actual_pct > 0 && (
-                  <span>
-                    <i className="legend-dot cash-slice" aria-hidden="true" />
-                    현금 <span className="mono">{num(allocation.cash.actual_pct, 1)}%</span>
-                  </span>
-                )}
-              </div>
-              <p className="kpi-foot">
-                총 {amount(allocation.total, baseCurrency)}
-                {portfolio?.pnl !== null && portfolio?.pnl !== undefined && (
-                  <>
-                    {' '}· 평가손익{' '}
-                    <span className={portfolio.pnl > 0 ? 'up' : portfolio.pnl < 0 ? 'down' : ''}>
-                      {signedAmount(portfolio.pnl, baseCurrency)}
-                      {portfolio.cost ? ` (${signed((portfolio.pnl / portfolio.cost) * 100, 1, '%')})` : ''}
-                    </span>
-                  </>
-                )}{' '}
-                ·{' '}
-                {allocation.worst && Math.abs(allocation.worst.excess_pct) >= 0.05
-                  ? `목표 대비 최대 이탈: ${rowLabel(allocation.worst)} ${signed(allocation.worst.excess_pct, 1, '%p')}`
-                  : '목표 비중과 거의 일치합니다.'}
-              </p>
-            </>
-          ) : (
-            <p className="kpi-foot">
-              보유수량과 현금이 없습니다. 리밸런싱 화면에서 입력하면 실제 비중이 계산됩니다.
-            </p>
-          )}
-        </div>
       </div>
 
       <div className="toolbar">
@@ -805,6 +778,15 @@ export function Dashboard() {
           >
             ⚙ 설정
           </button>
+          {narrow && (
+            <button
+              className={`chip${ordering ? ' active' : ''}`}
+              aria-pressed={ordering}
+              onClick={() => setOrdering((o) => !o)}
+            >
+              {ordering ? '순서 편집 끝' : '↕ 순서 편집'}
+            </button>
+          )}
           {/* 담은 종목 전체를 AI 가 한 장으로 (3c-2). 누르면 창만 열린다 — 부르는 것은 창에서 한 번 더 */}
           <button className="chip" onClick={() => setAiAll(true)}>
             ✦ AI 전체 정리
@@ -851,6 +833,14 @@ export function Dashboard() {
       )}
       </div>
 
+      <p className="hint" style={{ marginTop: 14 }}>
+        매수 시그널 = -DI &gt; +DI · 이격도 &lt; 0 · (StdDev20 축소 또는 거래량비 &gt; 1.1) · ADX &gt; 20 —
+        네 조건을 모두 만족할 때. 각 조건은 해당 지표 칸에 ✓로 표시됩니다. 매도 시그널은 참고용이며 실제
+        매도는 리밸런싱 리뷰 때 비중을 보고 정합니다.
+      </p>
+      </>
+      )}
+
       {chart && (
         <Suspense
           fallback={
@@ -873,12 +863,6 @@ export function Dashboard() {
           <AiSummaryModal kind="watchlist" account={pushAccount(user)} onClose={closeAiAll} />
         </Suspense>
       )}
-
-      <p className="hint" style={{ marginTop: 14 }}>
-        매수 시그널 = -DI &gt; +DI · 이격도 &lt; 0 · (StdDev20 축소 또는 거래량비 &gt; 1.1) · ADX &gt; 20 —
-        네 조건을 모두 만족할 때. 각 조건은 해당 지표 칸에 ✓로 표시됩니다. 매도 시그널은 참고용이며 실제
-        매도는 리밸런싱 리뷰 때 비중을 보고 정합니다.
-      </p>
     </div>
   )
 }
@@ -886,6 +870,9 @@ export function Dashboard() {
 interface RowControlProps {
   tickers: string[]
   busy: boolean
+  /** 폰 폭 — 끌기 대신 "순서 편집" 버튼 */
+  narrow: boolean
+  ordering: boolean
   dragging: string | null
   onMove: (ticker: string, direction: 'up' | 'down') => void
   onDragStart: (ticker: string) => void
@@ -982,7 +969,7 @@ function SignalMatrix({
             const ma200 = readMa200(ind.close, ind.ma200)
 
             return (
-              <tr key={card.ticker} {...dragProps(card.ticker, controls)}>
+              <tr key={card.ticker} data-ticker={card.ticker} {...dragProps(card.ticker, controls)}>
                 <td>
                   <DragHandle ticker={card.ticker} label={stockLabel(card)} controls={controls} />
                 </td>
@@ -1099,7 +1086,9 @@ function SettingsTable({
       <div className="edit-bar">
         <span className="hint">
           {dirtyTickers.length === 0
-            ? '고칠 값을 바로 입력하세요. 순서는 맨 앞 ⠿를 끌어서 바꿉니다.'
+            ? controls.narrow
+              ? '고칠 값을 바로 입력하세요. 순서는 위의 "순서 편집"으로 바꿉니다.'
+              : '고칠 값을 바로 입력하세요. 순서는 맨 앞 ⠿를 끌어서 바꿉니다.'
             : `${dirtyTickers.length}개 종목이 바뀌었습니다 (${dirtyTickers.join(', ')})`}
         </span>
         <div className="btn-group tight">
@@ -1261,6 +1250,7 @@ function SignalCards({
         return (
           <article
             key={card.ticker}
+            data-ticker={card.ticker}
             className={`stock-card ${drag.className}`.trim()}
             onDragOver={drag.onDragOver}
             onDrop={drag.onDrop}

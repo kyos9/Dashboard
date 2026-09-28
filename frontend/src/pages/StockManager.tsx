@@ -7,6 +7,7 @@ import { ErrorNotice } from '../components/ErrorNotice'
 import { NumberInput } from '../components/NumberInput'
 import { SymbolSearch } from '../components/SymbolSearch'
 import { CURRENCY_BY_MARKET, CURRENCY_META, MARKET_LABEL, stockLabel } from '../lib/display'
+import { fxFromInput, fxUnitLabel } from '../lib/fxInput'
 import type { ListingStatus, Stock, SymbolMatch } from '../types'
 import { listingHint, listingRefreshNotice } from '../lib/listing'
 import { useRecheck } from '../lib/recheck'
@@ -19,9 +20,11 @@ interface NewStockForm {
   targetWeight: string
   quantity: string
   avgCost: string
+  /** 산 환율 — 달러는 원/$, 엔은 원/100엔으로 받는다 */
+  avgFx: string
 }
 
-const emptyForm: NewStockForm = { ticker: '', category: '', targetWeight: '', quantity: '', avgCost: '' }
+const emptyForm: NewStockForm = { ticker: '', category: '', targetWeight: '', quantity: '', avgCost: '', avgFx: '' }
 
 /** 구분 입력을 돕는 예시값 — 자유 입력이므로 강제되지 않는다 */
 const CATEGORY_SUGGESTIONS = ['지수', '알파', '안전자산']
@@ -179,6 +182,9 @@ export function StockManager() {
   const [notice, setNotice] = useState<{ tone: 'green' | 'amber'; text: string; detail?: string } | null>(null)
   const [creating, setCreating] = useState(false)
   const [picked, setPicked] = useState<SymbolMatch | null>(null)
+  // 산 환율은 목록에서 고른 외화 종목만 받는다
+  const pickedCurrency = CURRENCY_BY_MARKET[picked?.market ?? 'KR']
+  const pickedForeign = picked !== null && pickedCurrency !== 'KRW'
   const [listingBusy, setListingBusy] = useState(false)
   const [listing, setListing] = useState<ListingStatus | null>(null)
   const [purging, setPurging] = useState<Stock | null>(null)
@@ -277,6 +283,7 @@ export function StockManager() {
         target_weight_pct: form.targetWeight === '' ? 0 : Number(form.targetWeight),
         ...(quantity ? { quantity } : {}),
         ...(form.avgCost === '' ? {} : { avg_cost: Number(form.avgCost) }),
+        ...(pickedForeign && form.avgFx !== '' ? { avg_fx: fxFromInput(form.avgFx, pickedCurrency) } : {}),
       })
       setForm(emptyForm)
       setPicked(null)
@@ -435,6 +442,18 @@ export function StockManager() {
               allowDecimal={newMarket === 'US'}
             />
           </div>
+          {/* 산 환율은 목록에서 고른 외화 종목만 — 이름을 쳐서 넣으면 원화 종목일 수도 있다 (그러면 서버가 거절한다) */}
+          {pickedForeign && (
+            <div className="field">
+              <label htmlFor="new-fx">산 환율 ({fxUnitLabel(pickedCurrency)})</label>
+              <NumberInput
+                id="new-fx"
+                placeholder="모르면 비워두기"
+                value={form.avgFx}
+                onChange={(v) => setForm({ ...form, avgFx: v })}
+              />
+            </div>
+          )}
           <div className="field">
             <label>&nbsp;</label>
             <button className="primary" onClick={handleCreate} disabled={creating}>

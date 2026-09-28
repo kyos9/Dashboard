@@ -2,7 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { lazy } from 'react'
 import { MemoryRouter } from 'react-router-dom'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppStateProvider } from '../AppState'
 import { api } from '../api/client'
 import type { DashboardCard } from '../types'
@@ -64,6 +64,9 @@ function renderDashboard() {
 }
 
 describe('차트 조각을 받는 동안', () => {
+  // 시그널 보기의 표 — 포트폴리오 보기의 이름 칸도 같은 팝업을 연다 (Dashboard.portfolio.test.tsx)
+  beforeEach(() => localStorage.setItem('dashboard.view', 'signal'))
+
   it('누르자마자 제목과 닫기가 있는 팝업 틀이 뜨고, 닫을 수 있다', async () => {
     mockApi()
     const user = userEvent.setup()

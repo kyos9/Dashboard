@@ -34,6 +34,8 @@ class StockCreate(BaseModel):
     # 이미 들고 있는 종목이면 등록하면서 같이 적는다. 비우면 보유 0으로 시작한다.
     quantity: Optional[float] = Field(default=None, ge=0)
     avg_cost: Optional[float] = Field(default=None, ge=0)
+    # 산 환율 (외화 종목만, 1단위에 몇 원). 비우면 모름.
+    avg_fx: Optional[float] = Field(default=None, gt=0)
 
 
 class StockUpdate(BaseModel):
@@ -173,6 +175,8 @@ class HoldingUpdate(BaseModel):
     quantity: float = Field(ge=0)
     # 보내지 않으면 그대로 둔다. null을 보내면 지운다(모름).
     avg_cost: Optional[float] = Field(default=None, ge=0)
+    # 산 환율 — 외화 종목을 1단위에 몇 원에 샀는지. 평단가와 같은 약속(안 보내면 그대로, null은 지움).
+    avg_fx: Optional[float] = Field(default=None, gt=0)
 
 
 class HoldingOut(BaseModel):
@@ -180,6 +184,7 @@ class HoldingOut(BaseModel):
     ticker: str
     quantity: float
     avg_cost: Optional[float] = None
+    avg_fx: Optional[float] = None
     updated_at: dt.datetime
 
 
@@ -216,6 +221,8 @@ class SettingsUpdate(BaseModel):
     # 통화코드 -> 금액. 값에 null이나 0을 주면 그 통화 현금을 지운다. 안 보낸 통화는 그대로.
     cash: Optional[dict[str, Optional[float]]] = None
     cash_target_pct: Optional[float] = Field(default=None, ge=0, le=100)
+    # 수익률에 환율 효과 포함. 기준통화가 원일 때만 켤 수 있다.
+    include_fx_effect: Optional[bool] = None
 
 
 class SettingsOut(BaseModel):
@@ -227,6 +234,14 @@ class SettingsOut(BaseModel):
     review_date_override: Optional[dt.date] = None
     cash: dict[str, float] = {}
     cash_target_pct: float = 0.0
+    include_fx_effect: bool = False
+
+
+class FxSplit(BaseModel):
+    """환율 효과를 넣은 수익률을 둘로 나눈 것. 합계는 `(1+주가)(1+환율)−1` 이다."""
+
+    price_pct: float
+    fx_pct: float
 
 
 class RebalanceRow(BaseModel):
@@ -243,13 +258,27 @@ class RebalanceRow(BaseModel):
     quantity: float = 0.0
     avg_cost: Optional[float] = None
     last_close: Optional[float] = None
+    # 그 종목 시장의 직전 거래일 종가. 새 종목은 없을 수 있다.
+    prev_close: Optional[float] = None
+    change_pct: Optional[float] = None
     current_value: float = 0.0
     # 비중 계산에 쓰이는 기준통화 환산 평가금액
     current_value_base: float = 0.0
+    # 최근 거래일 대비 평가금액 변동 (거래 통화 / 기준통화 — 지금 환율로 환산)
+    day_change: Optional[float] = None
+    day_change_base: Optional[float] = None
     # 손익 — 거래 통화 기준. 평단가를 모르면 비어 있다.
     cost_value: Optional[float] = None
     unrealized_pnl: Optional[float] = None
     return_pct: Optional[float] = None
+    avg_fx: Optional[float] = None
+    # 화면에 보일 손익. 환율 효과를 켜고 산 환율을 적은 외화 종목은 원화 기준, 나머지는 위와 같다.
+    shown_pnl: Optional[float] = None
+    shown_return_pct: Optional[float] = None
+    shown_currency: Currency = Currency.USD
+    fx_split: Optional[FxSplit] = None
+    # 환율 효과를 켰는데 산 환율이 없어 주가만으로 낸 줄
+    fx_missing: bool = False
 
 
 class CashOut(BaseModel):
@@ -286,6 +315,14 @@ class RebalanceCurrentOut(BaseModel):
     holdings_value_base: float = 0.0
     cost_value_base: Optional[float] = None
     unrealized_pnl_base: Optional[float] = None
+    # 들고 있는데 평단가를 몰라 손익 합계에서 빠진 종목 수
+    unpriced_count: int = 0
+    # 최근 거래일 대비 — 종목마다 자기 시장의 전일 대비를 더한 값 (기준통화, 지금 환율)
+    day_change_base: Optional[float] = None
+    day_change_pct: Optional[float] = None
+    # 환율 효과를 실제로 쓰는지 (켜 두었고 기준통화가 원일 때)와, 산 환율이 없어 빠진 종목 수
+    include_fx_effect: bool = False
+    fx_missing_count: int = 0
     cash: CashOut = CashOut()
     # 종목 목표비중 + 현금 목표비중. 100이 아니면 화면이 알려준다.
     target_sum_pct: float = 0.0

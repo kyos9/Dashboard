@@ -208,6 +208,9 @@ class Holding(Base):
     # 평균 매입단가 (종목의 거래 통화 기준). **리밸런싱에는 쓰이지 않는다** — 비중은 수량 ×
     # 현재가로 정해진다. 평가손익·수익률을 보여주는 데만 쓴다. 모르면 비워둔다.
     avg_cost: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # 산 환율 — 외화 종목을 살 때 1단위에 몇 원을 줬는지(금액 가중 평균). 원화로 따진 진짜 수익을
+    # 낼 때만 쓴다 (`user_settings.include_fx_effect`). 비중과는 무관하다. 모르면 비워둔다.
+    avg_fx: Mapped[float | None] = mapped_column(Float, nullable=True)
     updated_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow, nullable=False)
 
 
@@ -262,6 +265,9 @@ class UserSettings(Base):
     # 받을 푸시 알림의 종류 (`services.alerts.KINDS`). **`None` 은 "다 받는다"** — 켜기만 하면
     # 오게. `[]` 은 일부러 다 끈 것이다 (기기의 구독은 남는다). `pinned_macro` 와 같은 약속.
     push_kinds: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # 수익률·평가손익에 환율 효과를 넣을지 (ROADMAP 8-3). 켜면 산 환율을 적은 외화 종목의 손익을
+    # 원화로 따진다. **기준통화가 원일 때만 뜻이 있다** — 달러 기준이면 켜 둬도 쓰지 않는다.
+    include_fx_effect: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
 
 class RebalanceSnapshot(Base):

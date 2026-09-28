@@ -79,10 +79,12 @@ export interface StockCreateInput {
   quantity?: number
   /** 평균 매입단가 (종목의 거래 통화) */
   avg_cost?: number | null
+  /** 산 환율 — 외화 종목을 1단위에 몇 원에 샀는지 (엔은 1엔 값) */
+  avg_fx?: number | null
 }
 
 export type StockUpdateInput = Partial<
-  Omit<StockCreateInput, 'ticker' | 'name' | 'quantity' | 'avg_cost'>
+  Omit<StockCreateInput, 'ticker' | 'name' | 'quantity' | 'avg_cost' | 'avg_fx'>
 > & {
   active?: boolean
   /** 화면에 보여줄 이름. null이면 지우고 티커로 되돌린다 */
@@ -263,6 +265,8 @@ export interface Holding {
   quantity: number
   /** 평균 매입단가 (거래 통화). 모르면 null — 손익만 비고 비중은 그대로 계산된다 */
   avg_cost: number | null
+  /** 산 환율 (1단위에 몇 원). 모르면 null */
+  avg_fx?: number | null
   updated_at: string
 }
 
@@ -300,6 +304,8 @@ export interface Settings {
   cash: Partial<Record<Currency, number>>
   /** 현금으로 둘 비중(%) */
   cash_target_pct: number
+  /** 수익률에 환율 효과 포함 (기준통화가 원일 때만 쓴다) */
+  include_fx_effect?: boolean
 }
 
 export type SettingsUpdate = Partial<Omit<Settings, 'fx' | 'fx_overrides' | 'cash'>> & {
@@ -338,6 +344,22 @@ export interface RebalanceRow {
   cost_value: number | null
   unrealized_pnl: number | null
   return_pct: number | null
+  /** 그 종목 시장의 직전 거래일 종가와 등락 — 새 종목은 null */
+  prev_close?: number | null
+  change_pct?: number | null
+  /** 최근 거래일 대비 평가금액 변동 (거래 통화 / 기준통화, 지금 환율) */
+  day_change?: number | null
+  day_change_base?: number | null
+  /** 산 환율 (1단위에 몇 원) */
+  avg_fx?: number | null
+  /** 화면에 보일 손익 — 환율 효과를 켜고 산 환율을 적은 외화 종목은 원화, 나머지는 거래 통화 */
+  shown_pnl?: number | null
+  shown_return_pct?: number | null
+  shown_currency?: Currency
+  /** 환율 효과를 넣은 수익률을 둘로 — 합계는 (1+주가)(1+환율)−1 */
+  fx_split?: { price_pct: number; fx_pct: number } | null
+  /** 환율 효과를 켰는데 산 환율이 없어 주가만으로 낸 줄 */
+  fx_missing?: boolean
 }
 
 /** 현금 한 줄 — 종목과 나란히 비중을 잰다 */
@@ -368,6 +390,14 @@ export interface RebalanceCurrent {
   /** 평단가를 아는 종목끼리의 합계. 하나도 모르면 null */
   cost_value_base: number | null
   unrealized_pnl_base: number | null
+  /** 들고 있는데 평단가를 몰라 손익 합계에서 빠진 종목 수 */
+  unpriced_count?: number
+  /** 최근 거래일 대비 — 종목마다 자기 시장의 전일 대비를 더한 값. 모르면 null */
+  day_change_base?: number | null
+  day_change_pct?: number | null
+  /** 환율 효과를 실제로 쓰는지와, 산 환율이 없어 빠진 종목 수 */
+  include_fx_effect?: boolean
+  fx_missing_count?: number
   cash: CashRow
   /** 종목 목표 + 현금 목표. 100이 아니면 알려준다 */
   target_sum_pct: number

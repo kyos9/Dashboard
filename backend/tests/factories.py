@@ -96,11 +96,14 @@ def make_holding(
     quantity: float,
     *,
     avg_cost: float | None = None,
+    avg_fx: float | None = None,
     user_id: int = LOCAL_USER_ID,
     commit: bool = True,
 ) -> Holding:
-    """보유수량 한 줄. 평단가는 안 주면 모름(None)."""
-    holding = Holding(user_id=user_id, ticker=ticker, quantity=quantity, avg_cost=avg_cost)
+    """보유수량 한 줄. 평단가·산 환율은 안 주면 모름(None)."""
+    holding = Holding(
+        user_id=user_id, ticker=ticker, quantity=quantity, avg_cost=avg_cost, avg_fx=avg_fx
+    )
     db.add(holding)
     if commit:
         db.commit()
