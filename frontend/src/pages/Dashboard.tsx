@@ -328,7 +328,10 @@ export function Dashboard() {
   const openAi = useCallback((card: DashboardCard) => setChart({ card, tab: 'ai' }), [])
   const [aiAll, setAiAll] = useState(false)
   const closeAiAll = useCallback(() => setAiAll(false), [])
-  const { user } = useAuth()
+  const { user, isAdmin } = useAuth()
+  // 포트폴리오 진단 (9-7, 관리자만) — 내 비중(%)이 AI 에게 간다
+  const [aiPortfolio, setAiPortfolio] = useState(false)
+  const closeAiPortfolio = useCallback(() => setAiPortfolio(false), [])
   const [stocks, setStocks] = useState<Stock[]>([])
   const [reordering, setReordering] = useState(false)
   // 폰의 "순서 편집" — 켜면 줄마다 ▲▼ 가 선다
@@ -650,6 +653,11 @@ export function Dashboard() {
             시그널
           </button>
         </div>
+        {mode === 'portfolio' && current && isAdmin && (
+          <button className="chip view-head-action" onClick={() => setAiPortfolio(true)}>
+            ✦ AI 포트폴리오 진단
+          </button>
+        )}
       </div>
 
       <ErrorNotice error={error} onDismiss={() => setError(null)} />
@@ -881,6 +889,11 @@ export function Dashboard() {
       {aiAll && (
         <Suspense fallback={null}>
           <AiSummaryModal kind="watchlist" account={pushAccount(user)} onClose={closeAiAll} />
+        </Suspense>
+      )}
+      {aiPortfolio && isAdmin && (
+        <Suspense fallback={null}>
+          <AiSummaryModal kind="portfolio" account={pushAccount(user)} onClose={closeAiPortfolio} />
         </Suspense>
       )}
     </div>

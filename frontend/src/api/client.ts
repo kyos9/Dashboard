@@ -176,6 +176,19 @@ export interface AiStreamHandlers {
 /** 흘려받기가 done 없이 끝났다 — 서버나 중간 연결이 끊겼다 */
 const CUT_HINT = 'AI 글을 받는 도중에 연결이 끊겼습니다. 다시 받아 보세요.'
 
+/**
+ * 정리마다의 주소. 종목 정리는 옛 모양(`/ai/context/{t}` · `/ai/analyze/{t}/stream`)을 그대로 두고,
+ * 종목 분석(관리자만)은 `/ai/research/{t}/…`, 나머지는 `/ai/{kind}/…`.
+ */
+export function aiPath(target: AiTarget, what: 'context' | 'stream'): string {
+  if (target.kind === 'stock') {
+    const t = encodeURIComponent(target.ticker)
+    return what === 'context' ? `/ai/context/${t}` : `/ai/analyze/${t}/stream`
+  }
+  if (target.kind === 'research') return `/ai/research/${encodeURIComponent(target.ticker)}/${what}`
+  return `/ai/${target.kind}/${what}`
+}
+
 async function streamAi(path: string, key: string, body: unknown, handlers: AiStreamHandlers): Promise<AiAnalysis> {
   const res = await fetch(`${BASE}${path}`, {
     method: 'POST',
@@ -363,9 +376,7 @@ export const api = {
   /** AI 에게 보내는 내용 그대로 — 키 없이도 볼 수 있다 */
   aiContext: (target: AiTarget, question = '') =>
     request<AiContext>(
-      `${target.kind === 'stock' ? `/ai/context/${encodeURIComponent(target.ticker)}` : `/ai/${target.kind}/context`}${
-        question.trim() ? `?question=${encodeURIComponent(question)}` : ''
-      }`,
+      `${aiPath(target, 'context')}${question.trim() ? `?question=${encodeURIComponent(question)}` : ''}`,
     ),
   /**
    * 정리를 써지는 대로 받는다 (3c-2). `question` — 사용자가 붙이는 요청 (선택, 비우면 기본 정리).
@@ -380,7 +391,7 @@ export const api = {
     handlers: AiStreamHandlers,
   ) =>
     streamAi(
-      target.kind === 'stock' ? `/ai/analyze/${encodeURIComponent(target.ticker)}/stream` : `/ai/${target.kind}/stream`,
+      aiPath(target, 'stream'),
       key,
       { provider, model, question: question.trim() || null },
       handlers,

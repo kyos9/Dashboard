@@ -3579,6 +3579,34 @@ table.data-table tr.dirty:hover td {
   margin-top: 4px;
 }
 
+/* 종목 분석의 지표 표 (9-8). 폭은 화면에 맞추고 칸 안에서 줄을 바꾼다 — 가로 스크롤로 숨기지 않는다 */
+.ai-table {
+  width: 100%;
+  margin: 8px 0;
+  border-collapse: collapse;
+  table-layout: auto;
+  font-size: var(--fs-sub);
+}
+
+.ai-table th,
+.ai-table td {
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+
+.ai-table th {
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.ai-table td:first-child {
+  font-weight: 600;
+}
+
 .ai-disclaimer {
   margin: 16px 0 0;
   padding-top: 8px;
@@ -3589,7 +3617,9 @@ table.data-table tr.dirty:hover td {
   word-break: keep-all;
 }
 
+/* 누르는 자리 44px — 글자 한 줄(20px) 위아래로 12px. flex 로 세우면 펼침 표시(▶)가 사라져 padding 으로 */
 .ai-context summary {
+  padding: 12px 0;
   cursor: pointer;
   color: var(--text-dim);
   font-size: var(--fs-sub);
@@ -3781,8 +3811,21 @@ table.data-table tr.dirty:hover td {
 
 .view-head {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-start;
+  gap: 8px;
   margin-bottom: 16px;
+}
+
+/* 보기 전환 옆의 한 가지 일 — 오른쪽 끝. 폰에서는 전환이 한 줄을 다 쓰므로 다음 줄 오른쪽으로 */
+.view-head-action {
+  margin-left: auto;
+}
+
+/* 차트 팝업 AI 탭 — 정리 / 종목 분석 (관리자만, 9-8) */
+.ai-kind-switch {
+  margin-bottom: 12px;
 }
 
 /* 두 칸 전환. 누르는 자리는 44px */

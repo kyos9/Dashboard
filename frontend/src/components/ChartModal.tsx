@@ -131,7 +131,9 @@ export function ChartModal({ ticker, name, initialTab = 'chart', onClose }: Prop
     }
   }, [ticker])
 
-  const { user, guest, pending } = useAuth()
+  const { user, guest, pending, isAdmin } = useAuth()
+  // AI 탭 안에서 — 공용 숫자 정리, 또는 (관리자만) 내 비중까지 보는 종목 분석 (9-8)
+  const [aiKind, setAiKind] = useState<'stock' | 'research'>('stock')
   const showFundamentals = hasFundamentalsTab(fundamentals)
   // AI 분석은 들어와 쓰는 사람만 — 손님·승인 대기는 담은 종목이 없다
   const showAi = !guest && !pending
@@ -206,7 +208,24 @@ export function ChartModal({ ticker, name, initialTab = 'chart', onClose }: Prop
         </div>
 
         {activeTab === 'ai' ? (
-          <AiPanel target={{ kind: 'stock', ticker }} account={pushAccount(user)} />
+          <>
+            {isAdmin && (
+              <div className="view-switch ai-kind-switch" role="group" aria-label="AI 종류">
+                <button aria-pressed={aiKind === 'stock'} onClick={() => setAiKind('stock')}>
+                  정리
+                </button>
+                <button aria-pressed={aiKind === 'research'} onClick={() => setAiKind('research')}>
+                  종목 분석
+                </button>
+              </div>
+            )}
+            {/* 종류를 바꾸면 창 안의 받던 글·요청도 새로 — key 로 다시 만든다 */}
+            <AiPanel
+              key={isAdmin ? aiKind : 'stock'}
+              target={isAdmin && aiKind === 'research' ? { kind: 'research', ticker } : { kind: 'stock', ticker }}
+              account={pushAccount(user)}
+            />
+          </>
         ) : activeTab === 'fundamentals' && fundamentals ? (
           <FundamentalsPanel data={fundamentals} />
         ) : (

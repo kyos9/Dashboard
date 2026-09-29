@@ -36,6 +36,20 @@ const COPY: Record<AiScope, { intro: string; examples: string[]; help: string; p
     help: '무엇을 물어도 담은 종목의 숫자를 보고 답하고, 사라·팔라는 판단이나 순위 매기기, 가격 예측은 하지 않습니다.',
     placeholder: '예: 요즘 흐름이 비슷한 종목끼리 묶어서 정리해 줘',
   },
+  portfolio: {
+    intro:
+      '내 포트폴리오의 비중(현재·목표·차이)·수익률·쏠림을 % 로만 AI 에게 보내 전체를 진단받습니다. 평가금액·수량·평단가·현금 액수는 보내지 않습니다. 무엇을 사고팔지는 정하지 않도록 요청합니다. 관리자만 씁니다.',
+    examples: ['쏠림 위주로 짧게', '목표와 차이가 큰 종목부터', '환율이 수익률에 준 영향만', '다섯 줄로 요약해 줘'],
+    help: '무엇을 물어도 내 비중·수익률 숫자를 보고 답하고, 사고팔 종목이나 수량을 정하거나 가격을 예측하지는 않습니다.',
+    placeholder: '예: 반도체·AI 쪽에 얼마나 몰려 있는지 봐 줘',
+  },
+  research: {
+    intro:
+      '이 종목의 재무(PER·PBR·ROE·FCF 수익률·3·5년 성장률 등)와 내 포트폴리오 비중(%)을 AI 에게 보내, 알파 버킷 편입 판단을 돕는 리포트를 받습니다. 앱에 없는 값(선행 PER·업종 평균·순현금)은 "확인 필요"로 적게 합니다. 관리자만 씁니다.',
+    examples: ['리스크 위주로 자세히', '시나리오 분석만', '비슷한 익스포저가 있는지 먼저', '표 없이 짧게'],
+    help: '숫자는 앱이 모은 것만 쓰고, 없는 값은 지어내지 않도록 요청합니다. 매수·매도를 단정하거나 목표주가를 내지는 않습니다.',
+    placeholder: '예: 보유 중인 반도체 종목과 겹치는 부분을 자세히',
+  },
   macro: {
     intro:
       '앱이 모아 둔 매크로 지표와 국면 배지를 AI 가 글로 풀어 줍니다. 각 지표가 무엇을 재는지, 지금 값이 어디쯤인지를 설명하고 앞으로의 방향은 점치지 않도록 요청합니다.',
@@ -53,7 +67,7 @@ function when(iso: string): string {
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' })
 }
 
-/** 어느 시점의 숫자로 쓴 글인가 — 종목은 종가, 매크로는 발표된 지표 */
+/** 어느 시점의 숫자로 쓴 글인가 — 종목·진단·분석은 종가, 매크로는 발표된 지표 */
 function basis(scope: AiScope, asOf: string | null): string {
   if (!asOf) return ''
   return scope === 'macro' ? `${asOf}까지 발표된 지표 · ` : `${asOf} 종가까지 · `

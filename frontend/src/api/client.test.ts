@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { api, ApiError, UNAUTHORIZED_EVENT } from './client'
+import { aiPath, api, ApiError, UNAUTHORIZED_EVENT } from './client'
 
 interface FakeResponse {
   ok?: boolean
@@ -90,6 +90,22 @@ describe('요청 경로', () => {
   it('204 응답은 본문을 파싱하지 않는다', async () => {
     mockFetch({ status: 204, text: '' })
     await expect(api.refreshStock('VOO')).resolves.toBeUndefined()
+  })
+
+  it('AI 정리마다의 주소 — 종목 정리는 옛 모양, 종목 분석은 research, 나머지는 종류 이름', () => {
+    expect(aiPath({ kind: 'stock', ticker: '005930.KS' }, 'context')).toBe('/ai/context/005930.KS')
+    expect(aiPath({ kind: 'stock', ticker: 'A/B' }, 'stream')).toBe('/ai/analyze/A%2FB/stream')
+    expect(aiPath({ kind: 'research', ticker: 'NVDA' }, 'context')).toBe('/ai/research/NVDA/context')
+    expect(aiPath({ kind: 'research', ticker: 'A/B' }, 'stream')).toBe('/ai/research/A%2FB/stream')
+    expect(aiPath({ kind: 'portfolio' }, 'stream')).toBe('/ai/portfolio/stream')
+    expect(aiPath({ kind: 'watchlist' }, 'context')).toBe('/ai/watchlist/context')
+  })
+
+  it('보내는 내용 보기에 요청을 붙인다', async () => {
+    mockFetch({ text: '{}' })
+    await api.aiContext({ kind: 'research', ticker: 'NVDA' }, '리스크만')
+    const [url] = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toBe(`/api/ai/research/NVDA/context?question=${encodeURIComponent('리스크만')}`)
   })
 })
 

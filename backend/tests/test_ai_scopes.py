@@ -139,9 +139,10 @@ def test_api_scope_with_nothing_to_summarize_is_refused_before_calling(api, fake
 
 
 def test_api_unknown_scope_is_not_found_or_invalid(api):
+    # 포트폴리오 진단은 따로 있다 (관리자만, `test_ai_owner.py`) — 이 길로는 없는 정리다
     client, _ = api
-    assert client.get("/api/ai/portfolio/context").status_code == 422
-    assert client.post("/api/ai/portfolio/stream", headers=_headers(),
+    assert client.get("/api/ai/holdings/context").status_code == 422
+    assert client.post("/api/ai/holdings/stream", headers=_headers(),
                        json={"provider": "anthropic", "model": "m"}).status_code == 422
 
 

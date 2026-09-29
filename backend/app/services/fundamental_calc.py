@@ -368,6 +368,54 @@ def snapshot(facts: list[Fact], price: float | None, day: dt.date | None = None)
     return out
 
 
+def annual(v: View, metric: str) -> dict[dt.date, float]:
+    """회계연도(1년) 값 — 끝나는 날 → 값. 연간 보고서(10-K·사업보고서)에 나온 것만."""
+    return {f.end: f.value for f in v.of(metric) if f.is_duration and _is_year(f.start, f.end)}
+
+
+def cagr(years: dict[dt.date, float], span: int) -> dict | None:
+    """최근 회계연도와 `span` 년 전 회계연도 사이의 연평균 성장률 (%).
+
+    둘 중 하나라도 0 이하(적자)면 비율이 뜻이 없어 None — 적자에서 흑자로의 "성장률"은 없다.
+    """
+    if not years:
+        return None
+    last = max(years)
+    first = _near(last - dt.timedelta(days=round(365.25 * span)), years.keys(), tolerance=20)
+    if first is None or years[first] <= 0 or years[last] <= 0:
+        return None
+    return {"pct": ((years[last] / years[first]) ** (1 / span) - 1) * 100, "from": first, "to": last}
+
+
+RESEARCH_ANNUAL = ("revenue", "operating_income", "net_income")
+CAGR_SPANS = (3, 5)
+
+
+def research_extras(facts: list[Fact], price: float | None) -> dict:
+    """종목 분석(9-8)에만 쓰는 것 — 시가총액·FCF 수익률·연간 흐름·3·5년 연평균 성장률.
+
+    시가총액은 **지금 주가 × 공시된 주식 수**다. 자사주·우선주를 따로 빼지 않으니 대략값이다.
+    """
+    v = view(facts)
+    shares = shares_now(v, None)
+    market_cap = price * shares if price and shares else None
+    snap = snapshot(facts, price)
+    fcf = snap["fcf"]["value"]
+    out: dict = {
+        "shares": shares,
+        "market_cap": market_cap,
+        "fcf_yield": fcf / market_cap * 100 if fcf is not None and market_cap else None,
+        "fcf_basis": snap["fcf"]["period_end"],
+        "annual": {},
+        "cagr": {},
+    }
+    for metric in RESEARCH_ANNUAL:
+        years = annual(v, metric)
+        out["annual"][metric] = sorted(years.items())[-6:]
+        out["cagr"][metric] = {span: cagr(years, span) for span in CAGR_SPANS}
+    return out
+
+
 def per_history(facts: list[Fact], prices: list[tuple[dt.date, float]], current: float | None,
                 today: dt.date, years: int = PER_YEARS) -> dict | None:
     """지난 몇 년 동안 날마다의 PER — **그날까지 공시된 EPS** 로 — 과 지금이 그중 어디쯤인지.

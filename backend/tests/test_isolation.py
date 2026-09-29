@@ -71,7 +71,7 @@ ANYONE = "누구나"  # 로그인 화면이 쓰는 것
 
 # (메서드, 경로) → (누구 것인가, 누가 쓰는가)
 #
-# 주인 전용 11개는 `require_owner` 로 잠겨 있다 — 표와 라우터가 어긋나면 아래 테스트가 잡는다.
+# 주인 전용 15개는 `require_owner` 로 잠겨 있다 — 표와 라우터가 어긋나면 아래 테스트가 잡는다.
 ENDPOINTS: dict[tuple[str, str], tuple[str, str]] = {
     # 로그인
     ("GET", "/api/auth/status"): (PUBLIC, ANYONE),
@@ -143,6 +143,20 @@ ENDPOINTS: dict[tuple[str, str], tuple[str, str]] = {
     # 담은 종목 전체 · 매크로 정리 (3c-2) — 전체 정리는 **내 목록**이 들어간다
     ("GET", "/api/ai/{scope}/context"): (MINE, USER),
     ("POST", "/api/ai/{scope}/stream"): (MINE, USER),
+    # 포트폴리오 진단 · 종목 분석 (9-7·9-8) — **그 사람의 비중(%)이 넘어간다.** 개인 맞춤 조언 쪽이라
+    # 관리자 계정만 쓴다 (공용 자원이 아닌데 주인 전용인 유일한 것들)
+    ("GET", "/api/ai/portfolio/context"): (MINE, OWNER),
+    ("POST", "/api/ai/portfolio/stream"): (MINE, OWNER),
+    ("GET", "/api/ai/research/{ticker}/context"): (MINE, OWNER),
+    ("POST", "/api/ai/research/{ticker}/stream"): (MINE, OWNER),
+}
+
+# 공용 자원이 아닌데 주인만 쓰는 것 — 그 사람의 포트폴리오를 AI 에게 보내는 기능 (ROADMAP 9-7)
+OWNER_PERSONAL_AI = {
+    ("GET", "/api/ai/portfolio/context"),
+    ("POST", "/api/ai/portfolio/stream"),
+    ("GET", "/api/ai/research/{ticker}/context"),
+    ("POST", "/api/ai/research/{ticker}/stream"),
 }
 
 
@@ -175,12 +189,13 @@ def test_the_table_has_no_api_that_is_gone():
 
 
 def test_owner_only_list_matches_the_plan():
-    """주인 전용은 11개다 (ROADMAP 6-1의 8개 + 4-4b 사용자 목록·승인 + 8-5 느린 요청).
-    늘거나 줄면 계획과 같이 고친다."""
+    """주인 전용은 15개다 (ROADMAP 6-1의 8개 + 4-4b 사용자 목록·승인 + 8-5 느린 요청
+    + 9-7·9-8 AI 진단·분석 4개). 늘거나 줄면 계획과 같이 고친다."""
     owner_only = sorted(key for key, (_, who) in ENDPOINTS.items() if who == OWNER)
-    assert len(owner_only) == 11, owner_only
-    # 주인 전용은 전부 공용 자원을 건드린다. 사용자별 자원을 주인만 쓰게 할 이유는 없다.
-    assert all(ENDPOINTS[key][0] == SHARED for key in owner_only)
+    assert len(owner_only) == 15, owner_only
+    # 주인 전용은 공용 자원을 건드리는 것이다 — 예외는 내 포트폴리오를 AI 에게 보내는 넷뿐
+    # (사용자별 자원을 주인만 쓰게 하는 이유가 "규제 확인 전"이라는 것, ROADMAP 9-7)
+    assert {key for key in owner_only if ENDPOINTS[key][0] != SHARED} == OWNER_PERSONAL_AI
 
 
 # ---------------------------------------------------------------------------
@@ -489,6 +504,51 @@ def check_ai_scope_context(w: World):
     assert "A의 VOO(VOO)" in theirs and "B의" not in theirs
 
 
+def check_ai_portfolio_context(w: World):
+    """주인만 쓰니 A 로 부른다. A 의 비중만 — B 가 담은 종목·B 의 목표는 없고, 금액도 없다."""
+    assert w.as_user(B).get("/api/ai/portfolio/context").status_code == 403
+    prompt = w.as_user(A).get("/api/ai/portfolio/context").json()["prompt"]
+    assert "**A의 VOO(VOO)**" in prompt and "**A의 QQQ(QQQ)**" in prompt
+    assert "B의" not in prompt and "삼성전자" not in prompt and "목표 30.0%" not in prompt
+    # A 의 보유수량·평단가·현금 액수는 %로만 간다
+    for amount in ("1,000,000", "1000000", "450", "350", "10주"):
+        assert amount not in prompt
+    assert "목표 60.0%" in prompt and "목표 40.0%" in prompt
+
+
+def check_ai_portfolio_stream(w: World):
+    sent = _fake_stream(w)
+    assert w.as_user(B).post("/api/ai/portfolio/stream", json={"provider": "anthropic", "model": "m"},
+                             headers={"X-AI-Key": "sk-ant-test-key-for-b"}).status_code == 403
+    assert sent == []
+    res = w.as_user(A).post("/api/ai/portfolio/stream", json={"provider": "anthropic", "model": "m"},
+                            headers={"X-AI-Key": "sk-ant-test-key-for-a"})
+    assert res.status_code == 200 and "event: done" in res.text
+    content = sent[0]["messages"][0]["content"]
+    assert "A의 QQQ(QQQ)" in content and "B의" not in content and "삼성전자" not in content
+
+
+def check_ai_research_context(w: World):
+    client = w.as_user(A)
+    # 공용 시세·재무라도 A 가 담지 않은 종목은 없는 것이다
+    assert client.get(f"/api/ai/research/{SAMSUNG}/context").status_code == 404
+    prompt = client.get("/api/ai/research/QQQ/context").json()["prompt"]
+    assert "A의 QQQ(QQQ)" in prompt and "← 이 종목" in prompt
+    assert "B의" not in prompt and "삼성전자" not in prompt and "목표 30.0%" not in prompt
+
+
+def check_ai_research_stream(w: World):
+    sent = _fake_stream(w)
+    body = {"provider": "anthropic", "model": "m"}
+    key = {"X-AI-Key": "sk-ant-test-key-for-a"}
+    assert w.as_user(A).post(f"/api/ai/research/{SAMSUNG}/stream", json=body, headers=key).status_code == 404
+    assert sent == []
+    res = w.as_user(A).post("/api/ai/research/QQQ/stream", json=body, headers=key)
+    assert res.status_code == 200 and "event: done" in res.text
+    content = sent[0]["messages"][0]["content"]
+    assert "A의 QQQ(QQQ)" in content and "B의" not in content
+
+
 def check_ai_scope_stream(w: World):
     sent = _fake_stream(w)
     res = w.as_user(B).post("/api/ai/watchlist/stream", json={"provider": "anthropic", "model": "m"},
@@ -772,6 +832,10 @@ CHECKS = {
     ("POST", "/api/ai/analyze/{ticker}/stream"): check_ai_analyze_stream,
     ("GET", "/api/ai/{scope}/context"): check_ai_scope_context,
     ("POST", "/api/ai/{scope}/stream"): check_ai_scope_stream,
+    ("GET", "/api/ai/portfolio/context"): check_ai_portfolio_context,
+    ("POST", "/api/ai/portfolio/stream"): check_ai_portfolio_stream,
+    ("GET", "/api/ai/research/{ticker}/context"): check_ai_research_context,
+    ("POST", "/api/ai/research/{ticker}/stream"): check_ai_research_stream,
 }
 
 
@@ -829,6 +893,10 @@ OWNER_CALLS = {
     ("GET", "/api/logs/slow"): {},
     ("GET", "/api/admin/users"): {},
     ("PUT", "/api/admin/users/{user_id}/status"): {"json": {"status": "blocked"}},
+    ("GET", "/api/ai/portfolio/context"): {},
+    ("POST", "/api/ai/portfolio/stream"): {"json": {}},
+    ("GET", "/api/ai/research/{ticker}/context"): {},
+    ("POST", "/api/ai/research/{ticker}/stream"): {"json": {}},
 }
 
 
@@ -838,7 +906,7 @@ def _url(path: str) -> str:
 
 
 def test_user_is_refused_every_owner_api(world):
-    """사용자 계정은 주인 전용 11개 모두 403. 아무것도 받아오지 않는다 (자기를 차단하지도 못한다)."""
+    """사용자 계정은 주인 전용 15개 모두 403. 아무것도 받아오지 않는다 (자기를 차단하지도 못한다)."""
     assert set(OWNER_CALLS) == {key for key, (_, who) in ENDPOINTS.items() if who == OWNER}
     client = world.as_user(B)
     for (method, path), kwargs in OWNER_CALLS.items():

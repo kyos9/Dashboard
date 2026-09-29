@@ -156,9 +156,11 @@ export function useAiSettings(account: string): AiSettings | null {
 // --- 받아 둔 정리 글 --------------------------------------------------------
 // 다시 열 때마다 돈을 내고 새로 받지 않게, 마지막 글을 종목마다(전체·매크로도 하나씩) 둔다.
 
-/** 받아 둔 글을 찾는 이름 — 종목은 티커, 전체·매크로는 티커와 겹치지 않는 이름 */
+/** 받아 둔 글을 찾는 이름 — 종목은 티커, 종목 분석은 `분석:티커`, 전체·매크로·진단은 티커와 겹치지 않는 이름 */
 export function aiTargetKey(target: AiTarget): string {
-  return target.kind === 'stock' ? target.ticker : `@${target.kind}`
+  if (target.kind === 'stock') return target.ticker
+  if (target.kind === 'research') return `@research:${target.ticker}`
+  return `@${target.kind}`
 }
 
 interface ResultStore {

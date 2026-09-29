@@ -1,5 +1,6 @@
 /**
- * AI 가 쓴 글을 나눈다 — 제목(`## `), 글머리(`- `, `1. `), **굵게** 만 알아본다 (`components/AiText`).
+ * AI 가 쓴 글을 나눈다 — 제목(`## `), 글머리(`- `, `1. `), 표(`| a | b |`), **굵게** 만 알아본다
+ * (`components/AiText`). 표는 종목 분석(9-8)의 "핵심 정량 지표"가 쓴다.
  */
 import type { ReactNode } from 'react'
 
@@ -7,12 +8,40 @@ export type Block =
   | { kind: 'heading'; text: string }
   | { kind: 'ul' | 'ol'; items: string[] }
   | { kind: 'p'; text: string }
+  | { kind: 'table'; head: string[]; rows: string[][] }
+
+/** `| a | b |` → ['a', 'b']. 양끝 막대는 있어도 없어도 된다 */
+function cells(line: string): string[] {
+  return line
+    .replace(/^\|/, '')
+    .replace(/\|$/, '')
+    .split('|')
+    .map((c) => c.trim())
+}
+
+/** 머리 아래 구분 줄 `|---|:---:|` */
+const RULE = /^\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?$/
 
 export function parseAiText(text: string): Block[] {
   const blocks: Block[] = []
-  for (const raw of text.split(/\r?\n/)) {
-    const line = raw.trim()
+  const lines = text.split(/\r?\n/)
+  for (let n = 0; n < lines.length; n++) {
+    const line = lines[n].trim()
     if (!line) continue
+    // 표 — 막대로 시작하는 줄 다음에 구분 줄이 와야 표다. 아니면 그냥 글자로 둔다
+    if (line.startsWith('|') && RULE.test((lines[n + 1] ?? '').trim())) {
+      const head = cells(line)
+      const rows: string[][] = []
+      n += 2
+      while (n < lines.length && lines[n].trim().startsWith('|')) {
+        const row = cells(lines[n].trim())
+        rows.push(head.map((_, i) => row[i] ?? ''))
+        n++
+      }
+      n--
+      blocks.push({ kind: 'table', head, rows })
+      continue
+    }
     const heading = line.match(/^#{1,6}\s+(.*)$/)
     const bullet = line.match(/^[-*•]\s+(.*)$/)
     const numbered = line.match(/^\d+[.)]\s+(.*)$/)

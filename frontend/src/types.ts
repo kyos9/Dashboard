@@ -712,15 +712,22 @@ export interface AiModelsResponse {
 /**
  * 무엇을 정리하나 (3c-2) — 종목 하나, 담은 종목 전체, 매크로.
  * 전체·매크로도 공용 숫자만 보낸다 (보유·비중·평단가는 어느 쪽도 보내지 않는다).
+ *
+ * 관리자만 (9-7·9-8) — 포트폴리오 진단, 종목 분석. 이 둘은 **내 비중(%)** 이 함께 간다 (금액은 아니다).
  */
-export type AiTarget = { kind: 'stock'; ticker: string } | { kind: 'watchlist' } | { kind: 'macro' }
+export type AiTarget =
+  | { kind: 'stock'; ticker: string }
+  | { kind: 'watchlist' }
+  | { kind: 'macro' }
+  | { kind: 'portfolio' }
+  | { kind: 'research'; ticker: string }
 
 export type AiScope = AiTarget['kind']
 
 /** AI 에게 보내는 내용 그대로 */
 export interface AiContext {
   scope: AiScope
-  /** 종목 정리일 때만 */
+  /** 종목 정리·종목 분석일 때만 */
   ticker: string | null
   as_of: string | null
   system: string

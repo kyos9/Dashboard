@@ -97,6 +97,9 @@ describe('전체·매크로 정리 (3c-2)', () => {
   it('받아 둔 글은 티커와 겹치지 않는 이름으로 따로 둔다', () => {
     expect(aiTargetKey({ kind: 'stock', ticker: 'VOO' })).toBe('VOO')
     expect(aiTargetKey({ kind: 'watchlist' })).toBe('@watchlist')
+    // 종목 분석(관리자만)은 같은 종목의 정리와 따로 둔다 — 한쪽을 받아도 다른 쪽을 덮지 않게
+    expect(aiTargetKey({ kind: 'research', ticker: 'VOO' })).toBe('@research:VOO')
+    expect(aiTargetKey({ kind: 'portfolio' })).toBe('@portfolio')
     expect(aiTargetKey({ kind: 'macro' })).toBe('@macro')
     saveAiResult('a@example.com', '@macro', { ...result('VOO', '매크로 글'), scope: 'macro', ticker: null })
     expect(readAiResult('a@example.com', '@macro')?.text).toBe('매크로 글')

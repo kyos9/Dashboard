@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
@@ -250,6 +250,48 @@ describe('차트 팝업 · 재무 탭', () => {
     render(<ChartModal ticker="VOO" name="VOO" onClose={() => {}} />)
     expect(await screen.findByRole('tab', { name: 'AI 분석' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: '차트' })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('관리자는 AI 탭에서 "종목 분석"으로 바꿀 수 있다 — 보내는 내용도 분석 쪽 (9-8)', async () => {
+    localStorage.clear()
+    vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
+    vi.spyOn(api, 'getFundamentals').mockResolvedValue(FUNDAMENTALS)
+    const context = vi.spyOn(api, 'aiContext').mockResolvedValue({
+      scope: 'research', ticker: 'GOOG', as_of: '2026-09-25', system: '애널리스트', prompt: '[사용자의 포트폴리오',
+    })
+    const user = userEvent.setup()
+    render(<ChartModal ticker="GOOG" name="GOOG" onClose={() => {}} />)
+    await user.click(await screen.findByRole('tab', { name: 'AI 분석' }))
+    const kinds = screen.getByRole('group', { name: 'AI 종류' })
+    expect(within(kinds).getByRole('button', { name: '정리' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByText(/보유수량·비중 같은 내 포트폴리오는 보내지 않습니다/)).toBeInTheDocument()
+
+    await user.click(within(kinds).getByRole('button', { name: '종목 분석' }))
+    expect(within(kinds).getByRole('button', { name: '종목 분석' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByText(/알파 버킷 편입 판단을 돕는 리포트/)).toBeInTheDocument()
+    await user.click(screen.getByText('AI 에게 보내는 내용 보기'))
+    await waitFor(() => expect(context).toHaveBeenCalledWith({ kind: 'research', ticker: 'GOOG' }, ''))
+  })
+
+  it('사용자 계정의 AI 탭에는 종목 분석이 없다', async () => {
+    vi.spyOn(api, 'getHealth').mockResolvedValue({ status: 'ok', version: '0.36.0' })
+    vi.spyOn(api, 'getAuthStatus').mockResolvedValue({
+      locked: true, authenticated: true, mode: 'google', config_problem: null,
+      user: { email: 'b@example.com', name: '비', is_owner: false, status: 'active' },
+    })
+    vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
+    vi.spyOn(api, 'getFundamentals').mockResolvedValue(FUNDAMENTALS)
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter>
+        <AuthGate>
+          <ChartModal ticker="GOOG" name="GOOG" onClose={() => {}} />
+        </AuthGate>
+      </MemoryRouter>,
+    )
+    await user.click(await screen.findByRole('tab', { name: 'AI 분석' }))
+    expect(screen.queryByRole('group', { name: 'AI 종류' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '종목 분석' })).toBeNull()
   })
 
   it('손님(로그인 전)에게는 AI 분석 탭이 없다', async () => {

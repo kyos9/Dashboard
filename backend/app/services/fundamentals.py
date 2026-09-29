@@ -327,6 +327,14 @@ def detail(db: Session, ticker: str, currency: str, today: dt.date | None = None
     return out
 
 
+def research(db: Session, ticker: str, currency: str, today: dt.date | None = None) -> dict:
+    """AI 종목 분석(9-8)에 넘길 재무 — 재무 탭의 것에 시가총액·FCF 수익률·연간 흐름·3·5년 성장률을 더한다."""
+    out = detail(db, ticker, currency, today, with_quarters=False)
+    facts = _facts_by_ticker(db, [ticker])[ticker]
+    out["extras"] = calc.research_extras(facts, out["price"]) if facts else None
+    return out
+
+
 def overview(db: Session, stocks, today: dt.date | None = None) -> list[dict]:
     """"재무" 화면 — 담은 종목마다 지표 한 줄. 순서는 받은 그대로(대시보드 순서)."""
     rows = []

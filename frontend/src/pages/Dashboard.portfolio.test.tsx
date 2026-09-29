@@ -15,6 +15,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppStateProvider } from '../AppState'
+import { AuthGate } from '../components/AuthGate'
 import { api, ApiError } from '../api/client'
 import { clearCache } from '../lib/cache'
 import { HIDE_AMOUNTS_KEY, resetPrefs } from '../lib/prefs'
@@ -674,5 +675,47 @@ describe('폰 — 한 종목이 두 줄', () => {
     const detail = document.getElementById('holding-SCHD') as HTMLElement
     await userEvent.click(within(detail).getByRole('button', { name: 'SCHD 보유 수정' }))
     expect(await screen.findByRole('dialog', { name: 'SCHD 보유 수정' })).toBeInTheDocument()
+  })
+})
+
+describe('AI 포트폴리오 진단 (9-7) — 관리자만', () => {
+  it('관리자에게는 포트폴리오 보기에 버튼이 있고, 누르면 창만 연다 — 부르는 것은 창에서 한 번 더', async () => {
+    localStorage.clear()
+    mockApi()
+    const stream = vi.spyOn(api, 'aiAnalyzeStream')
+    renderDashboard()
+    await userEvent.click(await screen.findByRole('button', { name: '✦ AI 포트폴리오 진단' }))
+    const dialog = await screen.findByRole('dialog', { name: 'AI 포트폴리오 진단' })
+    // 무엇이 가고 무엇이 안 가는지 먼저 적는다
+    expect(within(dialog).getByText(/평가금액·수량·평단가·현금 액수는 보내지 않습니다/)).toBeInTheDocument()
+    expect(stream).not.toHaveBeenCalled()
+  })
+
+  it('시그널 보기에는 없다 — 진단은 포트폴리오 보기의 일이다', async () => {
+    mockApi()
+    renderDashboard()
+    await userEvent.click(await screen.findByRole('button', { name: '시그널' }))
+    expect(await screen.findByRole('button', { name: /AI 전체 정리/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '✦ AI 포트폴리오 진단' })).toBeNull()
+  })
+
+  it('사용자 계정에는 버튼이 없다', async () => {
+    mockApi()
+    vi.spyOn(api, 'getHealth').mockResolvedValue({ status: 'ok', version: '0.36.0' })
+    vi.spyOn(api, 'getAuthStatus').mockResolvedValue({
+      locked: true, authenticated: true, mode: 'google', config_problem: null,
+      user: { email: 'b@example.com', name: '비', is_owner: false, status: 'active' },
+    })
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <AuthGate>
+          <AppStateProvider>
+            <Dashboard />
+          </AppStateProvider>
+        </AuthGate>
+      </MemoryRouter>,
+    )
+    expect(await screen.findByText('총 평가금액')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '✦ AI 포트폴리오 진단' })).toBeNull()
   })
 })
