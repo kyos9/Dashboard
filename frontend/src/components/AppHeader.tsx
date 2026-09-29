@@ -182,7 +182,7 @@ export function AppHeader() {
             <span className="brand-mark" aria-hidden="true">
               📈
             </span>
-            <h1 className="brand-title">신호판</h1>
+            <h1 className="brand-title">자산관리</h1>
           </div>
           <div className="header-right">
             {statusPill}
@@ -234,7 +234,7 @@ export function AppHeader() {
             </span>
             <div className="brand-text">
               <h1 className="brand-title">
-                신호판
+                자산관리
                 <span className="badge badge-blue">내 포트폴리오</span>
                 {version && (
                   <span className="badge badge-grey mono" title={versionTitle}>

@@ -396,7 +396,7 @@ def test_api_turns_a_device_on_tests_it_and_turns_it_off(api, monkeypatch):
 
     res = client.post("/api/push/test")
     assert res.json() == {"sent": 1, "failed": 0}
-    assert server.opened_by(device)[0]["title"] == "신호판"
+    assert server.opened_by(device)[0]["title"] == "자산관리"
 
     res = client.request("DELETE", "/api/push/subscriptions", json={"endpoint": device.endpoint})
     assert res.status_code == 204
@@ -535,7 +535,7 @@ def test_band_is_told_when_it_starts_not_every_day(db_session, me):
     db_session.commit()  # VOO 75% · QQQ 25%
     got = _run(db_session, server, device)
     assert got == [{
-        "title": "신호판 알림",
+        "title": "자산관리 알림",
         "body": "비중 과중(매도 검토): VOO\n비중 미달(매수 검토): QQQ",
         "url": "/rebalance",
         "tag": "daily",

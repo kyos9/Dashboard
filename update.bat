@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 >nul
-echo === 신호판 업데이트 ===
+echo === 자산관리 업데이트 ===
 echo.
 
 cd /d "%~dp0"

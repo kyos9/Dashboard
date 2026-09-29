@@ -3,7 +3,7 @@ chcp 65001 >nul
 setlocal
 
 rem ============================================================================
-rem  신호판 시작 — 창 없이, 프로세스 하나로.
+rem  자산관리 시작 — 창 없이, 프로세스 하나로.
 rem
 rem  예전에는 백엔드와 프런트엔드가 각자 검은 창에서 떠 있어야 했다. 프런트엔드
 rem  개발 서버(vite)는 코드를 고칠 때 화면을 바로 바꿔주는 도구이지, 다 만든 화면을
@@ -14,7 +14,7 @@ rem  로그는 이제 화면에 흘리지 않고 backend\logs\app.log에 쌓인�
 rem  [진단]에서 경고·오류만 골라 볼 수 있고, 파일째 내려받을 수도 있다.
 rem
 rem  주소는 언제나 http://localhost:8000 이다. 브라우저는 알아서 열리지만, 탭을 닫았거나
-rem  나중에 다시 들어가고 싶을 때를 위해 같은 폴더에 "신호판 열기.url" 을 두었다 —
+rem  나중에 다시 들어가고 싶을 때를 위해 같은 폴더에 "자산관리 열기.url" 을 두었다 —
 rem  더블클릭하면 바로 그 주소로 간다 (서버가 떠 있어야 열린다).
 rem
 rem  끄려면 stop.bat.
@@ -33,7 +33,7 @@ if not exist "backend\.venv\Scripts\pythonw.exe" (
 rem 이미 떠 있으면 두 번 띄우지 않는다 — 브라우저만 연다
 netstat -ano | findstr /r /c:":8000 .*LISTENING" >nul 2>&1
 if not errorlevel 1 (
-    echo 신호판이 이미 실행 중입니다. 브라우저를 엽니다...
+    echo 자산관리가 이미 실행 중입니다. 브라우저를 엽니다...
     echo 주소: http://localhost:8000
     start http://localhost:8000
     exit /b 0
@@ -55,8 +55,8 @@ if not exist "frontend\dist\index.html" (
     popd
 )
 
-echo 신호판을 시작합니다...
-echo 주소: http://localhost:8000   ("신호판 열기.url" 을 더블클릭해도 같은 곳입니다)
+echo 자산관리를 시작합니다...
+echo 주소: http://localhost:8000   ("자산관리 열기.url" 을 더블클릭해도 같은 곳입니다)
 start "" wscript.exe "%~dp0scripts\hidden.vbs" "%~f0" run
 
 rem 서버가 실제로 응답할 때까지 기다린다. 무작정 몇 초 자고 브라우저를 열면

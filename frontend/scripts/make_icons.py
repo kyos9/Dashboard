@@ -28,7 +28,7 @@ PUBLIC = Path(__file__).resolve().parents[1] / "public"
 
 # --- 도형. 0~1 좌표계, y는 아래로 간다 -------------------------------------
 
-# 오르는 차트 선. 신호판이 보여주는 것 자체다.
+# 오르는 차트 선. 자산관리가 보여주는 것 자체다.
 LINE = [(0.150, 0.700), (0.335, 0.520), (0.470, 0.605), (0.660, 0.330), (0.850, 0.215)]
 BASELINE = 0.820
 STROKE = 0.070          # 선 굵기
@@ -176,7 +176,7 @@ def write_svg(path: Path):
     area = f"{LINE[0][0] * 512:.1f},{BASELINE * 512:.1f} " + pts + f" {LINE[-1][0] * 512:.1f},{BASELINE * 512:.1f}"
     ex, ey = LINE[-1]
     path.write_text(
-        f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="신호판">
+        f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="자산관리">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#{BG_TOP[0]:02x}{BG_TOP[1]:02x}{BG_TOP[2]:02x}"/>

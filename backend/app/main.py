@@ -45,7 +45,7 @@ async def lifespan(app: FastAPI):
     shutdown_scheduler()
 
 
-app = FastAPI(title="신호판 대시보드 API", lifespan=lifespan)
+app = FastAPI(title="자산관리 대시보드 API", lifespan=lifespan)
 
 # 문지기를 CORS보다 **먼저** 등록한다. 미들웨어는 나중에 등록한 것이 바깥에 서므로,
 # 이렇게 해야 CORS가 바깥이 되어 401 응답에도 CORS 헤더가 붙는다 (개발 서버에서

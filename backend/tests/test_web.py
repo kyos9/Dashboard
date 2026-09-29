@@ -18,11 +18,11 @@ def served(tmp_path, monkeypatch):
     """가짜 빌드 결과를 만들어 마운트한 앱."""
     dist = tmp_path / "dist"
     (dist / "assets").mkdir(parents=True)
-    (dist / "index.html").write_text("<!doctype html><title>신호판</title>", encoding="utf-8")
+    (dist / "index.html").write_text("<!doctype html><title>자산관리</title>", encoding="utf-8")
     (dist / "assets" / "app.js").write_text("console.log(1)", encoding="utf-8")
     (dist / "favicon.svg").write_text("<svg/>", encoding="utf-8")
     (dist / "sw.js").write_text("self.addEventListener('fetch', () => {})", encoding="utf-8")
-    (dist / "manifest.webmanifest").write_text('{"name": "신호판"}', encoding="utf-8")
+    (dist / "manifest.webmanifest").write_text('{"name": "자산관리"}', encoding="utf-8")
     (tmp_path / "secret.txt").write_text("남의 파일", encoding="utf-8")
 
     monkeypatch.setattr(web, "DIST", dist)
@@ -52,7 +52,7 @@ def test_client_routes_fall_back_to_index(served):
     """/history는 서버에 그런 파일이 없고 브라우저 안에서만 뜻이 있다."""
     res = served.get("/history")
     assert res.status_code == 200
-    assert "신호판" in res.text
+    assert "자산관리" in res.text
 
 
 def test_static_files_are_served(served):

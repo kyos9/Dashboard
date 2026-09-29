@@ -414,7 +414,7 @@ describe('푸시 — 받으면 띄운다', () => {
     dispatch(h, 'push', event)
     await Promise.all(event.waits)
     expect(h.showNotification).toHaveBeenCalledTimes(1)
-    expect(h.showNotification.mock.calls[0][0]).toBe('신호판')
+    expect(h.showNotification.mock.calls[0][0]).toBe('자산관리')
   })
 
   it.each(['https://evil.example/', '//evil.example/x', 'javascript:alert(1)', 42])(

@@ -82,7 +82,7 @@ describe('버전 표시', () => {
     vi.spyOn(api, 'getHealth').mockRejectedValue(new Error('연결 실패'))
     renderHeader()
 
-    expect(await screen.findByRole('heading', { name: /신호판/ })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /자산관리/ })).toBeInTheDocument()
   })
 })
 

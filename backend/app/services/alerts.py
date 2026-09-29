@@ -235,7 +235,7 @@ def compose(fired: list[tuple[str, str, str]], kinds: list[str]) -> dict | None:
     if len(parts) == 1:
         title, body = parts[0]
     else:
-        title, body = "신호판 알림", "\n".join(f"{t}: {text}" for t, text in parts)
+        title, body = "자산관리 알림", "\n".join(f"{t}: {text}" for t, text in parts)
     return {"title": title, "body": body, "url": url, "tag": "daily"}
 
 

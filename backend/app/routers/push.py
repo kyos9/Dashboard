@@ -109,7 +109,7 @@ def send_test(db: Session = Depends(get_db), user_id: int = Depends(current_user
     result = alerts.deliver(
         db,
         user_id,
-        {"title": "신호판", "body": "알림이 켜져 있습니다. 시그널이 뜨면 이렇게 알려드립니다.", "url": "/", "tag": "test"},
+        {"title": "자산관리", "body": "알림이 켜져 있습니다. 시그널이 뜨면 이렇게 알려드립니다.", "url": "/", "tag": "test"},
     )
     if result["sent"] == 0 and result["failed"] == 0:
         raise HTTPException(

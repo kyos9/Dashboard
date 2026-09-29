@@ -162,7 +162,7 @@ async function trim(cache, limit) {
  * 업데이트됨" 같은 알림을 띄우고, 그게 반복되면 구독을 거둬간다.
  */
 
-const DEFAULT_TITLE = '신호판'
+const DEFAULT_TITLE = '자산관리'
 
 self.addEventListener('push', (event) => {
   let data = {}

@@ -291,7 +291,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
         <form className="panel login-panel" onSubmit={submit}>
           <div className="login-brand">
             <span aria-hidden="true">📈</span>
-            <h1>신호판</h1>
+            <h1>자산관리</h1>
           </div>
           <p className="hint">비밀번호를 넣어야 열립니다.</p>
 

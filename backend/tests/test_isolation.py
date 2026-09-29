@@ -732,7 +732,7 @@ def check_push_test(w: World):
     assert res.status_code == 200, res.text
     assert res.json() == {"sent": 1, "failed": 0}
     assert [url for url, _ in got] == [w.devices[B].endpoint]
-    assert w.devices[B].open(got[0][1])["title"] == "신호판"
+    assert w.devices[B].open(got[0][1])["title"] == "자산관리"
     _a_is_untouched(w)
 
 
