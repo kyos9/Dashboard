@@ -73,7 +73,6 @@ export function PerChart({ rows, onOpen }: { rows: FundamentalsResponse[]; onOpe
                     {r?.position_pct != null ? ` · 5년 위치 ${num(r.position_pct, 0)}%` : r ? '' : ' · 5년 기록 없음'}
                   </span>
                 </span>
-                <span className="per-tip" role="presentation">{tip}</span>
               </button>
             </li>
           )

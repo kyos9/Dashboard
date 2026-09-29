@@ -1,4 +1,4 @@
-import { act, render, screen, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
@@ -88,7 +88,8 @@ describe('다른 탭 코드를 미리 받기', () => {
     try {
       render(<App />)
       await screen.findByRole('link', { name: '개인정보처리방침 · 이용약관' })
-      expect(idle).toHaveBeenCalledWith(expect.any(Function), { timeout: 4000 })
+      // useEffect 는 그림이 나간 뒤에 돈다 — 화면이 보인 순간에는 아직일 수 있다(한 번에 확인하면 가끔 빈손)
+      await waitFor(() => expect(idle).toHaveBeenCalledWith(expect.any(Function), { timeout: 4000 }))
     } finally {
       vi.unstubAllGlobals()
     }

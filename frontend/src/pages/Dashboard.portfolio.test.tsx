@@ -6,6 +6,8 @@
  * - 보유 종목 표는 현재가·평단가·수익률·평가손익·평가금액·비중(목표)·신호 점. 보유 0 은 관심 종목으로.
  * - 신호 점을 누르면 시그널 보기로 넘어가 그 종목을 보여주고, 뒤로가기면 포트폴리오로 돌아온다.
  * - 평단가가 없으면 그 자리에서 넣는다. 환율 효과는 풀이가 붙고, 빠진 종목은 빠졌다고 적는다.
+ * - 종목마다 "수정"으로 수량·평단가·산 환율을 고친다 — 소수도 받는다 (9-1·9-2).
+ * - "금액 가리기"를 켜면 금액·수량이 ••••• 가 되고 %는 남는다. 기기에 기억한다 (9-3).
  * - 고른 보기·정렬은 기기에 기억한다.
  */
 import { act, render, screen, waitFor, within } from '@testing-library/react'
@@ -13,8 +15,9 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppStateProvider } from '../AppState'
-import { api } from '../api/client'
+import { api, ApiError } from '../api/client'
 import { clearCache } from '../lib/cache'
+import { HIDE_AMOUNTS_KEY, resetPrefs } from '../lib/prefs'
 import { forgetPhone, pretendPhone } from '../test/phone'
 import type { DashboardCard, LatestIndicators, RebalanceCurrent, RebalanceRow, Stock } from '../types'
 import { Dashboard } from './Dashboard'
@@ -224,6 +227,7 @@ beforeEach(() => {
   vi.restoreAllMocks()
   localStorage.clear()
   clearCache()
+  resetPrefs()
   vi.stubGlobal('innerWidth', 1440)
   // jsdom 에는 스크롤이 없다 — 부른 것만 본다
   window.scrollTo = vi.fn() as never
@@ -271,6 +275,61 @@ describe('맨 위 — 내 돈 한 줄', () => {
     await screen.findByRole('region', { name: '내 자산' })
     expect(screen.getByText('리뷰할 때')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '리밸런싱 →' })).toHaveAttribute('href', '/rebalance')
+  })
+})
+
+describe('금액 가리기 (9-3)', () => {
+  it('누르면 금액·수량이 가려지고 %·주당 가격은 남는다. 이 기기에 기억한다', async () => {
+    mockApi()
+    const first = renderDashboard()
+    const line = await screen.findByRole('region', { name: '내 자산' })
+    const toggle = within(line).getByRole('button', { name: '금액 가리기' })
+    expect(toggle).toHaveAttribute('aria-pressed', 'false')
+    await userEvent.click(toggle)
+
+    expect(within(line).getByRole('button', { name: '금액 보기' })).toHaveAttribute('aria-pressed', 'true')
+    for (const text of ['₩37,668,153', '₩1,250,000', '₩162,000', '₩17,400,000']) {
+      expect(line).not.toHaveTextContent(text)
+    }
+    // %는 남는다 — 그것만으로는 얼마를 가졌는지 알 수 없다
+    expect(line).toHaveTextContent('+25.0%')
+    expect(line).toHaveTextContent('+0.43%')
+    const schd = await holdingRow('SCHD')
+    expect(schd).not.toHaveTextContent('100주')
+    expect(schd).not.toHaveTextContent('₩17,553,153')
+    expect(schd).not.toHaveTextContent('$10,402')
+    expect(schd).toHaveTextContent('•••••')
+    expect(schd).toHaveTextContent('$130.02')
+    expect(schd).toHaveTextContent('+400.1%')
+    expect(schd).toHaveTextContent('46.6%')
+    // 해외 종목 평가금액에 붙은 현지 금액 풀이도 가린다
+    expect(within(schd).queryByTitle(/현지 \$/)).not.toBeInTheDocument()
+    expect(localStorage.getItem(HIDE_AMOUNTS_KEY)).toBe('1')
+
+    // 다시 켜도 가려진 채로
+    first.unmount()
+    resetPrefs()
+    clearCache()
+    renderDashboard()
+    const again = await screen.findByRole('region', { name: '내 자산' })
+    expect(again).not.toHaveTextContent('₩37,668,153')
+    await userEvent.click(within(again).getByRole('button', { name: '금액 보기' }))
+    expect(again).toHaveTextContent('₩37,668,153')
+    expect(await holdingRow('SCHD')).toHaveTextContent('100주')
+    expect(localStorage.getItem(HIDE_AMOUNTS_KEY)).toBeNull()
+  })
+
+  it('폰의 두 줄 목록도 가린다', async () => {
+    pretendPhone()
+    localStorage.setItem(HIDE_AMOUNTS_KEY, '1')
+    mockApi()
+    renderDashboard()
+    const toggle = await screen.findByRole('button', { name: 'SCHD 자세히' })
+    expect(toggle).not.toHaveTextContent('100주')
+    expect(toggle).not.toHaveTextContent('₩17,553,153')
+    expect(toggle).toHaveTextContent('+400.1%')
+    await userEvent.click(toggle)
+    expect(document.getElementById('holding-SCHD')).not.toHaveTextContent('$10,402')
   })
 })
 
@@ -336,27 +395,94 @@ describe('보유 종목 표', () => {
     expect(within(await holdingRow('QQQ')).queryByText('환율 미반영')).not.toBeInTheDocument()
   })
 
-  it('평단가가 없으면 수익률 칸에서 바로 넣는다 — 수량은 그대로', async () => {
-    mockApi()
-    const update = vi.spyOn(api, 'updateHolding').mockResolvedValue({} as never)
-    renderDashboard()
-    const samsung = await holdingRow('삼성전자')
-    await userEvent.click(within(samsung).getByRole('button', { name: '삼성전자 평단가 입력' }))
-    await userEvent.type(screen.getByRole('textbox', { name: '삼성전자 평단가' }), '61000')
-    await userEvent.click(within(await holdingRow('삼성전자')).getByRole('button', { name: '저장' }))
-    expect(update).toHaveBeenCalledWith('005930.KS', 10, 61000)
-    await waitFor(() => expect(screen.queryByRole('textbox', { name: '삼성전자 평단가' })).not.toBeInTheDocument())
-  })
-
-  it('평단가 입력은 취소할 수 있고, 비우면 저장할 수 없다', async () => {
+  it('평단가가 없으면 수익률 칸의 "평단가 입력"이 수정 팝업을 평단가 칸부터 연다 — 원화도 소수를 받는다', async () => {
     mockApi()
     const update = vi.spyOn(api, 'updateHolding').mockResolvedValue({} as never)
     renderDashboard()
     await userEvent.click(within(await holdingRow('삼성전자')).getByRole('button', { name: '삼성전자 평단가 입력' }))
-    expect(within(await holdingRow('삼성전자')).getByRole('button', { name: '저장' })).toBeDisabled()
-    await userEvent.click(within(await holdingRow('삼성전자')).getByRole('button', { name: '취소' }))
-    expect(screen.queryByRole('textbox', { name: '삼성전자 평단가' })).not.toBeInTheDocument()
+    const dialog = await screen.findByRole('dialog', { name: '삼성전자 보유 수정' })
+    const cost = within(dialog).getByRole('textbox', { name: '삼성전자 평단가' })
+    expect(cost).toHaveFocus()
+    // 수량은 지금 값이 들어 있고, 원화 종목에는 산 환율 칸이 없다
+    expect(within(dialog).getByRole('textbox', { name: '삼성전자 보유수량' })).toHaveValue('10')
+    expect(within(dialog).queryByRole('textbox', { name: '삼성전자 산 환율' })).not.toBeInTheDocument()
+    await userEvent.type(cost, '61234.56')
+    expect(cost).toHaveValue('61,234.56')
+    await userEvent.click(within(dialog).getByRole('button', { name: '저장' }))
+    expect(update).toHaveBeenCalledWith('005930.KS', 10, 61234.56, undefined)
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: '삼성전자 보유 수정' })).not.toBeInTheDocument())
+  })
+
+  it('줄마다 "수정" — 지금 값이 채워져 있고, 소수 수량을 받는다. 산 환율은 고쳤을 때만 보낸다', async () => {
+    mockApi()
+    const update = vi.spyOn(api, 'updateHolding').mockResolvedValue({} as never)
+    renderDashboard()
+    await userEvent.click(within(await holdingRow('SCHD')).getByRole('button', { name: 'SCHD 보유 수정' }))
+    const dialog = await screen.findByRole('dialog', { name: 'SCHD 보유 수정' })
+    const quantity = within(dialog).getByRole('textbox', { name: 'SCHD 보유수량' })
+    expect(quantity).toHaveFocus()
+    expect(within(dialog).getByRole('textbox', { name: 'SCHD 평단가' })).toHaveValue('26')
+    expect(within(dialog).getByRole('textbox', { name: 'SCHD 산 환율' })).toHaveValue('')
+    await userEvent.clear(quantity)
+    await userEvent.type(quantity, '100.5')
+    await userEvent.click(within(dialog).getByRole('button', { name: '저장' }))
+    expect(update).toHaveBeenLastCalledWith('SCHD', 100.5, 26, undefined)
+
+    // 이번엔 산 환율만 넣는다
+    await userEvent.click(within(await holdingRow('SCHD')).getByRole('button', { name: 'SCHD 보유 수정' }))
+    const again = await screen.findByRole('dialog', { name: 'SCHD 보유 수정' })
+    await userEvent.type(within(again).getByRole('textbox', { name: 'SCHD 산 환율' }), '1350.5')
+    await userEvent.click(within(again).getByRole('button', { name: '저장' }))
+    expect(update).toHaveBeenLastCalledWith('SCHD', 100, 26, 1350.5)
+  })
+
+  it('평단가를 비우면 모름(null)으로, 수량을 비우면 0으로 저장한다', async () => {
+    mockApi()
+    const update = vi.spyOn(api, 'updateHolding').mockResolvedValue({} as never)
+    renderDashboard()
+    await userEvent.click(within(await holdingRow('QQQ')).getByRole('button', { name: 'QQQ 보유 수정' }))
+    const dialog = await screen.findByRole('dialog', { name: 'QQQ 보유 수정' })
+    await userEvent.clear(within(dialog).getByRole('textbox', { name: 'QQQ 보유수량' }))
+    await userEvent.clear(within(dialog).getByRole('textbox', { name: 'QQQ 평단가' }))
+    await userEvent.click(within(dialog).getByRole('button', { name: '저장' }))
+    expect(update).toHaveBeenCalledWith('QQQ', 0, null, undefined)
+  })
+
+  it('취소·Esc 는 저장하지 않고 닫는다. 저장이 실패하면 팝업에 남아 까닭을 보여준다', async () => {
+    mockApi()
+    const update = vi
+      .spyOn(api, 'updateHolding')
+      .mockRejectedValue(new ApiError(400, '평단가를 확인해 주세요.', 'bad avg_cost'))
+    renderDashboard()
+    await userEvent.click(within(await holdingRow('SCHD')).getByRole('button', { name: 'SCHD 보유 수정' }))
+    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: '취소' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    await userEvent.click(within(await holdingRow('SCHD')).getByRole('button', { name: 'SCHD 보유 수정' }))
+    await screen.findByRole('dialog')
+    await userEvent.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(update).not.toHaveBeenCalled()
+
+    await userEvent.click(within(await holdingRow('SCHD')).getByRole('button', { name: 'SCHD 보유 수정' }))
+    const dialog = await screen.findByRole('dialog')
+    await userEvent.click(within(dialog).getByRole('button', { name: '저장' }))
+    expect(await within(dialog).findByText('평단가를 확인해 주세요.')).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'SCHD 보유 수정' })).toBeInTheDocument()
+  })
+
+  it('관심 종목(보유 0)도 "수정"으로 수량을 넣으면 보유로 올라간다', async () => {
+    mockApi()
+    const update = vi.spyOn(api, 'updateHolding').mockResolvedValue({} as never)
+    renderDashboard()
+    const watch = await screen.findByRole('region', { name: /관심 종목/ })
+    await userEvent.click(within(watch).getByRole('button', { name: 'NVDA 보유 수정' }))
+    const dialog = await screen.findByRole('dialog', { name: 'NVDA 보유 수정' })
+    // 보유 0 은 빈칸으로 연다 — "0"을 지우고 칠 필요가 없게
+    expect(within(dialog).getByRole('textbox', { name: 'NVDA 보유수량' })).toHaveValue('')
+    await userEvent.type(within(dialog).getByRole('textbox', { name: 'NVDA 보유수량' }), '2')
+    await userEvent.click(within(dialog).getByRole('button', { name: '저장' }))
+    expect(update).toHaveBeenCalledWith('NVDA', 2, null, undefined)
   })
 
   it('이름을 누르면 차트가 뜬다', async () => {
@@ -526,17 +652,27 @@ describe('폰 — 한 종목이 두 줄', () => {
     expect(screen.getByTestId('where')).toHaveTextContent('/?view=signal')
   })
 
-  it('평단가가 없으면 펼친 곳에서 넣는다', async () => {
+  it('평단가가 없으면 펼친 곳에서 넣는다 — 같은 수정 팝업', async () => {
     mockApi()
     const update = vi.spyOn(api, 'updateHolding').mockResolvedValue({} as never)
     renderDashboard()
     await userEvent.click(await screen.findByRole('button', { name: '삼성전자 자세히' }))
     expect(screen.getByRole('button', { name: '삼성전자 자세히' })).toHaveTextContent('평단가 —')
     await userEvent.click(screen.getByRole('button', { name: '삼성전자 평단가 입력' }))
-    await userEvent.type(screen.getByRole('textbox', { name: '삼성전자 평단가' }), '61000')
+    const dialog = await screen.findByRole('dialog', { name: '삼성전자 보유 수정' })
+    await userEvent.type(within(dialog).getByRole('textbox', { name: '삼성전자 평단가' }), '61000')
     await act(async () => {
-      await userEvent.click(screen.getByRole('button', { name: '저장' }))
+      await userEvent.click(within(dialog).getByRole('button', { name: '저장' }))
     })
-    expect(update).toHaveBeenCalledWith('005930.KS', 10, 61000)
+    expect(update).toHaveBeenCalledWith('005930.KS', 10, 61000, undefined)
+  })
+
+  it('펼친 곳의 "수정"으로 수량·평단가를 고친다', async () => {
+    mockApi()
+    renderDashboard()
+    await userEvent.click(await screen.findByRole('button', { name: 'SCHD 자세히' }))
+    const detail = document.getElementById('holding-SCHD') as HTMLElement
+    await userEvent.click(within(detail).getByRole('button', { name: 'SCHD 보유 수정' }))
+    expect(await screen.findByRole('dialog', { name: 'SCHD 보유 수정' })).toBeInTheDocument()
   })
 })

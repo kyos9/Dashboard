@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react'
+import { setAmountsHidden } from './display'
 
 /**
  * 화면 설정 — 테마와 상승 색 (ROADMAP 8-4).
@@ -11,6 +12,7 @@ import { useSyncExternalStore } from 'react'
  *   "기기 설정 따르기"를 다시 고르면 기억을 지운다.
  * - 상승 색: 초록(기본) 또는 빨강. 빨강이면 하락은 파랑이다(한국 증권 앱 방식).
  *   가격 등락·수익률·평가손익만 따른다 — 시그널 색(매수 초록·매도 빨강)은 그대로다.
+ * - 금액 가리기(9-3): 켜면 금액·보유 수량을 ••••• 로 보인다(`lib/display`). 이 기기만.
  */
 
 export type ThemeChoice = 'system' | 'light' | 'dark'
@@ -19,6 +21,7 @@ export type Rise = 'green' | 'red'
 
 export const THEME_KEY = 'dashboard.theme'
 export const RISE_KEY = 'dashboard.rise'
+export const HIDE_AMOUNTS_KEY = 'dashboard.hide-amounts'
 /** 8-4 전의 키. 예전 앱은 켤 때마다 'dark' 를 적었으므로 'dark' 는 고른 것인지 알 수 없다 —
  * 'light' 만 사람이 고른 것으로 인정한다. */
 export const OLD_THEME_KEY = 'signalboard.theme'
@@ -53,6 +56,10 @@ export function readRise(): Rise {
   return read(RISE_KEY) === 'red' ? 'red' : 'green'
 }
 
+export function readHideAmounts(): boolean {
+  return read(HIDE_AMOUNTS_KEY) === '1'
+}
+
 function darkQuery(): MediaQueryList | null {
   return typeof window !== 'undefined' && window.matchMedia ? window.matchMedia(DARK_QUERY) : null
 }
@@ -75,6 +82,7 @@ interface Prefs {
   choice: ThemeChoice
   theme: Theme
   rise: Rise
+  hideAmounts: boolean
 }
 
 let current: Prefs | null = null
@@ -82,11 +90,14 @@ const listeners = new Set<() => void>()
 
 function load(): Prefs {
   const choice = readThemeChoice()
-  return { choice, theme: resolveTheme(choice), rise: readRise() }
+  return { choice, theme: resolveTheme(choice), rise: readRise(), hideAmounts: readHideAmounts() }
 }
 
 function get(): Prefs {
-  if (!current) current = load()
+  if (!current) {
+    current = load()
+    setAmountsHidden(current.hideAmounts)
+  }
   return current
 }
 
@@ -103,6 +114,7 @@ export function applyPrefs(prefs: { theme: Theme; rise: Rise }) {
 
 function set(next: Prefs) {
   current = next
+  setAmountsHidden(next.hideAmounts)
   applyPrefs(next)
   listeners.forEach((fn) => fn())
 }
@@ -117,6 +129,11 @@ export function setThemeChoice(choice: ThemeChoice) {
 export function setRise(rise: Rise) {
   write(RISE_KEY, rise)
   set({ ...get(), rise })
+}
+
+export function setHideAmounts(hideAmounts: boolean) {
+  write(HIDE_AMOUNTS_KEY, hideAmounts ? '1' : null)
+  set({ ...get(), hideAmounts })
 }
 
 function onSystemChange() {
@@ -146,4 +163,5 @@ export function initPrefs() {
 /** 테스트용 — 저장소를 바꾼 뒤 다시 읽게 한다 */
 export function resetPrefs() {
   current = null
+  setAmountsHidden(false)
 }

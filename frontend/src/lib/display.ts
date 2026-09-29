@@ -78,9 +78,37 @@ export function price(value: number | null | undefined, currency: Currency): str
   })}`
 }
 
+/**
+ * 평단가 — 가격처럼 쓰되 **적은 소수를 버리지 않는다** (ROADMAP 9-2).
+ * 증권사 평단가는 원화도 71,234.56원처럼 나온다. 원화 자릿수(0)로 자르면 적은 값과 다르게 보인다.
+ */
+export function avgPrice(value: number | null | undefined, currency: Currency): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return '—'
+  const { symbol, priceDigits } = currencyMeta(currency)
+  return `${symbol}${value.toLocaleString('ko-KR', {
+    minimumFractionDigits: priceDigits,
+    maximumFractionDigits: Math.max(priceDigits, 2),
+  })}`
+}
+
+/* ---------- 금액 가리기 (ROADMAP 9-3) ----------
+   옆 사람이 화면을 볼 때 — 평가금액·손익 금액·현금·주문 금액과 **보유 수량**을 가린다. 수량을
+   두면 수량 × 현재가로 금액이 나온다. 수익률·비중 같은 %와 주당 가격은 그대로 둔다 — 그것만으로는
+   얼마를 가졌는지 알 수 없다. 값은 `lib/prefs` 가 기기에 적고 여기로 알려준다. 입력 칸은 고치는
+   자리라 가리지 않는다. */
+
+export const HIDDEN_TEXT = '•••••'
+
+let amountsHidden = false
+
+export function setAmountsHidden(hidden: boolean) {
+  amountsHidden = hidden
+}
+
 /** 평가금액·주문금액 — 통화 기호를 붙여 어느 돈인지 분명히 한다 */
 export function amount(value: number | null | undefined, currency: Currency): string {
   if (value === null || value === undefined || Number.isNaN(value)) return '—'
+  if (amountsHidden) return HIDDEN_TEXT
   const { symbol, amountDigits } = currencyMeta(currency)
   return `${symbol}${value.toLocaleString('ko-KR', {
     minimumFractionDigits: amountDigits,
@@ -91,12 +119,14 @@ export function amount(value: number | null | undefined, currency: Currency): st
 /** 부호를 붙인 금액 — 조정 필요금액처럼 방향이 중요한 자리에 쓴다 */
 export function signedAmount(value: number | null | undefined, currency: Currency): string {
   if (value === null || value === undefined || Number.isNaN(value)) return '—'
+  if (amountsHidden) return HIDDEN_TEXT
   return `${value > 0 ? '+' : value < 0 ? '−' : ''}${amount(Math.abs(value), currency)}`
 }
 
 /** 보유수량처럼 소수가 길어질 수 있는 값을 읽기 좋게 자른다 */
 export function qty(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) return '—'
+  if (amountsHidden) return HIDDEN_TEXT
   return Number(value.toFixed(4)).toLocaleString('ko-KR', { maximumFractionDigits: 4 })
 }
 

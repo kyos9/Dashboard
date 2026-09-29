@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { DashboardCard, KneeConditions } from '../types'
 import {
   amount,
+  avgPrice,
   CATEGORY_UNSET,
   categoryOf,
   daysFrom,
@@ -239,5 +240,22 @@ describe('rowLabel (리밸런싱 행)', () => {
     expect(rowLabel({ ticker: '7203.T', name: '도요타', currency: 'JPY' })).toBe('도요타')
     expect(rowLabel({ ticker: 'TSM', name: 'Taiwan Semiconductor', currency: 'USD' })).toBe('TSM')
     expect(rowLabel({ ticker: '005930.KS', name: null, currency: 'KRW' })).toBe('005930.KS')
+  })
+})
+
+describe('평단가 — 적은 소수를 버리지 않는다 (9-2)', () => {
+  it('원화·엔도 소수 둘째 자리까지, 없으면 정수로', () => {
+    expect(avgPrice(71234.56, 'KRW')).toBe('₩71,234.56')
+    expect(avgPrice(71234.5, 'KRW')).toBe('₩71,234.5')
+    expect(avgPrice(71000, 'KRW')).toBe('₩71,000')
+    expect(avgPrice(2850.25, 'JPY')).toBe('¥2,850.25')
+    // 가격(price)은 그대로 원화 정수 — 현재가 칸은 거래소 호가 단위다
+    expect(price(71234.56, 'KRW')).toBe('₩71,235')
+  })
+
+  it('달러는 센트까지(두 자리), 모르면 —', () => {
+    expect(avgPrice(26, 'USD')).toBe('$26.00')
+    expect(avgPrice(26.123, 'USD')).toBe('$26.12')
+    expect(avgPrice(null, 'USD')).toBe('—')
   })
 })

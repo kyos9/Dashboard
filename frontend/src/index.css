@@ -2679,12 +2679,15 @@ table.data-table tr.dirty:hover td {
   scrollbar-width: thin;
 }
 
+/* 칩 하나가 한 줄 — 이름 · 값 · 변화 · 구간을 옆으로 (ROADMAP 9-4). 전에는 세 줄 높이라 대시보드
+   위쪽을 차지했다. 높이는 손가락 크기(44px)만 남긴다. */
 .macro-chip {
   flex: 0 0 auto;
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 8px 12px;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 4px 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--panel);
@@ -2706,7 +2709,7 @@ table.data-table tr.dirty:hover td {
   display: flex;
   align-items: baseline;
   gap: 8px;
-  font-size: var(--fs-strong);
+  font-size: var(--fs-body);
   font-weight: 700;
   white-space: nowrap;
 }
@@ -3182,28 +3185,6 @@ table.data-table tr.dirty:hover td {
   min-width: 4px;
   border-radius: 2px;
   background: var(--border-strong, var(--border));
-}
-
-.per-tip {
-  display: none;
-  position: absolute;
-  z-index: 5;
-  left: 8px;
-  right: 8px;
-  top: calc(100% + 2px);
-  padding: 8px 8px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--panel);
-  color: var(--text);
-  font-size: var(--fs-caption);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
-  pointer-events: none;
-}
-
-.per-row:hover .per-tip,
-.per-row:focus-visible .per-tip {
-  display: block;
 }
 
 .per-axis {
@@ -3992,16 +3973,53 @@ table.data-table tr.dirty:hover td {
   word-break: keep-all;
 }
 
-.cost-entry {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
+/* 보유 수정 (ROADMAP 9-1) — 대시보드 줄의 "수정", 종목 관리의 보유 칸, 그리고 팝업 */
+.edit-holding {
+  font-size: var(--fs-caption);
 }
 
-.cost-entry input {
-  width: 110px;
+.holding-cell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 8px;
+  min-width: 0;
+  font-size: var(--fs-sub);
+}
+
+.holding-edit-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.holding-edit .field > span:first-child {
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.holding-edit .num-input {
+  width: 100%;
+  min-width: 0;
+}
+
+.holding-edit form > .hint {
+  margin: 0 0 8px;
+  word-break: keep-all;
+}
+
+/* 금액 가리기 (ROADMAP 9-3) — 총 평가금액 제목 옆 */
+.money-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 12px;
+}
+
+.money-hide {
+  font-size: var(--fs-caption);
 }
 
 /* 신호 점 — 보이는 점은 작아도 누르는 자리는 44px */

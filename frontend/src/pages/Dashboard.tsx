@@ -672,7 +672,6 @@ export function Dashboard() {
           onChart={openChart}
           onSignal={goToSignal}
           onSaved={notifyDataChanged}
-          onError={setError}
         />
       ) : (
       <>

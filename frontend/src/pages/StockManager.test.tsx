@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppStateProvider } from '../AppState'
 import { api, ApiError } from '../api/client'
-import type { ListingStatus, Settings, Stock, StockCreateResult, SymbolMatch } from '../types'
+import type { Holding, ListingStatus, Settings, Stock, StockCreateResult, SymbolMatch } from '../types'
 import { listingHint, listingRefreshNotice } from '../lib/listing'
 import { StockManager } from './StockManager'
 
@@ -57,8 +57,14 @@ function settings(overrides: Partial<Settings> = {}): Settings {
   }
 }
 
-function mockApi(stocks: Stock[] = [], listing: Partial<ListingStatus> = {}, cashTarget = 0) {
+function mockApi(
+  stocks: Stock[] = [],
+  listing: Partial<ListingStatus> = {},
+  cashTarget = 0,
+  holdings: Holding[] = [],
+) {
   vi.spyOn(api, 'listStocks').mockResolvedValue(stocks)
+  vi.spyOn(api, 'listHoldings').mockResolvedValue(holdings)
   vi.spyOn(api, 'getSettings').mockResolvedValue(settings({ cash_target_pct: cashTarget }))
   vi.spyOn(api, 'searchSymbols').mockResolvedValue([SAMSUNG])
   vi.spyOn(api, 'getListingStatus').mockResolvedValue({
@@ -131,8 +137,9 @@ describe('종목 등록', () => {
     await user.type(symbolInput(), '삼성전자')
     await user.click(await screen.findByText('삼성전자'))
     await user.type(screen.getByLabelText('목표 비중 (%)'), '30')
-    await user.type(screen.getByLabelText('보유 수량'), '120')
-    await user.type(screen.getByLabelText(/평단가/), '71500')
+    // 국내 종목도 소수 수량(소수점 투자)과 소수 평단가(증권사 평단가)를 받는다 (9-2)
+    await user.type(screen.getByLabelText('보유 수량'), '120.5')
+    await user.type(screen.getByLabelText(/평단가/), '71500.25')
     await user.click(screen.getByRole('button', { name: /종목 추가/ }))
 
     await waitFor(() => expect(create).toHaveBeenCalled())
@@ -140,8 +147,8 @@ describe('종목 등록', () => {
       ticker: '005930.KS',
       category: null,
       target_weight_pct: 30,
-      quantity: 120,
-      avg_cost: 71500,
+      quantity: 120.5,
+      avg_cost: 71500.25,
     })
   })
 
@@ -260,6 +267,45 @@ describe('종목 등록', () => {
 })
 
 describe('등록된 종목 목록', () => {
+  it('보유 칸에 수량·평단가가 보이고, "수정"으로 고친다 (9-1)', async () => {
+    mockApi(
+      [stock({ ticker: '005930.KS', name: '삼성전자', market: 'KR', currency: 'KRW' }), stock({ ticker: 'VOO' })],
+      {},
+      0,
+      [
+        { ticker: '005930.KS', quantity: 12.5, avg_cost: 71234.56, avg_fx: null, updated_at: '2026-09-01T00:00:00' },
+        { ticker: 'VOO', quantity: 0, avg_cost: null, avg_fx: null, updated_at: '2026-09-01T00:00:00' },
+      ],
+    )
+    const update = vi.spyOn(api, 'updateHolding').mockResolvedValue({} as never)
+    const user = userEvent.setup()
+    renderManager()
+
+    const samsung = (await screen.findByText(/12\.5주/)).closest('tr') as HTMLElement
+    // 적은 소수를 버리지 않는다 — 원화 가격 자릿수(0)로 자르면 71,235 가 된다
+    expect(samsung).toHaveTextContent('평단 ₩71,234.56')
+    const voo = screen.getByText(/미국 · \$USD/).closest('tr') as HTMLElement
+    expect(within(voo).getByText('보유 없음')).toBeInTheDocument()
+
+    await user.click(within(samsung).getByRole('button', { name: '삼성전자 보유 수정' }))
+    const dialog = await screen.findByRole('dialog', { name: '삼성전자 보유 수정' })
+    expect(within(dialog).getByRole('textbox', { name: '삼성전자 보유수량' })).toHaveValue('12.5')
+    expect(within(dialog).getByRole('textbox', { name: '삼성전자 평단가' })).toHaveValue('71,234.56')
+    await user.clear(within(dialog).getByRole('textbox', { name: '삼성전자 보유수량' }))
+    await user.type(within(dialog).getByRole('textbox', { name: '삼성전자 보유수량' }), '13')
+    await user.click(within(dialog).getByRole('button', { name: '저장' }))
+    expect(update).toHaveBeenCalledWith('005930.KS', 13, 71234.56, undefined)
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('보유를 못 읽어도 목록은 그대로 뜬다', async () => {
+    mockApi([stock({ ticker: 'VOO' })])
+    vi.spyOn(api, 'listHoldings').mockRejectedValue(new Error('down'))
+    renderManager()
+    expect(await screen.findByText(/미국 · \$USD/)).toBeInTheDocument()
+    expect(screen.getByText('보유 없음')).toBeInTheDocument()
+  })
+
   it('종목마다 시장과 통화를 보여준다', async () => {
     mockApi([
       stock({ ticker: '005930.KS', name: '삼성전자', market: 'KR', currency: 'KRW' }),

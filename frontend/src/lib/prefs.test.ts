@@ -2,12 +2,15 @@ import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // `?raw` 는 파일을 글자 그대로 읽어온다 — 배포되는 바로 그 index.html 이어야 뜻이 있다
 import INDEX_HTML from '../../index.html?raw'
+import { amount, qty, signedAmount } from './display'
 import {
+  HIDE_AMOUNTS_KEY,
   OLD_THEME_KEY,
   RISE_KEY,
   THEME_KEY,
   initPrefs,
   resetPrefs,
+  setHideAmounts,
   setRise,
   setThemeChoice,
   usePrefs,
@@ -143,6 +146,49 @@ describe('상승 색', () => {
     localStorage.setItem(RISE_KEY, 'purple')
     initPrefs()
     expect(root().dataset.rise).toBe('green')
+  })
+})
+
+describe('금액 가리기 (9-3)', () => {
+  it('기본은 보인다. 켜면 금액·수량이 ••••• 가 되고, 기억했다가 다시 켜도 가려져 있다', () => {
+    pretendSystem('dark')
+    const { result } = renderHook(() => usePrefs())
+    expect(result.current.hideAmounts).toBe(false)
+    expect(amount(1_234_567, 'KRW')).toBe('₩1,234,567')
+
+    act(() => setHideAmounts(true))
+    expect(result.current.hideAmounts).toBe(true)
+    expect(localStorage.getItem(HIDE_AMOUNTS_KEY)).toBe('1')
+    expect(amount(1_234_567, 'KRW')).toBe('•••••')
+    expect(signedAmount(-500, 'USD')).toBe('•••••')
+    expect(qty(12.5)).toBe('•••••')
+    // 모르는 값은 가릴 것도 없다 — "—" 그대로
+    expect(amount(null, 'KRW')).toBe('—')
+
+    resetPrefs()
+    renderHook(() => usePrefs())
+    expect(amount(1, 'KRW')).toBe('•••••')
+
+    act(() => setHideAmounts(false))
+    expect(localStorage.getItem(HIDE_AMOUNTS_KEY)).toBeNull()
+    expect(amount(1_234_567, 'KRW')).toBe('₩1,234,567')
+  })
+
+  it('resetPrefs 는 가린 상태도 풀어 둔다 — 다음 테스트로 새지 않게', () => {
+    pretendSystem('dark')
+    renderHook(() => usePrefs())
+    act(() => setHideAmounts(true))
+    expect(amount(1, 'KRW')).toBe('•••••')
+    resetPrefs()
+    // 가게를 다시 읽기 전에 그리는 곳(표시 함수만 쓰는 곳)도 가려지지 않는다
+    expect(amount(1, 'KRW')).toBe('₩1')
+  })
+
+  it('"1" 말고는 가리지 않는다', () => {
+    pretendSystem('dark')
+    localStorage.setItem(HIDE_AMOUNTS_KEY, 'true')
+    const { result } = renderHook(() => usePrefs())
+    expect(result.current.hideAmounts).toBe(false)
   })
 })
 

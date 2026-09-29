@@ -119,6 +119,11 @@ describe('PER 한눈에', () => {
     expect(rows.map((b) => b.getAttribute('aria-label')?.split(' — ')[0])).toEqual(['GOOG', 'NVDA'])
     expect(within(chart).getByText('180.0배')).toBeInTheDocument()
     expect(within(chart).getByText(/5년 위치 71%/)).toBeInTheDocument()
+    // 마우스를 올리면 뜨던 설명 상자는 없앴다 (9-5) — 같은 내용은 줄 오른쪽 숫자와 읽어주기(aria-label)에 있다
+    const firstRow = rows[0]
+    await userEvent.hover(firstRow)
+    expect(firstRow.textContent).not.toContain('중앙값')
+    expect(firstRow.getAttribute('aria-label')).toContain('중앙값')
 
     await userEvent.click(within(chart).getByRole('button', { name: '5년 위치 순' }))
     expect(within(chart).getAllByRole('button', { name: /—/ }).map((b) => b.getAttribute('aria-label')?.split(' — ')[0]))

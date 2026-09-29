@@ -5,6 +5,7 @@ import { AppStateProvider } from '../AppState'
 import { api } from '../api/client'
 import type { RebalanceCurrent, RebalanceRow, RebalanceSnapshot, Settings } from '../types'
 import { forgetPhone, pretendPhone } from '../test/phone'
+import { HIDE_AMOUNTS_KEY, resetPrefs } from '../lib/prefs'
 import { RebalancePanel } from './RebalancePanel'
 
 function row(overrides: Partial<RebalanceRow> & { ticker: string }): RebalanceRow {
@@ -474,6 +475,32 @@ describe('리밸런싱 · 답을 먼저 (ROADMAP 8-3)', () => {
     mockApi({ ...CURRENT, rows: CURRENT.rows.map((r) => ({ ...r, target_weight_pct: 30 })) })
     renderPanel()
     expect(await screen.findByText(/목표 비중 합계가 60.0%입니다/)).toBeInTheDocument()
+  })
+})
+
+describe('리밸런싱 · 금액 가리기 (9-3)', () => {
+  afterEach(() => {
+    localStorage.removeItem(HIDE_AMOUNTS_KEY)
+    resetPrefs()
+  })
+
+  it('대시보드에서 가려 두었으면 여기 요약·주문 가이드 금액도 가린다 — 주수와 %는 남는다', async () => {
+    localStorage.setItem(HIDE_AMOUNTS_KEY, '1')
+    resetPrefs()
+    mockApi()
+    renderPanel()
+    const line = await screen.findByRole('region', { name: '내 자산' })
+    expect(line).not.toHaveTextContent('₩2,100,000')
+    expect(within(line).getByRole('button', { name: '금액 보기' })).toBeInTheDocument()
+    const us = await orderRow('VOO')
+    expect(us).not.toHaveTextContent('₩1,300,000')
+    expect(us).not.toHaveTextContent('₩40,000')
+    expect(within(us).getByText(/-0\.06주/)).toBeInTheDocument()
+    expect(screen.queryByText('₩2,100,000')).not.toBeInTheDocument()
+
+    // 여기서 풀면 여기 표도 바로 풀린다
+    await userEvent.click(within(line).getByRole('button', { name: '금액 보기' }))
+    expect(await orderRow('VOO')).toHaveTextContent('₩1,300,000')
   })
 })
 

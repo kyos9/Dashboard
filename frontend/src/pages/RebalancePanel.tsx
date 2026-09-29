@@ -7,6 +7,7 @@ import { ErrorNotice } from '../components/ErrorNotice'
 import { PageIntro } from '../components/PageIntro'
 import { NumberInput } from '../components/NumberInput'
 import { MoneyLine } from '../components/PortfolioView'
+import { usePrefs } from '../lib/prefs'
 import {
   amount,
   CURRENCY_META,
@@ -203,7 +204,6 @@ function TradeForm({
               setProblem(null)
             }}
             placeholder="가격"
-            allowDecimal={native === 'USD'}
             aria-label={`${row.ticker} 거래 가격`}
           />
         </div>
@@ -276,7 +276,6 @@ function useRowFields({ row, draft, onChange }: Pick<HoldingRowProps, 'row' | 'd
           value={draft.avg_cost}
           onChange={(v) => set({ avg_cost: v })}
           placeholder="모름"
-          allowDecimal={native === 'USD'}
           aria-label={`${row.ticker} 평단가`}
         />
       </div>
@@ -792,6 +791,7 @@ function SignalBadges({ current }: { current: RebalanceRow }) {
 
 export function RebalancePanel() {
   const { refreshKey, notifyDataChanged } = useAppState()
+  usePrefs() // 금액 가리기를 바꾸면 주문 가이드·기록까지 다시 그린다 (ROADMAP 9-3)
   const { isAdmin } = useAuth()
   const narrow = useNarrow()
   const [rows, setRows] = useState<Row[]>([])

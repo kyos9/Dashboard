@@ -4,12 +4,13 @@ import { api } from '../api/client'
 import { useAuth } from '../components/AuthGate'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ErrorNotice } from '../components/ErrorNotice'
+import { HoldingEditModal } from '../components/HoldingEditModal'
 import { PageIntro } from '../components/PageIntro'
 import { NumberInput } from '../components/NumberInput'
 import { SymbolSearch } from '../components/SymbolSearch'
-import { CURRENCY_BY_MARKET, CURRENCY_META, MARKET_LABEL, stockLabel } from '../lib/display'
+import { avgPrice, CURRENCY_BY_MARKET, CURRENCY_META, MARKET_LABEL, qty, stockLabel } from '../lib/display'
 import { fxFromInput, fxUnitLabel } from '../lib/fxInput'
-import type { ListingStatus, Stock, SymbolMatch } from '../types'
+import type { Holding, ListingStatus, Stock, SymbolMatch } from '../types'
 import { listingHint, listingRefreshNotice } from '../lib/listing'
 import { useRecheck } from '../lib/recheck'
 import { useCachedLoad } from '../lib/cache'
@@ -32,17 +33,22 @@ const CATEGORY_SUGGESTIONS = ['지수', '알파', '안전자산']
 
 function StockRow({
   stock,
+  holding,
   onSaved,
   onError,
   onNotice,
   onPurge,
+  onEditHolding,
 }: {
   stock: Stock
+  /** 보유 수량·평단가. 아직 못 읽었으면 없다 */
+  holding: Holding | undefined
   onSaved: () => void
   onError: (e: unknown) => void
   /** 받지 않고 넘어갔을 때 그 사실을 알린다 ("3분 전에 받았습니다") */
   onNotice: (text: string) => void
   onPurge: (stock: Stock) => void
+  onEditHolding: (stock: Stock) => void
 }) {
   const [name, setName] = useState(stock.name ?? '')
   const [category, setCategory] = useState(stock.category ?? '')
@@ -154,6 +160,22 @@ function StockRow({
         </div>
       </td>
       <td>
+        {/* 보유는 이 줄의 "저장"과 따로 — 팝업에서 바로 저장한다 (ROADMAP 9-1) */}
+        <div className="holding-cell">
+          {holding && holding.quantity > 0 ? (
+            <span className="mono">
+              {qty(holding.quantity)}주
+              <span className="hint"> · 평단 {avgPrice(holding.avg_cost, stock.currency)}</span>
+            </span>
+          ) : (
+            <span className="hint">보유 없음</span>
+          )}
+          <button className="link-like" onClick={() => onEditHolding(stock)} aria-label={`${stockLabel(stock)} 보유 수정`}>
+            수정
+          </button>
+        </div>
+      </td>
+      <td>
         <div className="btn-group tight">
           <button className="primary sm" onClick={save} disabled={saving}>
             {saving ? '저장 중…' : '저장'}
@@ -189,6 +211,8 @@ export function StockManager() {
   const [listingBusy, setListingBusy] = useState(false)
   const [listing, setListing] = useState<ListingStatus | null>(null)
   const [purging, setPurging] = useState<Stock | null>(null)
+  const [holdings, setHoldings] = useState<Map<string, Holding>>(new Map())
+  const [editingHolding, setEditingHolding] = useState<Stock | null>(null)
   const [purgeBusy, setPurgeBusy] = useState(false)
 
   // 시세를 뒤에서 받는 중인 종목. 다음에 목록을 받았을 때 여기서 빠진 종목이 "다 받은" 종목이다.
@@ -236,6 +260,15 @@ export function StockManager() {
   // 지금 무엇으로 검색되는지는 "왜 이 종목이 안 나오지?"의 답이므로 화면에 띄워둔다.
   // 실패해도 검색 자체는 되므로 오류로 처리하지 않는다.
   useCachedLoad('page:stocks:listing', api.getListingStatus, setListing, () => setListing(null), [refreshKey])
+
+  // 보유 칸 — 못 읽으면 칸만 빈다(종목 관리는 그대로 된다)
+  useCachedLoad(
+    'page:stocks:holdings',
+    api.listHoldings,
+    (list) => setHoldings(new Map(list.map((h) => [h.ticker, h]))),
+    () => setHoldings(new Map()),
+    [refreshKey],
+  )
 
   // 목표 비중 합계에 현금 몫도 넣어야 100%가 맞는지 알 수 있다. 못 읽으면 0으로 본다.
   useCachedLoad(
@@ -428,7 +461,6 @@ export function StockManager() {
               value={form.quantity}
               onChange={(v) => setForm({ ...form, quantity: v })}
               // 미국 주식은 소수점 단위로도 산다
-              allowDecimal={newMarket === 'US'}
             />
           </div>
           <div className="field">
@@ -439,7 +471,6 @@ export function StockManager() {
               value={form.avgCost}
               onChange={(v) => setForm({ ...form, avgCost: v })}
               // 원·엔은 소수점이 의미가 없다
-              allowDecimal={newMarket === 'US'}
             />
           </div>
           {/* 산 환율은 목록에서 고른 외화 종목만 — 이름을 쳐서 넣으면 원화 종목일 수도 있다 (그러면 서버가 거절한다) */}
@@ -464,7 +495,7 @@ export function StockManager() {
         <p className="hint" style={{ marginTop: 10 }}>
           목표 비중은 <b>현금을 포함한 전체 자금</b> 중 이 종목에 둘 비중입니다. 이미 들고 있는 종목이면 수량과
           평단가를 같이 적으세요 — 평단가는 {newCurrencyMeta.label} 기준이고 손익을 보여주는 데만 쓰이며 비중에는
-          영향이 없습니다. 수량·평단가는 나중에 리밸런싱 탭에서 고칠 수 있습니다. 시세 조회에 실패해도 종목
+          영향이 없습니다. 수량·평단가는 나중에 아래 목록·대시보드·리밸런싱 탭에서 고칠 수 있습니다. 시세 조회에 실패해도 종목
           등록은 유지되며 나중에 다시 갱신할 수 있습니다.
         </p>
       </div>
@@ -485,7 +516,7 @@ export function StockManager() {
           </div>
         ) : (
           <div className="table-scroll">
-            <table className="data-table fixed" style={{ minWidth: 890 }}>
+            <table className="data-table fixed" style={{ minWidth: 1070 }}>
               <thead>
                 <tr>
                   <th style={{ width: 202 }}>종목</th>
@@ -496,6 +527,7 @@ export function StockManager() {
                     <br />
                     (비워두면 기본값)
                   </th>
+                  <th style={{ width: 180 }}>보유</th>
                   <th style={{ width: 300 }}>작업</th>
                 </tr>
               </thead>
@@ -504,10 +536,12 @@ export function StockManager() {
                   <StockRow
                     key={s.ticker}
                     stock={s}
+                    holding={holdings.get(s.ticker)}
                     onSaved={handleSaved}
                     onError={setError}
                     onNotice={(text) => setNotice({ tone: 'green', text })}
                     onPurge={setPurging}
+                    onEditHolding={setEditingHolding}
                   />
                 ))}
               </tbody>
@@ -515,6 +549,21 @@ export function StockManager() {
           </div>
         )}
       </div>
+
+      {editingHolding && (
+        <HoldingEditModal
+          target={{
+            ticker: editingHolding.ticker,
+            label: stockLabel(editingHolding),
+            currency: editingHolding.currency,
+            quantity: holdings.get(editingHolding.ticker)?.quantity ?? 0,
+            avgCost: holdings.get(editingHolding.ticker)?.avg_cost ?? null,
+            avgFx: holdings.get(editingHolding.ticker)?.avg_fx ?? null,
+          }}
+          onClose={() => setEditingHolding(null)}
+          onSaved={handleSaved}
+        />
+      )}
 
       {purging && (
         <ConfirmDialog

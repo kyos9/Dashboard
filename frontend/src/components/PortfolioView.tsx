@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { api } from '../api/client'
 import {
   amount,
+  avgPrice,
   CURRENCY_META,
   num,
   price,
@@ -29,9 +29,10 @@ import {
   type SignalMark,
   type SortKey,
 } from '../lib/portfolio'
+import { setHideAmounts, usePrefs } from '../lib/prefs'
 import type { Currency, DashboardCard, RebalanceCurrent } from '../types'
+import { HoldingEditModal } from './HoldingEditModal'
 import { MacroStrip } from './MacroStrip'
-import { NumberInput } from './NumberInput'
 import { SignalShape, type ShapeKind } from './SignalShape'
 
 interface Props {
@@ -43,7 +44,6 @@ interface Props {
   /** 신호 점을 누르면 — 시그널 보기로 넘어가 그 종목을 보여준다 */
   onSignal: (ticker: string) => void
   onSaved: () => void
-  onError: (error: unknown) => void
 }
 
 function labelOf(item: PortfolioItem): string {
@@ -59,9 +59,12 @@ function labelOf(item: PortfolioItem): string {
  *
  * 숫자는 전부 리밸런싱과 같은 응답에서 온다 — 두 화면의 합계가 원 단위까지 같다.
  */
-export function PortfolioView({ current, cards, narrow, onChart, onSignal, onSaved, onError }: Props) {
+export function PortfolioView({ current, cards, narrow, onChart, onSignal, onSaved }: Props) {
   const base = current.base_currency
   const [sort, setSort] = useState<SortKey>(loadSort)
+  // 보유 수정 팝업 — 어느 종목을, 어느 칸부터 (ROADMAP 9-1)
+  const [editing, setEditing] = useState<Editing | null>(null)
+  usePrefs() // 금액 가리기를 바꾸면 아래 표까지 다시 그린다 (lib/display 의 amount 가 읽는다)
 
   const items = useMemo(() => joinItems(current.rows, cards), [current.rows, cards])
   const held = useMemo(
@@ -71,6 +74,8 @@ export function PortfolioView({ current, cards, narrow, onChart, onSignal, onSav
   // 관심 종목은 내가 정한 순서 그대로 — 평가금액이 없으니 금액순이 뜻이 없다
   const watching = useMemo(() => items.filter((i) => i.row.quantity <= 0), [items])
   const signalCount = items.filter((i) => signalsOf(i).length > 0).length
+
+  const edit = (item: PortfolioItem, focus: EditFocus = 'quantity') => setEditing({ item, focus })
 
   const changeSort = (key: SortKey) => {
     setSort(key)
@@ -106,14 +111,14 @@ export function PortfolioView({ current, cards, narrow, onChart, onSignal, onSav
         {held.length === 0 ? (
           <div className="empty-state compact">
             <p>
-              아직 보유수량을 적은 종목이 없습니다. <Link to="/rebalance">리밸런싱</Link>에서 수량과 평단가를
+              아직 보유수량을 적은 종목이 없습니다. 아래 관심 종목의 "수정"이나 <Link to="/rebalance">리밸런싱</Link>에서 수량과 평단가를
               적으면 여기에 평가금액·수익률이 나옵니다.
             </p>
           </div>
         ) : narrow ? (
-          <HoldingList items={held} base={base} onChart={onChart} onSignal={onSignal} onSaved={onSaved} onError={onError} />
+          <HoldingList items={held} base={base} onChart={onChart} onSignal={onSignal} onEdit={edit} />
         ) : (
-          <HoldingTable items={held} base={base} onChart={onChart} onSignal={onSignal} onSaved={onSaved} onError={onError} />
+          <HoldingTable items={held} base={base} onChart={onChart} onSignal={onSignal} onEdit={edit} />
         )}
       </section>
 
@@ -125,11 +130,27 @@ export function PortfolioView({ current, cards, narrow, onChart, onSignal, onSav
             </h3>
             <span className="hint">보유 0 — 시세와 신호만</span>
           </div>
-          <WatchList items={watching} onChart={onChart} onSignal={onSignal} />
+          <WatchList items={watching} onChart={onChart} onSignal={onSignal} onEdit={edit} />
         </section>
       )}
 
       {signalCount > 0 && <SignalLegend />}
+
+      {editing && (
+        <HoldingEditModal
+          target={{
+            ticker: editing.item.row.ticker,
+            label: labelOf(editing.item),
+            currency: editing.item.row.currency,
+            quantity: editing.item.row.quantity,
+            avgCost: editing.item.row.avg_cost,
+            avgFx: editing.item.row.avg_fx,
+          }}
+          focus={editing.focus}
+          onClose={() => setEditing(null)}
+          onSaved={onSaved}
+        />
+      )}
     </div>
   )
 }
@@ -144,11 +165,22 @@ export function MoneyLine({ current, signalCount }: { current: RebalanceCurrent;
   const day = current.day_change_base ?? null
   const unpriced = current.unpriced_count ?? 0
   const fxMissing = current.include_fx_effect ? (current.fx_missing_count ?? 0) : 0
+  const { hideAmounts } = usePrefs()
 
   return (
     <section className="money-line" aria-label="내 자산">
       <div className="money-total">
-        <span className="kpi-title">총 평가금액</span>
+        <span className="money-title-row">
+          <span className="kpi-title">총 평가금액</span>
+          {/* 옆 사람이 볼 때 — 금액·수량을 가린다. %는 남는다. 이 기기에 기억한다 (ROADMAP 9-3) */}
+          <button
+            className="link-like money-hide"
+            aria-pressed={hideAmounts}
+            onClick={() => setHideAmounts(!hideAmounts)}
+          >
+            {hideAmounts ? '금액 보기' : '금액 가리기'}
+          </button>
+        </span>
         <span className="money-big mono">{amount(current.total_value_base, base)}</span>
         <span className="hint">현금 포함 · {CURRENCY_META[base].label} 기준</span>
       </div>
@@ -268,58 +300,22 @@ function SignalLegend() {
   )
 }
 
-/* ---------- 평단가를 그 자리에서 ---------- */
+/* ---------- 보유 수정 ---------- */
 
-function CostEntry({ item, onSaved, onError, onDone }: {
+type EditFocus = 'quantity' | 'avgCost'
+type OnEdit = (item: PortfolioItem, focus?: EditFocus) => void
+
+interface Editing {
   item: PortfolioItem
-  onSaved: () => void
-  onError: (error: unknown) => void
-  onDone: () => void
-}) {
-  const [value, setValue] = useState('')
-  const [busy, setBusy] = useState(false)
-  const currency = item.row.currency
-  const label = labelOf(item)
+  focus: EditFocus
+}
 
-  const save = async () => {
-    if (value === '' || Number(value) <= 0) return
-    setBusy(true)
-    try {
-      // 수량은 그대로 — 평단가만 넣는다
-      await api.updateHolding(item.row.ticker, item.row.quantity, Number(value))
-      onDone()
-      onSaved()
-    } catch (e) {
-      onError(e)
-    } finally {
-      setBusy(false)
-    }
-  }
-
+/** 종목마다 "수정" — 수량·평단가·산 환율을 고치는 팝업을 연다 */
+function EditButton({ item, onEdit }: { item: PortfolioItem; onEdit: OnEdit }) {
   return (
-    <form
-      className="cost-entry"
-      onSubmit={(e) => {
-        e.preventDefault()
-        void save()
-      }}
-    >
-      <span className="unit">{CURRENCY_META[currency].symbol}</span>
-      <NumberInput
-        value={value}
-        onChange={setValue}
-        placeholder="평단가"
-        allowDecimal={currency === 'USD'}
-        aria-label={`${label} 평단가`}
-        autoFocus
-      />
-      <button className="primary sm" type="submit" disabled={busy || value === '' || Number(value) <= 0}>
-        {busy ? '저장 중…' : '저장'}
-      </button>
-      <button className="sm ghost" type="button" onClick={onDone} disabled={busy}>
-        취소
-      </button>
-    </form>
+    <button className="link-like edit-holding" onClick={() => onEdit(item)} aria-label={`${labelOf(item)} 보유 수정`}>
+      수정
+    </button>
   )
 }
 
@@ -341,7 +337,7 @@ function ReturnCell({ item, onEnter }: { item: PortfolioItem; onEnter: () => voi
         {signed(value, 1, '%')}
       </span>
       {row.fx_missing && (
-        <span className="fx-missing" title="산 환율이 없어 주가만으로 냈습니다. 리밸런싱의 보유 표에서 넣을 수 있습니다.">
+        <span className="fx-missing" title="산 환율이 없어 주가만으로 냈습니다. 종목의 수정 버튼에서 넣을 수 있습니다.">
           환율 미반영
         </span>
       )}
@@ -384,12 +380,10 @@ interface ListProps {
   base: Currency
   onChart: (card: DashboardCard) => void
   onSignal: (ticker: string) => void
-  onSaved: () => void
-  onError: (error: unknown) => void
+  onEdit: OnEdit
 }
 
-function HoldingTable({ items, base, onChart, onSignal, onSaved, onError }: ListProps) {
-  const [entering, setEntering] = useState<string | null>(null)
+function HoldingTable({ items, base, onChart, onSignal, onEdit }: ListProps) {
   return (
     <div className="table-scroll">
       <table className="data-table holdings-table">
@@ -421,29 +415,23 @@ function HoldingTable({ items, base, onChart, onSignal, onSaved, onError }: List
           {items.map((item) => {
             const row = item.row
             const pnl = pnlOf(item)
-            const isEntering = entering === row.ticker
             return (
               <tr key={row.ticker} data-ticker={row.ticker}>
                 <td>
                   <div className="stock-line">
                     <NameButton item={item} onChart={onChart} />
                     <span className="hint mono">{qty(row.quantity)}주</span>
+                    <EditButton item={item} onEdit={onEdit} />
                   </div>
                 </td>
                 <td className="num-cell">
                   <PriceWithChange item={item} />
                 </td>
-                <td className="num-cell mono">{price(row.avg_cost, row.currency)}</td>
-                <td className="num-cell" colSpan={isEntering ? 2 : 1}>
-                  {isEntering ? (
-                    <CostEntry item={item} onSaved={onSaved} onError={onError} onDone={() => setEntering(null)} />
-                  ) : (
-                    <ReturnCell item={item} onEnter={() => setEntering(row.ticker)} />
-                  )}
+                <td className="num-cell mono">{avgPrice(row.avg_cost, row.currency)}</td>
+                <td className="num-cell">
+                  <ReturnCell item={item} onEnter={() => onEdit(item, 'avgCost')} />
                 </td>
-                {!isEntering && (
-                  <td className={`num-cell mono ${tone(pnl.value)}`}>{signedAmount(pnl.value, pnl.currency)}</td>
-                )}
+                <td className={`num-cell mono ${tone(pnl.value)}`}>{signedAmount(pnl.value, pnl.currency)}</td>
                 <td className="num-cell mono" title={row.currency === base ? undefined : `현지 ${amount(row.current_value, row.currency)}`}>
                   {amount(row.current_value_base, base)}
                 </td>
@@ -465,9 +453,8 @@ function HoldingTable({ items, base, onChart, onSignal, onSaved, onError }: List
 
 /* ---------- 폰 — 한 종목이 두 줄, 누르면 펼친다 ---------- */
 
-function HoldingList({ items, base, onChart, onSignal, onSaved, onError }: ListProps) {
+function HoldingList({ items, base, onChart, onSignal, onEdit }: ListProps) {
   const [open, setOpen] = useState<Set<string>>(new Set())
-  const [entering, setEntering] = useState<string | null>(null)
   const toggle = (ticker: string) =>
     setOpen((prev) => {
       const next = new Set(prev)
@@ -518,15 +505,11 @@ function HoldingList({ items, base, onChart, onSignal, onSaved, onError }: ListP
                     <dt>평단가</dt>
                     <dd className="mono">
                       {row.avg_cost === null ? (
-                        entering === row.ticker ? (
-                          <CostEntry item={item} onSaved={onSaved} onError={onError} onDone={() => setEntering(null)} />
-                        ) : (
-                          <button className="link-like" onClick={() => setEntering(row.ticker)} aria-label={`${label} 평단가 입력`}>
-                            평단가 입력
-                          </button>
-                        )
+                        <button className="link-like" onClick={() => onEdit(item, 'avgCost')} aria-label={`${label} 평단가 입력`}>
+                          평단가 입력
+                        </button>
                       ) : (
-                        price(row.avg_cost, row.currency)
+                        avgPrice(row.avg_cost, row.currency)
                       )}
                     </dd>
                   </div>
@@ -557,11 +540,16 @@ function HoldingList({ items, base, onChart, onSignal, onSaved, onError }: ListP
                     </dd>
                   </div>
                 </dl>
-                {item.card && (
-                  <button className="sm" onClick={() => onChart(item.card!)}>
-                    차트
+                <div className="btn-group tight">
+                  <button className="sm" onClick={() => onEdit(item)} aria-label={`${label} 보유 수정`}>
+                    수정
                   </button>
-                )}
+                  {item.card && (
+                    <button className="sm" onClick={() => onChart(item.card!)}>
+                      차트
+                    </button>
+                  )}
+                </div>
               </div>
             )}
           </li>
@@ -573,10 +561,11 @@ function HoldingList({ items, base, onChart, onSignal, onSaved, onError }: ListP
 
 /* ---------- 관심 종목 — 현재가·등락·신호만 ---------- */
 
-function WatchList({ items, onChart, onSignal }: {
+function WatchList({ items, onChart, onSignal, onEdit }: {
   items: PortfolioItem[]
   onChart: (card: DashboardCard) => void
   onSignal: (ticker: string) => void
+  onEdit: OnEdit
 }) {
   return (
     <ul className="watch-list">
@@ -584,6 +573,7 @@ function WatchList({ items, onChart, onSignal }: {
         <li key={item.row.ticker} data-ticker={item.row.ticker}>
           <NameButton item={item} onChart={onChart} />
           <PriceWithChange item={item} />
+          <EditButton item={item} onEdit={onEdit} />
           <SignalDot label={labelOf(item)} signals={signalsOf(item)} ticker={item.row.ticker} onSignal={onSignal} />
         </li>
       ))}
