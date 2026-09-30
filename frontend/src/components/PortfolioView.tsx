@@ -17,27 +17,35 @@ import {
 import {
   fxSplitText,
   joinItems,
+  loadPnlCurrency,
   loadSort,
+  pnlCurrencyOptions,
+  pnlIn,
+  savePnlCurrency,
   saveSort,
   signalsOf,
   SORT_KEYS,
   SORT_LABEL,
   sortItems,
   tone,
+  type PnlCurrency,
   type PortfolioItem,
   type SignalKind,
   type SignalMark,
   type SortKey,
 } from '../lib/portfolio'
 import { setHideAmounts, usePrefs } from '../lib/prefs'
-import type { Currency, DashboardCard, RebalanceCurrent } from '../types'
-import { HoldingEditModal } from './HoldingEditModal'
+import type { Currency, DashboardCard, FxInfo, RebalanceCurrent, Stock } from '../types'
+import type { EditField, HoldingValues } from '../lib/stockEdit'
+import { StockEditModal } from './StockEditModal'
 import { MacroStrip } from './MacroStrip'
 import { SignalShape, type ShapeKind } from './SignalShape'
 
 interface Props {
   current: RebalanceCurrent
   cards: DashboardCard[]
+  /** 내 종목 설정(구분·목표·밴드) — "수정"이 이것과 보유를 한 번에 고친다 */
+  stocks: Stock[]
   /** 폰 폭이면 한 종목을 두 줄로, 누르면 펼친다 */
   narrow: boolean
   onChart: (card: DashboardCard) => void
@@ -59,10 +67,10 @@ function labelOf(item: PortfolioItem): string {
  *
  * 숫자는 전부 리밸런싱과 같은 응답에서 온다 — 두 화면의 합계가 원 단위까지 같다.
  */
-export function PortfolioView({ current, cards, narrow, onChart, onSignal, onSaved }: Props) {
+export function PortfolioView({ current, cards, stocks, narrow, onChart, onSignal, onSaved }: Props) {
   const base = current.base_currency
   const [sort, setSort] = useState<SortKey>(loadSort)
-  // 보유 수정 팝업 — 어느 종목을, 어느 칸부터 (ROADMAP 9-1)
+  // 종목 한 번에 수정 — 열려 있으면 처음 커서를 둘 자리 (ROADMAP 9-11)
   const [editing, setEditing] = useState<Editing | null>(null)
   usePrefs() // 금액 가리기를 바꾸면 아래 표까지 다시 그린다 (lib/display 의 amount 가 읽는다)
 
@@ -73,9 +81,30 @@ export function PortfolioView({ current, cards, narrow, onChart, onSignal, onSav
   )
   // 관심 종목은 내가 정한 순서 그대로 — 평가금액이 없으니 금액순이 뜻이 없다
   const watching = useMemo(() => items.filter((i) => i.row.quantity <= 0), [items])
+  // 평가손익 칸의 통화 — 종목별 또는 하나로 (ROADMAP 9-12). 환율을 모르는 통화는 고를 수 없다
+  const pnlOptions = pnlCurrencyOptions(
+    current.fx,
+    held.map((i) => i.row.shown_currency ?? i.row.currency),
+  )
+  const [pnlChoice, setPnlChoice] = useState<PnlCurrency>(loadPnlCurrency)
+  const pnlCurrency: PnlCurrency = pnlOptions.includes(pnlChoice) ? pnlChoice : 'local'
   const signalCount = items.filter((i) => signalsOf(i).length > 0).length
 
-  const edit = (item: PortfolioItem, focus: EditFocus = 'quantity') => setEditing({ item, focus })
+  const edit: OnEdit = (item, field = 'quantity') => setEditing({ ticker: item.row.ticker, field })
+  // 리밸런싱 응답의 종목(활성)만 — 순서도 그대로
+  const editable = useMemo(() => {
+    const byTicker = new Map(stocks.map((stock) => [stock.ticker, stock]))
+    return current.rows.map((row) => byTicker.get(row.ticker)).filter((stock): stock is Stock => !!stock)
+  }, [stocks, current.rows])
+  const holdings = useMemo(
+    () => new Map<string, HoldingValues>(current.rows.map((row) => [row.ticker, row])),
+    [current.rows],
+  )
+
+  const changePnl = (choice: PnlCurrency) => {
+    setPnlChoice(choice)
+    savePnlCurrency(choice)
+  }
 
   const changeSort = (key: SortKey) => {
     setSort(key)
@@ -94,31 +123,54 @@ export function PortfolioView({ current, cards, narrow, onChart, onSignal, onSav
       <section className="section" aria-labelledby="holdings-title">
         <div className="section-head">
           <h3 id="holdings-title">보유 종목 {held.length > 0 && <span className="hint">{held.length}</span>}</h3>
-          {held.length > 1 && (
-            <label className="sort-pick">
-              <span>정렬</span>
-              <select value={sort} onChange={(e) => changeSort(e.target.value as SortKey)} aria-label="정렬">
-                {SORT_KEYS.map((key) => (
-                  <option key={key} value={key}>
-                    {SORT_LABEL[key]}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
+          <div className="holdings-tools">
+            {held.length > 1 && (
+              <label className="sort-pick">
+                <span>정렬</span>
+                <select value={sort} onChange={(e) => changeSort(e.target.value as SortKey)} aria-label="정렬">
+                  {SORT_KEYS.map((key) => (
+                    <option key={key} value={key}>
+                      {SORT_LABEL[key]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {held.length > 0 && pnlOptions.length > 1 && (
+              <label className="sort-pick">
+                <span>손익 통화</span>
+                <select
+                  value={pnlCurrency}
+                  onChange={(e) => changePnl(e.target.value as PnlCurrency)}
+                  aria-label="평가손익 통화"
+                >
+                  {pnlOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option === 'local' ? '종목별' : `${CURRENCY_META[option].symbol} ${CURRENCY_META[option].label}`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {editable.length > 0 && (
+              <button className="sm" onClick={() => setEditing({ ticker: null, field: 'quantity' })} aria-label="종목 한 번에 수정">
+                ✎ 수정
+              </button>
+            )}
+          </div>
         </div>
 
         {held.length === 0 ? (
           <div className="empty-state compact">
             <p>
-              아직 보유수량을 적은 종목이 없습니다. 아래 관심 종목의 "수정"이나 <Link to="/rebalance">리밸런싱</Link>에서 수량과 평단가를
+              아직 보유수량을 적은 종목이 없습니다. 위의 "수정"이나 <Link to="/rebalance">리밸런싱</Link>에서 수량과 평단가를
               적으면 여기에 평가금액·수익률이 나옵니다.
             </p>
           </div>
         ) : narrow ? (
-          <HoldingList items={held} base={base} onChart={onChart} onSignal={onSignal} onEdit={edit} />
+          <HoldingList items={held} base={base} pnl={pnlCurrency} fx={current.fx} onChart={onChart} onSignal={onSignal} onEdit={edit} />
         ) : (
-          <HoldingTable items={held} base={base} onChart={onChart} onSignal={onSignal} onEdit={edit} />
+          <HoldingTable items={held} base={base} pnl={pnlCurrency} fx={current.fx} onChart={onChart} onSignal={onSignal} onEdit={edit} />
         )}
       </section>
 
@@ -130,23 +182,18 @@ export function PortfolioView({ current, cards, narrow, onChart, onSignal, onSav
             </h3>
             <span className="hint">보유 0 — 시세와 신호만</span>
           </div>
-          <WatchList items={watching} onChart={onChart} onSignal={onSignal} onEdit={edit} />
+          <WatchList items={watching} onChart={onChart} onSignal={onSignal} />
         </section>
       )}
 
       {signalCount > 0 && <SignalLegend />}
 
       {editing && (
-        <HoldingEditModal
-          target={{
-            ticker: editing.item.row.ticker,
-            label: labelOf(editing.item),
-            currency: editing.item.row.currency,
-            quantity: editing.item.row.quantity,
-            avgCost: editing.item.row.avg_cost,
-            avgFx: editing.item.row.avg_fx,
-          }}
-          focus={editing.focus}
+        <StockEditModal
+          stocks={editable}
+          holdings={holdings}
+          cashTargetPct={current.cash.target_pct}
+          focus={editing.ticker ? { ticker: editing.ticker, field: editing.field } : undefined}
           onClose={() => setEditing(null)}
           onSaved={onSaved}
         />
@@ -300,23 +347,14 @@ function SignalLegend() {
   )
 }
 
-/* ---------- 보유 수정 ---------- */
+/* ---------- 수정 ---------- */
 
-type EditFocus = 'quantity' | 'avgCost'
-type OnEdit = (item: PortfolioItem, focus?: EditFocus) => void
+type OnEdit = (item: PortfolioItem, field?: EditField) => void
 
 interface Editing {
-  item: PortfolioItem
-  focus: EditFocus
-}
-
-/** 종목마다 "수정" — 수량·평단가·산 환율을 고치는 팝업을 연다 */
-function EditButton({ item, onEdit }: { item: PortfolioItem; onEdit: OnEdit }) {
-  return (
-    <button className="link-like edit-holding" onClick={() => onEdit(item)} aria-label={`${labelOf(item)} 보유 수정`}>
-      수정
-    </button>
-  )
+  /** 커서를 둘 종목. 위의 "수정"으로 열면 없다(첫 종목) */
+  ticker: string | null
+  field: EditField
 }
 
 /** 수익률 칸 — 평단가가 없으면 "평단가 입력", 환율 효과를 넣었으면 둘로 나눈 풀이 */
@@ -337,7 +375,7 @@ function ReturnCell({ item, onEnter }: { item: PortfolioItem; onEnter: () => voi
         {signed(value, 1, '%')}
       </span>
       {row.fx_missing && (
-        <span className="fx-missing" title="산 환율이 없어 주가만으로 냈습니다. 종목의 수정 버튼에서 넣을 수 있습니다.">
+        <span className="fx-missing" title="산 환율이 없어 주가만으로 냈습니다. 보유 종목 위의 수정에서 넣을 수 있습니다.">
           환율 미반영
         </span>
       )}
@@ -345,13 +383,6 @@ function ReturnCell({ item, onEnter }: { item: PortfolioItem; onEnter: () => voi
   )
 }
 
-function pnlOf(item: PortfolioItem): { value: number | null; currency: Currency } {
-  const row = item.row
-  return {
-    value: row.shown_pnl ?? row.unrealized_pnl,
-    currency: row.shown_currency ?? row.currency,
-  }
-}
 
 function PriceWithChange({ item }: { item: PortfolioItem }) {
   const row = item.row
@@ -378,18 +409,22 @@ function NameButton({ item, onChart }: { item: PortfolioItem; onChart: (card: Da
 interface ListProps {
   items: PortfolioItem[]
   base: Currency
+  /** 평가손익을 보일 통화 — 종목별 또는 하나로 */
+  pnl: PnlCurrency
+  fx: FxInfo
   onChart: (card: DashboardCard) => void
   onSignal: (ticker: string) => void
   onEdit: OnEdit
 }
 
-function HoldingTable({ items, base, onChart, onSignal, onEdit }: ListProps) {
+function HoldingTable({ items, base, pnl: pnlCurrency, fx, onChart, onSignal, onEdit }: ListProps) {
   return (
     <div className="table-scroll">
       <table className="data-table holdings-table">
         <thead>
           <tr>
             <th>종목</th>
+            <th className="num-head">수량</th>
             <th className="num-head">
               현재가
               <br />
@@ -397,7 +432,13 @@ function HoldingTable({ items, base, onChart, onSignal, onEdit }: ListProps) {
             </th>
             <th className="num-head">평단가</th>
             <th className="num-head">수익률</th>
-            <th className="num-head">평가손익</th>
+            <th className="num-head">
+              평가손익
+              <br />
+              <span className="th-sub">
+                {pnlCurrency === 'local' ? '(종목 통화)' : `(${CURRENCY_META[pnlCurrency].symbol} 기준)`}
+              </span>
+            </th>
             <th className="num-head">
               평가금액
               <br />
@@ -414,16 +455,15 @@ function HoldingTable({ items, base, onChart, onSignal, onEdit }: ListProps) {
         <tbody>
           {items.map((item) => {
             const row = item.row
-            const pnl = pnlOf(item)
+            const pnl = pnlIn(row, pnlCurrency, fx)
             return (
               <tr key={row.ticker} data-ticker={row.ticker}>
                 <td>
                   <div className="stock-line">
                     <NameButton item={item} onChart={onChart} />
-                    <span className="hint mono">{qty(row.quantity)}주</span>
-                    <EditButton item={item} onEdit={onEdit} />
                   </div>
                 </td>
+                <td className="num-cell mono">{qty(row.quantity)}</td>
                 <td className="num-cell">
                   <PriceWithChange item={item} />
                 </td>
@@ -453,7 +493,7 @@ function HoldingTable({ items, base, onChart, onSignal, onEdit }: ListProps) {
 
 /* ---------- 폰 — 한 종목이 두 줄, 누르면 펼친다 ---------- */
 
-function HoldingList({ items, base, onChart, onSignal, onEdit }: ListProps) {
+function HoldingList({ items, base, pnl: pnlCurrency, fx, onChart, onSignal, onEdit }: ListProps) {
   const [open, setOpen] = useState<Set<string>>(new Set())
   const toggle = (ticker: string) =>
     setOpen((prev) => {
@@ -469,7 +509,7 @@ function HoldingList({ items, base, onChart, onSignal, onEdit }: ListProps) {
         const row = item.row
         const label = labelOf(item)
         const expanded = open.has(row.ticker)
-        const pnl = pnlOf(item)
+        const pnl = pnlIn(row, pnlCurrency, fx)
         const signals = signalsOf(item)
         const value = row.shown_return_pct ?? row.return_pct
         return (
@@ -484,7 +524,7 @@ function HoldingList({ items, base, onChart, onSignal, onEdit }: ListProps) {
               >
                 <span className="holding-top">
                   <span className="holding-name">
-                    {label} <span className="hint mono">{qty(row.quantity)}주</span>
+                    {label} <span className="holding-qty mono">{qty(row.quantity)}주</span>
                   </span>
                   <span className="holding-value mono">{amount(row.current_value_base, base)}</span>
                 </span>
@@ -501,6 +541,10 @@ function HoldingList({ items, base, onChart, onSignal, onEdit }: ListProps) {
             {expanded && (
               <div className="holding-detail" id={`holding-${row.ticker}`}>
                 <dl>
+                  <div>
+                    <dt>보유 수량</dt>
+                    <dd className="mono">{qty(row.quantity)}주</dd>
+                  </div>
                   <div>
                     <dt>평단가</dt>
                     <dd className="mono">
@@ -540,16 +584,13 @@ function HoldingList({ items, base, onChart, onSignal, onEdit }: ListProps) {
                     </dd>
                   </div>
                 </dl>
-                <div className="btn-group tight">
-                  <button className="sm" onClick={() => onEdit(item)} aria-label={`${label} 보유 수정`}>
-                    수정
-                  </button>
-                  {item.card && (
+                {item.card && (
+                  <div className="btn-group tight">
                     <button className="sm" onClick={() => onChart(item.card!)}>
                       차트
                     </button>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             )}
           </li>
@@ -561,11 +602,10 @@ function HoldingList({ items, base, onChart, onSignal, onEdit }: ListProps) {
 
 /* ---------- 관심 종목 — 현재가·등락·신호만 ---------- */
 
-function WatchList({ items, onChart, onSignal, onEdit }: {
+function WatchList({ items, onChart, onSignal }: {
   items: PortfolioItem[]
   onChart: (card: DashboardCard) => void
   onSignal: (ticker: string) => void
-  onEdit: OnEdit
 }) {
   return (
     <ul className="watch-list">
@@ -573,7 +613,6 @@ function WatchList({ items, onChart, onSignal, onEdit }: {
         <li key={item.row.ticker} data-ticker={item.row.ticker}>
           <NameButton item={item} onChart={onChart} />
           <PriceWithChange item={item} />
-          <EditButton item={item} onEdit={onEdit} />
           <SignalDot label={labelOf(item)} signals={signalsOf(item)} ticker={item.row.ticker} onSignal={onSignal} />
         </li>
       ))}

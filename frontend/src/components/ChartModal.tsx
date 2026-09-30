@@ -132,17 +132,21 @@ export function ChartModal({ ticker, name, initialTab = 'chart', onClose }: Prop
   }, [ticker])
 
   const { user, guest, pending, isAdmin } = useAuth()
-  // AI 탭 안에서 — 공용 숫자 정리, 또는 (관리자만) 내 비중까지 보는 종목 분석 (9-8)
-  const [aiKind, setAiKind] = useState<'stock' | 'research'>('stock')
   const showFundamentals = hasFundamentalsTab(fundamentals)
   // AI 분석은 들어와 쓰는 사람만 — 손님·승인 대기는 담은 종목이 없다
   const showAi = !guest && !pending
   const activeTab: ChartTab =
-    (tab === 'fundamentals' && !showFundamentals) || (tab === 'ai' && !showAi) ? 'chart' : tab
+    (tab === 'fundamentals' && !showFundamentals) ||
+    (tab === 'ai' && !showAi) ||
+    (tab === 'research' && !isAdmin)
+      ? 'chart'
+      : tab
+  // AI 종목 분석(9-8)은 내 비중까지 보내므로 관리자만 — 탭 줄의 맨 끝에 둔다 (9-9)
   const tabs: { key: ChartTab; label: string }[] = [
     { key: 'chart', label: '차트' },
     ...(showFundamentals ? [{ key: 'fundamentals' as const, label: '재무' }] : []),
     ...(showAi ? [{ key: 'ai' as const, label: 'AI 분석' }] : []),
+    ...(showAi && isAdmin ? [{ key: 'research' as const, label: 'AI 종목 분석' }] : []),
   ]
 
   // 폰의 뒤로가기로도 닫힌다
@@ -207,25 +211,13 @@ export function ChartModal({ ticker, name, initialTab = 'chart', onClose }: Prop
           </button>
         </div>
 
-        {activeTab === 'ai' ? (
-          <>
-            {isAdmin && (
-              <div className="view-switch ai-kind-switch" role="group" aria-label="AI 종류">
-                <button aria-pressed={aiKind === 'stock'} onClick={() => setAiKind('stock')}>
-                  정리
-                </button>
-                <button aria-pressed={aiKind === 'research'} onClick={() => setAiKind('research')}>
-                  종목 분석
-                </button>
-              </div>
-            )}
-            {/* 종류를 바꾸면 창 안의 받던 글·요청도 새로 — key 로 다시 만든다 */}
-            <AiPanel
-              key={isAdmin ? aiKind : 'stock'}
-              target={isAdmin && aiKind === 'research' ? { kind: 'research', ticker } : { kind: 'stock', ticker }}
-              account={pushAccount(user)}
-            />
-          </>
+        {activeTab === 'ai' || activeTab === 'research' ? (
+          // 탭을 바꾸면 창 안의 받던 글·요청도 새로 — key 로 다시 만든다
+          <AiPanel
+            key={activeTab}
+            target={activeTab === 'research' ? { kind: 'research', ticker } : { kind: 'stock', ticker }}
+            account={pushAccount(user)}
+          />
         ) : activeTab === 'fundamentals' && fundamentals ? (
           <FundamentalsPanel data={fundamentals} />
         ) : (

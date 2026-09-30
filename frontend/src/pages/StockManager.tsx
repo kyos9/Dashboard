@@ -4,11 +4,11 @@ import { api } from '../api/client'
 import { useAuth } from '../components/AuthGate'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ErrorNotice } from '../components/ErrorNotice'
-import { HoldingEditModal } from '../components/HoldingEditModal'
 import { PageIntro } from '../components/PageIntro'
 import { NumberInput } from '../components/NumberInput'
+import { StockEditModal } from '../components/StockEditModal'
 import { SymbolSearch } from '../components/SymbolSearch'
-import { avgPrice, CURRENCY_BY_MARKET, CURRENCY_META, MARKET_LABEL, qty, stockLabel } from '../lib/display'
+import { avgPrice, CURRENCY_BY_MARKET, CURRENCY_META, MARKET_LABEL, num, qty, stockLabel } from '../lib/display'
 import { fxFromInput, fxUnitLabel } from '../lib/fxInput'
 import type { Holding, ListingStatus, Stock, SymbolMatch } from '../types'
 import { listingHint, listingRefreshNotice } from '../lib/listing'
@@ -31,6 +31,10 @@ const emptyForm: NewStockForm = { ticker: '', category: '', targetWeight: '', qu
 /** 구분 입력을 돕는 예시값 — 자유 입력이므로 강제되지 않는다 */
 const CATEGORY_SUGGESTIONS = ['지수', '알파', '안전자산']
 
+/**
+ * 등록된 종목 한 줄 — **보이기만 한다**. 고치는 것은 표 위의 "수정" 하나로 모든 종목을 한 번에
+ * (ROADMAP 9-11). 줄에는 그 종목에만 하는 일(시세 갱신·비활성화·삭제)만 남는다.
+ */
 function StockRow({
   stock,
   holding,
@@ -38,7 +42,6 @@ function StockRow({
   onError,
   onNotice,
   onPurge,
-  onEditHolding,
 }: {
   stock: Stock
   /** 보유 수량·평단가. 아직 못 읽었으면 없다 */
@@ -48,31 +51,8 @@ function StockRow({
   /** 받지 않고 넘어갔을 때 그 사실을 알린다 ("3분 전에 받았습니다") */
   onNotice: (text: string) => void
   onPurge: (stock: Stock) => void
-  onEditHolding: (stock: Stock) => void
 }) {
-  const [name, setName] = useState(stock.name ?? '')
-  const [category, setCategory] = useState(stock.category ?? '')
-  const [targetWeight, setTargetWeight] = useState(String(stock.target_weight_pct))
-  const [bandPct, setBandPct] = useState(stock.rebalance_band_pct === null ? '' : String(stock.rebalance_band_pct))
-  const [saving, setSaving] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
-
-  const save = async () => {
-    setSaving(true)
-    try {
-      await api.updateStock(stock.ticker, {
-        name: name.trim() === '' ? null : name.trim(),
-        category: category.trim() === '' ? null : category.trim(),
-        target_weight_pct: Number(targetWeight),
-        rebalance_band_pct: bandPct === '' ? null : Number(bandPct),
-      })
-      onSaved()
-    } catch (e) {
-      onError(e)
-    } finally {
-      setSaving(false)
-    }
-  }
 
   const toggleActive = async () => {
     try {
@@ -100,22 +80,10 @@ function StockRow({
   }
 
   return (
-    <tr className={stock.active ? '' : 'inactive'}>
+    <tr className={stock.active ? '' : 'inactive'} data-ticker={stock.ticker}>
       <td>
         <div className="ticker-cell">
-          {stock.market === 'US' ? (
-            // 미국 종목은 티커가 곧 이름이라 고칠 것이 없다
-            <span className="ticker-name">{stockLabel(stock)}</span>
-          ) : (
-            <input
-              type="text"
-              className="name-input"
-              value={name}
-              placeholder={stock.ticker}
-              onChange={(e) => setName(e.target.value)}
-              aria-label={`${stock.ticker} 표시 이름`}
-            />
-          )}
+          <span className="ticker-name">{stockLabel(stock)}</span>
           <span className="ticker-sub">
             {stock.ticker} · {MARKET_LABEL[stock.market]} · {CURRENCY_META[stock.currency].symbol}
             {stock.currency}
@@ -129,38 +97,12 @@ function StockRow({
           )}
         </div>
       </td>
-      <td>
-        <input
-          type="text"
-          list="category-options"
-          value={category}
-          placeholder="예: 지수"
-          onChange={(e) => setCategory(e.target.value)}
-        />
+      <td>{stock.category ? stock.category : <span className="hint">없음</span>}</td>
+      <td className="mono">{num(stock.target_weight_pct, 1)}%</td>
+      <td className="mono">
+        {stock.rebalance_band_pct === null ? <span className="hint">기본값</span> : `±${num(stock.rebalance_band_pct, 1)}%p`}
       </td>
       <td>
-        <div className="input-with-button tight">
-          <NumberInput
-            value={targetWeight}
-            onChange={setTargetWeight}
-            aria-label={`${stock.ticker} 목표 비중`}
-          />
-          <span className="unit">%</span>
-        </div>
-      </td>
-      <td>
-        <div className="input-with-button tight">
-          <NumberInput
-            placeholder="기본값"
-            value={bandPct}
-            onChange={setBandPct}
-            aria-label={`${stock.ticker} 밴드 임계값`}
-          />
-          <span className="unit">%p</span>
-        </div>
-      </td>
-      <td>
-        {/* 보유는 이 줄의 "저장"과 따로 — 팝업에서 바로 저장한다 (ROADMAP 9-1) */}
         <div className="holding-cell">
           {holding && holding.quantity > 0 ? (
             <span className="mono">
@@ -170,23 +112,17 @@ function StockRow({
           ) : (
             <span className="hint">보유 없음</span>
           )}
-          <button className="link-like" onClick={() => onEditHolding(stock)} aria-label={`${stockLabel(stock)} 보유 수정`}>
-            수정
-          </button>
         </div>
       </td>
       <td>
         <div className="btn-group tight">
-          <button className="primary sm" onClick={save} disabled={saving}>
-            {saving ? '저장 중…' : '저장'}
-          </button>
-          <button className="sm" onClick={refresh} disabled={refreshing}>
+          <button className="sm" onClick={refresh} disabled={refreshing} aria-label={`${stockLabel(stock)} 시세 갱신`}>
             {refreshing ? '갱신 중…' : '시세 갱신'}
           </button>
-          <button className="sm ghost" onClick={toggleActive}>
+          <button className="sm ghost" onClick={toggleActive} aria-label={`${stockLabel(stock)} ${stock.active ? '비활성화' : '활성화'}`}>
             {stock.active ? '비활성화' : '활성화'}
           </button>
-          <button className="sm danger" onClick={() => onPurge(stock)}>
+          <button className="sm danger" onClick={() => onPurge(stock)} aria-label={`${stockLabel(stock)} 삭제`}>
             삭제
           </button>
         </div>
@@ -212,7 +148,8 @@ export function StockManager() {
   const [listing, setListing] = useState<ListingStatus | null>(null)
   const [purging, setPurging] = useState<Stock | null>(null)
   const [holdings, setHoldings] = useState<Map<string, Holding>>(new Map())
-  const [editingHolding, setEditingHolding] = useState<Stock | null>(null)
+  // 종목 한 번에 수정 (ROADMAP 9-11)
+  const [editing, setEditing] = useState(false)
   const [purgeBusy, setPurgeBusy] = useState(false)
 
   // 시세를 뒤에서 받는 중인 종목. 다음에 목록을 받았을 때 여기서 빠진 종목이 "다 받은" 종목이다.
@@ -507,6 +444,11 @@ export function StockManager() {
             목표 비중 합계 {targetSum.toFixed(1)}%
             {cashTarget > 0 && ` (현금 ${cashTarget.toFixed(1)}% 포함)`}
           </span>
+          {stocks.length > 0 && (
+            <button className="sm section-action" onClick={() => setEditing(true)} aria-label="종목 한 번에 수정">
+              ✎ 수정
+            </button>
+          )}
         </div>
 
         {stocks.length === 0 ? (
@@ -541,7 +483,6 @@ export function StockManager() {
                     onError={setError}
                     onNotice={(text) => setNotice({ tone: 'green', text })}
                     onPurge={setPurging}
-                    onEditHolding={setEditingHolding}
                   />
                 ))}
               </tbody>
@@ -550,17 +491,12 @@ export function StockManager() {
         )}
       </div>
 
-      {editingHolding && (
-        <HoldingEditModal
-          target={{
-            ticker: editingHolding.ticker,
-            label: stockLabel(editingHolding),
-            currency: editingHolding.currency,
-            quantity: holdings.get(editingHolding.ticker)?.quantity ?? 0,
-            avgCost: holdings.get(editingHolding.ticker)?.avg_cost ?? null,
-            avgFx: holdings.get(editingHolding.ticker)?.avg_fx ?? null,
-          }}
-          onClose={() => setEditingHolding(null)}
+      {editing && (
+        <StockEditModal
+          stocks={stocks}
+          holdings={holdings}
+          cashTargetPct={cashTarget}
+          onClose={() => setEditing(false)}
           onSaved={handleSaved}
         />
       )}

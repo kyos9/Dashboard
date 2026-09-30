@@ -4,7 +4,7 @@
  * 숫자(손익·변동·비중)는 서버가 낸 것을 그대로 쓴다 — 리밸런싱 화면과 같은 응답이라 두 화면의
  * 합계가 어긋날 수 없다. 여기서 하는 일은 **줄 세우기·신호 모으기·말 만들기**뿐이다.
  */
-import type { DashboardCard, RebalanceRow } from '../types'
+import type { Currency, DashboardCard, FxInfo, RebalanceRow } from '../types'
 import { signed, trafficLight } from './display'
 
 /** 한 종목 — 리밸런싱 행(돈)과 대시보드 카드(시세·시그널)를 티커로 붙인 것 */
@@ -96,11 +96,58 @@ export function sortItems(items: PortfolioItem[], key: SortKey): PortfolioItem[]
   }
 }
 
+/* ---------- 평가손익을 한 통화로 (9-12) ----------
+   기본은 종목마다 제 통화다 — VOO 는 달러, 삼성전자는 원. 섞여 있으면 줄끼리 크기를 견줄 수 없어서
+   통화 하나를 고르면 그 통화로 바꿔 보인다. 바꾸는 환율은 **지금 환율 하나**(비중을 잴 때와 같은
+   값)이다. 환율 효과를 켠 외화 종목은 서버가 이미 산 환율로 원화 손익을 냈으므로 그 값을 바꾼다. */
+
+export type PnlCurrency = 'local' | Currency
+
+const PNL_CURRENCIES: Currency[] = ['KRW', 'USD', 'JPY']
+
+/** 1단위가 몇 원인가. 원은 1, 모르는 통화는 null */
+function krwRate(currency: Currency, fx: FxInfo): number | null {
+  if (currency === 'KRW') return 1
+  const rate = fx.rates[currency]?.krw_rate
+  return rate && rate > 0 ? rate : null
+}
+
+/**
+ * 고를 수 있는 통화. 내 종목들의 통화와 고를 통화 모두 환율을 알아야 바꿀 수 있다 — 하나라도
+ * 모르면 종목별만 남는다(바꾸지 못한 줄이 "—"로 비는 것보다 낫다).
+ */
+export function pnlCurrencyOptions(fx: FxInfo, held: Currency[]): PnlCurrency[] {
+  if (held.some((c) => krwRate(c, fx) === null)) return ['local']
+  return ['local', ...PNL_CURRENCIES.filter((c) => krwRate(c, fx) !== null)]
+}
+
+export function convertAmount(value: number, from: Currency, to: Currency, fx: FxInfo): number | null {
+  if (from === to) return value
+  const a = krwRate(from, fx)
+  const b = krwRate(to, fx)
+  return a === null || b === null ? null : (value * a) / b
+}
+
+/** 이 줄의 평가손익을 고른 통화로. 'local' 이면 서버가 준 그대로(환율 효과를 켰으면 원화) */
+export function pnlIn(
+  row: RebalanceRow,
+  choice: PnlCurrency,
+  fx: FxInfo,
+): { value: number | null; currency: Currency } {
+  const value = row.shown_pnl ?? row.unrealized_pnl
+  const currency = row.shown_currency ?? row.currency
+  if (choice === 'local' || value === null || value === undefined) {
+    return { value: value ?? null, currency: choice === 'local' ? currency : choice }
+  }
+  return { value: convertAmount(value, currency, choice, fx), currency: choice }
+}
+
 /* ---------- 기기에 기억하는 것 ----------
    고른 정렬·보기는 이 기기의 편의다. 저장이 막힌 브라우저(사생활 보호 창)에서도 화면은 떠야 한다. */
 
 const SORT_STORE = 'dashboard.sort'
 const VIEW_STORE = 'dashboard.view'
+const PNL_STORE = 'dashboard.pnl-currency'
 
 export type DashboardView = 'portfolio' | 'signal'
 
@@ -137,6 +184,16 @@ export function saveView(view: DashboardView) {
   write(VIEW_STORE, view)
 }
 
+/** 고른 손익 통화. 기억이 없거나 이상하면 종목별 통화 */
+export function loadPnlCurrency(): PnlCurrency {
+  const saved = read(PNL_STORE)
+  return saved === 'KRW' || saved === 'USD' || saved === 'JPY' ? saved : 'local'
+}
+
+export function savePnlCurrency(choice: PnlCurrency) {
+  write(PNL_STORE, choice)
+}
+
 /* ---------- 말 ---------- */
 
 /** "주가 +12.0% · 환율 +3.1% → 합계 +15.5%". 합계는 둘의 합이 아니라 곱이다 */
@@ -150,3 +207,4 @@ export function tone(value: number | null | undefined): string {
   if (value === null || value === undefined || value === 0 || Number.isNaN(value)) return ''
   return value > 0 ? 'up' : 'down'
 }
+

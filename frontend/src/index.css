@@ -3823,11 +3823,6 @@ table.data-table tr.dirty:hover td {
   margin-left: auto;
 }
 
-/* 차트 팝업 AI 탭 — 정리 / 종목 분석 (관리자만, 9-8) */
-.ai-kind-switch {
-  margin-bottom: 12px;
-}
-
 /* 두 칸 전환. 누르는 자리는 44px */
 .view-switch {
   display: inline-flex;
@@ -3947,6 +3942,36 @@ table.data-table tr.dirty:hover td {
   min-height: 44px;
 }
 
+/* 보유 종목 제목 오른쪽 — 정렬 · 손익 통화 · 수정. 폰에서는 다음 줄로 접힌다 */
+.holdings-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px 16px;
+  margin-left: auto;
+}
+
+.holdings-tools .sort-pick {
+  margin-left: 0;
+}
+
+/* "손익 통화"가 두 줄로 꺾이지 않게 */
+.holdings-tools .sort-pick > span {
+  white-space: nowrap;
+}
+
+.holdings-tools > button {
+  min-height: 44px;
+}
+
+/* 폰 보유 줄의 수량 — 이름 옆, 흐리지 않게 (ROADMAP 9-10) */
+.holding-qty {
+  font-weight: 500;
+  font-size: var(--fs-sub);
+  color: var(--text-dim);
+}
+
 .empty-state.compact {
   padding: 24px 16px;
 }
@@ -4016,11 +4041,7 @@ table.data-table tr.dirty:hover td {
   word-break: keep-all;
 }
 
-/* 보유 수정 (ROADMAP 9-1) — 대시보드 줄의 "수정", 종목 관리의 보유 칸, 그리고 팝업 */
-.edit-holding {
-  font-size: var(--fs-caption);
-}
-
+/* 종목 관리의 보유 칸 — 보이기만 한다. 고치는 것은 "수정" 한 번 (ROADMAP 9-11) */
 .holding-cell {
   display: flex;
   flex-wrap: wrap;
@@ -4030,27 +4051,101 @@ table.data-table tr.dirty:hover td {
   font-size: var(--fs-sub);
 }
 
-.holding-edit-fields {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 12px;
-  margin-bottom: 12px;
+/* 제목 줄 오른쪽 끝의 버튼 하나 (종목 관리의 "수정") */
+.section-action {
+  margin-left: auto;
+  min-height: 44px;
 }
 
-.holding-edit .field > span:first-child {
+/* 종목 한 번에 수정 (ROADMAP 9-11) — 종목마다 한 묶음, 칸은 자리가 되는 만큼 한 줄에 */
+.stock-edit-modal {
+  width: min(1120px, 100%);
+}
+
+/* 목표 합계는 제목 아래 한 줄 — 제목 줄에 두면 폰에서 닫기(✕)가 혼자 다음 줄로 밀린다 */
+.stock-edit-sum {
+  margin: -8px 0 12px;
+}
+
+.stock-edit-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stock-edit-row {
+  margin: 0;
+  min-width: 0;
+  padding: 8px 12px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.stock-edit-row.dirty {
+  border-color: var(--amber);
+}
+
+.stock-edit-row.failed {
+  border-color: var(--red);
+}
+
+.stock-edit-row legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  padding: 0 4px;
+  max-width: 100%;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.stock-edit-row .dirty-mark {
+  margin-left: 0;
+}
+
+.stock-edit-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 8px 12px;
+}
+
+.stock-edit-fields .field > span:first-child {
   font-size: var(--fs-caption);
   font-weight: 600;
   color: var(--text-dim);
+  word-break: keep-all;
 }
 
-.holding-edit .num-input {
+.stock-edit-fields input[type='text'],
+.stock-edit-fields .num-input {
   width: 100%;
   min-width: 0;
+  /* 손가락으로 누르는 칸 — 44px (8-4) */
+  min-height: 44px;
 }
 
-.holding-edit form > .hint {
+.stock-edit-foot button {
+  min-height: 44px;
+}
+
+/* 저장 버튼은 목록이 길어도 늘 보이게 — 창의 아래 끝에 붙는다 */
+.stock-edit-foot {
+  position: sticky;
+  bottom: -16px;
+  margin: 12px -16px -16px;
+  padding: 12px 16px 16px;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+}
+
+.stock-edit-foot .hint {
   margin: 0 0 8px;
   word-break: keep-all;
+}
+
+.stock-edit-foot .error-text {
+  margin-bottom: 8px;
 }
 
 /* 금액 가리기 (ROADMAP 9-3) — 총 평가금액 제목 옆 */

@@ -676,6 +676,7 @@ export function Dashboard() {
         <PortfolioView
           current={current}
           cards={cards}
+          stocks={stocks}
           narrow={narrow}
           onChart={openChart}
           onSignal={goToSignal}
