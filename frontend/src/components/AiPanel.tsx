@@ -45,9 +45,9 @@ const COPY: Record<AiScope, { intro: string; examples: string[]; help: string; p
   },
   research: {
     intro:
-      '이 종목의 재무(PER·PBR·ROE·FCF 수익률·3·5년 성장률 등)와 내 포트폴리오 비중(%)을 AI 에게 보내, 알파 버킷 편입 판단을 돕는 리포트를 받습니다. 앱에 없는 값(선행 PER·업종 평균·순현금)은 "확인 필요"로 적게 합니다. 관리자만 씁니다.',
-    examples: ['리스크 위주로 자세히', '시나리오 분석만', '비슷한 익스포저가 있는지 먼저', '표 없이 짧게'],
-    help: '숫자는 앱이 모은 것만 쓰고, 없는 값은 지어내지 않도록 요청합니다. 매수·매도를 단정하거나 목표주가를 내지는 않습니다.',
+      '이 종목의 재무(PER·PBR·ROE·FCF 수익률·3·5년 성장률 등)와 내 포트폴리오 비중(%)을 AI 에게 보내, 알파 버킷 편입 판단을 돕는 리포트를 받습니다. 앱에 없는 값(동종 업계 비교·선행 PER·최근 실적)은 AI 가 웹에서 찾아 출처와 함께 적습니다 — 검색 요금이 조금 더 나갑니다. 금액·수량은 보내지 않고, 검색어에 내 비중을 넣지 않게 합니다. 관리자만 씁니다.',
+    examples: ['리스크 위주로 자세히', '경쟁사와 비교를 자세히', '비슷한 익스포저가 있는지 먼저', '표 없이 짧게'],
+    help: '숫자는 앱이 모은 것을 먼저 쓰고, 없는 값은 웹에서 찾아 출처를 붙이게 합니다. 찾지 못한 것만 "확인 필요"로 남습니다. 매수·매도를 단정하거나 목표주가를 내지는 않습니다.',
     placeholder: '예: 보유 중인 반도체 종목과 겹치는 부분을 자세히',
   },
   macro: {
@@ -60,7 +60,7 @@ const COPY: Record<AiScope, { intro: string; examples: string[]; help: string; p
 }
 
 /** 키를 다시 넣어야 풀리는 오류 — 이때는 키 입력을 바로 펼친다 */
-const KEY_PROBLEMS = new Set(['key_invalid', 'bad_key_shape', 'model_denied'])
+const KEY_PROBLEMS = new Set(['key_invalid', 'bad_key_shape', 'model_denied', 'search_unavailable'])
 
 function when(iso: string): string {
   const d = new Date(iso)
@@ -85,6 +85,34 @@ interface Draft {
   as_of: string | null
   /** 멈추기·오류로 끝까지 쓰지 않았다 */
   cut: boolean
+  /** 웹 검색을 몇 번 시작했나 (종목 분석, 9-13) */
+  searches: number
+}
+
+/** AI 가 찾아본 곳 — 출처를 눌러 직접 확인할 수 있게. 새 창으로, 이 앱의 주소를 넘기지 않고 */
+function Sources({ result }: { result: AiAnalysis }) {
+  const sources = result.sources ?? []
+  if (result.web_searches == null) return null
+  return (
+    <section className="ai-sources">
+      <h5>
+        AI 가 찾아본 자료 <span className="hint">웹 검색 {result.web_searches}번</span>
+      </h5>
+      {sources.length === 0 ? (
+        <p className="hint">출처가 없습니다 — 글의 값 가운데 출처가 적히지 않은 것은 AI 가 확인하지 못한 것으로 보세요.</p>
+      ) : (
+        <ol>
+          {sources.map((s) => (
+            <li key={s.url}>
+              <a href={s.url} target="_blank" rel="noopener noreferrer">
+                {s.title}
+              </a>
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
+  )
 }
 
 /**
@@ -142,12 +170,15 @@ export function AiPanel({ target, account }: { target: AiTarget; account: string
     running.current = controller
     setBusy(true)
     setError(null)
-    setDraft({ text: '', provider: settings.provider, model: settings.model, as_of: null, cut: false })
+    setDraft({ text: '', provider: settings.provider, model: settings.model, as_of: null, cut: false, searches: 0 })
     try {
       const got = await api.aiAnalyzeStream(target, settings.provider, settings.model, settings.key, question, {
         signal: controller.signal,
         onStart: (info) => alive.current && setDraft((d) => d && { ...d, ...info }),
         onDelta: (text) => alive.current && setDraft((d) => d && { ...d, text: d.text + text }),
+        // 찾기 전에 쓴 "찾아보겠습니다" 같은 머리말은 서버가 버렸다 — 화면에서도 지운다
+        onSearch: ({ count, reset }) =>
+          alive.current && setDraft((d) => d && { ...d, searches: count, text: reset ? '' : d.text }),
       })
       saveAiResult(account, storeKey, got)
       if (alive.current) {
@@ -265,7 +296,9 @@ export function AiPanel({ target, account }: { target: AiTarget; account: string
             {basis(scope, draft.as_of)}
             {providerLabel(draft.provider)} <span className="mono">{draft.model}</span> ·{' '}
             {busy ? (
-              <span className="ai-writing">쓰는 중…</span>
+              <span className="ai-writing">
+                {draft.searches > 0 && !draft.text.trim() ? `웹에서 자료를 찾는 중… (${draft.searches}번째 검색)` : '쓰는 중…'}
+              </span>
             ) : (
               <>
                 <span className="error-inline">끝까지 쓰지 않은 글입니다 — 저장하지 않았습니다</span>
@@ -284,8 +317,10 @@ export function AiPanel({ target, account }: { target: AiTarget; account: string
             <AiText text={draft.text} />
           ) : (
             <p className="hint">
-              AI 가 숫자를 읽고 있습니다. 글이 써지는 대로 여기에 보입니다 (다 쓰는 데 보통 20초~1분). 멈추거나 창을
-              닫으면 거기서 멈추고, 그때까지 쓴 만큼만 요금이 나갑니다.
+              {scope === 'research'
+                ? 'AI 가 숫자를 읽고 웹에서 비교할 자료를 찾고 있습니다. 찾은 뒤에 글이 써지는 대로 여기에 보입니다 (보통 1~2분). '
+                : 'AI 가 숫자를 읽고 있습니다. 글이 써지는 대로 여기에 보입니다 (다 쓰는 데 보통 20초~1분). '}
+              멈추거나 창을 닫으면 거기서 멈추고, 그때까지 쓴 만큼만 요금이 나갑니다.
             </p>
           )}
           <p className="ai-disclaimer">
@@ -312,6 +347,7 @@ export function AiPanel({ target, account }: { target: AiTarget; account: string
             {result.truncated && (
               <p className="hint">⚠ 길이 제한에 걸려 끝부분이 잘렸습니다. 다시 받거나 다른 모델을 골라 보세요.</p>
             )}
+            <Sources result={result} />
             <p className="ai-disclaimer">
               AI 가 앱의 숫자를 풀어 쓴 참고 글이며 틀릴 수 있습니다. 투자 권유가 아니고, 판단과 책임은 본인에게
               있습니다.
@@ -334,6 +370,12 @@ export function AiPanel({ target, account }: { target: AiTarget; account: string
           ))}
         {context && (
           <>
+            {context.search && (
+              <p className="hint">
+                웹 검색을 켜고 보냅니다 — AI 가 회사·업종 이름으로 찾아봅니다. 검색어에 내 비중을 넣지 않도록 지시문에
+                적어 두었습니다.
+              </p>
+            )}
             <h5>지시문</h5>
             <pre>{context.system}</pre>
             <h5>데이터</h5>

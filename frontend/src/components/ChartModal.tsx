@@ -137,16 +137,13 @@ export function ChartModal({ ticker, name, initialTab = 'chart', onClose }: Prop
   const showAi = !guest && !pending
   const activeTab: ChartTab =
     (tab === 'fundamentals' && !showFundamentals) ||
-    (tab === 'ai' && !showAi) ||
-    (tab === 'research' && !isAdmin)
+    (tab === 'ai' && !showAi)
       ? 'chart'
       : tab
-  // AI 종목 분석(9-8)은 내 비중까지 보내므로 관리자만 — 탭 줄의 맨 끝에 둔다 (9-9)
   const tabs: { key: ChartTab; label: string }[] = [
     { key: 'chart', label: '차트' },
     ...(showFundamentals ? [{ key: 'fundamentals' as const, label: '재무' }] : []),
     ...(showAi ? [{ key: 'ai' as const, label: 'AI 분석' }] : []),
-    ...(showAi && isAdmin ? [{ key: 'research' as const, label: 'AI 종목 분석' }] : []),
   ]
 
   // 폰의 뒤로가기로도 닫힌다
@@ -211,11 +208,11 @@ export function ChartModal({ ticker, name, initialTab = 'chart', onClose }: Prop
           </button>
         </div>
 
-        {activeTab === 'ai' || activeTab === 'research' ? (
-          // 탭을 바꾸면 창 안의 받던 글·요청도 새로 — key 로 다시 만든다
+        {activeTab === 'ai' ? (
           <AiPanel
-            key={activeTab}
-            target={activeTab === 'research' ? { kind: 'research', ticker } : { kind: 'stock', ticker }}
+            // AI 분석은 하나 (9-13) — 관리자는 웹을 찾아보는 종목 분석(내 비중 % 포함, 9-8), 사용자는
+            // 공용 숫자만 보내는 종목 정리. 종목 분석은 내 비중이 가므로 관리자만이다.
+            target={isAdmin ? { kind: 'research', ticker } : { kind: 'stock', ticker }}
             account={pushAccount(user)}
           />
         ) : activeTab === 'fundamentals' && fundamentals ? (

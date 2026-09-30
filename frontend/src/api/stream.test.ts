@@ -60,6 +60,19 @@ describe('AI 글 흘려받기', () => {
     expect(String(init.body)).not.toContain('sk-key-1234')
   })
 
+  it('웹을 찾는 종목 분석은 search 이벤트를 알린다 (9-13)', async () => {
+    const body = sse('delta', { text: '찾아보겠습니다' }) + sse('search', { count: 1, reset: true }) +
+      sse('delta', { text: '## 1.' }) + sse('done', { ...DONE, scope: 'research', web_searches: 1, sources: [] })
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(streamed(body, [7]))
+    const seen: string[] = []
+    const got = await api.aiAnalyzeStream({ kind: 'research', ticker: 'GOOG' }, 'anthropic', 'm', 'k'.repeat(10), '', {
+      onDelta: (t) => seen.push(`delta:${t}`),
+      onSearch: (s) => seen.push(`search:${s.count}:${s.reset}`),
+    })
+    expect(seen).toEqual(['delta:찾아보겠습니다', 'search:1:true', 'delta:## 1.'])
+    expect(got.web_searches).toBe(1)
+  })
+
   it('전체·매크로 정리는 각자의 주소로 간다', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch')
     fetchMock.mockImplementation(async () => streamed(sse('done', DONE), []))

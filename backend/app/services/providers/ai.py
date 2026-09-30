@@ -12,6 +12,11 @@
 **오류를 번역한다.** "안 돼요" 하나로 뭉치면 사용자가 할 일을 모른다. 키가 틀린 것,
 잔액이 없는 것, 그 모델을 쓸 권한이 없는 것, 잠깐 막힌 것은 할 일이 전부 다르다.
 
+**종목 분석은 웹을 찾아본다 (9-13).** 앱이 모으지 않는 값(동종 업계 비교, 선행 PER, 최근 실적)을
+"확인 필요"로 비워 두지 않게, 세 제공자가 저마다 가진 웹 검색을 켠다 — Claude 는 `web_search` 도구,
+OpenAI 는 Responses API 의 `web_search`, Gemini 는 `google_search`. 찾아본 곳(출처)은 따로 모아 화면에 붙인다.
+검색도 사용자의 키로, 그 제공자의 요금으로 된다.
+
 **모델 이름을 코드에 박지 않는다.** 제공자마다 몇 달이면 새 모델이 나오고 옛 것이 내려간다.
 키를 확인할 때 그 키로 쓸 수 있는 모델 목록을 제공자에게 물어 사용자가 고르게 한다.
 """
@@ -22,7 +27,7 @@ import logging
 import re
 import json as jsonlib
 from collections.abc import Callable, Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 import requests
@@ -40,6 +45,10 @@ MESSAGE_LIMIT = 300
 MODEL_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:\-]{0,99}$")
 # 키 — 제공자마다 모양이 다르지만 공백·제어문자는 없고 수백 자를 넘지 않는다
 KEY_PATTERN = re.compile(r"^[\x21-\x7e]{8,400}$")
+
+# 웹 검색 — 한 번 분석에 이만큼까지 찾는다 (Claude 만 횟수를 정할 수 있다). 출처는 이만큼까지 붙인다.
+SEARCH_MAX_USES = 5
+SOURCES_MAX = 12
 
 # 오류 문장에 섞여 온 키 비슷한 것 (sk-..., sk-ant-..., sk-proj-..., AIza...)
 _KEYLIKE = re.compile(r"(sk-[A-Za-z0-9_\-*.]{6,}|AIza[0-9A-Za-z_\-]{10,})")
@@ -70,6 +79,8 @@ ERRORS: dict[str, tuple[int, str]] = {
     "overloaded": (502, "AI 제공자가 지금 바쁩니다(과부하). 잠시 뒤 다시 해 보세요."),
     "provider_error": (502, "AI 제공자 쪽에서 오류가 났습니다. 잠시 뒤 다시 해 보세요."),
     "bad_request": (400, "AI 제공자가 요청을 거절했습니다. 다른 모델로 해 보세요."),
+    "search_unavailable": (400, "고른 모델이나 계정에서 웹 검색을 쓸 수 없어 요청이 거절됐습니다. 다른 모델을 골라 보세요 "
+                                "(Claude 는 Anthropic Console 에서 웹 검색이 켜져 있어야 합니다)."),
     "empty": (502, "AI 가 빈 답을 돌려줬습니다(안전 필터나 길이 제한). 다시 해 보거나 다른 모델을 골라 보세요."),
     "timeout": (504, "AI 제공자가 제시간에 답하지 않았습니다. 잠시 뒤 다시 해 보세요."),
     "network": (502, "서버가 AI 제공자에 연결하지 못했습니다. 잠시 뒤 다시 해 보세요."),
@@ -118,6 +129,47 @@ class Reply:
     truncated: bool = False
     input_tokens: int | None = None
     output_tokens: int | None = None
+    # 웹 검색을 몇 번 했나, 글이 인용한 곳 (없으면 찾아본 곳)
+    searches: int = 0
+    sources: list[dict] = field(default_factory=list)
+    found: list[dict] = field(default_factory=list)
+
+
+@dataclass
+class Searching:
+    """글 조각이 아니라 "지금 웹을 찾는다"는 표시. `reset` 이면 그 앞에 쓴 글(머리말)은 버렸다."""
+
+    count: int
+    reset: bool
+
+
+def _search_started(reply: Reply) -> Searching:
+    """검색을 하나 시작했다.
+
+    Claude 는 찾기 전에 "~를 검색해 보겠습니다" 같은 말을 먼저 쓴다. 제목("## ")이 아직 없는 글은
+    리포트가 아니라 그런 머리말이므로 버린다 — 리포트를 쓰다 말고 찾는 경우(제목이 있다)는 둔다.
+    """
+    reply.searches += 1
+    reset = bool(reply.text.strip()) and "## " not in reply.text
+    if reset:
+        reply.text = ""
+    return Searching(reply.searches, reset)
+
+
+def _add_source(sources: list[dict], url: Any, title: Any) -> None:
+    """출처 하나 — http(s) 주소만, 같은 주소는 한 번, 너무 많으면 앞의 것만."""
+    url = str(url or "").strip()
+    if not url.startswith(("https://", "http://")) or len(url) > 2000 or len(sources) >= SOURCES_MAX:
+        return
+    if any(s["url"] == url for s in sources):
+        return
+    sources.append({"url": url, "title": " ".join(str(title or "").split())[:200] or url})
+
+
+def _finish_sources(reply: Reply) -> None:
+    """글이 인용한 곳이 없으면 찾아본 곳을 출처로."""
+    if not reply.sources:
+        reply.sources = reply.found[:SOURCES_MAX]
 
 
 @dataclass
@@ -210,7 +262,12 @@ def sse_events(lines) -> Iterator[tuple[str | None, str]]:
 
 
 def _provider_message(body: Any) -> str:
-    """제공자 오류 본문에서 사람이 읽을 문장 하나. 세 제공자 모두 `error.message` 에 둔다."""
+    """제공자 오류 본문에서 사람이 읽을 문장 하나. 세 제공자 모두 `error.message` 에 둔다.
+
+    OpenAI Responses 의 흘려받기 오류만 `{"type": "error", "message": ...}` 로 온다.
+    """
+    if isinstance(body, dict) and body.get("type") == "error" and isinstance(body.get("message"), str):
+        return body["message"]
     if isinstance(body, dict):
         err = body.get("error")
         if isinstance(err, dict):
@@ -228,9 +285,9 @@ class AiProvider(Protocol):
 
     def list_models(self, key: str) -> list[dict]: ...
 
-    def generate(self, key: str, model: str, system: str, prompt: str) -> Reply: ...
+    def generate(self, key: str, model: str, system: str, prompt: str, search: bool = False) -> Reply: ...
 
-    def stream(self, key: str, model: str, system: str, prompt: str) -> Streamed: ...
+    def stream(self, key: str, model: str, system: str, prompt: str, search: bool = False) -> Streamed: ...
 
 
 def _fail(provider: str, code: str, res: Response, key: str) -> AiError:
@@ -240,10 +297,16 @@ def _fail(provider: str, code: str, res: Response, key: str) -> AiError:
     return error(code, f"{provider} HTTP {res.status}: {detail}".rstrip(": "))
 
 
-def _check(provider, res: Response, key: str) -> None:
+def _classify(provider, res: Response, search: bool) -> str:
+    """웹 검색을 켠 요청이 "잘못된 요청"으로 거절되면 대개 그 모델·계정이 검색을 못 쓰는 것이다."""
+    code = provider.classify(res)
+    return "search_unavailable" if search and code == "bad_request" else code
+
+
+def _check(provider, res: Response, key: str, search: bool = False) -> None:
     """성공이 아니면 번역한 오류를, 성공인데 JSON 이 아니면 제공자 오류를 던진다."""
     if res.status != 200:
-        raise _fail(provider.name, provider.classify(res), res, key)
+        raise _fail(provider.name, _classify(provider, res, search), res, key)
     if not isinstance(res.body, dict):
         raise _fail(provider.name, "provider_error", res, key)
 
@@ -255,13 +318,15 @@ class Streamed:
     제공자가 오류 이벤트를 보내면 `AiError` 를 던진다 — 받는 쪽이 그때까지의 글과 함께 알린다.
     """
 
-    def __init__(self, provider, key: str, model: str, res: StreamResponse) -> None:
+    def __init__(self, provider, key: str, model: str, res: StreamResponse, reader=None) -> None:
         self._provider = provider
         self._key = key
         self._res = res
+        # 조각 읽는 법 — 제공자마다 (OpenAI 는 검색할 때 모양이 다른 API 를 쓴다)
+        self._read = reader or provider.read_chunk
         self.reply = Reply(text="", model=model)
 
-    def __iter__(self) -> Iterator[str]:
+    def __iter__(self) -> Iterator[str | Searching]:
         try:
             for event, data in sse_events(self._res.lines):
                 if data.strip() == "[DONE]":
@@ -276,24 +341,27 @@ class Streamed:
                     code = self._provider.classify(Response(200, body))
                     raise _fail(self._provider.name, "provider_error" if code == "bad_request" else code,
                                 Response(200, body), self._key)
-                piece = self._provider.read_chunk(self.reply, body)
-                if piece:
+                piece = self._read(self.reply, body)
+                if isinstance(piece, Searching):
+                    yield piece
+                elif piece:
                     self.reply.text += piece
                     yield piece
         finally:
             self.close()
         self.reply.text = self.reply.text.strip()
+        _finish_sources(self.reply)
 
     def close(self) -> None:
         self._res.close()
 
 
 def _open(provider, key: str, model: str, url: str, headers: dict, body: dict,
-          params: dict | None = None) -> Streamed:
+          params: dict | None = None, search: bool = False, reader=None) -> Streamed:
     res = send_stream(url, headers, body, params)
     if res.status != 200:
-        raise _fail(provider.name, provider.classify(res), res, key)
-    return Streamed(provider, key, model, res)
+        raise _fail(provider.name, _classify(provider, Response(res.status, res.body), search), res, key)
+    return Streamed(provider, key, model, res, reader)
 
 
 # ---------------------------------------------------------------------------
@@ -342,44 +410,87 @@ class Anthropic:
             if isinstance(m, dict) and m.get("id")
         ]
 
-    def _body(self, model: str, system: str, prompt: str) -> dict:
-        return {
+    # 서버가 찾아 주는 도구 — 우리가 검색을 돌리지 않는다. 조직 관리자가 Console 에서 켜 둬야 한다.
+    WEB_SEARCH = {"type": "web_search_20250305", "name": "web_search", "max_uses": SEARCH_MAX_USES}
+
+    def _body(self, model: str, system: str, prompt: str, search: bool = False) -> dict:
+        body: dict = {
             "model": model,
             "max_tokens": self.MAX_TOKENS,
             "system": system,
             "messages": [{"role": "user", "content": prompt}],
         }
-
-    def generate(self, key: str, model: str, system: str, prompt: str) -> Reply:
-        res = send("POST", f"{self.BASE}/messages", self._headers(key), json=self._body(model, system, prompt))
-        _check(self, res, key)
-        parts = [p.get("text", "") for p in res.body.get("content") or [] if p.get("type") == "text"]
-        usage = res.body.get("usage") or {}
-        return Reply(
-            text="".join(parts).strip(),
-            model=res.body.get("model") or model,
-            truncated=res.body.get("stop_reason") == "max_tokens",
-            input_tokens=usage.get("input_tokens"),
-            output_tokens=usage.get("output_tokens"),
-        )
-
-    def stream(self, key: str, model: str, system: str, prompt: str) -> Streamed:
-        body = {**self._body(model, system, prompt), "stream": True}
-        return _open(self, key, model, f"{self.BASE}/messages", self._headers(key), body)
+        if search:
+            body["tools"] = [dict(self.WEB_SEARCH)]
+        return body
 
     @staticmethod
-    def read_chunk(reply: Reply, body: dict) -> str:
+    def _stopped(reply: Reply, stop_reason: Any) -> None:
+        # pause_turn — 검색이 길어 제공자가 중간에 멈췄다. 글이 끝나지 않았다는 점에서 잘린 것과 같다
+        reply.truncated = stop_reason in ("max_tokens", "pause_turn")
+
+    @staticmethod
+    def _found(reply: Reply, block: dict) -> None:
+        content = block.get("content")
+        if isinstance(content, list):  # 검색이 실패하면 목록 대신 오류 하나가 온다
+            for r in content:
+                if isinstance(r, dict) and r.get("type") == "web_search_result":
+                    _add_source(reply.found, r.get("url"), r.get("title"))
+
+    @staticmethod
+    def _cited(reply: Reply, citation: Any) -> None:
+        if isinstance(citation, dict) and citation.get("type") == "web_search_result_location":
+            _add_source(reply.sources, citation.get("url"), citation.get("title"))
+
+    def generate(self, key: str, model: str, system: str, prompt: str, search: bool = False) -> Reply:
+        res = send("POST", f"{self.BASE}/messages", self._headers(key),
+                   json=self._body(model, system, prompt, search))
+        _check(self, res, key, search)
+        usage = res.body.get("usage") or {}
+        reply = Reply(text="", model=res.body.get("model") or model,
+                      input_tokens=usage.get("input_tokens"), output_tokens=usage.get("output_tokens"))
+        # 글·검색·검색 결과가 쓴 순서대로 온다 — 흘려받을 때와 같게 읽는다
+        for part in res.body.get("content") or []:
+            if not isinstance(part, dict):
+                continue
+            if part.get("type") == "server_tool_use":
+                _search_started(reply)
+            elif part.get("type") == "web_search_tool_result":
+                self._found(reply, part)
+            elif part.get("type") == "text":
+                reply.text += str(part.get("text") or "")
+                for citation in part.get("citations") or []:
+                    self._cited(reply, citation)
+        reply.text = reply.text.strip()
+        self._stopped(reply, res.body.get("stop_reason"))
+        _finish_sources(reply)
+        return reply
+
+    def stream(self, key: str, model: str, system: str, prompt: str, search: bool = False) -> Streamed:
+        body = {**self._body(model, system, prompt, search), "stream": True}
+        return _open(self, key, model, f"{self.BASE}/messages", self._headers(key), body, search=search)
+
+    @classmethod
+    def read_chunk(cls, reply: Reply, body: dict) -> str | Searching:
         kind = body.get("type")
         if kind == "message_start":
             message = body.get("message") or {}
             reply.model = message.get("model") or reply.model
             reply.input_tokens = (message.get("usage") or {}).get("input_tokens")
+        elif kind == "content_block_start":
+            block = body.get("content_block") or {}
+            if block.get("type") == "server_tool_use":
+                return _search_started(reply)
+            if block.get("type") == "web_search_tool_result":
+                cls._found(reply, block)
         elif kind == "content_block_delta":
             delta = body.get("delta") or {}
             if delta.get("type") == "text_delta":
                 return str(delta.get("text") or "")
+            if delta.get("type") == "citations_delta":
+                cls._cited(reply, delta.get("citation"))
         elif kind == "message_delta":
-            reply.truncated = (body.get("delta") or {}).get("stop_reason") == "max_tokens"
+            cls._stopped(reply, (body.get("delta") or {}).get("stop_reason"))
             reply.output_tokens = (body.get("usage") or {}).get("output_tokens", reply.output_tokens)
         return ""
 
@@ -406,6 +517,8 @@ class OpenAI:
     BASE = "https://api.openai.com/v1"
     # 추론 모델은 생각하는 데도 이 한도를 쓴다 — 넉넉히 둔다 (쓴 만큼만 청구된다)
     MAX_TOKENS = 8000
+    # 검색하며 쓰면 읽고 생각하는 몫이 늘어난다
+    SEARCH_MAX_TOKENS = 16000
 
     def _headers(self, key: str) -> dict:
         return {"Authorization": f"Bearer {key}", "content-type": "application/json"}
@@ -452,7 +565,9 @@ class OpenAI:
             ],
         }
 
-    def generate(self, key: str, model: str, system: str, prompt: str) -> Reply:
+    def generate(self, key: str, model: str, system: str, prompt: str, search: bool = False) -> Reply:
+        if search:
+            return self._search_generate(key, model, system, prompt)
         res = send("POST", f"{self.BASE}/chat/completions", self._headers(key),
                    json=self._body(model, system, prompt))
         _check(self, res, key)
@@ -466,7 +581,11 @@ class OpenAI:
             output_tokens=usage.get("completion_tokens"),
         )
 
-    def stream(self, key: str, model: str, system: str, prompt: str) -> Streamed:
+    def stream(self, key: str, model: str, system: str, prompt: str, search: bool = False) -> Streamed:
+        if search:
+            body = {**self._search_body(model, system, prompt), "stream": True}
+            return _open(self, key, model, f"{self.BASE}/responses", self._headers(key), body,
+                         search=True, reader=self.read_response_event)
         # 쓴 토큰 수는 따로 청해야 마지막 조각에 온다
         body = {**self._body(model, system, prompt), "stream": True, "stream_options": {"include_usage": True}}
         return _open(self, key, model, f"{self.BASE}/chat/completions", self._headers(key), body)
@@ -482,6 +601,70 @@ class OpenAI:
         if choice.get("finish_reason"):
             reply.truncated = choice["finish_reason"] == "length"
         return str((choice.get("delta") or {}).get("content") or "")
+
+    # --- 웹 검색 (9-13) — Chat Completions 에는 검색이 없다(검색 전용 모델만). Responses API 로 간다.
+
+    def _search_body(self, model: str, system: str, prompt: str) -> dict:
+        return {
+            "model": model,
+            "instructions": system,
+            "input": prompt,
+            "max_output_tokens": self.SEARCH_MAX_TOKENS,
+            "tools": [{"type": "web_search"}],
+        }
+
+    @staticmethod
+    def _response_meta(reply: Reply, response: dict) -> None:
+        reply.model = response.get("model") or reply.model
+        usage = response.get("usage") or {}
+        if usage:
+            reply.input_tokens = usage.get("input_tokens")
+            reply.output_tokens = usage.get("output_tokens")
+        reason = (response.get("incomplete_details") or {}).get("reason")
+        reply.truncated = response.get("status") == "incomplete" and reason == "max_output_tokens"
+
+    @staticmethod
+    def _cited(reply: Reply, annotation: Any) -> None:
+        if isinstance(annotation, dict) and annotation.get("type") == "url_citation":
+            _add_source(reply.sources, annotation.get("url"), annotation.get("title"))
+
+    def _search_generate(self, key: str, model: str, system: str, prompt: str) -> Reply:
+        res = send("POST", f"{self.BASE}/responses", self._headers(key), json=self._search_body(model, system, prompt))
+        _check(self, res, key, search=True)
+        reply = Reply(text="", model=model)
+        for item in res.body.get("output") or []:
+            if not isinstance(item, dict):
+                continue
+            if item.get("type") == "web_search_call":
+                _search_started(reply)
+            elif item.get("type") == "message":
+                for part in item.get("content") or []:
+                    if isinstance(part, dict) and part.get("type") == "output_text":
+                        reply.text += str(part.get("text") or "")
+                        for annotation in part.get("annotations") or []:
+                            self._cited(reply, annotation)
+        reply.text = reply.text.strip()
+        self._response_meta(reply, res.body)
+        _finish_sources(reply)
+        return reply
+
+    @classmethod
+    def read_response_event(cls, reply: Reply, body: dict) -> str | Searching:
+        kind = str(body.get("type") or "")
+        if kind == "response.output_text.delta":
+            return str(body.get("delta") or "")
+        if kind == "response.web_search_call.in_progress":
+            return _search_started(reply)
+        if kind == "response.output_text.annotation.added":
+            cls._cited(reply, body.get("annotation"))
+        elif kind in ("response.created", "response.completed", "response.incomplete"):
+            cls._response_meta(reply, body.get("response") or {})
+        elif kind == "response.failed":
+            err = (body.get("response") or {}).get("error") or {}
+            message = scrub(str(err.get("message") or "") if isinstance(err, dict) else "")
+            logger.warning("AI 제공자 openai 응답 실패 (response.failed)")
+            raise error("provider_error", f"openai response failed: {message}".rstrip(": "))
+        return ""
 
 
 # ---------------------------------------------------------------------------
@@ -542,37 +725,54 @@ class Gemini:
             out.append({"id": model_id, "label": m.get("displayName") or model_id})
         return out
 
-    def _body(self, system: str, prompt: str) -> dict:
-        return {
+    def _body(self, system: str, prompt: str, search: bool = False) -> dict:
+        body: dict = {
             "systemInstruction": {"parts": [{"text": system}]},
             "contents": [{"role": "user", "parts": [{"text": prompt}]}],
             "generationConfig": {"maxOutputTokens": self.MAX_TOKENS},
         }
+        if search:
+            body["tools"] = [{"google_search": {}}]
+        return body
 
-    def generate(self, key: str, model: str, system: str, prompt: str) -> Reply:
+    @staticmethod
+    def _grounding(reply: Reply, candidate: dict) -> None:
+        """구글 검색으로 찾아본 것 — 검색어 수와 찾아본 곳. 조각마다 지금까지의 것이 온다."""
+        grounding = candidate.get("groundingMetadata") or {}
+        queries = grounding.get("webSearchQueries") or []
+        if isinstance(queries, list):
+            reply.searches = max(reply.searches, len(queries))
+        for chunk in grounding.get("groundingChunks") or []:
+            web = (chunk or {}).get("web") if isinstance(chunk, dict) else None
+            if isinstance(web, dict):
+                _add_source(reply.sources, web.get("uri"), web.get("title"))
+
+    def generate(self, key: str, model: str, system: str, prompt: str, search: bool = False) -> Reply:
         res = send("POST", f"{self.BASE}/models/{model}:generateContent", self._headers(key),
-                   json=self._body(system, prompt))
-        _check(self, res, key)
+                   json=self._body(system, prompt, search))
+        _check(self, res, key, search)
         candidate = (res.body.get("candidates") or [{}])[0]
         parts = (candidate.get("content") or {}).get("parts") or []
         # 생각하는 모델은 생각한 내용도 조각으로 보낸다 (`thought: true`) — 답만 모은다
         text = "".join(p.get("text", "") for p in parts if isinstance(p, dict) and not p.get("thought"))
         usage = res.body.get("usageMetadata") or {}
-        return Reply(
+        reply = Reply(
             text=text.strip(),
             model=res.body.get("modelVersion") or model,
             truncated=candidate.get("finishReason") == "MAX_TOKENS",
             input_tokens=usage.get("promptTokenCount"),
             output_tokens=usage.get("candidatesTokenCount"),
         )
+        self._grounding(reply, candidate)
+        return reply
 
-    def stream(self, key: str, model: str, system: str, prompt: str) -> Streamed:
+    def stream(self, key: str, model: str, system: str, prompt: str, search: bool = False) -> Streamed:
         # alt=sse — 조각을 SSE 로 (기본은 JSON 배열 하나를 조금씩)
         return _open(self, key, model, f"{self.BASE}/models/{model}:streamGenerateContent", self._headers(key),
-                     self._body(system, prompt), params={"alt": "sse"})
+                     self._body(system, prompt, search), params={"alt": "sse"}, search=search)
 
-    @staticmethod
-    def read_chunk(reply: Reply, body: dict) -> str:
+    @classmethod
+    def read_chunk(cls, reply: Reply, body: dict) -> str:
         reply.model = body.get("modelVersion") or reply.model
         usage = body.get("usageMetadata") or {}
         if usage:
@@ -582,6 +782,7 @@ class Gemini:
         candidate = (body.get("candidates") or [{}])[0]
         if candidate.get("finishReason"):
             reply.truncated = candidate["finishReason"] == "MAX_TOKENS"
+        cls._grounding(reply, candidate)
         parts = (candidate.get("content") or {}).get("parts") or []
         return "".join(p.get("text", "") for p in parts if isinstance(p, dict) and not p.get("thought"))
 

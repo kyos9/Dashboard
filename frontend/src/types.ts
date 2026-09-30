@@ -732,6 +732,14 @@ export interface AiContext {
   as_of: string | null
   system: string
   prompt: string
+  /** 웹 검색을 켜고 부르나 (종목 분석, 9-13) */
+  search?: boolean
+}
+
+/** AI 가 찾아본 곳 (웹 검색, 9-13) */
+export interface AiSource {
+  url: string
+  title: string
 }
 
 export interface AiAnalysis {
@@ -750,4 +758,8 @@ export interface AiAnalysis {
   generated_at: string
   input_tokens: number | null
   output_tokens: number | null
+  /** 웹 검색 횟수 — 검색을 켜는 종목 분석만, 나머지는 null (9-13) */
+  web_searches?: number | null
+  /** 글이 인용한 곳 (없으면 찾아본 곳) */
+  sources?: AiSource[]
 }

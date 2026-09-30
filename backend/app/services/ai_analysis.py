@@ -596,6 +596,8 @@ class Job:
     system: str
     prompt: str
     as_of: dt.date | None
+    # 웹 검색을 켜고 부르나 (종목 분석, 9-13)
+    search: bool = False
 
 
 def stock_job(db: Session, stock, question: str | None) -> Job:
@@ -625,7 +627,8 @@ def preview(build, question: str | None = None) -> dict:
     `build(question) -> Job` — 무엇을 정리하는지 (`stock_job` 등을 감싼 것).
     """
     job = build(check_question(question))
-    return {"scope": job.scope, "ticker": job.ticker, "as_of": job.as_of, "system": job.system, "prompt": job.prompt}
+    return {"scope": job.scope, "ticker": job.ticker, "as_of": job.as_of, "system": job.system, "prompt": job.prompt,
+            "search": job.search}
 
 
 def _result(job: Job, question: str | None, provider, reply: providers.Reply) -> dict:
@@ -641,6 +644,8 @@ def _result(job: Job, question: str | None, provider, reply: providers.Reply) ->
         "generated_at": dt.datetime.now(dt.timezone.utc),
         "input_tokens": reply.input_tokens,
         "output_tokens": reply.output_tokens,
+        "web_searches": reply.searches if job.search else None,
+        "sources": reply.sources if job.search else [],
     }
 
 
@@ -657,7 +662,7 @@ def _prepare(db: Session, build, provider_name: str, model: str, key: str, quest
 
 def analyze(db: Session, build, provider_name: str, model: str, key: str, question: str | None = None) -> dict:
     provider, model, key, question, job = _prepare(db, build, provider_name, model, key, question)
-    reply = provider.generate(key, model, job.system, job.prompt)
+    reply = provider.generate(key, model, job.system, job.prompt, search=job.search)
     if not reply.text:
         raise providers.error("empty", f"{provider.name}: empty reply")
     return _result(job, question, provider, reply)
@@ -669,6 +674,7 @@ def analyze(db: Session, build, provider_name: str, model: str, key: str, questi
 # 긴 글은 30초~1분 걸린다. 다 쓸 때까지 빈 화면을 보여주는 대신 써지는 대로 흘려보낸다
 # (Server-Sent Events). 이벤트는 넷 — start(무엇으로 쓰는지), delta(글 조각), done(다 쓴 글과
 # 토큰 수, 한 번에 받을 때의 응답과 같은 모양), error(도중에 난 오류 — 그때까지 받은 글은 화면에 남는다).
+# 웹을 찾는 분석(9-13)에는 search(몇 번째 검색인지, 앞의 머리말을 버렸는지)가 더 온다.
 
 
 @dataclass
@@ -683,7 +689,7 @@ def start_stream(db: Session, build, provider_name: str, model: str, key: str,
                  question: str | None = None) -> Started:
     """제공자에 연결해 상태까지 본다. 키가 틀렸으면 여기서 `AiError` — 글을 보내기 전이다."""
     provider, model, key, question, job = _prepare(db, build, provider_name, model, key, question)
-    return Started(job, question, provider, provider.stream(key, model, job.system, job.prompt))
+    return Started(job, question, provider, provider.stream(key, model, job.system, job.prompt, search=job.search))
 
 
 def _sse(event: str, data: dict) -> str:
@@ -697,7 +703,10 @@ def sse_body(started: Started, finished: Callable[[], None]) -> Iterator[str]:
         yield _sse("start", {"provider": started.provider.name, "model": stream.reply.model,
                              "as_of": started.job.as_of})
         for piece in stream:
-            yield _sse("delta", {"text": piece})
+            if isinstance(piece, providers.Searching):
+                yield _sse("search", {"count": piece.count, "reset": piece.reset})
+            else:
+                yield _sse("delta", {"text": piece})
         if not stream.reply.text:
             raise providers.error("empty", f"{started.provider.name}: empty reply")
         yield _sse("done", _result(started.job, started.question, started.provider, stream.reply))

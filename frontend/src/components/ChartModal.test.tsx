@@ -252,50 +252,54 @@ describe('차트 팝업 · 재무 탭', () => {
     expect(screen.getByRole('tab', { name: '차트' })).toHaveAttribute('aria-selected', 'true')
   })
 
-  it('관리자에게는 "AI 종목 분석"이 탭 줄의 맨 끝에 있다 — 보내는 내용도 분석 쪽 (9-8·9-9)', async () => {
+  it('AI 분석은 탭 하나 — 관리자는 웹을 찾아보는 종목 분석을 받는다 (9-13)', async () => {
     localStorage.clear()
     vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
     vi.spyOn(api, 'getFundamentals').mockResolvedValue(FUNDAMENTALS)
     const context = vi.spyOn(api, 'aiContext').mockResolvedValue({
       scope: 'research', ticker: 'GOOG', as_of: '2026-09-25', system: '애널리스트', prompt: '[사용자의 포트폴리오',
+      search: true,
     })
     const user = userEvent.setup()
-    render(<ChartModal ticker="GOOG" name="GOOG" onClose={() => {}} />)
+    render(<ChartModal ticker="GOOG" name="GOOG" initialTab="ai" onClose={() => {}} />)
     await screen.findByRole('tab', { name: '재무' })
     const tabs = screen.getAllByRole('tab').map((t) => t.textContent)
-    expect(tabs).toEqual(['차트', '재무', 'AI 분석', 'AI 종목 분석'])
-    // AI 분석 탭 안에는 더 이상 종류 고르기가 없다
-    await user.click(screen.getByRole('tab', { name: 'AI 분석' }))
-    expect(screen.queryByRole('group', { name: 'AI 종류' })).toBeNull()
-    expect(screen.getByText(/보유수량·비중 같은 내 포트폴리오는 보내지 않습니다/)).toBeInTheDocument()
-
-    await user.click(screen.getByRole('tab', { name: 'AI 종목 분석' }))
-    expect(screen.getByRole('tab', { name: 'AI 종목 분석' })).toHaveAttribute('aria-selected', 'true')
+    expect(tabs).toEqual(['차트', '재무', 'AI 분석'])
+    expect(screen.getByRole('tab', { name: 'AI 분석' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByText(/알파 버킷 편입 판단을 돕는 리포트/)).toBeInTheDocument()
+    expect(screen.getByText(/AI 가 웹에서 찾아 출처와 함께 적습니다/)).toBeInTheDocument()
     await user.click(screen.getByText('AI 에게 보내는 내용 보기'))
     await waitFor(() => expect(context).toHaveBeenCalledWith({ kind: 'research', ticker: 'GOOG' }, ''))
+    expect(await screen.findByText(/웹 검색을 켜고 보냅니다/)).toBeInTheDocument()
   })
 
-  it('사용자 계정에는 AI 종목 분석 탭이 없다 — 그 탭으로 열라고 해도 차트부터', async () => {
-    vi.spyOn(api, 'getHealth').mockResolvedValue({ status: 'ok', version: '0.36.0' })
+  it('사용자 계정의 AI 분석은 공용 숫자만 보내는 종목 정리다 — 내 비중이 가는 분석은 관리자만', async () => {
+    localStorage.clear()
+    vi.spyOn(api, 'getHealth').mockResolvedValue({ status: 'ok', version: '0.38.0' })
     vi.spyOn(api, 'getAuthStatus').mockResolvedValue({
       locked: true, authenticated: true, mode: 'google', config_problem: null,
       user: { email: 'b@example.com', name: '비', is_owner: false, status: 'active' },
     })
     vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
     vi.spyOn(api, 'getFundamentals').mockResolvedValue(FUNDAMENTALS)
-    const context = vi.spyOn(api, 'aiContext')
+    const context = vi.spyOn(api, 'aiContext').mockResolvedValue({
+      scope: 'stock', ticker: 'GOOG', as_of: '2026-09-25', system: '정리', prompt: '[종목]',
+    })
+    const user = userEvent.setup()
     render(
       <MemoryRouter>
         <AuthGate>
-          <ChartModal ticker="GOOG" name="GOOG" initialTab="research" onClose={() => {}} />
+          <ChartModal ticker="GOOG" name="GOOG" initialTab="ai" onClose={() => {}} />
         </AuthGate>
       </MemoryRouter>,
     )
-    expect(await screen.findByRole('tab', { name: 'AI 분석' })).toBeInTheDocument()
-    expect(screen.queryByRole('tab', { name: 'AI 종목 분석' })).toBeNull()
-    expect(screen.getByRole('tab', { name: '차트' })).toHaveAttribute('aria-selected', 'true')
-    expect(context).not.toHaveBeenCalled()
+    await screen.findByRole('tab', { name: '재무' })
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['차트', '재무', 'AI 분석'])
+    expect(screen.getByRole('tab', { name: 'AI 분석' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByText(/보유수량·비중 같은 내 포트폴리오는 보내지 않습니다/)).toBeInTheDocument()
+    await user.click(screen.getByText('AI 에게 보내는 내용 보기'))
+    await waitFor(() => expect(context).toHaveBeenCalledWith({ kind: 'stock', ticker: 'GOOG' }, ''))
+    expect(screen.queryByText(/웹 검색을 켜고 보냅니다/)).toBeNull()
   })
 
   it('손님(로그인 전)에게는 AI 분석 탭이 없다', async () => {

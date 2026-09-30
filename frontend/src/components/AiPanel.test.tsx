@@ -244,6 +244,7 @@ function streaming() {
   return {
     spy,
     send: (text: string) => act(() => handlers?.onDelta(text)),
+    search: (count: number, reset: boolean) => act(() => handlers?.onSearch?.({ count, reset })),
     start: () => act(() => handlers?.onStart?.({ provider: 'anthropic', model: 'claude-x-0925', as_of: '2026-09-25' })),
     finish: (value: AiAnalysis) => act(() => finish(value)),
     fail: (e: unknown) => act(() => fail(e)),
@@ -349,5 +350,73 @@ describe('담은 종목 전체 · 매크로 정리 (3c-2)', () => {
     expect(screen.getByText(/2026-09-25까지 발표된 지표/)).toBeInTheDocument()
     expect(screen.queryByText(/종가까지/)).toBeNull()
     expect(screen.getByText(/앞으로의 방향은 점치지 않도록/)).toBeInTheDocument()
+  })
+})
+
+describe('종목 분석의 웹 검색 (9-13)', () => {
+  const RESEARCH = { kind: 'research', ticker: 'GOOG' } as const
+  const DONE: AiAnalysis = {
+    ...RESULT, scope: 'research', text: '## 1. 기업 개요\n- 업종 평균 PER 24배 (예시, 2026년 9월)', web_searches: 3,
+    sources: [
+      { url: 'https://news.example.org/a', title: '기사 A — 아주 긴 제목이라도 줄을 바꿔 다 보인다' },
+      { url: 'https://b.example/peers', title: '경쟁사 표' },
+    ],
+  }
+
+  it('찾는 동안 그렇다고 알리고, 찾기 전 머리말은 지우고, 다 쓰면 찾아본 자료를 링크로 붙인다', async () => {
+    withKey()
+    const s = streaming()
+    const user = userEvent.setup()
+    render(<AiPanel target={RESEARCH} account={ME} />)
+    expect(screen.getByText(/AI 가 웹에서 찾아 출처와 함께 적습니다/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'AI 분석 받기' }))
+    expect(screen.getByText(/웹에서 비교할 자료를 찾고 있습니다/)).toBeInTheDocument()
+    s.send('업종 평균을 검색해 보겠습니다.')
+    expect(screen.getByText('업종 평균을 검색해 보겠습니다.')).toBeInTheDocument()
+    s.search(1, true)
+    expect(screen.queryByText('업종 평균을 검색해 보겠습니다.')).toBeNull()
+    expect(screen.getByText('웹에서 자료를 찾는 중… (1번째 검색)')).toBeInTheDocument()
+    s.search(2, false)
+    expect(screen.getByText('웹에서 자료를 찾는 중… (2번째 검색)')).toBeInTheDocument()
+    s.send('## 1. 기업 개요')
+    expect(screen.getByText('쓰는 중…')).toBeInTheDocument()
+
+    s.finish(DONE)
+    expect(await screen.findByRole('heading', { name: /AI 가 찾아본 자료/ })).toBeInTheDocument()
+    expect(screen.getByText('웹 검색 3번')).toBeInTheDocument()
+    const link = screen.getByRole('link', { name: /기사 A/ })
+    expect(link).toHaveAttribute('href', 'https://news.example.org/a')
+    expect(link).toHaveAttribute('target', '_blank')
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer')
+    expect(screen.getAllByRole('link')).toHaveLength(2)
+    expect(readAiResult(ME, '@research:GOOG')?.sources).toHaveLength(2)
+  })
+
+  it('검색을 했는데 출처가 없으면 그렇다고 적는다', () => {
+    withKey()
+    saveAiResult(ME, '@research:GOOG', { ...DONE, web_searches: 0, sources: [] })
+    render(<AiPanel target={RESEARCH} account={ME} />)
+    expect(screen.getByText('웹 검색 0번')).toBeInTheDocument()
+    expect(screen.getByText(/출처가 없습니다/)).toBeInTheDocument()
+    expect(screen.queryByRole('link')).toBeNull()
+  })
+
+  it('검색하지 않는 정리에는 찾아본 자료 칸이 없다', () => {
+    withKey()
+    saveAiResult(ME, 'GOOG', RESULT)
+    render(<AiPanel target={GOOG} account={ME} />)
+    expect(screen.queryByRole('heading', { name: /AI 가 찾아본 자료/ })).toBeNull()
+  })
+
+  it('검색을 못 쓰는 모델이면 이유와 함께 키·모델 바꾸기를 펼친다', async () => {
+    withKey()
+    vi.spyOn(api, 'aiAnalyzeStream').mockRejectedValue(
+      new ApiError(400, '고른 모델이나 계정에서 웹 검색을 쓸 수 없어 요청이 거절됐습니다.', 'x', 'search_unavailable'),
+    )
+    const user = userEvent.setup()
+    render(<AiPanel target={RESEARCH} account={ME} />)
+    await user.click(screen.getByRole('button', { name: 'AI 분석 받기' }))
+    expect(await screen.findByText(/웹 검색을 쓸 수 없어/)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'AI 키 바꾸기' })).toBeInTheDocument()
   })
 })

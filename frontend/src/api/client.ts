@@ -134,7 +134,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 // --- 써지는 대로 받기 (AI, 3c-2) ---------------------------------------------
-// 서버는 text/event-stream 으로 start → delta… → done (또는 error) 을 보낸다. EventSource 는
+// 서버는 text/event-stream 으로 start → delta… → done (또는 error) 을 보낸다. 웹을 찾는 종목 분석은
+// 사이사이 search 가 온다 (9-13). EventSource 는
 // POST·헤더를 못 쓰므로(키는 헤더로 간다) fetch 로 받아 직접 나눈다.
 
 export interface SseEvent {
@@ -165,8 +166,15 @@ export interface AiStreamStart {
   as_of: string | null
 }
 
+/** 웹을 찾는 중 (9-13). reset 이면 서버가 그 앞의 글(검색 전 머리말)을 버렸다 — 화면도 지운다 */
+export interface AiStreamSearch {
+  count: number
+  reset: boolean
+}
+
 export interface AiStreamHandlers {
   onStart?: (info: AiStreamStart) => void
+  onSearch?: (info: AiStreamSearch) => void
   /** 새로 온 글 조각 */
   onDelta: (text: string) => void
   /** 멈추기·팝업 닫기 — 끊으면 서버가 제공자와의 연결도 닫는다 */
@@ -204,6 +212,7 @@ async function streamAi(path: string, key: string, body: unknown, handlers: AiSt
     const data = JSON.parse(ev.data)
     if (ev.event === 'start') handlers.onStart?.(data as AiStreamStart)
     else if (ev.event === 'delta') handlers.onDelta(String(data.text ?? ''))
+    else if (ev.event === 'search') handlers.onSearch?.(data as AiStreamSearch)
     else if (ev.event === 'done') result = data as AiAnalysis
     else if (ev.event === 'error') throw new ApiError(data.status ?? 502, data.hint ?? null, data.message ?? '', data.code ?? null)
   }

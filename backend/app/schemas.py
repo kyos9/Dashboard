@@ -667,6 +667,13 @@ class AiContextOut(BaseModel):
     as_of: Optional[dt.date] = None
     system: str
     prompt: str
+    # 웹 검색을 켜고 부르나 (종목 분석, 9-13)
+    search: bool = False
+
+
+class AiSourceOut(BaseModel):
+    url: str
+    title: str
 
 
 class AiAnalysisOut(BaseModel):
@@ -684,3 +691,6 @@ class AiAnalysisOut(BaseModel):
     generated_at: dt.datetime
     input_tokens: Optional[int] = None
     output_tokens: Optional[int] = None
+    # 웹 검색 (종목 분석만) — 몇 번 찾았나, 글이 인용한 곳
+    web_searches: Optional[int] = None
+    sources: list[AiSourceOut] = []
