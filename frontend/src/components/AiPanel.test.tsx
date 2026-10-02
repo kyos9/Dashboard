@@ -33,6 +33,8 @@ beforeEach(() => {
   vi.restoreAllMocks()
   localStorage.clear()
   sessionStorage.clear()
+  // 저장된 키가 있으면 키 칸이 열리자마자 모델 목록을 부른다 (9-14) — 진짜 서버에 가지 않게
+  vi.spyOn(api, 'aiModels').mockResolvedValue({ provider: 'anthropic', models: [{ id: 'claude-x', label: 'Claude X' }] })
 })
 
 describe('AI 키 넣기', () => {
@@ -56,8 +58,10 @@ describe('AI 키 넣기', () => {
 
     expect(readAiSettings(ME)).toMatchObject({ provider: 'openai', key: 'sk-typed-9999', model: 'gpt-b', remember: true })
     expect(screen.getByText(/저장된 키/)).toHaveTextContent('…9999')
-    // 넣은 키는 입력칸에서 지운다
-    expect(screen.getByLabelText(/API 키/)).toHaveValue('')
+    // 저장하면 키 입력칸은 사라지고, 저장된 키로 고른 모델이 보인다
+    expect(screen.queryByLabelText(/API 키/)).toBeNull()
+    await waitFor(() => expect(screen.getByLabelText('모델')).toBeEnabled())
+    expect(screen.getByLabelText('모델')).toHaveValue('gpt-b')
   })
 
   it('틀린 키면 이유를 보여주고 저장하지 않는다', async () => {
@@ -85,19 +89,98 @@ describe('AI 키 넣기', () => {
     expect(sessionStorage.getItem('signalboard:ai-key')).toContain('sk-ant-temp-5555')
   })
 
-  it('저장된 키가 있어도, 새로 넣은 키는 확인해야 저장된다', async () => {
+  it('저장된 키가 있으면 모델 목록을 바로 불러오고, 고르면 바로 저장된다 (9-14)', async () => {
     withKey()
+    const models = vi.spyOn(api, 'aiModels').mockResolvedValue({
+      provider: 'anthropic', models: [{ id: 'claude-x', label: 'Claude X' }, { id: 'claude-y', label: 'Claude Y' }],
+    })
+    const saved = vi.fn()
+    const user = userEvent.setup()
+    render(<AiKeyForm account={ME} onSaved={saved} />)
+    // 키를 다시 넣거나 "키 확인"을 누를 일이 없다
+    expect(screen.queryByLabelText(/API 키/)).toBeNull()
+    expect(screen.queryByRole('button', { name: '키 확인' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '저장' })).toBeNull()
+    expect(models).toHaveBeenCalledWith('anthropic', KEY)
+    const pick = screen.getByLabelText('모델')
+    await waitFor(() => expect(pick).toBeEnabled())
+    expect(pick).toHaveValue('claude-x')
+    expect(screen.getByText('모델을 고르면 바로 저장됩니다.')).toBeInTheDocument()
+
+    await user.selectOptions(pick, 'claude-y')
+    expect(readAiSettings(ME)).toMatchObject({ key: KEY, model: 'claude-y', remember: true })
+    expect(saved).toHaveBeenCalledTimes(1)
+    expect(screen.getByText('모델을 claude-y 로 바꿨습니다.')).toBeInTheDocument()
+    // 모델만 바꿨다 — 목록을 다시 받지 않는다
+    expect(models).toHaveBeenCalledTimes(1)
+
+    // 기억 설정도 그 자리에서
+    await user.click(screen.getByLabelText(/이 기기에 기억/))
+    expect(sessionStorage.getItem('signalboard:ai-key')).toContain('claude-y')
+    expect(localStorage.getItem('signalboard:ai-key')).toBeNull()
+  })
+
+  it('저장된 모델이 목록에 없으면 그렇다고 적는다', async () => {
+    withKey()
+    vi.spyOn(api, 'aiModels').mockResolvedValue({ provider: 'anthropic', models: [{ id: 'claude-new', label: 'New' }] })
     const user = userEvent.setup()
     render(<AiKeyForm account={ME} />)
+    expect(await screen.findByText(/저장된 모델 claude-x 는 이 키로 더 이상 쓸 수 없습니다/)).toBeInTheDocument()
+    const pick = screen.getByLabelText('모델')
+    expect(pick).toHaveValue('claude-x')
+    expect(screen.getByRole('option', { name: 'claude-x (목록에 없음)' })).toBeInTheDocument()
+    await user.selectOptions(pick, 'claude-new')
+    expect(readAiSettings(ME)?.model).toBe('claude-new')
+  })
+
+  it('목록을 못 받으면 이유를 보여주고 다른 키를 넣게 한다', async () => {
+    withKey()
+    vi.spyOn(api, 'aiModels').mockRejectedValue(
+      new ApiError(400, 'AI 키가 맞지 않습니다.', 'anthropic HTTP 401', 'key_invalid'),
+    )
+    render(<AiKeyForm account={ME} />)
+    expect(await screen.findByText('AI 키가 맞지 않습니다.')).toBeInTheDocument()
+    expect(screen.getByLabelText('모델')).toBeDisabled()
+    expect(screen.getByRole('button', { name: '다른 키 넣기' })).toBeInTheDocument()
+  })
+
+  it('다른 키 넣기 — 새 키는 확인해야 저장되고, 취소하면 저장된 키로 돌아간다', async () => {
+    withKey()
+    const models = vi.spyOn(api, 'aiModels').mockResolvedValue({ provider: 'anthropic', models: [{ id: 'claude-x', label: 'X' }] })
+    const user = userEvent.setup()
+    render(<AiKeyForm account={ME} />)
+    await user.click(screen.getByRole('button', { name: '다른 키 넣기' }))
     const save = screen.getByRole('button', { name: '저장' })
-    // 저장된 키·모델 그대로면 (기억 설정만 바꿀 때) 저장할 수 있다
-    expect(save).toBeEnabled()
+    expect(save).toBeDisabled()
     await user.type(screen.getByLabelText(/API 키/), 'sk-ant-new-unchecked-2222')
     expect(save).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: '키 확인' }))
+    expect(models).toHaveBeenLastCalledWith('anthropic', 'sk-ant-new-unchecked-2222')
+    await waitFor(() => expect(save).toBeEnabled())
+    // 확인한 뒤 키를 고치면 다시 확인해야 한다
+    await user.type(screen.getByLabelText(/API 키/), '3')
+    expect(save).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: '취소 (저장된 키 쓰기)' }))
+    expect(screen.queryByLabelText(/API 키/)).toBeNull()
+    expect(readAiSettings(ME)?.key).toBe(KEY)
+  })
+
+  it('다른 회사를 고르면 그 회사 키를 넣는다 — 저장된 키는 그대로', async () => {
+    withKey()
+    vi.spyOn(api, 'aiModels').mockResolvedValue({ provider: 'anthropic', models: [{ id: 'claude-x', label: 'X' }] })
+    const user = userEvent.setup()
+    render(<AiKeyForm account={ME} />)
+    await user.selectOptions(screen.getByLabelText('AI 회사'), 'gemini')
+    expect(screen.getByLabelText(/API 키/)).toHaveAttribute('placeholder', 'AIza…')
+    expect(screen.queryByRole('button', { name: '취소 (저장된 키 쓰기)' })).toBeNull()
+    await user.selectOptions(screen.getByLabelText('AI 회사'), 'anthropic')
+    expect(screen.queryByLabelText(/API 키/)).toBeNull()
+    expect(readAiSettings(ME)?.provider).toBe('anthropic')
   })
 
   it('키 지우기', async () => {
     withKey()
+    vi.spyOn(api, 'aiModels').mockResolvedValue({ provider: 'anthropic', models: [] })
     const user = userEvent.setup()
     render(<AiKeyForm account={ME} />)
     await user.click(screen.getByRole('button', { name: '키 지우기' }))
@@ -154,6 +237,40 @@ describe('AI 분석 탭', () => {
     render(<AiPanel target={GOOG} account={ME} />)
     await user.click(screen.getByRole('button', { name: 'AI 분석 받기' }))
     expect(await screen.findByText('AI 키가 맞지 않습니다.')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'AI 키 바꾸기' })).toBeInTheDocument()
+  })
+
+  it('무료 한도가 없는 모델이면 모델 목록을 펼치고, 고르면 닫혀 바로 다시 받을 수 있다 (9-14)', async () => {
+    saveAiSettings({ provider: 'gemini', key: 'AIza-secret-9999', model: 'gemini-pro-x', remember: true, account: ME })
+    const models = vi.spyOn(api, 'aiModels').mockResolvedValue({
+      provider: 'gemini', models: [{ id: 'gemini-flash-x', label: 'Flash' }, { id: 'gemini-pro-x', label: 'Pro' }],
+    })
+    vi.spyOn(api, 'aiAnalyzeStream').mockRejectedValueOnce(
+      new ApiError(429, '이 모델은 무료 등급에서 쓸 수 없습니다(무료 한도 0).', 'gemini HTTP 429', 'free_tier_model'),
+    )
+    const user = userEvent.setup()
+    render(<AiPanel target={GOOG} account={ME} />)
+    await user.click(screen.getByRole('button', { name: 'AI 분석 받기' }))
+    expect(await screen.findByText(/무료 등급에서 쓸 수 없습니다/)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'AI 키 바꾸기' })).toBeInTheDocument()
+    expect(models).toHaveBeenCalledWith('gemini', 'AIza-secret-9999')
+    const pick = screen.getByLabelText('모델')
+    await waitFor(() => expect(pick).toBeEnabled())
+    await user.selectOptions(pick, 'gemini-flash-x')
+    // 닫히고, 앞의 오류는 지워지고, 새 모델로 다시 받을 수 있다
+    expect(screen.queryByRole('heading', { name: 'AI 키 바꾸기' })).toBeNull()
+    expect(screen.queryByText(/무료 등급에서 쓸 수 없습니다/)).toBeNull()
+    expect(screen.getByText('gemini-flash-x')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'AI 분석 받기' })).toBeEnabled()
+  })
+
+  it.each(['daily_limit', 'quota_exceeded'])('한도 오류(%s)도 모델을 바꾸면 풀릴 수 있어 키·모델 칸을 펼친다', async (code) => {
+    withKey()
+    vi.spyOn(api, 'aiAnalyzeStream').mockRejectedValue(new ApiError(429, '한도를 다 썼습니다.', 'x', code))
+    const user = userEvent.setup()
+    render(<AiPanel target={GOOG} account={ME} />)
+    await user.click(screen.getByRole('button', { name: 'AI 분석 받기' }))
+    expect(await screen.findByText('한도를 다 썼습니다.')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'AI 키 바꾸기' })).toBeInTheDocument()
   })
 

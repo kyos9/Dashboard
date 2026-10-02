@@ -3462,6 +3462,27 @@ table.data-table tr.dirty:hover td {
 /* 선택칸·입력칸 안의 글자는 줄을 못 바꾼다 — 칸이 좁아 잘리지 않게, 좁은 화면에서는 한 줄에 하나씩 */
 .ai-key-grid {
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  /* 칸 아래 안내 줄 길이가 달라도 이름표·칸은 위에서부터 맞춘다 (폼 기본은 아래 맞춤) */
+  align-items: start;
+}
+
+/* 선택칸과 입력칸은 브라우저가 주는 높이가 다르다(35·33px, 폰에서는 선택칸만 44px) — 나란히 놓이므로 같게 */
+.ai-key-grid select,
+.ai-key-grid input {
+  min-height: 44px;
+}
+
+/* 저장된 키 한 줄 + 다른 키 넣기·키 지우기 — 좁으면 버튼이 아래로 */
+.ai-saved-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
+.ai-saved-row .ai-saved {
+  flex: 1 1 220px;
 }
 
 /* 모델 이름은 길다 (날짜가 붙는다). 한 줄을 통째로 쓰고, 아래에 이름 전체를 줄바꿈해 적는다 */
@@ -4731,8 +4752,18 @@ tr.dirty td {
   button,
   .tab,
   .chip,
-  select {
+  select,
+  .check-line {
     min-height: 44px;
+  }
+
+  /* 체크 한 줄은 줄 가운데에 — 44px 로 키운 칸의 위에 붙지 않게 */
+  .check-line {
+    align-items: center;
+  }
+
+  .check-line input {
+    margin-top: 0;
   }
 
   button {

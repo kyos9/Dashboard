@@ -24,6 +24,7 @@ OpenAI 는 Responses API 의 `web_search`, Gemini 는 `google_search`. 찾아본
 from __future__ import annotations
 
 import logging
+import math
 import re
 import json as jsonlib
 from collections.abc import Callable, Iterator
@@ -73,9 +74,16 @@ class AiError(Exception):
 ERRORS: dict[str, tuple[int, str]] = {
     "key_invalid": (400, "AI 키가 맞지 않습니다. 제공자 사이트에서 키를 다시 복사해 넣어 주세요."),
     "no_credit": (402, "AI 계정의 잔액(크레딧)이 부족하거나 결제 수단이 없습니다. 제공자 사이트의 결제 화면을 확인하세요."),
-    "model_denied": (403, "이 키로는 고른 모델을 쓸 수 없습니다. 모델 목록을 다시 불러와 다른 모델을 골라 보세요."),
+    "model_denied": (403, "이 키로는 고른 모델을 쓸 수 없습니다(없어졌거나 권한이 없습니다). 모델 목록에서 다른 모델을 골라 보세요."),
     "forbidden": (403, "제공자가 이 키(계정)의 요청을 허용하지 않았습니다. 계정의 권한·지역 제한을 확인하세요."),
     "rate_limited": (429, "AI 제공자가 요청이 잦다고 잠시 막았습니다. 1~2분 뒤 다시 해 보세요."),
+    # Gemini 무료 등급 (9-14) — 한도가 모델마다 따로다. "결제를 확인하라"는 제공자 문장만 보고 잔액 문제로 읽지 않는다.
+    "free_tier_model": (429, "이 모델은 무료 등급에서 쓸 수 없습니다(무료 한도 0). 모델 목록에서 다른 모델을 고르세요 — "
+                             "무료로는 보통 이름에 flash 가 든 모델이 됩니다. 이 모델을 꼭 쓰려면 Google AI Studio 에서 결제를 연결해야 합니다."),
+    "daily_limit": (429, "이 모델의 오늘 무료 한도를 다 썼습니다. 한도는 모델마다 따로라 다른 모델을 고르면 바로 쓸 수 있고, "
+                         "이 모델은 한국 시간 오후 4~5시(미국 서부 자정)에 다시 풀립니다."),
+    "quota_exceeded": (429, "이 키의 사용 한도를 넘었습니다. 무료 등급은 모델마다 1분·하루 한도가 있습니다 — 잠시 뒤 다시 하거나 "
+                            "다른 모델을 골라 보세요. 결제를 연결했다면 제공자 사이트의 한도·결제 설정을 확인하세요."),
     "overloaded": (502, "AI 제공자가 지금 바쁩니다(과부하). 잠시 뒤 다시 해 보세요."),
     "provider_error": (502, "AI 제공자 쪽에서 오류가 났습니다. 잠시 뒤 다시 해 보세요."),
     "bad_request": (400, "AI 제공자가 요청을 거절했습니다. 다른 모델로 해 보세요."),
@@ -290,11 +298,18 @@ class AiProvider(Protocol):
     def stream(self, key: str, model: str, system: str, prompt: str, search: bool = False) -> Streamed: ...
 
 
-def _fail(provider: str, code: str, res: Response, key: str) -> AiError:
+def _fail(provider, code: str, res: Response, key: str) -> AiError:
     detail = scrub(_provider_message(res.body), key)
+    # 제공자가 알려준 한도·기다릴 시간 — 긴 문장 뒤에 있으면 잘리므로 앞에 붙인다
+    quota, wait = provider.quota(res.body) if hasattr(provider, "quota") else ("", None)
+    if quota:
+        detail = f"[{quota}] {detail}"
     # 로그에는 코드와 상태만 — 본문은 가려도 남기지 않는다
-    logger.warning("AI 제공자 %s 호출 실패: %s (HTTP %s)", provider, code, res.status)
-    return error(code, f"{provider} HTTP {res.status}: {detail}".rstrip(": "))
+    logger.warning("AI 제공자 %s 호출 실패: %s (HTTP %s)", provider.name, code, res.status)
+    err = error(code, f"{provider.name} HTTP {res.status}: {detail}".rstrip(": ")[:MESSAGE_LIMIT])
+    if code == "rate_limited" and wait:
+        err.hint = f"AI 제공자가 요청이 잦다고 잠시 막았습니다. {wait}초쯤 뒤 다시 해 보세요."
+    return err
 
 
 def _classify(provider, res: Response, search: bool) -> str:
@@ -306,9 +321,9 @@ def _classify(provider, res: Response, search: bool) -> str:
 def _check(provider, res: Response, key: str, search: bool = False) -> None:
     """성공이 아니면 번역한 오류를, 성공인데 JSON 이 아니면 제공자 오류를 던진다."""
     if res.status != 200:
-        raise _fail(provider.name, _classify(provider, res, search), res, key)
+        raise _fail(provider, _classify(provider, res, search), res, key)
     if not isinstance(res.body, dict):
-        raise _fail(provider.name, "provider_error", res, key)
+        raise _fail(provider, "provider_error", res, key)
 
 
 class Streamed:
@@ -339,7 +354,7 @@ class Streamed:
                     continue
                 if event == "error" or "error" in body:
                     code = self._provider.classify(Response(200, body))
-                    raise _fail(self._provider.name, "provider_error" if code == "bad_request" else code,
+                    raise _fail(self._provider, "provider_error" if code == "bad_request" else code,
                                 Response(200, body), self._key)
                 piece = self._read(self.reply, body)
                 if isinstance(piece, Searching):
@@ -360,7 +375,7 @@ def _open(provider, key: str, model: str, url: str, headers: dict, body: dict,
           params: dict | None = None, search: bool = False, reader=None) -> Streamed:
     res = send_stream(url, headers, body, params)
     if res.status != 200:
-        raise _fail(provider.name, _classify(provider, Response(res.status, res.body), search), res, key)
+        raise _fail(provider, _classify(provider, Response(res.status, res.body), search), res, key)
     return Streamed(provider, key, model, res, reader)
 
 
@@ -671,7 +686,33 @@ class OpenAI:
 #  Google (Gemini)
 # ---------------------------------------------------------------------------
 
-_GEMINI_SKIP = ("embedding", "aqa", "imagen", "tts", "image", "veo", "live", "audio")
+# 글을 쓰지 않거나(그림·소리·임베딩), 시스템 지시를 받지 않거나(gemma), 특별한 도구가 있어야 하는 모델은 목록에서 뺀다
+_GEMINI_SKIP = ("embedding", "aqa", "imagen", "tts", "image", "veo", "live", "audio", "gemma", "learnlm",
+                "robotics", "computer-use", "deep-research")
+# 미리보기·실험 모델 — 자주 내려가고 무료 한도가 없을 때가 많다. 목록 뒤로 보낸다.
+_GEMINI_PREVIEW = ("preview", "exp")
+# 무료 등급에서 쓸 수 없는 모델은 한도가 0 으로 온다
+_LIMIT_ZERO = re.compile(r"limit:\s*0(?![\d.])")
+_RETRY_DELAY = re.compile(r"^(\d+(?:\.\d+)?)s$")
+
+
+def _gemini_details(body: Any) -> tuple[list[dict], int | None]:
+    """한도 오류(429)의 `details` — 걸린 한도들(QuotaFailure)과 기다릴 초(RetryInfo)."""
+    err = body.get("error") if isinstance(body, dict) else None
+    violations: list[dict] = []
+    wait: int | None = None
+    if isinstance(err, dict):
+        for d in err.get("details") or []:
+            if not isinstance(d, dict):
+                continue
+            kind = str(d.get("@type") or "")
+            if kind.endswith("QuotaFailure"):
+                violations += [v for v in d.get("violations") or [] if isinstance(v, dict)]
+            elif kind.endswith("RetryInfo"):
+                found = _RETRY_DELAY.match(str(d.get("retryDelay") or ""))
+                if found:
+                    wait = max(1, math.ceil(float(found.group(1))))
+    return violations, wait
 
 
 class Gemini:
@@ -698,8 +739,7 @@ class Gemini:
         if res.status == 404 or status == "NOT_FOUND":
             return "model_denied"
         if res.status == 429 or status == "RESOURCE_EXHAUSTED":
-            # 무료 할당량을 다 쓴 것도 여기로 온다 — 결제가 없으면 잔액 문제와 같다
-            return "no_credit" if "billing" in text else "rate_limited"
+            return self._quota_code(res.body, text)
         if res.status == 403 or status == "PERMISSION_DENIED":
             return "forbidden"
         if status == "FAILED_PRECONDITION":
@@ -709,6 +749,43 @@ class Gemini:
         if res.status >= 500:
             return "provider_error"
         return "bad_request"
+
+    @staticmethod
+    def _quota_code(body: Any, text: str) -> str:
+        """한도에 걸렸다 — 어느 한도인지에 따라 할 일이 다르다.
+
+        제공자 문장은 늘 "plan and billing details 를 확인하라"고 적는다. 그 말만 보고 잔액 문제로 읽으면
+        무료 등급 사용자는 할 일을 모른다(9-14). 걸린 한도(`quotaId`)와 한도 값(`quotaValue`)을 본다.
+        """
+        violations, wait = _gemini_details(body)
+        if any(str(v.get("quotaValue")) == "0" for v in violations) or _LIMIT_ZERO.search(text):
+            return "free_tier_model"
+        quota_ids = " ".join(str(v.get("quotaId") or "") for v in violations)
+        if "PerDay" in quota_ids:
+            return "daily_limit"
+        if violations or wait:
+            return "rate_limited"
+        if "prepayment" in text or "credits are depleted" in text:
+            return "no_credit"
+        return "quota_exceeded"
+
+    @staticmethod
+    def quota(body: Any) -> tuple[str, int | None]:
+        """기술적 원인에 붙일 한 줄 — 어느 한도에 몇으로 걸렸고, 몇 초 기다리라는지."""
+        violations, wait = _gemini_details(body)
+        parts = []
+        for v in violations[:2]:
+            model = str((v.get("quotaDimensions") or {}).get("model") or "") if isinstance(
+                v.get("quotaDimensions"), dict) else ""
+            bits = [str(v.get("quotaId") or v.get("quotaMetric") or "quota")]
+            if model:
+                bits.append(f"model {model}")
+            if v.get("quotaValue") is not None:
+                bits.append(f"limit {v.get('quotaValue')}")
+            parts.append(" ".join(bits))
+        if wait:
+            parts.append(f"retry {wait}s")
+        return " · ".join(parts)[:200], wait
 
     def list_models(self, key: str) -> list[dict]:
         res = send("GET", f"{self.BASE}/models", self._headers(key), params={"pageSize": 1000})
@@ -722,8 +799,13 @@ class Gemini:
                 continue
             if any(word in model_id.lower() for word in _GEMINI_SKIP):
                 continue
-            out.append({"id": model_id, "label": m.get("displayName") or model_id})
-        return out
+            preview = any(word in model_id.lower() for word in _GEMINI_PREVIEW)
+            label = str(m.get("displayName") or model_id)
+            out.append({"id": model_id, "label": f"{label} (미리보기)" if preview and "preview" not in label.lower()
+                        and "exp" not in label.lower() else label, "_preview": preview})
+        # 정식 모델 먼저 (그 안에서는 제공자가 준 순서대로) — 처음 고르는 모델이 오래 쓸 수 있는 것이게
+        out.sort(key=lambda m: m["_preview"])
+        return [{"id": m["id"], "label": m["label"]} for m in out]
 
     def _body(self, system: str, prompt: str, search: bool = False) -> dict:
         body: dict = {

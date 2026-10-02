@@ -60,7 +60,16 @@ const COPY: Record<AiScope, { intro: string; examples: string[]; help: string; p
 }
 
 /** 키를 다시 넣어야 풀리는 오류 — 이때는 키 입력을 바로 펼친다 */
-const KEY_PROBLEMS = new Set(['key_invalid', 'bad_key_shape', 'model_denied', 'search_unavailable'])
+// 키나 모델을 바꾸면 풀리는 문제 — 키·모델 칸을 열어 둔다 (모델 목록은 열자마자 불러온다)
+const KEY_PROBLEMS = new Set([
+  'key_invalid',
+  'bad_key_shape',
+  'model_denied',
+  'search_unavailable',
+  'free_tier_model',
+  'daily_limit',
+  'quota_exceeded',
+])
 
 function when(iso: string): string {
   const d = new Date(iso)
@@ -225,7 +234,14 @@ export function AiPanel({ target, account }: { target: AiTarget; account: string
               AI 분석은 <b>본인의 AI 키</b>로 동작합니다. 키가 없어도 나머지 기능은 모두 그대로 쓸 수 있습니다.
             </p>
           )}
-          <AiKeyForm account={account} onSaved={() => setEditing(false)} />
+          <AiKeyForm
+            account={account}
+            onSaved={() => {
+              // 키나 모델을 바꿨다 — 앞의 오류는 이제 맞지 않는다
+              setEditing(false)
+              setError(null)
+            }}
+          />
           {settings && (
             <button className="link-btn" onClick={() => setEditing(false)}>
               닫기

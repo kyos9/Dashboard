@@ -142,7 +142,7 @@ def err(status, **error):
     ("gemini", ai.Response(400, {"error": {"code": 400, "message": "API key not valid. Please pass a valid API key.",
                                            "status": "INVALID_ARGUMENT",
                                            "details": [{"reason": "API_KEY_INVALID"}]}}), "key_invalid"),
-    ("gemini", ai.Response(429, {"error": {"status": "RESOURCE_EXHAUSTED", "message": "quota"}}), "rate_limited"),
+    ("gemini", ai.Response(429, {"error": {"status": "RESOURCE_EXHAUSTED", "message": "quota"}}), "quota_exceeded"),
     ("gemini", ai.Response(404, {"error": {"status": "NOT_FOUND", "message": "models/x is not found"}}), "model_denied"),
     ("gemini", ai.Response(400, {"error": {"status": "FAILED_PRECONDITION",
                                            "message": "User location is not supported"}}), "forbidden"),
