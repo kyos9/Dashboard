@@ -90,6 +90,25 @@ def require_owner(
     return user_id
 
 
+def require_ai_advice(
+    user_id: int = Depends(current_user_id), db: Session = Depends(get_db)
+) -> int:
+    """AI 포트폴리오 진단·종목 분석 (9-7·9-8) — 관리자는 늘, 사용자는 관리자가 열어 두었을 때만 (9-15).
+
+    닫혀 있으면 사용자는 403 이다. 열고 닫는 것은 관리자 화면의 스위치(`app_settings`)라 서버를 다시
+    띄우지 않는다. 열어도 **각자 자기 것만** 간다 — 자기 종목·자기 비중, 자기 키.
+    """
+    from app.services import app_settings
+
+    user = db.get(User, user_id)
+    if user is None or not (user.is_owner or app_settings.ai_advice_open(db)):
+        raise HTTPException(
+            status_code=403,
+            detail={"hint": "관리자가 이 기능을 닫아 두었습니다.", "message": "ai advice closed for users"},
+        )
+    return user_id
+
+
 def user_stocks(db: Session, user_id: int) -> Query:
     """그 사람이 담은 종목. 사용자별 종목 조회는 전부 여기서 시작한다."""
     return db.query(UserStock).filter(UserStock.user_id == user_id)

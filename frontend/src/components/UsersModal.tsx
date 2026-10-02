@@ -4,7 +4,7 @@ import { useBackToClose } from '../lib/backToClose'
 import { ConfirmDialog } from './ConfirmDialog'
 import { ErrorNotice } from './ErrorNotice'
 import { whenLabel } from '../lib/display'
-import type { AdminUser, UserStatus } from '../types'
+import type { AdminUser, AppSettings, UserStatus } from '../types'
 
 /**
  * 관리자 — 사용자 목록과 가입 승인 (ROADMAP 4-4b).
@@ -15,6 +15,9 @@ import type { AdminUser, UserStatus } from '../types'
  * - 승인 대기 → **승인** / 거절
  * - 쓰는 중 → 차단 (확인을 한 번 더 받는다 — 그 사람이 바로 로그아웃된다)
  * - 거절·차단 → 다시 승인. 기록은 지우지 않았으므로 그대로 돌아온다
+ *
+ * 맨 위에는 사용자 모두에게 걸리는 스위치 (9-15) — AI 포트폴리오 진단·종목 분석을 사용자에게도 열지.
+ * 바꾸면 바로 저장되고, 사용자의 다음 요청부터 적용된다(버튼은 그 사람이 앱을 다시 열 때 사라진다).
  */
 
 const STATUS_META: Record<UserStatus, { label: string; badge: string }> = {
@@ -29,10 +32,25 @@ export function UsersModal({ onClose, onChanged }: { onClose: () => void; onChan
   const [error, setError] = useState<unknown>(null)
   const [busyId, setBusyId] = useState<number | null>(null)
   const [confirmBlock, setConfirmBlock] = useState<AdminUser | null>(null)
+  const [settings, setSettings] = useState<AppSettings | null>(null)
+  const [savingSettings, setSavingSettings] = useState(false)
 
   useEffect(() => {
     api.listUsers().then(setUsers).catch(setError)
+    api.getAppSettings().then(setSettings).catch(setError)
   }, [])
+
+  async function toggleAdvice(open: boolean) {
+    setSavingSettings(true)
+    setError(null)
+    try {
+      setSettings(await api.setAppSettings({ ai_advice_for_users: open }))
+    } catch (e) {
+      setError(e)
+    } finally {
+      setSavingSettings(false)
+    }
+  }
 
   // 폰의 뒤로가기로도 닫힌다
   useBackToClose(onClose)
@@ -92,6 +110,27 @@ export function UsersModal({ onClose, onChanged }: { onClose: () => void; onChan
           </div>
 
           <ErrorNotice error={error} onDismiss={() => setError(null)} />
+
+          {settings && (
+            <section className="users-switch">
+              <label className="check-line">
+                <input
+                  type="checkbox"
+                  checked={settings.ai_advice_for_users}
+                  disabled={savingSettings}
+                  onChange={(e) => void toggleAdvice(e.target.checked)}
+                />
+                <span>
+                  <b>사용자에게 AI 포트폴리오 진단·종목 분석 열기</b>
+                  <span className="hint">
+                    {' '}
+                    — 각자 자기 키로, 자기 비중(%)만 AI 에게 갑니다. 끄면 사용자의 다음 요청부터 막히고, 종목 팝업의
+                    AI 분석은 공용 숫자만 보내는 정리로 돌아갑니다. 관리자는 늘 씁니다.
+                  </span>
+                </span>
+              </label>
+            </section>
+          )}
 
           <p className="hint users-intro">
             구글로 처음 들어온 사람은 승인 대기로 시작합니다. 승인하면 바로(다시 로그인하지 않아도) 자기 종목과

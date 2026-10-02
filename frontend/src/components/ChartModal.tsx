@@ -131,7 +131,7 @@ export function ChartModal({ ticker, name, initialTab = 'chart', onClose }: Prop
     }
   }, [ticker])
 
-  const { user, guest, pending, isAdmin } = useAuth()
+  const { user, guest, pending, canAdvise } = useAuth()
   const showFundamentals = hasFundamentalsTab(fundamentals)
   // AI 분석은 들어와 쓰는 사람만 — 손님·승인 대기는 담은 종목이 없다
   const showAi = !guest && !pending
@@ -210,9 +210,9 @@ export function ChartModal({ ticker, name, initialTab = 'chart', onClose }: Prop
 
         {activeTab === 'ai' ? (
           <AiPanel
-            // AI 분석은 하나 (9-13) — 관리자는 웹을 찾아보는 종목 분석(내 비중 % 포함, 9-8), 사용자는
-            // 공용 숫자만 보내는 종목 정리. 종목 분석은 내 비중이 가므로 관리자만이다.
-            target={isAdmin ? { kind: 'research', ticker } : { kind: 'stock', ticker }}
+            // AI 분석은 하나 (9-13) — 웹을 찾아보는 종목 분석(내 비중 % 포함, 9-8). 내 비중이 가므로
+            // 관리자가 사용자에게 닫아 두면(9-15) 그 사용자는 공용 숫자만 보내는 종목 정리를 받는다.
+            target={canAdvise ? { kind: 'research', ticker } : { kind: 'stock', ticker }}
             account={pushAccount(user)}
           />
         ) : activeTab === 'fundamentals' && fundamentals ? (

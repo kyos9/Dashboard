@@ -328,8 +328,8 @@ export function Dashboard() {
   const openAi = useCallback((card: DashboardCard) => setChart({ card, tab: 'ai' }), [])
   const [aiAll, setAiAll] = useState(false)
   const closeAiAll = useCallback(() => setAiAll(false), [])
-  const { user, isAdmin } = useAuth()
-  // 포트폴리오 진단 (9-7, 관리자만) — 내 비중(%)이 AI 에게 간다
+  const { user, canAdvise } = useAuth()
+  // 포트폴리오 진단 (9-7) — 내 비중(%)이 AI 에게 간다. 관리자는 늘, 사용자는 관리자가 열어 둔 동안 (9-15)
   const [aiPortfolio, setAiPortfolio] = useState(false)
   const closeAiPortfolio = useCallback(() => setAiPortfolio(false), [])
   const [stocks, setStocks] = useState<Stock[]>([])
@@ -653,7 +653,7 @@ export function Dashboard() {
             시그널
           </button>
         </div>
-        {mode === 'portfolio' && current && isAdmin && (
+        {mode === 'portfolio' && current && canAdvise && (
           <button className="chip view-head-action" onClick={() => setAiPortfolio(true)}>
             ✦ AI 포트폴리오 진단
           </button>
@@ -892,7 +892,7 @@ export function Dashboard() {
           <AiSummaryModal kind="watchlist" account={pushAccount(user)} onClose={closeAiAll} />
         </Suspense>
       )}
-      {aiPortfolio && isAdmin && (
+      {aiPortfolio && canAdvise && (
         <Suspense fallback={null}>
           <AiSummaryModal kind="portfolio" account={pushAccount(user)} onClose={closeAiPortfolio} />
         </Suspense>

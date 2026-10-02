@@ -1,5 +1,6 @@
 import type {
   AdminUser,
+  AppSettings,
   AiAnalysis,
   AiContext,
   AiModelsResponse,
@@ -254,6 +255,10 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ status }),
     }),
+  /** 관리자 — 앱 설정 (9-15). 사용자에게 AI 진단·종목 분석을 열지 */
+  getAppSettings: () => request<AppSettings>('/admin/settings'),
+  setAppSettings: (settings: AppSettings) =>
+    request<AppSettings>('/admin/settings', { method: 'PUT', body: JSON.stringify(settings) }),
 
   /** 종목명/코드로 후보를 찾는다 — 사용자가 고른 뒤에 등록한다 */
   searchSymbols: (q: string, limit = 8) =>

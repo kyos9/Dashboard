@@ -227,7 +227,8 @@ def test_owner_login_attaches_to_user_1_and_sees_existing_data(api, google_says)
     assert [s["ticker"] for s in client.get("/api/stocks").json()] == ["VOO"]
     status = client.get("/api/auth/status").json()
     assert status["mode"] == "google" and status["authenticated"] is True
-    assert status["user"] == {"email": OWNER, "name": "owner", "is_owner": True, "status": "active"}
+    assert status["user"] == {"email": OWNER, "name": "owner", "is_owner": True, "status": "active",
+                              "ai_advice": True}
     assert status["pending_count"] == 0  # 관리자에게만 — 기다리는 가입 신청 수
 
 
@@ -264,6 +265,12 @@ def test_a_friend_on_the_list_gets_their_own_empty_account(api, google_says):
         assert friend.id != LOCAL_USER_ID and friend.is_owner is False
     status = client.get("/api/auth/status").json()
     assert status["user"]["is_owner"] is False
+    # AI 진단·종목 분석 — 관리자가 열어 둔 동안만 (9-15). 화면은 이 값으로 버튼을 보이거나 숨긴다
+    assert status["user"]["ai_advice"] is True
+    from app.services import app_settings
+    with Session() as db:
+        app_settings.set_flag(db, app_settings.AI_ADVICE_FOR_USERS, False)
+    assert client.get("/api/auth/status").json()["user"]["ai_advice"] is False
 
 
 def test_logging_in_again_is_the_same_person(api, google_says):

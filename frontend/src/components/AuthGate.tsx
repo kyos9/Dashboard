@@ -54,6 +54,11 @@ interface AuthValue {
   recountPending: () => void
   /** 관리자 전용 버튼(전체 새로고침·진단·예상치 입력 등)을 보여줄지. 혼자 쓰는 서버는 늘 관리자다 */
   isAdmin: boolean
+  /**
+   * AI 포트폴리오 진단·종목 분석(내 비중이 AI 에게 간다)을 보여줄지 (9-15). 관리자는 늘,
+   * 사용자는 관리자가 열어 둔 동안. 혼자 쓰는 서버는 늘 관리자다
+   */
+  canAdvise: boolean
   /** 관리자에게 연락할 곳. 주인이 적지 않았으면 null — 그때는 "관리자에게 문의"라고만 쓴다 */
   contact: string | null
   /** 구글 로그인으로 보낸다 */
@@ -77,6 +82,7 @@ const Ctx = createContext<AuthValue>({
   pendingCount: 0,
   recountPending: () => {},
   isAdmin: true,
+  canAdvise: true,
   contact: null,
   login: () => {},
   configProblem: null,
@@ -240,6 +246,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const guest = mode === 'google' && (user === null || pending)
   // 혼자 쓰는 서버(잠금 없음·비밀번호)는 들어온 사람이 곧 1번 — 관리자다
   const isAdmin = mode === 'google' ? user?.is_owner === true : true
+  // 옛 서버는 ai_advice 를 보내지 않는다 — 그때는 관리자만
+  const canAdvise = isAdmin || (mode === 'google' && !pending && user?.ai_advice === true)
 
   const value = useMemo(
     () => ({
@@ -251,6 +259,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       pendingCount,
       recountPending,
       isAdmin,
+      canAdvise,
       contact,
       login,
       configProblem,
@@ -260,7 +269,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       withdraw,
     }),
     [
-      locked, mode, user, guest, pending, pendingCount, recountPending, isAdmin, contact, login,
+      locked, mode, user, guest, pending, pendingCount, recountPending, isAdmin, canAdvise, contact, login,
       configProblem, error, dismissLoginError, logout, withdraw,
     ],
   )

@@ -457,9 +457,17 @@ export interface AuthUser {
   is_owner: boolean
   /** 승인 대기면 아직 손님과 같다 — 관리자가 승인해야 쓴다. 옛 서버는 보내지 않는다 */
   status?: 'active' | 'pending'
+  /** AI 포트폴리오 진단·종목 분석을 쓸 수 있나 — 관리자는 늘, 사용자는 관리자가 열어 둔 동안 (9-15) */
+  ai_advice?: boolean
 }
 
 export type UserStatus = 'active' | 'pending' | 'rejected' | 'blocked'
+
+/** 관리자가 화면에서 켜고 끄는 앱 설정 (9-15) */
+export interface AppSettings {
+  /** 사용자 계정에도 AI 포트폴리오 진단·종목 분석을 열까 (관리자는 늘 쓴다) */
+  ai_advice_for_users: boolean
+}
 
 /** 관리자의 사용자 목록 한 줄 */
 export interface AdminUser {

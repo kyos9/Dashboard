@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models import User, UserStock
-from app.services import pipeline
+from app.services import app_settings, pipeline
 from app.services.users import (
     STATUS_ACTIVE,
     STATUS_BLOCKED,
@@ -95,3 +95,30 @@ def change_status(user_id: int, payload: StatusChange, db: Session = Depends(get
         db.commit()
         logger.info("사용자 %s 상태를 %s(으)로 바꿨습니다", user.id, payload.status)
     return _row(user, _stock_counts(db).get(user.id, 0), pipeline.is_dormant(db, user))
+
+
+# ---------------------------------------------------------------------------
+#  앱 설정 (9-15) — 서버를 다시 띄우지 않고 켜고 끄는 것
+# ---------------------------------------------------------------------------
+
+
+class SettingsChange(BaseModel):
+    # 사용자 계정에도 AI 포트폴리오 진단·종목 분석을 열까
+    ai_advice_for_users: bool
+
+
+def _settings(db: Session) -> dict:
+    return {"ai_advice_for_users": app_settings.ai_advice_open(db)}
+
+
+@router.get("/settings")
+def get_settings(db: Session = Depends(get_db)) -> dict:
+    return _settings(db)
+
+
+@router.put("/settings")
+def change_settings(payload: SettingsChange, db: Session = Depends(get_db)) -> dict:
+    """닫으면 사용자의 다음 진단·분석 요청부터 403 이다. 이미 받아 둔 글은 그 사람의 기기에 남는다."""
+    app_settings.set_flag(db, app_settings.AI_ADVICE_FOR_USERS, payload.ai_advice_for_users)
+    logger.info("사용자 AI 진단·분석을 %s", "열었습니다" if payload.ai_advice_for_users else "닫았습니다")
+    return _settings(db)

@@ -19,7 +19,7 @@ from app.db import get_db
 from app.schemas import AiAnalysisOut, AiAnalyzeIn, AiContextOut, AiModelsIn, AiModelsOut
 from app.services import ai_analysis, ai_portfolio, limits
 from app.services.providers import ai as providers
-from app.services.users import current_user_id, find_user_stock, require_owner
+from app.services.users import current_user_id, find_user_stock, require_ai_advice
 
 router = APIRouter(prefix="/api/ai", tags=["ai"])
 
@@ -85,8 +85,9 @@ def get_context(
     return _context(lambda q: ai_analysis.stock_job(db, stock, q), question)
 
 
-# --- 관리자만 (9-7 포트폴리오 진단 · 9-8 종목 분석) -----------------------------------
-# 그 사람의 비중(%)이 넘어간다 — 개인 맞춤 조언 쪽이라 주인 계정에서만 연다 (`ai_portfolio`).
+# --- 포트폴리오 진단 · 종목 분석 (9-7 · 9-8) -----------------------------------------
+# 그 사람의 비중(%)이 넘어간다 — 개인 맞춤 조언 쪽이다. 관리자는 늘 쓰고, 사용자는 관리자가 열어 두었을
+# 때만 쓴다(9-15, `require_ai_advice`). 열어도 각자 자기 종목·자기 비중만 간다 (`ai_portfolio`).
 # `/{scope}/…` 보다 **먼저** 둔다. 뒤에 두면 그쪽이 먼저 잡아 "portfolio 는 없는 정리"(422)가 된다.
 
 
@@ -94,7 +95,7 @@ def get_context(
 def get_portfolio_context(
     question: str | None = None,
     db: Session = Depends(get_db),
-    user_id: int = Depends(require_owner),
+    user_id: int = Depends(require_ai_advice),
 ):
     return _context(lambda q: ai_portfolio.portfolio_job(db, user_id, q), question)
 
@@ -103,7 +104,7 @@ def get_portfolio_context(
 def portfolio_stream(
     payload: AiAnalyzeIn,
     db: Session = Depends(get_db),
-    user_id: int = Depends(require_owner),
+    user_id: int = Depends(require_ai_advice),
     key: str | None = Header(default=None, alias=KEY_HEADER),
 ):
     return _stream(db, user_id, lambda q: ai_portfolio.portfolio_job(db, user_id, q), payload, key)
@@ -114,7 +115,7 @@ def get_research_context(
     ticker: str,
     question: str | None = None,
     db: Session = Depends(get_db),
-    user_id: int = Depends(require_owner),
+    user_id: int = Depends(require_ai_advice),
 ):
     stock = _my_stock(db, user_id, ticker)
     return _context(lambda q: ai_portfolio.research_job(db, user_id, stock, q), question)
@@ -125,7 +126,7 @@ def research_stream(
     ticker: str,
     payload: AiAnalyzeIn,
     db: Session = Depends(get_db),
-    user_id: int = Depends(require_owner),
+    user_id: int = Depends(require_ai_advice),
     key: str | None = Header(default=None, alias=KEY_HEADER),
 ):
     stock = _my_stock(db, user_id, ticker)

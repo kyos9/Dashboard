@@ -282,29 +282,38 @@ def test_api_owner_sees_the_same_prompt_it_streams(api, fake_stream, fake_sec): 
         assert got[-1][1]["scope"] == shown["scope"]
 
 
-def test_api_is_owner_only_and_refuses_before_reading_the_body(api, fake_stream):  # noqa: F811
+def test_api_is_for_users_when_open_and_refuses_before_reading_the_body_when_closed(api, fake_stream):  # noqa: F811
+    """9-15: 사용자도 쓴다(기본은 연다). 관리자가 닫으면 403 — 본문이 틀려도 잠금이 먼저다."""
     client, Session = api
     with Session() as db:
         make_user(db, id=2, email="b@example.com", is_owner=False)
         make_stock(db, "ACME", name="Acme Corp", user_id=2, target_weight_pct=10.0)
     from app.main import app
+    from app.services import app_settings
     from app.services.users import current_user_id
 
     app.dependency_overrides[current_user_id] = lambda: 2
+    paths = (("get", "/api/ai/portfolio/context"), ("post", "/api/ai/portfolio/stream"),
+             ("get", "/api/ai/research/ACME/context"), ("post", "/api/ai/research/ACME/stream"))
     try:
-        for method, path in (("get", "/api/ai/portfolio/context"), ("post", "/api/ai/portfolio/stream"),
-                             ("get", "/api/ai/research/ACME/context"), ("post", "/api/ai/research/ACME/stream")):
+        assert client.get("/api/ai/research/ACME/context").status_code == 200
+        with Session() as db:
+            app_settings.set_flag(db, app_settings.AI_ADVICE_FOR_USERS, False)
+        for method, path in paths:
             if method == "post":
                 res = client.post(path, headers=_headers(), json={})  # 본문이 틀려도 잠금이 먼저다
             else:
                 res = client.get(path)
             assert res.status_code == 403, (path, res.text)
-            assert res.json()["detail"]["hint"] == "관리자만 쓸 수 있는 기능입니다."
+            assert res.json()["detail"]["hint"] == "관리자가 이 기능을 닫아 두었습니다."
         # 공용 숫자만 쓰는 정리는 그대로 열려 있다
         assert client.get("/api/ai/watchlist/context").status_code == 200
     finally:
         app.dependency_overrides.pop(current_user_id, None)
     assert fake_stream.calls == []
+    # 관리자(1번)는 닫혀 있어도 쓴다
+    # (잠금은 지나고, 담은 것이 없어 "진단할 포트폴리오가 없습니다" 400)
+    assert client.get("/api/ai/portfolio/context").status_code == 400
 
 
 def test_api_research_is_only_for_my_stocks(api):

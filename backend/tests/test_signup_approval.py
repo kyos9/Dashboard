@@ -84,7 +84,9 @@ def test_a_stranger_is_signed_in_as_pending(api, people):
 
     status = people.be("sub-x").get("/api/auth/status").json()
     assert status["authenticated"] is False
-    assert status["user"] == {"email": STRANGER, "name": "stranger", "is_owner": False, "status": "pending"}
+    # 승인 전에는 AI 진단·분석도 없다 (9-15 — 열려 있어도 승인된 사용자만)
+    assert status["user"] == {"email": STRANGER, "name": "stranger", "is_owner": False, "status": "pending",
+                              "ai_advice": False}
     assert "pending_count" not in status  # 관리자에게만
     assert _user(Session, "sub-x").status == "pending"
 

@@ -820,7 +820,7 @@ describe('폰 — 한 종목이 두 줄', () => {
   })
 })
 
-describe('AI 포트폴리오 진단 (9-7) — 관리자만', () => {
+describe('AI 포트폴리오 진단 (9-7) — 관리자는 늘, 사용자는 관리자가 열어 둔 동안 (9-15)', () => {
   it('관리자에게는 포트폴리오 보기에 버튼이 있고, 누르면 창만 연다 — 부르는 것은 창에서 한 번 더', async () => {
     localStorage.clear()
     mockApi()
@@ -841,7 +841,30 @@ describe('AI 포트폴리오 진단 (9-7) — 관리자만', () => {
     expect(screen.queryByRole('button', { name: '✦ AI 포트폴리오 진단' })).toBeNull()
   })
 
-  it('사용자 계정에는 버튼이 없다', async () => {
+  it.each([
+    [true, '있다'],
+    [false, '없다'],
+  ])('사용자 계정: 관리자가 열어 두었나(%s) — 버튼이 %s', async (open) => {
+    mockApi()
+    vi.spyOn(api, 'getHealth').mockResolvedValue({ status: 'ok', version: '0.39.0' })
+    vi.spyOn(api, 'getAuthStatus').mockResolvedValue({
+      locked: true, authenticated: true, mode: 'google', config_problem: null,
+      user: { email: 'b@example.com', name: '비', is_owner: false, status: 'active', ai_advice: open },
+    })
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <AuthGate>
+          <AppStateProvider>
+            <Dashboard />
+          </AppStateProvider>
+        </AuthGate>
+      </MemoryRouter>,
+    )
+    expect(await screen.findByText('총 평가금액')).toBeInTheDocument()
+    expect(screen.queryAllByRole('button', { name: '✦ AI 포트폴리오 진단' })).toHaveLength(open ? 1 : 0)
+  })
+
+  it('옛 서버(ai_advice 를 안 보냄)면 사용자에게는 없다', async () => {
     mockApi()
     vi.spyOn(api, 'getHealth').mockResolvedValue({ status: 'ok', version: '0.36.0' })
     vi.spyOn(api, 'getAuthStatus').mockResolvedValue({

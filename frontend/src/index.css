@@ -2217,6 +2217,16 @@ table.data-table tr.dirty:hover td {
   width: min(720px, 100%);
 }
 
+/* 사용자 모두에게 걸리는 스위치 (9-15) — 목록과 구분되게 칸으로 */
+.users-switch {
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  line-height: 1.55;
+}
+
 .users-intro {
   margin: 0 0 8px;
 }

@@ -20,7 +20,7 @@ from starlette.concurrency import run_in_threadpool
 
 from app.db import get_db
 from app.models import Holding, PushState, PushSubscription, RebalanceSnapshot, User, UserSettings, UserStock
-from app.services import auth, pipeline
+from app.services import app_settings, auth, pipeline
 from app.services import google_login as google
 from app.services.users import LOCAL_USER_ID, STATUS_ACTIVE, STATUS_PENDING, current_user_id
 
@@ -177,7 +177,9 @@ def status(request: Request, db: Session = Depends(get_db)) -> dict:
         # 승인 대기인 사람도 보여준다 — 누구로 신청했는지, 아직 기다리는 중인지 알아야 한다
         user = _session_user(db, request.cookies.get(auth.COOKIE_NAME))
         body["user"] = (
-            {"email": user.email, "name": user.name, "is_owner": user.is_owner, "status": user.status}
+            {"email": user.email, "name": user.name, "is_owner": user.is_owner, "status": user.status,
+             # AI 포트폴리오 진단·종목 분석을 쓸 수 있나 — 관리자는 늘, 사용자는 관리자가 열어 두었을 때 (9-15)
+             "ai_advice": user.is_owner or (user.status == STATUS_ACTIVE and app_settings.ai_advice_open(db))}
             if user is not None and user.status in (STATUS_ACTIVE, STATUS_PENDING)
             else None
         )

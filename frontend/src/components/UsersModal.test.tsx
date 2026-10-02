@@ -48,6 +48,7 @@ function renderApp(status: AuthStatus, body: React.ReactNode = null) {
 beforeEach(() => {
   vi.restoreAllMocks()
   localStorage.clear()
+  vi.spyOn(api, 'getAppSettings').mockResolvedValue({ ai_advice_for_users: true })
 })
 
 describe('승인을 기다리는 사람', () => {
@@ -212,6 +213,36 @@ describe('사용자 목록', () => {
     await userEvent.click(within(await screen.findByTestId('user-7')).getByRole('button', { name: '거절' }))
     expect(await screen.findByText(/관리자 계정은 바꿀 수 없습니다/)).toBeInTheDocument()
     expect(within(screen.getByTestId('user-7')).getByText('승인 대기')).toBeInTheDocument()
+  })
+})
+
+describe('사용자에게 AI 진단·종목 분석 열기 (9-15)', () => {
+  it('지금 값을 보여주고, 끄면 바로 저장한다 — 다시 켤 수도 있다', async () => {
+    vi.spyOn(api, 'listUsers').mockResolvedValue([FRIEND, OWNER])
+    const save = vi
+      .spyOn(api, 'setAppSettings')
+      .mockImplementation(async (settings) => settings)
+    const user = userEvent.setup()
+    render(<UsersModal onClose={() => {}} onChanged={() => {}} />)
+    const box = await screen.findByRole('checkbox', { name: /사용자에게 AI 포트폴리오 진단·종목 분석 열기/ })
+    expect(box).toBeChecked()
+    await user.click(box)
+    expect(save).toHaveBeenLastCalledWith({ ai_advice_for_users: false })
+    await waitFor(() => expect(box).not.toBeChecked())
+    await user.click(box)
+    expect(save).toHaveBeenLastCalledWith({ ai_advice_for_users: true })
+    await waitFor(() => expect(box).toBeChecked())
+  })
+
+  it('저장에 실패하면 이유를 보여주고 스위치는 그대로다', async () => {
+    vi.spyOn(api, 'listUsers').mockResolvedValue([FRIEND, OWNER])
+    vi.spyOn(api, 'setAppSettings').mockRejectedValue(new ApiError(500, '저장하지 못했습니다.', 'x'))
+    const user = userEvent.setup()
+    render(<UsersModal onClose={() => {}} onChanged={() => {}} />)
+    const box = await screen.findByRole('checkbox', { name: /사용자에게 AI/ })
+    await user.click(box)
+    expect(await screen.findByText('저장하지 못했습니다.')).toBeInTheDocument()
+    expect(box).toBeChecked()
   })
 })
 

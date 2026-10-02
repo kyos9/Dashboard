@@ -615,6 +615,20 @@ class UsListing(Base):
     updated_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow, nullable=False)
 
 
+class AppSetting(Base):
+    """앱 전체에 하나씩인 설정 — 관리자가 화면에서 켜고 끈다 (ROADMAP 9-15). **공용 데이터다.**
+
+    이름 → 값(글자). 없는 이름은 코드의 기본값을 쓴다(`services/app_settings.py`) — 그래서 새 설정을
+    더할 때 표를 고치지 않아도 되고, 처음 올린 서버도 기본값으로 시작한다.
+    """
+
+    __tablename__ = "app_setting"
+
+    key: Mapped[str] = mapped_column(String, primary_key=True)
+    value: Mapped[str] = mapped_column(String, nullable=False)
+    updated_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow, nullable=False)
+
+
 def stock_order():
     """종목을 화면에 보여줄 순서.
 

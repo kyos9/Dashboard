@@ -273,12 +273,12 @@ describe('차트 팝업 · 재무 탭', () => {
     expect(await screen.findByText(/웹 검색을 켜고 보냅니다/)).toBeInTheDocument()
   })
 
-  it('사용자 계정의 AI 분석은 공용 숫자만 보내는 종목 정리다 — 내 비중이 가는 분석은 관리자만', async () => {
+  it('관리자가 사용자에게 닫아 두면 사용자의 AI 분석은 공용 숫자만 보내는 종목 정리다 (9-15)', async () => {
     localStorage.clear()
     vi.spyOn(api, 'getHealth').mockResolvedValue({ status: 'ok', version: '0.38.0' })
     vi.spyOn(api, 'getAuthStatus').mockResolvedValue({
       locked: true, authenticated: true, mode: 'google', config_problem: null,
-      user: { email: 'b@example.com', name: '비', is_owner: false, status: 'active' },
+      user: { email: 'b@example.com', name: '비', is_owner: false, status: 'active', ai_advice: false },
     })
     vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
     vi.spyOn(api, 'getFundamentals').mockResolvedValue(FUNDAMENTALS)
@@ -300,6 +300,35 @@ describe('차트 팝업 · 재무 탭', () => {
     await user.click(screen.getByText('AI 에게 보내는 내용 보기'))
     await waitFor(() => expect(context).toHaveBeenCalledWith({ kind: 'stock', ticker: 'GOOG' }, ''))
     expect(screen.queryByText(/웹 검색을 켜고 보냅니다/)).toBeNull()
+  })
+
+  it('관리자가 열어 두면 사용자도 웹을 찾아보는 종목 분석을 받는다 (9-15)', async () => {
+    localStorage.clear()
+    vi.spyOn(api, 'getHealth').mockResolvedValue({ status: 'ok', version: '0.39.0' })
+    vi.spyOn(api, 'getAuthStatus').mockResolvedValue({
+      locked: true, authenticated: true, mode: 'google', config_problem: null,
+      user: { email: 'b@example.com', name: '비', is_owner: false, status: 'active', ai_advice: true },
+    })
+    vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
+    vi.spyOn(api, 'getFundamentals').mockResolvedValue(FUNDAMENTALS)
+    const context = vi.spyOn(api, 'aiContext').mockResolvedValue({
+      scope: 'research', ticker: 'GOOG', as_of: '2026-09-25', system: '애널리스트', prompt: '[사용자의 포트폴리오',
+      search: true,
+    })
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter>
+        <AuthGate>
+          <ChartModal ticker="GOOG" name="GOOG" initialTab="ai" onClose={() => {}} />
+        </AuthGate>
+      </MemoryRouter>,
+    )
+    await screen.findByRole('tab', { name: '재무' })
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['차트', '재무', 'AI 분석'])
+    expect(screen.getByText(/알파 버킷 편입 판단/)).toBeInTheDocument()
+    expect(screen.queryByText(/관리자만 씁니다/)).toBeNull()
+    await user.click(screen.getByText('AI 에게 보내는 내용 보기'))
+    await waitFor(() => expect(context).toHaveBeenCalledWith({ kind: 'research', ticker: 'GOOG' }, ''))
   })
 
   it('손님(로그인 전)에게는 AI 분석 탭이 없다', async () => {
