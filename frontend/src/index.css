@@ -8,6 +8,21 @@
    - 텍스트는 잘라내지(ellipsis) 않고 항상 줄바꿈으로 전부 보여준다.
    ========================================================================== */
 
+/*
+ * 글꼴 — Wanted Sans (SIL OFL 1.1, assets/fonts/OFL-WantedSans.txt). 디자인 1차에서 주인이 골랐다.
+ * 기기마다 글꼴이 다르면 줄이 바뀌는 자리도 달라진다. 그래서 직접 싣는다(바깥 CDN 은 쓰지 않는다 —
+ * 오프라인 PWA 이고, 사용자 IP 를 남에게 넘기지 않는다). 한글 2,350자 + 라틴만 남긴 부분집합이고
+ * (docs/design/font-subset.py), 빌드가 이름에 해시를 붙여 /assets/ 에 두므로 서비스 워커가 캐시한다.
+ * 받는 동안은 시스템 글꼴로 먼저 보인다(swap). 숫자는 지금처럼 고정폭 글꼴(--font-mono)이다.
+ */
+@font-face {
+  font-family: 'Wanted Sans';
+  src: url('./assets/fonts/WantedSansVariable-ko.woff2') format('woff2');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   color-scheme: dark;
 
@@ -64,7 +79,7 @@
   --gutter-left: calc(var(--gutter) + env(safe-area-inset-left, 0px));
   --gutter-right: calc(var(--gutter) + env(safe-area-inset-right, 0px));
 
-  --font-sans: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans KR',
+  --font-sans: 'Wanted Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans KR',
     'Malgun Gothic', Helvetica, Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', 'Cascadia Mono', Consolas, 'D2Coding',
     'Courier New', monospace;
