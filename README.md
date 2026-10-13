@@ -23,6 +23,8 @@
   도메인·HTTPS·첫 배포까지, 막히는 자리(방화벽 두 겹)를 포함해 순서대로.
 - [`SIGNAL_APP_SPEC.md`](SIGNAL_APP_SPEC.md) — **시그널이 무엇인지.** 지표 공식, 조건식,
   경계값, 매수·리밸런싱 규칙. 조건식을 바꾸려면 여기부터 고칩니다.
+- [`DESIGN_PROMPT.md`](DESIGN_PROMPT.md) · [`BUILD_PROMPT.md`](BUILD_PROMPT.md) — **AI 에게 맡길 작업 설명.** 디자인 손보기,
+  그리고 이 앱을 빈 저장소에서 처음부터 만들기(기획·실행·검토·사용자 네 역할, 합격 기준, 주인에게 묻는 때).
 
 DB는 개인 PC에서 SQLite 파일 하나, 서버에서 Postgres입니다. 코드는 같고 `DATABASE_URL`만 다릅니다.
 
