@@ -110,6 +110,41 @@ class RebalanceSignal(BaseModel):
     reasons: list[str] = []
 
 
+class SignalRuleCondition(BaseModel):
+    key: str
+    metric: str  # 화면에서 붙는 지표 칸
+    label: str
+    detail: str
+    header: str
+    formula: str
+
+
+class SignalRule(BaseModel):
+    key: Literal["buy", "sell"]
+    column: str
+    name: str
+    spec_name: str
+    conditions: list[SignalRuleCondition]
+
+
+class SignalRuleChange(BaseModel):
+    date: str
+    what: str
+    why: str
+
+
+class SignalRules(BaseModel):
+    """`GET /api/signal-rules` — 시그널 정의 (공용, 0.41.0). 정의는 `services/signal_rules.py`."""
+
+    version: str
+    thresholds: dict[str, float]
+    rules: list[SignalRule]
+    changes: list[SignalRuleChange]
+    changed_on: Optional[str] = None
+    # 신호 요약에 붙는 한 줄 — 정의를 바꾼 뒤 30일 동안만
+    change_notice: Optional[str] = None
+
+
 class KneeConditions(BaseModel):
     """무릎매수(v2)를 이루는 네 조건의 개별 충족 여부.
 
@@ -135,6 +170,11 @@ class DashboardCard(BaseModel):
     indicators: LatestIndicators
     knee_buy_v2: bool = False
     knee_conditions: KneeConditions = KneeConditions()
+    # 매수 조건별 판정 — 키는 규칙(`signal_rules.py`)의 조건 키 그대로라 조건 수가 바뀌어도 모양이 같다
+    # (0.41.0). 지금은 `knee_conditions` 와 같은 네 키다. 옛 화면은 `knee_conditions` 를 읽는다.
+    buy_conditions: dict[str, Optional[bool]] = {}
+    # 이 판정을 낸 정의의 판(`GET /api/signal-rules` 의 version). 화면이 받아 둔 규칙과 다르면 다시 받는다.
+    signal_rules_version: Optional[str] = None
     shoulder_sell_ref: bool = False
     # 무릎매수(v2)가 마지막으로 뜬 날 (저장된 히스토리 전체에서). 적립할 때 "이번 달에 벌써
     # 떴나"를 보는 용도 — 기간을 정해 기록을 잡아두던 매수 워크플로우를 대신한다.

@@ -100,6 +100,10 @@ ADX = Wilder 스무딩(DX)
 
 ## 3. 무릎매수 (v2)
 
+> **정의를 담은 코드는 `backend/app/services/signal_rules.py` 한 곳이다** (0.41.0). 이 장은 그 뜻을 적는다.
+> 기준값(아래의 `20`·`1.1`·`0`·`5거래일`)은 그 파일의 상수 하나씩이고, 계산·화면 문구·AI 지시문이 모두
+> 거기서 가져온다. 둘이 어긋나면 버그다(1장).
+
 > 떨어지는 중이되, 떨어지는 속도가 잦아들거나 거래가 붙기 시작한 자리.
 
 네 조건을 **모두** 만족한 날에 발동한다.
@@ -134,6 +138,8 @@ knee_buy_v2 = (−DI > +DI)
 ---
 
 ## 4. 어깨매도 (참고)
+
+> 정의는 3장과 같이 `signal_rules.py` 에 있다.
 
 > 올라가 있고, 추세가 강해지고 있고, 거래가 받쳐주는 자리.
 
@@ -306,6 +312,32 @@ shoulder_sell_ref = (종가 > MA50) AND (ADX > ADX[5일 전]) AND (vol_ma5 > vol
 바꾸는 순서:
 
 1. 이 문서를 먼저 고친다
-2. `app/services/signals.py`(또는 `indicators.py`)를 고친다
-3. 경계값 테스트를 고치거나 더한다 (`tests/test_signals.py`, `tests/test_indicators.py`)
-4. 전 종목 재계산
+2. `app/services/signal_rules.py` 를 고친다 — 기준값은 상수, 조건은 `Condition`(문구 + 평가 함수).
+   평가 함수의 동작을 바꿨으면 `VERSION` 을, 지표 공식(`indicators.py`)을 바꿨으면 `INDICATOR_VERSION` 을
+   손으로 올린다. **`CHANGES` 에 한 줄**(날짜·무엇·이유)을 더하고 아래 11장에도 적는다
+3. 경계값 테스트를 고치거나 더한다 (`tests/test_signals.py`, `tests/test_indicators.py`,
+   `tests/test_signal_rules.py`). 가짜 서버 데모가 새 정의에서도 시그널을 띄우는지 `tests/test_devtools.py`
+4. **배포 전에** 백업 DB 로 전후를 본다 — `python -m app.tools.signal_diff` (종목별 1·3·5년 발동 횟수,
+   오늘 상태가 바뀐 종목, 마지막 매수 시그널 날짜가 바뀐 종목, 알림이 갈 사람 수. 수익률은 보지 않는다)
+5. 전 종목 재계산은 **저절로** 된다 — 서버가 켜질 때 정의의 지문(`signal_rules.fingerprint()`)이 저장된 것과
+   다르면 저장된 시세로 다시 계산한다(네트워크 없음). 손으로는 `python -m app.tools.recompute_signals`
+
+화면의 신호 요약에는 정의를 바꾼 뒤 30일 동안 "시그널 계산 방식이 YYYY-MM-DD에 바뀌었습니다"가 뜬다
+(`CHANGES` 의 마지막 날짜). 지난 차트의 점이 왜 달라졌는지 사용자가 알 수 있게 하려는 것이다.
+
+**그대로 두는 것.** API 필드 이름(`knee_buy_v2`, `shoulder_sell_ref`, `knee_conditions` 의 네 키)은 옛 화면이
+쓴다 — 뜻이 바뀌어도 이름은 그대로, 뜻은 이 문서가 정한다. 조건 수가 바뀌면 화면은 새 필드
+`buy_conditions`(규칙의 키 그대로)를 읽는다. 리밸런싱 기록은 다시 계산하지 않는다.
+
+---
+
+## 11. 정의 변경 이력
+
+`signal_rules.CHANGES` 와 같은 내용이다. 첫 줄은 바뀐 것이 아니라 처음 정의다.
+
+| 날짜 | 무엇 | 이유 |
+| --- | --- | --- |
+| 2026-09-17 | 무릎매수(v2)·어깨매도(참고) — 코드에서 명세를 복원한 시점의 정의 | 처음 정의. 임계값의 근거는 복원하지 못했다(1장) |
+
+정의가 **바뀌지 않은** 정리는 여기 적지 않는다(적으면 화면이 "바뀌었습니다"라고 말한다). 예: v0.41.0 에서 정의를
+`signal_rules.py` 한 곳으로 모으고 바뀌면 저절로 다시 계산하게 했지만, 판정은 그대로다.

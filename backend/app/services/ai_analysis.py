@@ -27,7 +27,8 @@ from app.models import SignalDaily
 from app.services import fundamentals, macro, queries
 from app.services.users import ordered_user_stocks
 from app.services.providers import ai as providers
-from app.services.signals import knee_conditions
+from app.services import signal_rules
+from app.services.signals import buy_conditions
 
 # 1년 전 종가·52주 고저를 보려면 1년치 거래일이 있어야 한다 (한국 ~248, 미국 ~252)
 PRICE_ROWS = 270
@@ -135,7 +136,7 @@ WATCHLIST_PROMPT = (
 ## 종목별 한 줄
 종목마다 "- **이름**: " 로 시작하는 한 줄. 가격 흐름·시그널·재무에서 눈에 띄는 사실 하나둘.
 ## 시그널 규칙
-오늘 매수 시그널이 뜬 종목, 네 조건 중 몇 개가 충족된 상태인지, 지난 1년 동안 뜬 날 수.
+오늘 매수 시그널이 뜬 종목, """ + signal_rules.buy_count_phrase() + """ 중 몇 개가 충족된 상태인지, 지난 1년 동안 뜬 날 수.
 ## 재무
 재무 자료가 있는 종목끼리 같은 지표를 나란히. 없는 종목은 없다고.
 ## 시장 배경
@@ -190,13 +191,8 @@ SYSTEM_PROMPTS = {"stock": SYSTEM_PROMPT, "watchlist": WATCHLIST_PROMPT, "macro"
 # 사용자가 붙이는 요청의 길이 한도 (글자). 질문 몇 줄이면 충분하고, 길면 토큰(=요금)만 는다
 QUESTION_MAX = 1000
 
-SIGNAL_RULES = """\
-[시그널 규칙 — 사용자가 이 앱에서 쓰는 기계적 조건]
-- 매수 시그널(무릎매수 v2): 네 조건이 모두 참인 날. ① -DI > +DI ② 이격도(종가÷MA20−1) < 0
-  ③ 20일 표준편차가 5거래일 전보다 작거나, 거래량비(5일÷20일 평균) > 1.1 ④ ADX > 20.
-  떨어지는 중에 적립식으로 사는 날을 고르는 보조 규칙이다. 기간 안에 안 뜨면 기간 마지막 날 산다.
-- 매도 참고 시그널(어깨): 종가 > MA50, ADX 가 5거래일 전보다 큼, 5일 평균 거래량 > 20일 평균.
-  참고용이며 매도는 정해 둔 리뷰일에만 한다."""
+# 정의(조건·기준값)에서 만든다 — 기준을 바꾸면 AI 에 가는 설명도 같이 바뀐다 (signal_rules.py)
+SIGNAL_RULES = signal_rules.ai_rules_text()
 
 
 # ---------------------------------------------------------------------------
@@ -237,12 +233,13 @@ def _price_section(db: Session, ticker: str) -> dict:
 
 
 def _indicator_section(db: Session, ticker: str, close: float | None) -> dict:
-    rows = queries.recent_indicators(db, [ticker], limit=6).get(ticker, [])
+    lookback = signal_rules.LOOKBACK_DAYS
+    rows = queries.recent_indicators(db, [ticker], limit=lookback + 1).get(ticker, [])
     if not rows:
         return {}
     latest = rows[0]
-    five_ago = rows[5] if len(rows) > 5 else None
-    conditions = knee_conditions(latest, five_ago)
+    five_ago = rows[lookback] if len(rows) > lookback else None
+    conditions = buy_conditions(rows)
     return {
         "date": latest.date,
         "vs_ma": {
@@ -258,7 +255,7 @@ def _indicator_section(db: Session, ticker: str, close: float | None) -> dict:
         "vol_ratio": latest.vol_ratio,
         "stddev20": latest.stddev20,
         "stddev20_5d_ago": five_ago.stddev20 if five_ago else None,
-        "knee_conditions": conditions.model_dump(),
+        "knee_conditions": conditions,
     }
 
 
@@ -438,11 +435,10 @@ def render_prompt(ctx: dict, question: str | None = None) -> str:
             f"- 종가가 이동평균 대비: MA20 {_num(vs['ma20'], 1, '%', True)}, MA50 {_num(vs['ma50'], 1, '%', True)}, "
             f"MA200 {_num(vs['ma200'], 1, '%', True)}",
             f"- 이격도(MA20 기준) {_num(ind['disparity'], 2, '%', True)}, 5일 등락률(ROC5) {_num(ind['roc5'], 2, '%', True)}",
-            f"- ADX {_num(ind['adx'], 1)} (5거래일 전 {_num(ind['adx_5d_ago'], 1)}), +DI {_num(ind['plus_di'], 1)}, -DI {_num(ind['minus_di'], 1)}",
+            f"- ADX {_num(ind['adx'], 1)} ({signal_rules.LOOKBACK_DAYS}거래일 전 {_num(ind['adx_5d_ago'], 1)}), +DI {_num(ind['plus_di'], 1)}, -DI {_num(ind['minus_di'], 1)}",
             f"- 거래량비(5일÷20일 평균) {_num(ind['vol_ratio'], 2)}, 20일 표준편차 {_num(ind['stddev20'], 2)}"
-            f" (5거래일 전 {_num(ind['stddev20_5d_ago'], 2)})",
-            f"- 매수 시그널 조건별: ① -DI>+DI {_yes(cond['di_bearish'])}, ② 이격도<0 {_yes(cond['disparity_negative'])}, "
-            f"③ 변동성 축소 또는 거래량 증가 {_yes(cond['volatility_or_volume'])}, ④ ADX>20 {_yes(cond['adx_trending'])}",
+            f" ({signal_rules.LOOKBACK_DAYS}거래일 전 {_num(ind['stddev20_5d_ago'], 2)})",
+            signal_rules.ai_condition_line(cond, _yes),
         ]
     else:
         lines.append("- 지표 없음")
@@ -547,7 +543,7 @@ def render_watchlist(ctx: dict, question: str | None = None) -> str:
             met = sum(1 for v in ind["knee_conditions"].values() if v is True)
             lines.append(
                 f"- 추세: MA50 대비 {_num(vs['ma50'], 1, '%', True)}, MA200 대비 {_num(vs['ma200'], 1, '%', True)}, "
-                f"ADX {_num(ind['adx'], 1)}, 매수 시그널 네 조건 중 {met}개 충족"
+                f"ADX {_num(ind['adx'], 1)}, 매수 시그널 {signal_rules.buy_count_phrase()} 중 {met}개 충족"
             )
         lines.append(
             f"- 시그널: 최근 판정일 {sig['date'] or '없음'} 매수 {_yes(sig['buy_today'])}, 매도 참고 {_yes(sig['sell_ref_today'])}, "

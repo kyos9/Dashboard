@@ -97,6 +97,8 @@ ENDPOINTS: dict[tuple[str, str], tuple[str, str]] = {
     ("GET", "/api/history/{ticker}"): (MINE, USER),
     ("GET", "/api/fundamentals"): (MINE, USER),
     ("GET", "/api/fundamentals/{ticker}"): (MINE, USER),
+    # 시그널 정의 (0.41.0) — 모두에게 같다. 손님 화면에는 시그널 설명이 없어 손님에게는 열지 않는다
+    ("GET", "/api/signal-rules"): (SHARED, USER),
     # 내 포트폴리오
     ("GET", "/api/rebalance/targets"): (MINE, USER),
     ("PUT", "/api/rebalance/targets/{ticker}"): (MINE, USER),

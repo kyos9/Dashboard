@@ -12,7 +12,8 @@ from app.db import init_db
 from app.logging_setup import setup_logging
 from app.slow_requests import SlowRequestLog
 from app.routers import (
-    admin, ai, auth, dashboard, fundamentals, history, logs, macro, push, rebalance, stocks, symbols,
+    admin, ai, auth, dashboard, fundamentals, history, logs, macro, push, rebalance, signal_rules,
+    stocks, symbols,
 )
 from app.services import auth as auth_service
 from app.services import providers, trading_calendar
@@ -67,6 +68,7 @@ app.include_router(auth.router)
 app.include_router(stocks.router)
 app.include_router(dashboard.router)
 app.include_router(history.router)
+app.include_router(signal_rules.router)
 app.include_router(fundamentals.router)
 app.include_router(rebalance.router)
 app.include_router(macro.router)
