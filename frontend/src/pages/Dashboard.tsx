@@ -1368,9 +1368,15 @@ function SignalCards({
                 <span className="v">
                   {price(ind.ma20, card.currency)} / {price(ind.ma50, card.currency)}
                 </span>
+                {/* 좁으면 "·" 에서 꺾인다 — 날짜와 출처는 각자 한 덩어리 (디자인 1차) */}
                 <span className="k">
-                  기준일 {ind.date ?? '—'}
-                  {providerLabel(card.price_source) && ` · ${providerLabel(card.price_source)} 시세`}
+                  기준일 <span className="nowrap">{ind.date ?? '—'}</span>
+                  {providerLabel(card.price_source) && (
+                    <>
+                      {' · '}
+                      <span className="nowrap">{providerLabel(card.price_source)} 시세</span>
+                    </>
+                  )}
                 </span>
               </div>
             </div>

@@ -3044,6 +3044,7 @@ table.data-table tr.dirty:hover td {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
+  align-items: center; /* 링크는 폰에서 44px 라 키가 다르다 — 한 줄에 서면 가운데를 맞춘다 */
   gap: 4px 16px;
   padding: 16px 16px 28px;
   font-size: var(--fs-caption);
@@ -3962,6 +3963,7 @@ table.data-table tr.dirty:hover td {
 }
 
 .view-switch button {
+  white-space: nowrap; /* "기기 설정"처럼 짧은 이름은 한 줄 — 칸이 좁아도 꺾지 않는다 */
   min-height: 38px;
   min-width: 96px;
   padding: 0 16px;
