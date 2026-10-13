@@ -8,6 +8,7 @@ import type {
   AiTarget,
   AuthStatus,
   DashboardCard,
+  SignalRules,
   FxInfo,
   Holding,
   FundamentalsResponse,
@@ -290,6 +291,8 @@ export const api = {
   refreshAll: () => request<RefreshResult[]>('/stocks/refresh-all', { method: 'POST' }),
 
   getDashboard: () => request<DashboardCard[]>('/dashboard'),
+  /** 시그널 정의 — 조건·문구·기준값 (0.41.0). 옛 서버는 404 */
+  getSignalRules: () => request<SignalRules>('/signal-rules'),
 
   getHistory: (ticker: string, range: string = '1y') =>
     request<HistoryResponse>(`/history/${ticker}?range=${range}`),

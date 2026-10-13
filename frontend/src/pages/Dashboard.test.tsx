@@ -12,6 +12,9 @@ import type {
   Stock,
 } from '../types'
 import { forgetPhone, pretendPhone } from '../test/phone'
+import { ApiError } from '../api/client'
+import { LEGACY_SIGNAL_RULES, resetSignalRules } from '../lib/signalRules'
+import type { SignalRules } from '../types'
 import { Dashboard } from './Dashboard'
 
 const INDICATORS: LatestIndicators = {
@@ -741,5 +744,104 @@ describe('폰의 순서 편집 (ROADMAP 8-3)', () => {
 
     await userEvent.click(screen.getByRole('button', { name: '순서 편집 끝' }))
     expect(screen.queryByRole('button', { name: /위로|아래로/ })).not.toBeInTheDocument()
+  })
+})
+
+describe('대시보드 · 시그널 규칙은 서버에서 (0.41.0)', () => {
+  beforeEach(() => resetSignalRules())
+  afterEach(() => resetSignalRules())
+
+  /** 0.40.0 화면이 적어 두던 글 — 옛 서버든 새 서버든 정의가 같으면 글자까지 같아야 한다 */
+  const OLD_SENTENCE =
+    '매수 시그널 = -DI > +DI · 이격도 < 0 · (StdDev20 축소 또는 거래량비 > 1.1) · ADX > 20 — 네 조건을 모두 만족할 때.'
+  const OLD_HEADERS = ['-DI > +DI', '< 0', '변동성↓ 또는 >1.1', '> 20']
+
+  async function expectOldScreen() {
+    const table = (await screen.findAllByRole('table'))[0]
+    const headers = [...table.querySelectorAll('th .th-cond.nowrap')].map((el) =>
+      el.textContent?.replace('매수 조건 ', '').trim(),
+    )
+    expect(headers).toEqual(expect.arrayContaining(OLD_HEADERS))
+    expect(screen.getByText((_, el) => el?.tagName === 'P' && !!el.textContent?.startsWith(OLD_SENTENCE))).toBeInTheDocument()
+    const row = await cardRow('VOO')
+    expect(within(row).getByLabelText('DI 약세 충족')).toBeInTheDocument()
+    expect(within(row).getByLabelText('ADX > 20 미충족')).toBeInTheDocument()
+  }
+
+  const OLD_SHAPE = card({
+    ticker: 'VOO',
+    knee_conditions: { di_bearish: true, disparity_negative: true, volatility_or_volume: true, adx_trending: false },
+  })
+
+  it('옛 서버 — 규칙 API 가 404 이고 카드에 새 필드가 없어도 0.40.0 화면 그대로', async () => {
+    mockApi([OLD_SHAPE])
+    const rules = vi.spyOn(api, 'getSignalRules').mockRejectedValue(new ApiError(404, null, 'Not Found', null))
+    renderDashboard()
+    await expectOldScreen()
+    expect(rules).toHaveBeenCalled()
+    expect(screen.queryByRole('note')).toBeNull()
+  })
+
+  it('새 서버 — 같은 정의면 같은 화면이고, 판정은 buy_conditions 를 읽는다', async () => {
+    mockApi([
+      {
+        ...OLD_SHAPE,
+        // 새 필드가 옛 필드보다 먼저다 (조건 수가 바뀌면 옛 필드는 네 칸에 갇힌다)
+        knee_conditions: { di_bearish: false, disparity_negative: false, volatility_or_volume: false, adx_trending: true },
+        buy_conditions: { di_bearish: true, disparity_negative: true, volatility_or_volume: true, adx_trending: false },
+        signal_rules_version: LEGACY_SIGNAL_RULES.version,
+      },
+    ])
+    vi.spyOn(api, 'getSignalRules').mockResolvedValue({ ...LEGACY_SIGNAL_RULES, change_notice: null })
+    renderDashboard()
+    await expectOldScreen()
+  })
+
+  it('정의가 바뀌면 열 머리·칩·설명 줄·풀이가 함께 바뀌고, 신호 요약에 바뀐 날이 뜬다', async () => {
+    const changed: SignalRules = JSON.parse(JSON.stringify(LEGACY_SIGNAL_RULES))
+    changed.version = 'changed'
+    changed.thresholds.adx_trend = 25
+    const adx = changed.rules[0].conditions.find((c) => c.key === 'adx_trending')!
+    Object.assign(adx, { label: 'ADX > 25', header: '> 25', formula: 'ADX > 25' })
+    // 붙일 칸이 없는 조건이 늘어도 화면이 깨지지 않는다 (칸에는 안 붙고 설명 줄에만)
+    changed.rules[0].conditions.push({
+      key: 'rsi_low', metric: 'rsi', label: 'RSI < 30', detail: 'RSI 가 30 아래', header: '< 30', formula: 'RSI < 30',
+    })
+    changed.change_notice = '시그널 계산 방식이 2026-11-02에 바뀌었습니다'
+    mockApi([
+      card({
+        ticker: 'VOO',
+        knee_buy_v2: true,
+        indicators: { ...INDICATORS, adx: 22 },
+        knee_conditions: { di_bearish: true, disparity_negative: true, volatility_or_volume: true, adx_trending: true },
+        buy_conditions: { di_bearish: true, disparity_negative: true, volatility_or_volume: true, adx_trending: true, rsi_low: true },
+        signal_rules_version: 'changed',
+      }),
+    ])
+    vi.spyOn(api, 'getSignalRules').mockResolvedValue(changed)
+    renderDashboard()
+
+    expect(await screen.findByRole('note')).toHaveTextContent('시그널 계산 방식이 2026-11-02에 바뀌었습니다')
+    expect(
+      screen.getByText((_, el) => el?.tagName === 'P' && !!el.textContent?.includes('· ADX > 25 · RSI < 30 — 다섯 조건을 모두 만족할 때.')),
+    ).toBeInTheDocument()
+    const row = await cardRow('VOO')
+    expect(within(row).getByLabelText('ADX > 25 충족')).toBeInTheDocument()
+    // ADX 22 는 새 기준(25) 아래 — 풀이도 같은 기준으로 "추세 없음"
+    expect(within(row).getByText('22.0').closest('[title]')).toHaveAttribute('title', '추세 없음')
+    expect(within(row).getByText('매수').closest('.traffic')).toHaveAttribute(
+      'title',
+      expect.stringMatching(/매수 조건 5개를 모두/),
+    )
+  })
+
+  it('카드가 다른 판을 말하면 규칙을 다시 받는다 (며칠 떠 있는 앱)', async () => {
+    mockApi([{ ...OLD_SHAPE, signal_rules_version: 'next' }])
+    const rules = vi
+      .spyOn(api, 'getSignalRules')
+      .mockResolvedValueOnce(LEGACY_SIGNAL_RULES)
+      .mockResolvedValue({ ...LEGACY_SIGNAL_RULES, version: 'next' })
+    renderDashboard()
+    await waitFor(() => expect(rules).toHaveBeenCalledTimes(2))
   })
 })

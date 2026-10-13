@@ -52,6 +52,40 @@ def buy_conditions(recent_desc: Sequence[IndicatorDaily]) -> dict[str, bool | No
     return signal_rules.latest_conditions(BUY, _frame(rows))
 
 
+def buy_conditions_many(
+    recent_by_ticker: dict[str, Sequence[IndicatorDaily]],
+) -> dict[str, dict[str, bool | None]]:
+    """여러 종목의 오늘 매수 조건을 **한 번에** — `buy_conditions` 를 종목마다 부른 것과 같은 답.
+
+    작은 표를 종목마다 만들면 종목 하나에 5ms 쯤 든다(대시보드 20종목이면 0.1초). 그래서 종목마다
+    N+1 행(모자라면 앞을 빈 행으로 채운다)을 이어 붙인 표 하나로 평가하고, 각 묶음의 마지막 행만 읽는다.
+    묶음의 마지막 행에서 "N거래일 전"은 늘 같은 묶음의 첫 행이다. 다른 묶음으로 새는 것은 읽지 않는
+    앞쪽 행들뿐이다 — 대시보드가 읽는 것이 원래 N+1 행이라 조건도 그 이상을 볼 수 없다.
+    """
+    size = signal_rules.LOOKBACK_DAYS + 1
+    out: dict[str, dict[str, bool | None]] = {}
+    blocks: list[IndicatorDaily | None] = []
+    order: list[str] = []
+    for ticker, recent_desc in recent_by_ticker.items():
+        if not recent_desc or recent_desc[0] is None:
+            out[ticker] = {c.key: None for c in BUY.conditions}
+            continue
+        rows = list(reversed(recent_desc[:size]))
+        blocks += [None] * (size - len(rows)) + rows
+        order.append(ticker)
+    if order:
+        table = signal_rules.evaluate_conditions(BUY, _frame(blocks))
+        for i, ticker in enumerate(order):
+            last = table.iloc[(i + 1) * size - 1]
+            out[ticker] = {key: (None if pd.isna(value) else bool(value)) for key, value in last.items()}
+    return out
+
+
+def knee_conditions_from(met: dict[str, bool | None]) -> KneeConditions:
+    """조건별 판정 → 옛 응답 모양(`knee_conditions` 네 칸). 규칙에 없는 칸은 None."""
+    return KneeConditions(**{key: value for key, value in met.items() if key in KneeConditions.model_fields})
+
+
 def knee_conditions(
     latest: IndicatorDaily | None, five_days_ago: IndicatorDaily | None
 ) -> KneeConditions:
@@ -64,5 +98,4 @@ def knee_conditions(
         return KneeConditions()
     gap: list[IndicatorDaily | None] = [None] * (signal_rules.LOOKBACK_DAYS - 1)
     rows = [five_days_ago, *gap, latest]
-    met = signal_rules.latest_conditions(BUY, _frame(rows))
-    return KneeConditions(**{key: value for key, value in met.items() if key in KneeConditions.model_fields})
+    return knee_conditions_from(signal_rules.latest_conditions(BUY, _frame(rows)))

@@ -144,6 +144,37 @@ export interface KneeConditions {
   adx_trending: boolean | null
 }
 
+/** 시그널 정의 (`GET /api/signal-rules`, 0.41.0). 정의는 서버 `services/signal_rules.py` 한 곳에 있다 */
+export interface SignalRuleCondition {
+  key: string
+  /** 화면에서 이 조건이 붙는 지표 칸 */
+  metric: string
+  label: string
+  detail: string
+  /** 열 머리에 한 번 적는 짧은 조건식 */
+  header: string
+  /** 시그널 보기 설명 줄의 식 */
+  formula: string
+}
+
+export interface SignalRule {
+  key: 'buy' | 'sell'
+  column: string
+  name: string
+  spec_name: string
+  conditions: SignalRuleCondition[]
+}
+
+export interface SignalRules {
+  version: string
+  thresholds: { adx_trend: number; vol_ratio_expand: number; disparity_below: number; lookback_days: number }
+  rules: SignalRule[]
+  changes?: { date: string; what: string; why: string }[]
+  changed_on?: string | null
+  /** 신호 요약에 붙는 한 줄 — 정의를 바꾼 뒤 30일 동안만 */
+  change_notice?: string | null
+}
+
 export interface DashboardCard {
   ticker: string
   name: string | null
@@ -156,6 +187,10 @@ export interface DashboardCard {
   indicators: LatestIndicators
   knee_buy_v2: boolean
   knee_conditions: KneeConditions
+  /** 매수 조건별 판정 — 키는 규칙의 조건 키. 0.41.0 부터. 옛 서버는 보내지 않는다 */
+  buy_conditions?: Record<string, boolean | null>
+  /** 이 판정을 낸 정의의 판. 받아 둔 규칙과 다르면 다시 받는다 */
+  signal_rules_version?: string | null
   shoulder_sell_ref: boolean
   /** 무릎매수(v2)가 마지막으로 뜬 날. 한 번도 없으면 null */
   last_buy_signal_date: string | null

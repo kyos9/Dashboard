@@ -10,8 +10,9 @@ from app.schemas import (
 )
 from app.services import backfill, queries, rebalance, signal_rules
 # 화면이 조건을 나눠 보여주는 판정 — AI 정리(ai_analysis)도 같은 것을 쓴다
-from app.services.signals import buy_conditions as _buy_conditions
-from app.services.signals import knee_conditions as _knee_conditions
+from app.services.signals import buy_conditions_many, knee_conditions_from
+# 옛 이름 — 조건 분해가 엔진과 같은지 보는 테스트가 이 자리로 부른다
+from app.services.signals import knee_conditions as _knee_conditions  # noqa: F401
 from app.services.trading_calendar import market_today
 from app.services.users import current_user_id, ordered_user_stocks
 
@@ -39,6 +40,8 @@ def get_dashboard(db: Session = Depends(get_db), user_id: int = Depends(current_
 
     last_buy_signals = queries.last_buy_signal_dates(db, tickers)
     rules_version = signal_rules.fingerprint()
+    # 오늘 조건은 종목마다가 아니라 한 번에 (signals.buy_conditions_many)
+    conditions_by_ticker = buy_conditions_many({t: indicators_by_ticker.get(t, []) for t in tickers})
 
     cards = []
     # "오늘"은 시장마다 다르다. 서버 시계로 재면 한국 종목은 미국이 아직 어제일 때
@@ -51,8 +54,6 @@ def get_dashboard(db: Session = Depends(get_db), user_id: int = Depends(current_
 
         recent_indicators = indicators_by_ticker.get(stock.ticker, [])
         indicator = recent_indicators[0] if recent_indicators else None
-        lookback = signal_rules.LOOKBACK_DAYS
-        indicator_5d_ago = recent_indicators[lookback] if len(recent_indicators) > lookback else None
 
         signal_rows = signals_by_ticker.get(stock.ticker, [])
         signal = signal_rows[0] if signal_rows else None
@@ -85,8 +86,8 @@ def get_dashboard(db: Session = Depends(get_db), user_id: int = Depends(current_
             adx=indicator.adx if indicator else None,
         )
 
-        knee_conditions = _knee_conditions(indicator, indicator_5d_ago)
-        buy_conditions = _buy_conditions(recent_indicators)
+        buy_conditions = conditions_by_ticker[stock.ticker]
+        knee_conditions = knee_conditions_from(buy_conditions)
 
         rb = rebalance_rows.get(stock.ticker)
         rebalance_signal = (

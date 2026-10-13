@@ -1,4 +1,5 @@
-import type { Currency, DashboardCard, KneeConditions, Market, ReviewPeriod, ReviewStatus } from '../types'
+import type { Currency, DashboardCard, Market, ReviewPeriod, ReviewStatus, SignalRules } from '../types'
+import { buyRule, LEGACY_SIGNAL_RULES } from './signalRules'
 
 /* ---------- 통화 ----------
    원화와 달러는 자릿수 감각이 다르다. 79,600원을 "79,600.00"으로 쓰면 읽기 어렵고,
@@ -191,10 +192,11 @@ export function readDisparity(v: number | null): Reading {
   return { tone: 'red', note: 'MA20 크게 하회' }
 }
 
-/** ADX = 추세의 강도(방향은 말하지 않음). 매수 시그널은 ADX > 20을 요구한다. */
-export function readAdx(v: number | null): Reading {
+/** ADX = 추세의 강도(방향은 말하지 않음). 매수 시그널은 ADX 가 기준(`adx_trend`)보다 크기를 요구한다 —
+ *  그 아래는 "추세 없음". 기준은 시그널 규칙에서 받는다(조건 칩과 풀이가 다른 숫자를 말하지 않게). */
+export function readAdx(v: number | null, trend: number = LEGACY_SIGNAL_RULES.thresholds.adx_trend): Reading {
   if (v === null) return { tone: 'grey', note: '데이터 없음' }
-  if (v < 20) return { tone: 'grey', note: '추세 없음' }
+  if (v < trend) return { tone: 'grey', note: '추세 없음' }
   if (v < 25) return { tone: 'blue', note: '추세 형성' }
   if (v < 40) return { tone: 'amber', note: '추세 강함' }
   return { tone: 'amber', note: '추세 매우 강함' }
@@ -209,11 +211,14 @@ export function readDi(plus: number | null, minus: number | null): Reading {
   return { tone: 'grey', note: '방향 중립' }
 }
 
-/** 거래량비율 = 거래량MA5 / 거래량MA20. 매수 시그널은 > 1.1을 대체조건으로 본다. */
-export function readVolume(v: number | null): Reading {
+/** 거래량비율 = 거래량MA5 / 거래량MA20. 매수 시그널은 기준(`vol_ratio_expand`)보다 크면 대체조건으로 본다. */
+export function readVolume(
+  v: number | null,
+  expand: number = LEGACY_SIGNAL_RULES.thresholds.vol_ratio_expand,
+): Reading {
   if (v === null) return { tone: 'grey', note: '데이터 없음' }
   if (v >= 1.5) return { tone: 'amber', note: '거래량 급증' }
-  if (v > 1.1) return { tone: 'blue', note: '거래량 증가' }
+  if (v > expand) return { tone: 'blue', note: '거래량 증가' }
   if (v < 0.8) return { tone: 'grey', note: '거래량 한산' }
   return { tone: 'grey', note: '거래량 보통' }
 }
@@ -256,12 +261,12 @@ export function providerLabel(source: string | null | undefined): string | null 
   return PROVIDER_LABEL[source] ?? source
 }
 
-export function trafficLight(card: DashboardCard): Traffic {
+export function trafficLight(card: DashboardCard, rules: SignalRules = LEGACY_SIGNAL_RULES): Traffic {
   if (card.data_stale) {
     return { state: 'stale', tone: 'grey', label: '갱신 필요', desc: '최근 시세가 없어 판정할 수 없습니다.' }
   }
   if (card.knee_buy_v2) {
-    return { state: 'buy', tone: 'green', label: '매수', desc: '매수 시그널 — 매수 조건 4개를 모두 만족합니다.' }
+    return { state: 'buy', tone: 'green', label: '매수', desc: `매수 시그널 — 매수 조건 ${buyRule(rules).conditions.length}개를 모두 만족합니다.` }
   }
   if (card.shoulder_sell_ref) {
     return { state: 'hot', tone: 'red', label: '매도', desc: '매도 시그널 — 매도 조건 충족(참고). 실제 매도 실행일은 리뷰 마감일입니다.' }
@@ -311,50 +316,7 @@ export function reasonBadge(reason: string): ReasonBadge {
 /** 조건이 붙는 지표 칸 */
 export type MetricKey = 'disparity' | 'adx' | 'di' | 'volume'
 
-export interface SignalCondition {
-  key: keyof KneeConditions
-  metric: MetricKey
-  label: string
-  detail: string
-  /** 열 머리글에 한 번만 적는 짧은 조건식 */
-  header: string
-}
-
-export const SIGNAL_CONDITIONS: SignalCondition[] = [
-  {
-    key: 'di_bearish',
-    metric: 'di',
-    label: 'DI 약세',
-    detail: '-DI > +DI — 하락 방향이 우위',
-    header: '-DI > +DI',
-  },
-  {
-    key: 'disparity_negative',
-    metric: 'disparity',
-    label: '이격도 < 0',
-    detail: '종가가 MA20 아래',
-    header: '< 0',
-  },
-  {
-    key: 'volatility_or_volume',
-    metric: 'volume',
-    label: '변동성·거래량',
-    detail: 'StdDev20 축소 또는 거래량비 > 1.1',
-    header: '변동성↓ 또는 >1.1',
-  },
-  {
-    key: 'adx_trending',
-    metric: 'adx',
-    label: 'ADX > 20',
-    detail: '추세가 형성된 구간',
-    header: '> 20',
-  },
-]
-
-export const CONDITION_BY_METRIC: Record<MetricKey, SignalCondition> = SIGNAL_CONDITIONS.reduce(
-  (acc, condition) => ({ ...acc, [condition.metric]: condition }),
-  {} as Record<MetricKey, SignalCondition>,
-)
+// 조건 목록·문구·기준값은 서버 규칙에서 온다 (`lib/signalRules.ts`, 0.41.0). 옛 서버면 0.40.0 의 규칙.
 
 /** 조건 충족 여부를 기호와 말로. null은 "판정 불가"이지 "미충족"이 아니다 */
 export function conditionMark(met: boolean | null | undefined): { sign: string; word: string } {

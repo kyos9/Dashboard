@@ -13,6 +13,7 @@ import {
 import type { AiAnalysis, AiContext, AiProviderName, AiScope, AiTarget } from '../types'
 import { AiKeyForm } from './AiKeyForm'
 import { AiText } from './AiText'
+import { buyRule, countWord, useSignalRules } from '../lib/signalRules'
 import { ErrorNotice } from './ErrorNotice'
 
 /** 정리의 종류마다 다른 글 — 무엇을 보내는지, 무엇을 물을 수 있는지 */
@@ -23,7 +24,8 @@ const COPY: Record<AiScope, { intro: string; examples: string[]; help: string; p
     examples: [
       '초보자도 알 수 있게 쉽게 설명해 줘',
       '재무 숫자 위주로 정리해 줘',
-      '매수 시그널 네 조건이 각각 어떤 상태인지 자세히',
+      // {조건 수} 는 시그널 규칙에서 — 정의가 바뀌어 조건 수가 달라져도 맞는 말이 되게
+      '매수 시그널 {조건 수} 조건이 각각 어떤 상태인지 자세히',
       '다섯 줄로 짧게',
     ],
     help: '무엇을 물어도 이 종목의 숫자를 보고 답하고, 사라·팔라는 판단이나 가격 예측은 하지 않습니다. 요청은 이 기기에 기억해 다른 종목에도 그대로 씁니다.',
@@ -141,6 +143,8 @@ function Sources({ result }: { result: AiAnalysis }) {
 export function AiPanel({ target, account }: { target: AiTarget; account: string }) {
   const scope = target.kind
   const copy = COPY[scope]
+  const conditionCount = countWord(buyRule(useSignalRules()).conditions.length)
+  const examples = copy.examples.map((example) => example.replace('{조건 수}', conditionCount))
   const storeKey = aiTargetKey(target)
   const domId = storeKey.replace(/[^A-Za-z0-9_-]/g, '_')
   const settings = useAiSettings(account)
@@ -284,7 +288,7 @@ export function AiPanel({ target, account }: { target: AiTarget; account: string
         />
         <div className="ai-question-foot">
           <div className="chip-row ai-examples">
-            {copy.examples.map((example) => (
+            {examples.map((example) => (
               <button key={example} className="chip" onClick={() => changeQuestion(example)}>
                 {example}
               </button>

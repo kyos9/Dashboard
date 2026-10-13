@@ -20,11 +20,13 @@
 from __future__ import annotations
 
 import datetime as dt
+import functools
 import hashlib
 import json
 from dataclasses import dataclass, field
 from typing import Callable
 
+import numpy as np
 import pandas as pd
 
 # ---------- 기준값 — 이 파일 밖에 같은 숫자를 다시 쓰지 않는다 ----------
@@ -65,13 +67,19 @@ def _num(value: float) -> str:
 # 화면은 NA 를 "판정 불가"로 보인다.
 
 
+def _floats(values, index: pd.Index) -> np.ndarray:
+    if not isinstance(values, pd.Series):
+        return np.full(len(index), float(values))
+    return pd.to_numeric(values, errors="coerce").to_numpy(dtype="float64", na_value=np.nan)
+
+
 def _compare(left: pd.Series, right: pd.Series | float, op: Callable) -> pd.Series:
-    right_series = right if isinstance(right, pd.Series) else pd.Series(right, index=left.index)
-    left_f = pd.to_numeric(left, errors="coerce").astype("float64")
-    right_f = pd.to_numeric(right_series, errors="coerce").astype("float64")
-    out = pd.Series(op(left_f, right_f), index=left.index, dtype="boolean")
-    out[left_f.isna() | right_f.isna()] = pd.NA
-    return out
+    """비교 한 번 — 어느 쪽이든 값이 없으면 판정 불가(NA). (numpy 로 바로 — 대시보드가 매번 부른다)"""
+    a, b = _floats(left, left.index), _floats(right, left.index)
+    unknown = np.isnan(a) | np.isnan(b)
+    with np.errstate(invalid="ignore"):
+        met = op(a, b) & ~unknown
+    return pd.Series(pd.arrays.BooleanArray(met, unknown), index=left.index)
 
 
 def _gt(left, right) -> pd.Series:
@@ -94,14 +102,14 @@ def any_of(*parts: pd.Series) -> pd.Series:
     그대로 지킨다.
     """
     index = parts[0].index
-    any_true = pd.Series(False, index=index)
-    all_na = pd.Series(True, index=index)
+    any_true = np.zeros(len(index), dtype=bool)
+    all_na = np.ones(len(index), dtype=bool)
     for part in parts:
-        any_true = any_true | (part == True).fillna(False)  # noqa: E712 — NA 를 거짓으로
-        all_na = all_na & part.isna()
-    out = pd.Series(any_true, index=index, dtype="boolean")
-    out[all_na & ~any_true] = pd.NA
-    return out
+        unknown = part.isna().to_numpy()
+        any_true |= part.to_numpy(dtype=bool, na_value=False)
+        all_na &= unknown
+    unknown = all_na & ~any_true
+    return pd.Series(pd.arrays.BooleanArray(any_true & ~unknown, unknown), index=index)
 
 
 # ---------- 조건 ----------
@@ -278,6 +286,7 @@ def latest_conditions(rule: Rule, df: pd.DataFrame) -> dict[str, bool | None]:
 # ---------- 지문 · 판 · 바뀐 날 ----------
 
 
+@functools.cache
 def fingerprint() -> str:
     """판정이 달라지는 것만 담은 지문. 문구·이력은 넣지 않는다.
 

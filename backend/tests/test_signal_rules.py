@@ -24,7 +24,7 @@ from app.models import IndicatorDaily
 from app.services import signal_rules
 from app.services.indicators import compute_indicators
 from app.services.signal_rules import BUY, SELL, any_of
-from app.services.signals import buy_conditions, compute_signals, knee_conditions
+from app.services.signals import buy_conditions, buy_conditions_many, compute_signals, knee_conditions
 
 REPO = Path(__file__).resolve().parents[2]
 RULES_SOURCE = REPO / "backend" / "app" / "services" / "signal_rules.py"
@@ -107,6 +107,19 @@ def test_today_conditions_agree_with_stored_signal_every_day(seed, holes):
         five = window[5] if len(window) > 5 else None
         old_shape = knee_conditions(window[0], five).model_dump()
         assert old_shape == {k: met[k] for k in old_shape}, window[0].date
+
+
+def test_many_tickers_at_once_equal_one_by_one():
+    """대시보드는 종목을 한 번에 평가한다 — 행 수가 제각각(0·1·3·6행)이어도 종목마다 부른 답과 같다."""
+    recent = {}
+    for seed in range(12):
+        desc = _orm_desc(compute_indicators(_prices(80, seed, holes=seed % 3 == 0)))
+        recent[f"T{seed}"] = desc[seed % 7 : seed % 7 + [0, 1, 3, 6, 6, 6][seed % 6]]
+    many = buy_conditions_many(recent)
+    assert many == {t: buy_conditions(rows) for t, rows in recent.items()}
+    # 판정 불가가 섞인 종목과 다 판정된 종목이 둘 다 있었다 (한쪽만이면 시험이 아니다)
+    assert any(None in m.values() for m in many.values())
+    assert any(None not in m.values() for m in many.values())
 
 
 def test_few_rows_make_the_lookback_unknown_not_false():
@@ -228,7 +241,10 @@ def test_change_notice_shows_for_thirty_days_after_a_change():
 
 # ---------- 3. 흩어지지 않는다 ----------
 
-SCATTERED = ("> 20", "> 1.1", ">1.1", "< 0", "shift(5)", "네 조건", "ADX>20")
+SCATTERED = (
+    "> 20", "&gt; 20", "> 1.1", ">1.1", "&gt; 1.1", "이격도 < 0", "이격도<0", "이격도 &lt; 0",
+    "shift(5)", "네 조건", "ADX>20", "조건 4개",
+)
 WATCHED = (
     "backend/app/services/signals.py",
     "backend/app/services/ai_analysis.py",

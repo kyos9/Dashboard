@@ -28,7 +28,6 @@ import {
   CATEGORY_UNSET,
   categoryOf,
   conditionMark,
-  CONDITION_BY_METRIC,
   daysFrom,
   num,
   price,
@@ -45,7 +44,8 @@ import {
   type MetricKey,
   type Traffic,
 } from '../lib/display'
-import type { DashboardCard, KneeConditions, RebalanceCurrent, Stock, StockUpdateInput } from '../types'
+import { buyRule, buyRuleSentence, cardConditions, conditionByMetric, useSignalRules } from '../lib/signalRules'
+import type { DashboardCard, RebalanceCurrent, Stock, StockUpdateInput } from '../types'
 
 type QuickFilter = 'all' | 'knee' | 'rebalance'
 /** 표 / 카드 / 설정(편집) — 같은 목록을 다른 형태로 보는 것이라 한 자리에서 고른다 */
@@ -74,8 +74,10 @@ function TrafficBadge({ traffic }: { traffic: Traffic }) {
  * 조건 네 개를 종합 신호등 칸에 모아두면 "DI 약세"가 어느 숫자에서 나온 말인지
  * 눈으로 이을 수 없다. 숫자 옆에 두면 25.7 / 30.5를 보면서 바로 읽힌다.
  */
-function ConditionTag({ metric, conditions }: { metric: MetricKey; conditions: KneeConditions }) {
-  const condition = CONDITION_BY_METRIC[metric]
+function ConditionTag({ metric, conditions }: { metric: MetricKey; conditions: Record<string, boolean | null> }) {
+  const condition = conditionByMetric(useSignalRules())[metric]
+  // 정의가 바뀌어 이 칸에 붙는 조건이 없으면 아무것도 붙이지 않는다
+  if (!condition) return null
   const met = conditions[condition.key]
   const mark = conditionMark(met)
   return (
@@ -96,8 +98,9 @@ function ConditionTag({ metric, conditions }: { metric: MetricKey; conditions: K
  * 행마다 달라지는 값이 아니다) 행에는 충족 여부만 있으면 된다. 자세한 말은 마우스를
  * 올리면 나오고, 카드 보기에는 그대로 다 적혀 있다.
  */
-function ConditionMark({ metric, conditions }: { metric: MetricKey; conditions: KneeConditions }) {
-  const condition = CONDITION_BY_METRIC[metric]
+function ConditionMark({ metric, conditions }: { metric: MetricKey; conditions: Record<string, boolean | null> }) {
+  const condition = conditionByMetric(useSignalRules())[metric]
+  if (!condition) return null
   const met = conditions[condition.key]
   const mark = conditionMark(met)
   return (
@@ -113,17 +116,18 @@ function ConditionMark({ metric, conditions }: { metric: MetricKey; conditions: 
 
 /** 열 머리글 — 이름, 부제, 그리고 이 열이 맡은 매수 조건 */
 function MetricHead({ title, sub, metric }: { title: string; sub: string; metric?: MetricKey }) {
+  const condition = conditionByMetric(useSignalRules())[metric ?? '']
   return (
     <>
       {title}
       <br />
       <span className="th-sub">{sub}</span>
       {/* 조건식은 한 덩어리 — "-DI > / +DI" 처럼 갈라지지 않게. "매수 조건"이라는 말은 첫 칸이 한 번 말한다 */}
-      {metric && (
-        <span className="th-cond nowrap" title={`매수 조건 ${CONDITION_BY_METRIC[metric].header}`}>
+      {condition && (
+        <span className="th-cond nowrap" title={`매수 조건 ${condition.header}`}>
           {/* 화면에는 첫 칸이 한 번, 화면 읽기에는 칸마다 */}
           <span className="sr-only">매수 조건 </span>
-          {CONDITION_BY_METRIC[metric].header}
+          {condition.header}
         </span>
       )}
     </>
@@ -237,7 +241,7 @@ function Metric({
   /** 해석 문구. 표에서는 마우스를 올렸을 때만 나온다 */
   note: string
   metric?: MetricKey
-  conditions?: KneeConditions
+  conditions?: Record<string, boolean | null>
 }) {
   return (
     <div className="metric-line">
@@ -270,11 +274,12 @@ function PriceCell({ card }: { card: DashboardCard }) {
  * 걷어냈다. 날짜만 보여주면 판단은 사람이 한다.
  */
 function LastBuySignal({ card }: { card: DashboardCard }) {
+  const rule = buyRule(useSignalRules())
   const date = card.last_buy_signal_date
   if (!date) return <span className="hint">저장된 기간에 없음</span>
   const days = daysFrom(date)
   return (
-    <div className="metric-line" title="매수 시그널(무릎매수 v2)이 마지막으로 뜬 날">
+    <div className="metric-line" title={`${rule.name}(${rule.spec_name})이 마지막으로 뜬 날`}>
       <span className="metric-value mono">{date}</span>
       <span className={`metric-note ${days !== null && days <= 7 ? 'tone-buy' : ''}`}>{relativeDay(days)}</span>
     </div>
@@ -357,6 +362,9 @@ export function Dashboard() {
   const [view, setView] = useState<ViewMode>(() =>
     typeof window !== 'undefined' && window.innerWidth < 1100 ? 'card' : 'table',
   )
+
+  // 시그널 규칙 — 카드가 다른 판을 말하면(정의를 바꿔 배포한 뒤) 다시 받는다
+  const rules = useSignalRules(cards[0]?.signal_rules_version)
 
   const fetchAll = useCallback(
     () => Promise.all([api.getDashboard(), api.getRebalanceCurrent(), api.listStocks()]),
@@ -487,7 +495,7 @@ export function Dashboard() {
   }
 
   const summary = useMemo(() => {
-    const lights = cards.map(trafficLight)
+    const lights = cards.map((card) => trafficLight(card, rules))
     const reasons = cards.flatMap((c) => (c.rebalance_signal.active ? c.rebalance_signal.reasons : []))
     return {
       buy: lights.filter((l) => l.state === 'buy').length,
@@ -499,7 +507,7 @@ export function Dashboard() {
       buyReview: reasons.filter((r) => r.includes('매수')).length,
       periodicReview: reasons.filter((r) => r.includes('정기')).length,
     }
-  }, [cards])
+  }, [cards, rules])
 
   const categories = useMemo(() => {
     const counts = new Map<string, number>()
@@ -770,6 +778,12 @@ export function Dashboard() {
             ? `${summary.stale}종목은 시세가 오래되어 판정에서 제외됐습니다.`
             : '모든 종목의 시세가 최신 상태입니다.'}
         </p>
+        {/* 정의를 바꾼 뒤 30일 — 지난 차트의 점이 왜 달라졌는지 알 수 있게 (주인 결정, 0.41.0) */}
+        {rules.change_notice && (
+          <p className="kpi-foot" role="note">
+            {rules.change_notice}
+          </p>
+        )}
       </section>
 
       <div className="toolbar">
@@ -876,8 +890,7 @@ export function Dashboard() {
       </div>
 
       <p className="hint" style={{ marginTop: 14 }}>
-        매수 시그널 = -DI &gt; +DI · 이격도 &lt; 0 · (StdDev20 축소 또는 거래량비 &gt; 1.1) · ADX &gt; 20 —
-        네 조건을 모두 만족할 때. 각 조건은 해당 지표 칸에 ✓로 표시됩니다. 매도 시그널은 참고용이며 실제
+        {buyRuleSentence(rules)} 각 조건은 해당 지표 칸에 ✓로 표시됩니다. 매도 시그널은 참고용이며 실제
         매도는 리밸런싱 리뷰 때 비중을 보고 정합니다.
       </p>
       </>
@@ -974,6 +987,7 @@ function SignalMatrix({
   onAi: (card: DashboardCard) => void
   controls: RowControlProps
 }) {
+  const rules = useSignalRules()
   return (
     <div className="table-scroll">
       <table className="data-table fixed" style={{ minWidth: 1302 }}>
@@ -1014,9 +1028,9 @@ function SignalMatrix({
           {cards.map((card) => {
             const ind = card.indicators
             const disparity = readDisparity(ind.disparity)
-            const adx = readAdx(ind.adx)
+            const adx = readAdx(ind.adx, rules.thresholds.adx_trend)
             const di = readDi(ind.plus_di, ind.minus_di)
-            const vol = readVolume(ind.vol_ratio)
+            const vol = readVolume(ind.vol_ratio, rules.thresholds.vol_ratio_expand)
             const ma200 = readMa200(ind.close, ind.ma200)
 
             return (
@@ -1036,7 +1050,7 @@ function SignalMatrix({
                     tone={disparity.tone}
                     note={disparity.note}
                     metric="disparity"
-                    conditions={card.knee_conditions}
+                    conditions={cardConditions(card)}
                   />
                 </td>
                 <td>
@@ -1045,7 +1059,7 @@ function SignalMatrix({
                     tone={adx.tone}
                     note={adx.note}
                     metric="adx"
-                    conditions={card.knee_conditions}
+                    conditions={cardConditions(card)}
                   />
                 </td>
                 <td>
@@ -1054,7 +1068,7 @@ function SignalMatrix({
                     tone={di.tone}
                     note={di.note}
                     metric="di"
-                    conditions={card.knee_conditions}
+                    conditions={cardConditions(card)}
                   />
                 </td>
                 <td>
@@ -1063,7 +1077,7 @@ function SignalMatrix({
                     tone={vol.tone}
                     note={vol.note}
                     metric="volume"
-                    conditions={card.knee_conditions}
+                    conditions={cardConditions(card)}
                   />
                 </td>
                 <td>
@@ -1072,7 +1086,7 @@ function SignalMatrix({
                 <td>
                   {/* 신호등과 사유 배지를 한 줄에 — 줄마다 높이가 달라지지 않게 (8-4). 좁으면 배지째 줄을 바꾼다 */}
                   <div className="badge-row signal-cell-row">
-                    <TrafficBadge traffic={trafficLight(card)} />
+                    <TrafficBadge traffic={trafficLight(card, rules)} />
                     {/* 둘 다 뜨면 신호등은 매수를 보여준다 — 매도 쪽이 조용히 사라지지 않게 */}
                     {card.knee_buy_v2 && card.shoulder_sell_ref && <SellTooTag />}
                     {card.rebalance_signal.reasons.map((r) => (
@@ -1278,14 +1292,15 @@ function SignalCards({
   onAi: (card: DashboardCard) => void
   controls: RowControlProps
 }) {
+  const rules = useSignalRules()
   return (
     <div className="card-grid">
       {cards.map((card) => {
         const ind = card.indicators
         const disparity = readDisparity(ind.disparity)
-        const adx = readAdx(ind.adx)
+        const adx = readAdx(ind.adx, rules.thresholds.adx_trend)
         const di = readDi(ind.plus_di, ind.minus_di)
-        const vol = readVolume(ind.vol_ratio)
+        const vol = readVolume(ind.vol_ratio, rules.thresholds.vol_ratio_expand)
         const ma200 = readMa200(ind.close, ind.ma200)
         const change = ind.change_pct
         const drag = dragProps(card.ticker, controls)
@@ -1318,7 +1333,7 @@ function SignalCards({
               </div>
             </div>
 
-            <TrafficBadge traffic={trafficLight(card)} />
+            <TrafficBadge traffic={trafficLight(card, rules)} />
 
             {(card.rebalance_signal.active || (card.knee_buy_v2 && card.shoulder_sell_ref)) && (
               <div className="badge-row">
@@ -1336,13 +1351,13 @@ function SignalCards({
                   {signed(ind.disparity, 2, '%')}
                 </span>
                 <span className="k">{disparity.note}</span>
-                <ConditionTag metric="disparity" conditions={card.knee_conditions} />
+                <ConditionTag metric="disparity" conditions={cardConditions(card)} />
               </div>
               <div className="stat-box">
                 <span className="k">ADX 추세강도</span>
                 <span className="v">{num(ind.adx, 1)}</span>
                 <span className="k">{adx.note}</span>
-                <ConditionTag metric="adx" conditions={card.knee_conditions} />
+                <ConditionTag metric="adx" conditions={cardConditions(card)} />
               </div>
               <div className="stat-box">
                 <span className="k">+DI / -DI</span>
@@ -1350,13 +1365,13 @@ function SignalCards({
                   {num(ind.plus_di, 1)} / {num(ind.minus_di, 1)}
                 </span>
                 <span className="k">{di.note}</span>
-                <ConditionTag metric="di" conditions={card.knee_conditions} />
+                <ConditionTag metric="di" conditions={cardConditions(card)} />
               </div>
               <div className="stat-box">
                 <span className="k">거래량비</span>
                 <span className="v">{num(ind.vol_ratio, 2)}x</span>
                 <span className="k">{vol.note}</span>
-                <ConditionTag metric="volume" conditions={card.knee_conditions} />
+                <ConditionTag metric="volume" conditions={cardConditions(card)} />
               </div>
               <div className="stat-box">
                 <span className="k">200일선 대비</span>

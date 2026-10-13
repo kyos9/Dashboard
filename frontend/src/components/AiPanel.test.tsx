@@ -219,6 +219,12 @@ describe('AI 분석 탭', () => {
     expect(screen.getByRole('button', { name: '다시 받기' })).toBeInTheDocument()
   })
 
+  it('요청 예시의 조건 수는 시그널 규칙에서 — 정의가 그대로면 0.40.0 글과 같다', () => {
+    withKey()
+    render(<AiPanel target={GOOG} account={ME} />)
+    expect(screen.getByRole('button', { name: '매수 시그널 네 조건이 각각 어떤 상태인지 자세히' })).toBeInTheDocument()
+  })
+
   it('다시 열면 받아 둔 글을 먼저 보여준다 (돈을 다시 내지 않게)', () => {
     withKey()
     saveAiResult(ME, 'GOOG', RESULT)
