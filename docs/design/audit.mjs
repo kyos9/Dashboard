@@ -1,0 +1,443 @@
+// 디자인 자동 검사 (DESIGN_PROMPT 3-2) — 기획자의 기준선과 검토자의 판정이 같은 잣대를 쓴다.
+//
+//   cd backend && python -m devtools.fake_server --reset      # 가짜 서버 (8150)
+//   cd frontend && npm run build                                # 가짜 서버가 dist 를 연다
+//   # 작업 폴더(저장소 밖)에서: npm i playwright
+//   node <저장소>/docs/design/audit.mjs --out <작업 폴더>/audit [--quick] [--shots]
+//
+// 결과: <out>/results.json (문제 하나하나), <out>/summary.md (화면 × 조건 × 검사 수치)
+// --quick: 폰 390 다크 + PC 1400 다크만.  --shots: 화면마다 첫 화면 스크린샷.
+// --only <이름,...>: 그 화면만.  --base <주소>: 기본 http://127.0.0.1:8150
+import { createRequire } from 'node:module'
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+
+// playwright 는 저장소에 넣지 않는다 — 실행하는 폴더의 node_modules 에서 찾는다
+const require = createRequire(join(process.cwd(), 'noop.js'))
+const { chromium } = require('playwright')
+
+const args = process.argv.slice(2)
+const arg = (name, fallback) => {
+  const i = args.indexOf(name)
+  return i >= 0 ? args[i + 1] : fallback
+}
+const OUT = arg('--out', 'audit-out')
+const BASE = arg('--base', 'http://127.0.0.1:8150')
+const QUICK = args.includes('--quick')
+const SHOTS = args.includes('--shots')
+const ONLY = arg('--only', '')?.split(',').filter(Boolean)
+const EXEC = process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium'
+
+/* ---------- 조건 ---------- */
+
+const VIEWPORTS = [
+  { name: 'pc1400', width: 1400, height: 900, dsf: 1, phone: false },
+  { name: 'ph390', width: 390, height: 844, dsf: 3, phone: true },
+  { name: 'ph360', width: 360, height: 780, dsf: 3, phone: true },
+]
+// PC 브라우저 확대 150% = 창 폭 1400/1.5 ≈ 933 에 배율 1.5
+const ZOOM150 = { name: 'pc-zoom150', width: 933, height: 600, dsf: 1.5, phone: false }
+
+function conditions() {
+  if (QUICK)
+    return [
+      { vp: VIEWPORTS[1], theme: 'dark', rise: 'green' },
+      { vp: VIEWPORTS[0], theme: 'dark', rise: 'green' },
+    ]
+  const out = []
+  for (const vp of VIEWPORTS) for (const theme of ['dark', 'light']) out.push({ vp, theme, rise: 'green' })
+  out.push({ vp: VIEWPORTS[1], theme: 'dark', rise: 'red' })
+  out.push({ vp: ZOOM150, theme: 'dark', rise: 'green' })
+  return out
+}
+
+/* ---------- 화면 ----------
+   who: 누구로 들어가나 (null = 손님). path: 주소. act: 열고 나서 할 일(팝업 열기 등). */
+
+const clickText = (re) => async (page) => {
+  await page.getByRole('button', { name: re }).first().click()
+}
+async function openMenu(page, label, pcLabel = label) {
+  // PC 는 헤더 버튼(이름이 다를 수 있다), 폰은 ⋯ 메뉴 안
+  for (const name of [label, pcLabel]) {
+    const direct = page.getByRole('button', { name, exact: true })
+    if (await direct.first().isVisible().catch(() => false)) return direct.first().click()
+  }
+  await page.getByRole('button', { name: /^메뉴/ }).first().click()
+  await page.getByRole('button', { name: label }).first().click()
+}
+
+const SCREENS = [
+  { name: 'guest-home', who: null, path: '/' },
+  { name: 'guest-rebalance', who: null, path: '/rebalance' },
+  { name: 'guest-macro', who: null, path: '/macro' },
+  { name: 'pending', who: 'pending@example.com', path: '/' },
+  { name: 'new-dashboard', who: 'new@example.com', path: '/' },
+  { name: 'new-stocks', who: 'new@example.com', path: '/stocks' },
+  { name: 'friend-dashboard', who: 'friend@example.com', path: '/' },
+  { name: 'dash-portfolio', who: 'owner@example.com', path: '/', view: 'portfolio' },
+  { name: 'dash-signal', who: 'owner@example.com', path: '/', view: 'signal' },
+  {
+    name: 'dash-holding-open',
+    phoneOnly: true, // PC 는 표라 펼칠 줄이 없다
+    who: 'owner@example.com',
+    path: '/',
+    view: 'portfolio',
+    act: async (page) => page.locator('.holding-toggle').nth(1).click(),
+  },
+  {
+    name: 'modal-stock-edit',
+    who: 'owner@example.com',
+    path: '/',
+    view: 'portfolio',
+    act: clickText(/종목 한 번에 수정/),
+  },
+  {
+    name: 'modal-chart',
+    who: 'owner@example.com',
+    path: '/',
+    view: 'signal',
+    act: async (page) => {
+      await page.locator('button.stock-name').first().click()
+      await page.waitForSelector('canvas', { timeout: 15000 }).catch(() => {})
+    },
+  },
+  {
+    name: 'modal-ai-summary',
+    who: 'owner@example.com',
+    path: '/',
+    view: 'portfolio',
+    act: clickText(/AI 포트폴리오 진단/),
+  },
+  { name: 'fundamentals', who: 'owner@example.com', path: '/fundamentals' },
+  { name: 'rebalance', who: 'owner@example.com', path: '/rebalance' },
+  { name: 'macro', who: 'owner@example.com', path: '/macro' },
+  { name: 'history', who: 'owner@example.com', path: '/history' },
+  { name: 'stocks', who: 'owner@example.com', path: '/stocks' },
+  { name: 'policy', who: null, path: '/policy' },
+  { name: 'menu-display', who: 'owner@example.com', path: '/', act: (p) => openMenu(p, '화면 설정', '화면') },
+  { name: 'menu-ai-key', who: 'owner@example.com', path: '/', act: (p) => openMenu(p, 'AI 키 설정') },
+  { name: 'menu-push', who: 'owner@example.com', path: '/', act: (p) => openMenu(p, '알림 설정') },
+  { name: 'menu-diagnostics', who: 'owner@example.com', path: '/', act: (p) => openMenu(p, '진단') },
+  { name: 'menu-users', who: 'owner@example.com', path: '/', act: (p) => openMenu(p, /사용자/) },
+]
+
+/* ---------- 브라우저 안에서 재는 것 ---------- */
+
+function measure(opts) {
+  const { phone } = opts
+  const out = []
+  const add = (check, el, detail) => {
+    out.push({ check, where: describe(el), text: (el?.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 60), ...detail })
+  }
+  function describe(el) {
+    if (!el || el === document) return 'document'
+    const parts = []
+    let n = el
+    for (let i = 0; n && n.nodeType === 1 && i < 4; i++, n = n.parentElement) {
+      let s = n.tagName.toLowerCase()
+      if (n.id) s += '#' + n.id
+      const cls = [...n.classList].slice(0, 2).join('.')
+      if (cls) s += '.' + cls
+      parts.unshift(s)
+    }
+    return parts.join(' > ')
+  }
+  function visible(el) {
+    if (el.closest('[aria-hidden="true"], [hidden]')) return false
+    const cs = getComputedStyle(el)
+    if (cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity === 0) return false
+    const r = el.getBoundingClientRect()
+    if (r.width < 2 || r.height < 2) return false // 화면 읽기 전용(sr-only) 포함
+    if (el.type === 'hidden') return false
+    return true
+  }
+  function ownText(el) {
+    for (const n of el.childNodes) if (n.nodeType === 3 && n.textContent.trim()) return true
+    return false
+  }
+
+  // 1. 페이지 가로 넘침
+  if (document.documentElement.scrollWidth > innerWidth + 1)
+    out.push({ check: 'page-overflow', where: 'document', text: '', px: document.documentElement.scrollWidth - innerWidth })
+
+  // 팝업이 열려 있으면 팝업 안만 잰다 — 뒤 화면은 그 화면의 검사가 잰다
+  const modals = [...document.querySelectorAll('.modal-backdrop, [role=dialog]')].filter(visible)
+  const root = modals.length ? modals[modals.length - 1] : document.body
+  const all = [root, ...root.querySelectorAll('*')].filter(
+    (el) => !['SCRIPT', 'STYLE', 'svg', 'SVG', 'NOSCRIPT', 'TEMPLATE'].includes(el.tagName) && !el.closest('svg'),
+  )
+  const textEls = all.filter((el) => ownText(el) && visible(el))
+
+  // 2. 잘린 글 — 자기나 조상의 overflow 가 hidden/clip 이고 글이 그 밖으로 나간다 (스크롤 영역은 허용)
+  const clipping = (cs) => /hidden|clip/.test(cs.overflowX + cs.overflowY)
+  for (const el of textEls) {
+    const cs = getComputedStyle(el)
+    if (clipping(cs) && (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1)) {
+      add('clipped', el, { how: 'self' })
+      continue
+    }
+    const r = el.getBoundingClientRect()
+    for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) {
+      const acs = getComputedStyle(a)
+      if (!clipping(acs)) continue
+      const ar = a.getBoundingClientRect()
+      if (ar.width < 2 || ar.height < 2) break // sr-only 묶음
+      if (r.right > ar.right + 1 || r.left < ar.left - 1 || r.bottom > ar.bottom + 1 || r.top < ar.top - 1) {
+        add('clipped', el, { how: 'ancestor', ancestor: describe(a) })
+      }
+      break
+    }
+  }
+
+  // 줄 나누기: 글자마다 Range 를 만들어 top 으로 묶는다
+  function lines(el) {
+    const tops = []
+    const counts = []
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+    const range = document.createRange()
+    for (let t = walker.nextNode(); t; t = walker.nextNode()) {
+      if (!t.parentElement || !visible(t.parentElement)) continue
+      const s = t.textContent
+      for (let i = 0; i < s.length; i++) {
+        if (/\s/.test(s[i])) continue
+        range.setStart(t, i)
+        range.setEnd(t, i + 1)
+        const rect = range.getClientRects()[0]
+        if (!rect || rect.width === 0) continue
+        const lh = rect.height || 16
+        let k = tops.findIndex((y) => Math.abs(y - rect.top) < lh * 0.5)
+        if (k < 0) {
+          tops.push(rect.top)
+          counts.push(0)
+          k = tops.length - 1
+        }
+        counts[k]++
+      }
+    }
+    const order = tops.map((y, i) => [y, counts[i]]).sort((a, b) => a[0] - b[0])
+    return order.map((x) => x[1])
+  }
+  function kind(el) {
+    if (el.closest('button, [role=button], [role=tab], .tab-bar a')) return 'button'
+    if (/badge|chip|pill|tag/.test(el.className && el.className.baseVal === undefined ? el.className : ''))
+      return 'badge'
+    if (el.closest('h1,h2,h3,h4,h5,h6,.kpi-title,.modal-title')) return 'title'
+    if (el.closest('label, th, dt')) return 'label'
+    return 'para'
+  }
+  // 줄을 재는 단위: 인라인이 아닌 글 요소 (인라인 조각은 부모가 함께 잰다)
+  const blocks = textEls.filter((el) => {
+    const d = getComputedStyle(el).display
+    return d !== 'inline' && d !== 'contents'
+  })
+  for (const el of blocks) {
+    const ls = lines(el)
+    const k = kind(el)
+    // 3. 외톨이 줄
+    if (ls.length >= 2 && ls[ls.length - 1] <= 4) add('orphan', el, { kind: k, lines: ls.length, last: ls[ls.length - 1] })
+    // 5. 접힌 짧은 요소
+    if (k !== 'para' && k !== 'title') {
+      if (ls.length >= 3) add('folded3', el, { kind: k, lines: ls.length })
+      else if (ls.length === 2 && opts.width <= 360 && k === 'button') add('folded2-360', el, { kind: k })
+    }
+  }
+
+  // 4. 숫자·단위 갈라짐
+  const NUM = /[+\-−]?[\d,.]+\s?(원|%p?|주|개|달러|엔|배|억|만)/g
+  const range = document.createRange()
+  for (const el of textEls) {
+    for (const t of el.childNodes) {
+      if (t.nodeType !== 3) continue
+      for (const m of t.textContent.matchAll(NUM)) {
+        range.setStart(t, m.index)
+        range.setEnd(t, m.index + m[0].length)
+        const tops = new Set([...range.getClientRects()].filter((r) => r.width > 0).map((r) => Math.round(r.top)))
+        if (tops.size > 1) add('num-split', el, { match: m[0] })
+      }
+    }
+  }
+
+  // 6. 터치 대상 (폰만)
+  if (phone) {
+    const targets = [...root.querySelectorAll('button, a[href], input, select, textarea, [role=button], summary')]
+    for (const el of targets) {
+      if (!visible(el) || el.disabled) continue
+      if (el.closest('.chart, .chart-box, .tv-lightweight-charts')) continue
+      let r = el.getBoundingClientRect()
+      if (el.tagName === 'INPUT' && /checkbox|radio/.test(el.type)) {
+        const lab = el.closest('label')
+        if (lab) r = lab.getBoundingClientRect()
+      }
+      // 문장 속 링크는 예외
+      if (el.tagName === 'A' && getComputedStyle(el).display === 'inline') {
+        const p = el.parentElement
+        if (p && [...p.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim().length > 2)) continue
+      }
+      if (r.width < 43.5 || r.height < 43.5)
+        add('touch', el, { w: Math.round(r.width), h: Math.round(r.height) })
+    }
+  }
+
+  // 7. 대비
+  function parse(c) {
+    const m = c.match(/rgba?\(([^)]+)\)/)
+    if (!m) return null
+    const p = m[1].split(/[ ,/]+/).filter(Boolean).map(Number)
+    return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 }
+  }
+  const over = (top, under) => ({
+    r: top.r * top.a + under.r * (1 - top.a),
+    g: top.g * top.a + under.g * (1 - top.a),
+    b: top.b * top.a + under.b * (1 - top.a),
+    a: 1,
+  })
+  function background(el) {
+    const layers = []
+    for (let n = el; n; n = n.parentElement) {
+      const cs = getComputedStyle(n)
+      if (cs.backgroundImage && cs.backgroundImage !== 'none' && !/url\(/.test(cs.backgroundImage)) return null
+      const c = parse(cs.backgroundColor)
+      if (c && c.a > 0) {
+        layers.push(c)
+        if (c.a >= 1) break
+      }
+    }
+    let bg = { r: 255, g: 255, b: 255, a: 1 }
+    for (let i = layers.length - 1; i >= 0; i--) bg = over(layers[i], bg)
+    return bg
+  }
+  const lum = ({ r, g, b }) => {
+    const f = (v) => ((v /= 255) <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)
+    return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
+  }
+  for (const el of textEls) {
+    if (el.closest(':disabled, [aria-disabled="true"]')) continue
+    const cs = getComputedStyle(el)
+    const fg0 = parse(cs.color)
+    const bg = background(el)
+    if (!fg0 || !bg) continue
+    let alpha = fg0.a
+    for (let n = el; n; n = n.parentElement) alpha *= +getComputedStyle(n).opacity
+    const fg = over({ ...fg0, a: alpha }, bg)
+    const L1 = lum(fg), L2 = lum(bg)
+    const ratio = (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05)
+    if (ratio < 4.5) add('contrast', el, { ratio: +ratio.toFixed(2), color: cs.color, size: cs.fontSize })
+  }
+  return out
+}
+
+/* ---------- 실행 ---------- */
+
+const CHECKS = ['page-overflow', 'clipped', 'orphan', 'num-split', 'folded3', 'folded2-360', 'touch', 'contrast', 'console']
+
+async function loginState(browser, who) {
+  const ctx = await browser.newContext()
+  const page = await ctx.newPage()
+  await page.goto(BASE + '/api/auth/google/start')
+  await page.click(`text=${who}`)
+  await page.waitForURL(BASE + '/')
+  const state = await ctx.storageState()
+  await ctx.close()
+  return state
+}
+
+async function main() {
+  mkdirSync(OUT, { recursive: true })
+  if (SHOTS) mkdirSync(join(OUT, 'shots'), { recursive: true })
+  const browser = await chromium.launch({ executablePath: EXEC })
+  const states = {}
+  const results = []
+  const screens = SCREENS.filter((s) => !ONLY?.length || ONLY.includes(s.name))
+  for (const s of screens) if (s.who && !states[s.who]) states[s.who] = await loginState(browser, s.who)
+
+  for (const cond of conditions()) {
+    const tag = `${cond.vp.name}-${cond.theme}${cond.rise === 'red' ? '-risered' : ''}`
+    for (const s of screens) {
+      if (s.phoneOnly && !cond.vp.phone) continue
+      const ctx = await browser.newContext({
+        storageState: s.who ? states[s.who] : undefined,
+        viewport: { width: cond.vp.width, height: cond.vp.height },
+        deviceScaleFactor: cond.vp.dsf,
+        isMobile: cond.vp.phone,
+        hasTouch: cond.vp.phone,
+        colorScheme: cond.theme,
+        reducedMotion: 'reduce',
+      })
+      await ctx.addInitScript(
+        ([theme, rise, view]) => {
+          try {
+            localStorage.setItem('dashboard.theme', theme)
+            localStorage.setItem('dashboard.rise', rise)
+            if (view) localStorage.setItem('dashboard.view', view)
+            localStorage.setItem('dashboard.install-hint-dismissed', '1')
+          } catch {}
+        },
+        [cond.theme, cond.rise, s.view || null],
+      )
+      const page = await ctx.newPage()
+      const errors = []
+      page.on('pageerror', (e) => errors.push(String(e.message || e)))
+      page.on('console', (m) => m.type() === 'error' && errors.push(m.text()))
+      let issues = []
+      let failed = null
+      try {
+        await page.goto(BASE + s.path, { waitUntil: 'networkidle' })
+        if (s.act) {
+          await s.act(page)
+          if (s.name.startsWith('modal-') || s.name.startsWith('menu-'))
+            await page.waitForSelector('.modal-backdrop, [role=dialog]', { timeout: 10000 })
+          await page.waitForLoadState('networkidle')
+        }
+        await page.waitForTimeout(400)
+        issues = await page.evaluate(measure, { phone: cond.vp.phone, width: cond.vp.width })
+        if (SHOTS) await page.screenshot({ path: join(OUT, 'shots', `${s.name}--${tag}.png`) })
+      } catch (e) {
+        failed = String(e.message || e).split('\n')[0]
+      }
+      for (const e of errors) issues.push({ check: 'console', where: 'console', text: e.slice(0, 200) })
+      results.push({ screen: s.name, cond: tag, failed, issues })
+      await ctx.close()
+      process.stdout.write(`${tag} ${s.name}: ${failed ? 'FAILED ' + failed : issues.length}\n`)
+    }
+  }
+  await browser.close()
+  writeFileSync(join(OUT, 'results.json'), JSON.stringify(results, null, 1))
+  writeFileSync(join(OUT, 'summary.md'), summarize(results))
+}
+
+function summarize(results) {
+  const total = Object.fromEntries(CHECKS.map((c) => [c, 0]))
+  const orphanByKind = {}
+  const rows = []
+  for (const r of results) {
+    const n = Object.fromEntries(CHECKS.map((c) => [c, 0]))
+    for (const i of r.issues) {
+      n[i.check]++
+      total[i.check]++
+      if (i.check === 'orphan') orphanByKind[i.kind] = (orphanByKind[i.kind] || 0) + 1
+    }
+    rows.push(`| ${r.screen} | ${r.cond} | ${r.failed ? '실패: ' + r.failed.slice(0, 40) : ''} | ${CHECKS.map((c) => n[c]).join(' | ')} |`)
+  }
+  return [
+    '# 자동 검사 결과',
+    '',
+    `화면×조건 ${results.length}개, 열지 못한 것 ${results.filter((r) => r.failed).length}개`,
+    '',
+    '| 검사 | 합계 |',
+    '| --- | --- |',
+    ...CHECKS.map((c) => `| ${c} | ${total[c]} |`),
+    '',
+    `외톨이 줄 종류별: ${Object.entries(orphanByKind).map(([k, v]) => `${k} ${v}`).join(' · ')}`,
+    '',
+    `| 화면 | 조건 | 상태 | ${CHECKS.join(' | ')} |`,
+    `| --- | --- | --- | ${CHECKS.map(() => '---').join(' | ')} |`,
+    ...rows,
+    '',
+  ].join('\n')
+}
+
+main().catch((e) => {
+  console.error(e)
+  process.exit(1)
+})
