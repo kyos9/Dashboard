@@ -51,6 +51,8 @@ interface Props {
   onChart: (card: DashboardCard) => void
   /** 신호 점을 누르면 — 시그널 보기로 넘어가 그 종목을 보여준다 */
   onSignal: (ticker: string) => void
+  /** 맨 위 "확인할 신호" 줄을 누르면 — 시그널 보기로 */
+  onOpenSignals: () => void
   onSaved: () => void
 }
 
@@ -67,7 +69,7 @@ function labelOf(item: PortfolioItem): string {
  *
  * 숫자는 전부 리밸런싱과 같은 응답에서 온다 — 두 화면의 합계가 원 단위까지 같다.
  */
-export function PortfolioView({ current, cards, stocks, narrow, onChart, onSignal, onSaved }: Props) {
+export function PortfolioView({ current, cards, stocks, narrow, onChart, onSignal, onOpenSignals, onSaved }: Props) {
   const base = current.base_currency
   const [sort, setSort] = useState<SortKey>(loadSort)
   // 종목 한 번에 수정 — 열려 있으면 처음 커서를 둘 자리 (ROADMAP 9-11)
@@ -89,6 +91,16 @@ export function PortfolioView({ current, cards, stocks, narrow, onChart, onSigna
   const [pnlChoice, setPnlChoice] = useState<PnlCurrency>(loadPnlCurrency)
   const pnlCurrency: PnlCurrency = pnlOptions.includes(pnlChoice) ? pnlChoice : 'local'
   const signalCount = items.filter((i) => signalsOf(i).length > 0).length
+  // 맨 위 "확인할 신호" — 종류마다 몇 종목인지. 점(▲▼◆)과 같은 규칙(signalsOf)으로 센다
+  const signalKinds = useMemo(() => {
+    const marks = items.map((i) => signalsOf(i).map((m) => m.kind))
+    const count = (test: (kinds: SignalKind[]) => boolean) => marks.filter(test).length
+    return {
+      buy: count((k) => k.includes('buy')),
+      sell: count((k) => k.includes('sell')),
+      rebalance: count((k) => k.includes('over') || k.includes('under')),
+    }
+  }, [items])
 
   const edit: OnEdit = (item, field = 'quantity') => setEditing({ ticker: item.row.ticker, field })
   // 리밸런싱 응답의 종목(활성)만 — 순서도 그대로
@@ -113,7 +125,9 @@ export function PortfolioView({ current, cards, stocks, narrow, onChart, onSigna
 
   return (
     <div className="portfolio">
-      <MoneyLine current={current} signalCount={signalCount} />
+      <SignalLine kinds={signalKinds} onOpen={onOpenSignals} />
+
+      <MoneyLine current={current} />
 
       <div className="portfolio-sub">
         <MacroStrip />
@@ -199,6 +213,46 @@ export function PortfolioView({ current, cards, stocks, narrow, onChart, onSigna
         />
       )}
     </div>
+  )
+}
+
+/* ---------- 맨 위 — 확인할 신호 (디자인 1차) ----------
+   아침에 열면 "오늘 할 일이 있나"를 먼저 안다. 개수만 보이고, 누르면 시그널 보기로 간다.
+   숫자는 참고다 — 사라는 말이 아니라 "볼 것이 있다"는 말이다. */
+
+function SignalLine({
+  kinds,
+  onOpen,
+}: {
+  kinds: { buy: number; sell: number; rebalance: number }
+  onOpen: () => void
+}) {
+  const parts: { kind: ShapeKind; label: string; n: number; tone: string }[] = [
+    { kind: 'buy', label: '매수', n: kinds.buy, tone: 'tone-buy' },
+    { kind: 'sell', label: '매도', n: kinds.sell, tone: 'tone-sell' },
+    { kind: 'rebalance', label: '비중조절', n: kinds.rebalance, tone: 'tone-rebalance' },
+  ]
+  const shown = parts.filter((p) => p.n > 0)
+  if (shown.length === 0) {
+    return (
+      <p className="signal-line quiet">
+        확인할 신호가 없습니다
+      </p>
+    )
+  }
+  return (
+    <button className="signal-line" onClick={onOpen} aria-label={`확인할 신호: ${shown.map((p) => `${p.label} ${p.n}종목`).join(', ')}. 시그널 보기로`}>
+      <span className="signal-line-title">확인할 신호</span>
+      <span className="signal-line-counts">
+        {shown.map((p) => (
+          <span key={p.kind} className={`signal-line-count ${p.tone}`}>
+            <SignalShape kind={p.kind} size={10} />
+            {p.label} <b className="mono">{p.n}</b>
+          </span>
+        ))}
+      </span>
+      <span className="signal-line-go">시그널 보기 →</span>
+    </button>
   )
 }
 

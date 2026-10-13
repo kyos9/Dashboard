@@ -1,0 +1,64 @@
+/* 정돈안 시안 (1차 기획) — 실제 앱에 주입해 찍은 CSS. 적용본이 아니다. 글꼴은 /__draft/ 로 가로채 넣었다 */
+@font-face {
+  font-family: 'Pretendard';
+  src: url('/__draft/PretendardVariable-ko.woff2') format('woff2-variations');
+  font-weight: 400 700;
+  font-display: swap;
+}
+.mono, .money-big { font-feature-settings: 'tnum'; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+h1,h2,h3,h4,.kpi-title,.empty-state h3 { text-wrap: balance; }
+p, .hint, li { text-wrap: pretty; }
+
+/* 헤더: 새로고침은 주인공이 아니다 — 테두리 버튼으로 */
+.app-header.narrow .icon-action.primary { background: var(--panel); color: var(--text); border: 1px solid var(--border); }
+
+/* 보기 전환과 AI 진단을 한 줄에 */
+@media (max-width: 720px) {
+  .view-head { flex-wrap: nowrap; margin-bottom: 12px; }
+  .view-switch { width: auto; flex: 1 1 auto; padding: 2px; }
+  .view-switch button { min-height: 44px; min-width: 0; padding: 0 12px; }
+  .view-head-action { flex: none; min-height: 44px; }
+}
+
+/* 내 돈 카드: 큰 숫자 → 손익 두 칸 → 현금·신호 한 줄 */
+.money-line { gap: 12px 28px; }
+.money-big { overflow-wrap: normal; white-space: nowrap; }
+.money-facts dd { overflow-wrap: normal; }
+.money-facts dd .mono { white-space: nowrap; }
+@media (max-width: 720px) {
+  .money-facts { gap: 12px 16px; }
+  .money-facts dd { display: flex; flex-wrap: wrap; column-gap: 6px; align-items: baseline; }
+  .money-facts dd .mono + .mono { font-size: var(--fs-sub); font-weight: 600; }
+  .money-facts > div:nth-child(n+3) { flex-direction: row; align-items: baseline; gap: 8px; }
+  .money-facts > div:nth-child(n+3) dd { font-size: var(--fs-body); }
+}
+/* 신호 수는 '할 일' — 눈에 띄게 */
+.money-facts > div:last-child dd { color: var(--purple); }
+
+/* 보유 종목 도구: 제목 줄 + [정렬][통화][수정] 한 줄 */
+@media (max-width: 720px) {
+  .section-head:has(.holdings-tools) { align-items: center; }
+  .holdings-tools { width: 100%; display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; }
+  .holdings-tools .sort-pick { display: grid; gap: 2px; font-size: var(--fs-caption); }
+  .holdings-tools .sort-pick select { width: 100%; }
+  .holdings-tools > button { align-self: end; }
+}
+.review-line { margin-top: 12px; }
+
+/* 매크로 줄과 리뷰 줄 사이 빈자리 줄이기 */
+.portfolio-sub .macro-home { margin-bottom: 0; }
+
+/* 시그널 보기: 요약 두 카드를 낮게 */
+@media (max-width: 720px) {
+  .kpi-grid { gap: 8px; margin-bottom: 12px; }
+  .kpi { padding: 12px 16px; gap: 8px; }
+  .kpi-figure { display: inline-flex; align-items: baseline; gap: 6px; }
+  .kpi:has(.kpi-figure) { display: grid; grid-template-columns: auto 1fr; align-items: center; column-gap: 12px; }
+  .kpi:has(.kpi-figure) .kpi-head { grid-column: 1 / -1; }
+  .kpi:has(.kpi-figure) .badge-row { justify-content: flex-end; }
+  .toolbar { margin-bottom: 8px; flex-wrap: nowrap; align-items: flex-start; }
+  .toolbar-label { flex: none; width: 32px; padding-top: 12px; }
+  .toolbar .chip-row.spacer { flex-basis: 100%; }
+  .toolbar:has(.spacer) { flex-wrap: wrap; }
+  .toolbar:has(.spacer) .chip-row.spacer { padding-left: 40px; }
+}
