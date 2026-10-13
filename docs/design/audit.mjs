@@ -232,6 +232,8 @@ function measure(opts) {
     return d !== 'inline' && d !== 'contents'
   })
   for (const el of blocks) {
+    // 일부러 <br> 로 나눈 글(표 머리 "현재가 / (전일 대비)")은 줄 수가 뜻이다 — 외톨이·접힘에서 뺀다
+    if (el.querySelector('br')) continue
     const ls = lines(el)
     const k = kind(el)
     // 3. 외톨이 줄

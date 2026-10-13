@@ -266,9 +266,11 @@ describe('맨 위 — 내 돈 한 줄', () => {
     expect(line).toHaveTextContent('최근 거래일 대비')
     expect(line).toHaveTextContent('+₩162,000 +0.43%')
     expect(line).toHaveTextContent('₩17,400,000')
-    // 신호: SCHD(매수 시그널·과중), NVDA(매도 시그널) — 종목 수로 센다
-    const signal = within(line).getByText('신호').nextElementSibling
-    expect(signal).toHaveTextContent('2')
+    // 신호 개수는 돈 카드가 아니라 맨 위 "확인할 신호" 줄이 말한다 (디자인 1차)
+    expect(within(line).queryByText('신호')).not.toBeInTheDocument()
+    // SCHD(매수 시그널·과중), NVDA(매도 시그널) — 종류마다 종목 수로 센다
+    const signals = screen.getByRole('button', { name: /^확인할 신호:/ })
+    expect(signals).toHaveAccessibleName('확인할 신호: 매수 1종목, 매도 1종목, 비중조절 1종목. 시그널 보기로')
   })
 
   it('빠진 것은 빠졌다고 적는다 — 평단가 없는 종목, 환율 미반영 종목', async () => {
@@ -719,7 +721,7 @@ describe('신호 점', () => {
     renderDashboard()
     // 시그널 보기에서 비중조절 신호만 보이게 걸어 둔다 — NVDA(매도 시그널만)는 가려진다
     await userEvent.click(await screen.findByRole('button', { name: '시그널' }))
-    await userEvent.click(await screen.findByRole('button', { name: /비중조절 신호/ }))
+    await userEvent.click(await screen.findByRole('button', { name: /^비중조절 \d+$/ }))
     expect(document.querySelector('[data-ticker="NVDA"]')).toBeNull()
     await userEvent.click(screen.getByRole('button', { name: '포트폴리오' }))
 

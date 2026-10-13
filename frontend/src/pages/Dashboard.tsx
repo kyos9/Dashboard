@@ -118,7 +118,14 @@ function MetricHead({ title, sub, metric }: { title: string; sub: string; metric
       {title}
       <br />
       <span className="th-sub">{sub}</span>
-      {metric && <span className="th-cond">매수 조건 {CONDITION_BY_METRIC[metric].header}</span>}
+      {/* 조건식은 한 덩어리 — "-DI > / +DI" 처럼 갈라지지 않게. "매수 조건"이라는 말은 첫 칸이 한 번 말한다 */}
+      {metric && (
+        <span className="th-cond nowrap" title={`매수 조건 ${CONDITION_BY_METRIC[metric].header}`}>
+          {/* 화면에는 첫 칸이 한 번, 화면 읽기에는 칸마다 */}
+          <span className="sr-only">매수 조건 </span>
+          {CONDITION_BY_METRIC[metric].header}
+        </span>
+      )}
     </>
   )
 }
@@ -574,6 +581,12 @@ export function Dashboard() {
     navigate({ search: '?view=signal' }, { state: { fromDot: true, focus: ticker } })
   }
 
+  // 맨 위 "확인할 신호" 줄 — 점과 같이 뒤로가기 한 칸을 쌓는다(돌아오면 포트폴리오)
+  const openSignals = () => {
+    portfolioScroll.current = window.scrollY
+    navigate({ search: '?view=signal' }, { state: { fromDot: true } })
+  }
+
   // 시그널 보기로 넘어온 종목 — 필터가 가리고 있으면 "모두 보기"로 돌리고, 편집 중이면 보기로 바꾼다
   const focus = mode === 'signal' ? ((location.state as { focus?: string } | null)?.focus ?? null) : null
   const focusKey = focus ? location.key : null
@@ -658,6 +671,13 @@ export function Dashboard() {
             ✦ AI 포트폴리오 진단
           </button>
         )}
+        {/* 두 보기 모두 AI 는 같은 자리 — 전환 옆 (디자인 1차). 담은 종목 전체를 AI 가 한 장으로 (3c-2).
+            누르면 창만 열린다 — 부르는 것은 창에서 한 번 더 */}
+        {mode === 'signal' && (
+          <button className="chip view-head-action" onClick={() => setAiAll(true)}>
+            ✦ AI 전체 정리
+          </button>
+        )}
       </div>
 
       <ErrorNotice error={error} onDismiss={() => setError(null)} />
@@ -680,6 +700,7 @@ export function Dashboard() {
           narrow={narrow}
           onChart={openChart}
           onSignal={goToSignal}
+          onOpenSignals={openSignals}
           onSaved={notifyDataChanged}
         />
       ) : (
@@ -694,67 +715,62 @@ export function Dashboard() {
       {/* 매크로는 한 줄만. 홈의 주인공은 종목이다 (components/MacroStrip.tsx) */}
       <MacroStrip />
 
-      <div className="kpi-grid">
-        <div className="kpi">
-          <div className="kpi-head">
-            <span className="kpi-title">종합 신호등 현황</span>
-            <span className="hint mono">{cards.length}종목</span>
-          </div>
-          <div className="kpi-counts">
-            <span className="count-chip green">
-              <span className="num">{summary.buy}</span>
-              <span className="lbl">
-                <SignalShape kind="buy" size={9} /> 매수 시그널
-              </span>
-            </span>
-            <span className="count-chip amber">
-              <span className="num">{summary.watch}</span>
-              <span className="lbl">관망</span>
-            </span>
-            <span className="count-chip red">
-              <span className="num">{summary.hot}</span>
-              <span className="lbl">
-                <SignalShape kind="sell" size={9} /> 매도 시그널
-              </span>
-            </span>
-          </div>
-          <p className="kpi-foot">
-            {summary.stale > 0
-              ? `${summary.stale}종목은 시세가 오래되어 판정에서 제외됐습니다.`
-              : '모든 종목의 시세가 최신 상태입니다.'}
-          </p>
+      {/* 신호 요약 한 장 (디자인 1차) — 시그널 넷(매수·관망·매도·비중조절)을 한 줄에, 비중조절의 갈래는 그 아래.
+          예전에는 "종합 신호등"과 "비중조절" 두 장이라 폰 첫 화면을 다 썼다. */}
+      <section className="kpi signal-summary" aria-label="신호 요약">
+        <div className="kpi-head">
+          <span className="kpi-title">신호 요약</span>
+          <span className="hint mono">{cards.length}종목</span>
         </div>
-
-        <div className="kpi">
-          <div className="kpi-head">
-            <span className="kpi-title">비중조절 신호</span>
-          </div>
-          <div className="kpi-figure">
-            <span className="big">{summary.rebalanceCount}</span>
-            <span className="hint">종목에서 발생</span>
-          </div>
-          <div className="badge-row">
-            {/* 비중조절은 보라 ◆ — 매도·매수 시그널(빨강·초록)이나 오르내림 색과 섞이지 않게 (8-4) */}
-            {summary.sellReview > 0 && (
-              <span className="badge badge-purple badge-nowrap">
-                <SignalShape kind="rebalance" size={9} />
-                매도 검토 {summary.sellReview}
-              </span>
-            )}
-            {summary.buyReview > 0 && (
-              <span className="badge badge-purple badge-nowrap">
-                <SignalShape kind="rebalance" size={9} />
-                매수 검토 {summary.buyReview}
-              </span>
-            )}
-            {summary.periodicReview > 0 && (
-              <span className="badge badge-purple">정기 리뷰 {summary.periodicReview}</span>
-            )}
-            {summary.rebalanceCount === 0 && <span className="badge badge-grey">모두 밴드 이내</span>}
-          </div>
+        <div className="kpi-counts">
+          <span className="count-chip green">
+            <span className="num">{summary.buy}</span>
+            <span className="lbl">
+              <SignalShape kind="buy" size={9} /> 매수
+            </span>
+          </span>
+          <span className="count-chip amber">
+            <span className="num">{summary.watch}</span>
+            <span className="lbl">관망</span>
+          </span>
+          <span className="count-chip red">
+            <span className="num">{summary.hot}</span>
+            <span className="lbl">
+              <SignalShape kind="sell" size={9} /> 매도
+            </span>
+          </span>
+          <span className="count-chip purple">
+            <span className="num">{summary.rebalanceCount}</span>
+            <span className="lbl">
+              <SignalShape kind="rebalance" size={9} /> 비중조절
+            </span>
+          </span>
         </div>
-
-      </div>
+        <div className="badge-row">
+          {/* 비중조절은 보라 ◆ — 매도·매수 시그널(빨강·초록)이나 오르내림 색과 섞이지 않게 (8-4) */}
+          {summary.sellReview > 0 && (
+            <span className="badge badge-purple badge-nowrap">
+              <SignalShape kind="rebalance" size={9} />
+              매도 검토 {summary.sellReview}
+            </span>
+          )}
+          {summary.buyReview > 0 && (
+            <span className="badge badge-purple badge-nowrap">
+              <SignalShape kind="rebalance" size={9} />
+              매수 검토 {summary.buyReview}
+            </span>
+          )}
+          {summary.periodicReview > 0 && (
+            <span className="badge badge-purple">정기 리뷰 {summary.periodicReview}</span>
+          )}
+          {summary.rebalanceCount === 0 && <span className="badge badge-grey">비중 모두 밴드 이내</span>}
+        </div>
+        <p className="kpi-foot">
+          {summary.stale > 0
+            ? `${summary.stale}종목은 시세가 오래되어 판정에서 제외됐습니다.`
+            : '모든 종목의 시세가 최신 상태입니다.'}
+        </p>
+      </section>
 
       <div className="toolbar">
         <span className="toolbar-label">구분</span>
@@ -780,14 +796,15 @@ export function Dashboard() {
           <button className={`chip${quick === 'all' ? ' active' : ''}`} onClick={() => setQuick('all')}>
             모두 보기
           </button>
+          {/* 이름은 짧게 — 모양이 종류를 말한다 (8-4 배지와 같은 규칙) */}
           <button className={`chip${quick === 'knee' ? ' active' : ''}`} onClick={() => setQuick('knee')}>
-            매수 시그널 {summary.buy}
+            <SignalShape kind="buy" size={9} /> 매수 {summary.buy}
           </button>
           <button
             className={`chip${quick === 'rebalance' ? ' active' : ''}`}
             onClick={() => setQuick('rebalance')}
           >
-            비중조절 신호 {summary.rebalanceCount}
+            <SignalShape kind="rebalance" size={9} /> 비중조절 {summary.rebalanceCount}
           </button>
         </div>
         <div className="chip-row spacer">
@@ -816,10 +833,6 @@ export function Dashboard() {
               {ordering ? '순서 편집 끝' : '↕ 순서 편집'}
             </button>
           )}
-          {/* 담은 종목 전체를 AI 가 한 장으로 (3c-2). 누르면 창만 열린다 — 부르는 것은 창에서 한 번 더 */}
-          <button className="chip" onClick={() => setAiAll(true)}>
-            ✦ AI 전체 정리
-          </button>
         </div>
       </div>
 
@@ -967,7 +980,10 @@ function SignalMatrix({
         <thead>
           <tr>
             <th style={{ width: 44 }} aria-label="순서" />
-            <th style={{ width: 146 }}>구분 / 종목</th>
+            <th style={{ width: 146 }}>
+              구분 / 종목
+              <span className="th-cond">매수 조건 →</span>
+            </th>
             <th style={{ width: 128 }}>
               <MetricHead title="현재가" sub="(전일 대비)" />
             </th>

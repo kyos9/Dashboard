@@ -514,6 +514,13 @@ button.icon-action {
   padding: 0;
 }
 
+/* 폰 헤더의 새로고침은 테두리 버튼 — 시세는 매일 저절로 받는다. 화면의 주인공이 아니다 (디자인 1차) */
+.app-header.narrow .icon-action.primary {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
 .spin {
   animation: spin 1s linear infinite;
 }
@@ -791,6 +798,13 @@ button.bottom-tab.active {
 }
 .count-chip.red .num {
   color: var(--red);
+}
+.count-chip.purple {
+  border-color: rgba(168, 85, 247, 0.4);
+  background: var(--purple-soft);
+}
+.count-chip.purple .num {
+  color: var(--purple);
 }
 .count-chip.blue {
   border-color: rgba(59, 130, 246, 0.4);
@@ -1249,6 +1263,9 @@ table.data-table tfoot td {
 .tone-sell,
 .tone-bad {
   color: var(--red);
+}
+.tone-rebalance {
+  color: var(--purple);
 }
 
 /* ---------- 종목 카드 (좁은 화면 / 카드 보기) ---------- */
@@ -2133,10 +2150,8 @@ table.data-table tr.dirty:hover td {
   font-size: var(--fs-caption);
   font-weight: 600;
   color: var(--text-faint);
-  font-family: var(--font-mono);
-  /* 줄바꿈을 막으면 좁은 칸에서 조건이 잘린다 ("... 또는 >1." 처럼).
-     조건은 읽으라고 있는 글이므로 잘리느니 두 줄로 흐르게 둔다. */
-  white-space: normal;
+  /* 조건식은 한 덩어리(.nowrap)로 둔다 — 고정폭 글꼴이면 칸을 넘어 "-DI > / +DI" 로 갈라졌다.
+     본문 글꼴이 좁아 가장 긴 "변동성↓ 또는 >1.1"도 칸 안에 든다 (디자인 1차) */
   word-break: keep-all;
 }
 
@@ -3965,6 +3980,98 @@ table.data-table tr.dirty:hover td {
   box-shadow: inset 0 0 0 1px var(--accent);
 }
 
+/* 맨 위 — 확인할 신호 (디자인 1차). 아침에 "볼 것이 있나"를 먼저. 누르면 시그널 보기 */
+.signal-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
+  width: 100%;
+  min-height: 44px;
+  margin: 0 0 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.signal-line:hover {
+  border-color: var(--border-strong);
+  border-left-color: var(--accent);
+}
+
+.signal-line.quiet {
+  border-left-color: var(--border-strong);
+  color: var(--text-dim);
+  font-size: var(--fs-sub);
+  cursor: default;
+}
+
+.signal-line-title {
+  font-size: var(--fs-sub);
+  font-weight: 700;
+  color: var(--text-dim);
+}
+
+.signal-line-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+
+.signal-line-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.signal-line-count b {
+  font-size: var(--fs-strong);
+}
+
+.signal-line-go {
+  margin-left: auto;
+  font-size: var(--fs-sub);
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+/* 시그널 보기 맨 위 — 신호 요약 한 장 */
+.signal-summary {
+  margin-bottom: 16px;
+}
+
+.signal-summary .count-chip {
+  flex: 0 1 132px;
+}
+
+.signal-summary .kpi-counts,
+.signal-summary .badge-row {
+  align-items: center;
+}
+
+/* PC 는 넓다 — 넷과 비중조절 갈래를 한 줄에 */
+@media (min-width: 721px) {
+  .signal-summary {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 16px;
+  }
+  .signal-summary .kpi-head,
+  .signal-summary .kpi-foot {
+    flex-basis: 100%;
+  }
+}
+
 /* 맨 위 — 내 돈 한 줄 */
 .money-line {
   display: flex;
@@ -3989,7 +4096,7 @@ table.data-table tr.dirty:hover td {
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
-  overflow-wrap: break-word;
+  white-space: nowrap;
 }
 
 .money-facts {
@@ -4016,7 +4123,11 @@ table.data-table tr.dirty:hover td {
   margin: 0;
   font-size: var(--fs-strong);
   font-weight: 700;
-  overflow-wrap: break-word;
+}
+
+/* 금액과 % 는 각자 한 덩어리 — 좁으면 % 만 다음 줄로 */
+.money-facts dd .mono {
+  white-space: nowrap;
 }
 
 .money-note {
@@ -4026,6 +4137,10 @@ table.data-table tr.dirty:hover td {
 
 .portfolio-sub {
   margin-top: 12px;
+}
+
+.portfolio-sub .macro-home {
+  margin-bottom: 0;
 }
 
 .review-line {
@@ -4505,12 +4620,100 @@ table.data-table tr.dirty:hover td {
     grid-template-columns: 1fr 1fr;
     width: 100%;
   }
+  /* 보기 전환과 AI 진단을 한 줄에 — 따로 한 줄을 쓰던 자리를 보유 목록에 준다 (디자인 1차) */
+  .view-head {
+    flex-wrap: nowrap;
+    margin-bottom: 12px;
+  }
   .view-switch {
-    width: 100%;
+    flex: 1 1 auto;
+    padding: 2px;
   }
   .view-switch button {
     flex: 1 1 0;
+    min-width: 0;
     min-height: 40px;
+    padding: 0 12px;
+  }
+  .view-head-action {
+    flex: none;
+  }
+
+  /* 손익은 금액 옆에 % — 금액이 길면 % 만 다음 줄. 현금은 이름 옆에 한 줄 */
+  .money-facts {
+    gap: 12px 16px;
+  }
+  .money-facts dd {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    column-gap: 8px;
+  }
+  .money-facts dd .mono + .mono {
+    font-size: var(--fs-sub);
+    font-weight: 600;
+  }
+  .money-facts > div:nth-child(n + 3) {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .money-facts > div:nth-child(n + 3) dd {
+    font-size: var(--fs-body);
+  }
+
+  /* 보유 종목 도구: [정렬][손익 통화][수정] 한 줄, 이름표는 위에 작게 */
+  .holdings-tools {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 8px;
+  }
+  .holdings-tools .sort-pick {
+    display: grid;
+    gap: 2px;
+    font-size: var(--fs-caption);
+  }
+  .holdings-tools .sort-pick select {
+    width: 100%;
+    min-width: 0;
+  }
+  .holdings-tools > button {
+    align-self: end;
+  }
+
+  /* 신호 요약: 넷이 한 줄. 숫자와 이름을 낮게 */
+  .signal-summary {
+    margin-bottom: 12px;
+    padding: 12px 16px;
+  }
+  .signal-summary .count-chip {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 4px;
+  }
+  .signal-summary .count-chip .num {
+    font-size: var(--fs-strong);
+  }
+
+  /* 시그널 보기 필터: 이름표는 왼쪽 열, 칩은 그 옆에서 흐른다 */
+  .toolbar {
+    flex-wrap: nowrap;
+    align-items: flex-start;
+    margin-bottom: 8px;
+  }
+  .toolbar-label {
+    flex: none;
+    width: 32px;
+    padding-top: 12px;
+  }
+  .toolbar:has(.spacer) {
+    flex-wrap: wrap;
+  }
+  .toolbar .chip-row.spacer {
+    flex-basis: 100%;
+    margin-left: 0;
+    padding-left: 40px;
   }
 }
 
