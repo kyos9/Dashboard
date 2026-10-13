@@ -22,6 +22,10 @@ backend/backups
 **/session.key
 **/vapid.pem
 
+# 개발용 가짜 서버 — 누구나 주인으로 들어오는 서버라 이미지에 넣지 않는다
+backend/devtools
+backend/.devdata
+
 # 이미지와 무관한 것
 *.bat
 scripts/*.vbs
