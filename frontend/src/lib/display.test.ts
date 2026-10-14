@@ -90,8 +90,8 @@ describe('숫자 표기', () => {
 
 describe('지표 해석', () => {
   it('이격도: MA20 위면 강세(초록), 아래면 약세(빨강)', () => {
-    expect(readDisparity(3).tone).toBe('green')
-    expect(readDisparity(-3).tone).toBe('red')
+    expect(readDisparity(3).tone).toBe('up')
+    expect(readDisparity(-3).tone).toBe('down')
     expect(readDisparity(null).tone).toBe('grey')
   })
 
@@ -101,8 +101,8 @@ describe('지표 해석', () => {
   })
 
   it('DI는 우열로 방향을 말한다', () => {
-    expect(readDi(30, 20).tone).toBe('green')
-    expect(readDi(20, 30).tone).toBe('red')
+    expect(readDi(30, 20).tone).toBe('up')
+    expect(readDi(20, 30).tone).toBe('down')
     expect(readDi(20, 20).tone).toBe('grey')
   })
 
@@ -113,11 +113,11 @@ describe('지표 해석', () => {
 
   it('200일선 이탈 여부와 거리(%)를 함께 준다', () => {
     const above = readMa200(110, 100)
-    expect(above.tone).toBe('green')
+    expect(above.tone).toBe('up')
     expect(above.pct).toBeCloseTo(10)
 
     const below = readMa200(90, 100)
-    expect(below.tone).toBe('red')
+    expect(below.tone).toBe('down')
     expect(below.pct).toBeCloseTo(-10)
 
     expect(readMa200(100, 0).pct).toBeNull() // 0으로 나누지 않는다

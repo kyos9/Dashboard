@@ -23,7 +23,7 @@ import {
 } from '../lib/display'
 import { fxFromInput, fxToInput, fxUnitLabel } from '../lib/fxInput'
 import { useNarrow } from '../lib/narrow'
-import { buildOrderPlan, krwRatesOf, NOISE_THRESHOLD_PCT, orderTitle, type OrderLine } from '../lib/orderPlan'
+import { buildOrderPlan, krwRatesOf, NOISE_THRESHOLD_PCT, orderTitle, sharesText, type OrderLine } from '../lib/orderPlan'
 import { applyTrade, type TradeSide } from '../lib/trade'
 import { useCachedLoad } from '../lib/cache'
 import { PageSkeleton } from '../components/Skeleton'
@@ -789,6 +789,8 @@ function SignalBadges({ current }: { current: RebalanceRow }) {
 
 /* ---------- 화면 ---------- */
 
+const BUY_ONLY_KEY = 'rebalance.buy-only'
+
 export function RebalancePanel() {
   const { refreshKey, notifyDataChanged } = useAppState()
   usePrefs() // 금액 가리기를 바꾸면 주문 가이드·기록까지 다시 그린다 (ROADMAP 9-3)
@@ -807,6 +809,22 @@ export function RebalancePanel() {
 
   /** 이번에 새로 넣을 돈 (계산만 한다 — 저장하지 않는다) */
   const [newMoney, setNewMoney] = useState('')
+  // 팔지 않고 새 돈만 나누기 (0.42.0) — 기본은 꺼짐(지금과 같은 계산). 기기에 기억한다
+  const [buyOnly, setBuyOnlyState] = useState(() => {
+    try {
+      return localStorage.getItem(BUY_ONLY_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
+  const setBuyOnly = (on: boolean) => {
+    setBuyOnlyState(on)
+    try {
+      localStorage.setItem(BUY_ONLY_KEY, on ? '1' : '0')
+    } catch {
+      // 저장이 막힌 브라우저 — 이번에만 쓴다
+    }
+  }
 
   /** 보유·목표 칸에서 고치는 중인 값 */
   const [drafts, setDrafts] = useState<Record<string, HoldingDraft>>({})
@@ -947,8 +965,9 @@ export function RebalancePanel() {
         krwRatesOf(fx),
         { value_base: cash?.value_base ?? 0, target_pct: cash?.target_pct ?? 0 },
         newMoney,
+        buyOnly,
       ),
-    [rows, baseCurrency, fx, cash, newMoney],
+    [rows, baseCurrency, fx, cash, newMoney, buyOnly],
   )
 
   /** 주문 계획은 티커만 들고 있으므로, 화면에 필요한 나머지 정보를 여기서 붙인다 */
@@ -1008,11 +1027,29 @@ export function RebalancePanel() {
           allowDecimal={baseCurrency === 'USD'}
         />
       </div>
+      {/* 예전 글 "모자란 종목부터 채우는 주문"은 실제(전체를 다시 맞춘다, 명세 6.4)와 달랐다 (0.42.0) */}
       <span className="hint">
-        적립하는 달에 넣어보세요. 모자란 종목부터 채우는 주문이 나옵니다. 저장되지 않습니다.
+        {buyOnly
+          ? '팔지 않고, 새로 넣을 돈만 목표에 모자란 만큼에 비례해 나눕니다. 저장되지 않습니다.'
+          : '새로 넣을 돈까지 더한 전체 자금으로 목표 비중을 다시 맞춘 주문이 나옵니다(파는 주문도 있을 수 있습니다). 저장되지 않습니다.'}
       </span>
+      <label className="check-line">
+        <input type="checkbox" checked={buyOnly} onChange={(e) => setBuyOnly(e.target.checked)} />
+        팔지 않고 새 돈만 나누기
+      </label>
     </div>
   )
+
+  /** 새로 넣을 돈이 어디로 갔는지 한 줄 — 주문 가이드 맨 위 */
+  const newMoneyLine =
+    plan.newMoney > 0 ? (
+      <p className="new-money-line" role="status">
+        새로 넣을 돈 <b>{amount(plan.newMoney, baseCurrency)}</b>{' '}
+        {plan.buyOnly
+          ? `— 모자란 종목에 목표 비중대로 나눴습니다${plan.leftover > 0.5 ? ` (남는 ${amount(plan.leftover, baseCurrency)}은 현금)` : ''}`
+          : '반영 — 전체 자금으로 목표 비중을 다시 맞춘 주문입니다'}
+      </p>
+    ) : null
 
   const rowProps = (row: Row): HoldingRowProps => ({
     row,
@@ -1081,6 +1118,7 @@ export function RebalancePanel() {
           </span>
         </div>
         {!narrow && newMoneyBlock}
+        {newMoneyLine}
         {narrow ? (
           <ul className="order-cards">
             {plan.orders.map((order) => {
@@ -1188,7 +1226,7 @@ export function RebalancePanel() {
                         <ActionBadge action={action} />
                       </td>
                       <td className="num-cell">
-                        {shares === null || action === 'hold' ? '—' : `${signed(shares, 2)}주`}
+                        {shares === null || action === 'hold' ? '—' : sharesText(shares, true)}
                       </td>
                       <td>
                         <SignalBadges current={row.current} />

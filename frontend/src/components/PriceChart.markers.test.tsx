@@ -20,8 +20,12 @@ const chart = {
   timeScale: () => ({ fitContent: vi.fn() }),
 }
 
+const created: unknown[] = []
 vi.mock('lightweight-charts', () => ({
-  createChart: () => chart,
+  createChart: (_el: unknown, options: unknown) => {
+    created.push(options)
+    return chart
+  },
   createSeriesMarkers: () => ({ setMarkers: (m: unknown) => setMarkers(m) }),
   LineSeries: 'Line',
   PriceScaleMode: { Logarithmic: 1 },
@@ -83,12 +87,24 @@ describe('차트 마커', () => {
         history={history([
           { date: '2026-09-14', kind: 'sell' },
           { date: '2026-09-15', kind: 'sell' },
-          { date: '2026-09-16', kind: 'sell' },
         ])}
       />,
     )
     expect(lastMarkers()).toHaveLength(1)
     expect(lastMarkers()[0].time).toBe('2026-09-14')
+  })
+
+  it('오늘(차트 마지막 날)까지 이어진 구간은 오늘에도 찍는다 — 카드의 "오늘"과 차트가 맞게 (0.42.0)', () => {
+    render(
+      <PriceChart
+        history={history([
+          { date: '2026-09-14', kind: 'buy' },
+          { date: '2026-09-15', kind: 'buy' },
+          { date: '2026-09-16', kind: 'buy' },
+        ])}
+      />,
+    )
+    expect(lastMarkers().map((m) => m.time)).toEqual(['2026-09-14', '2026-09-16'])
   })
 
   it('같은 날 매수와 매도가 함께 뜨면 둘 다 찍는다', () => {
@@ -107,5 +123,18 @@ describe('차트 마커', () => {
   it('시그널이 없으면 점도 없다', () => {
     render(<PriceChart history={history([])} />)
     expect(lastMarkers()).toEqual([])
+  })
+
+  it('언어를 ko-KR 로 못 박고, 세로축 가격은 그 종목 통화의 꼴로 (0.42.0 — "en-US@posix" 에서 빈 칸, "68000.00")', () => {
+    created.length = 0
+    chart.applyOptions.mockClear()
+    render(<PriceChart history={{ ...history([]), ticker: '005930.KS' }} />)
+    const options = created[0] as { localization: { locale: string; timeFormatter: (t: string) => string } }
+    expect(options.localization.locale).toBe('ko-KR')
+    expect(options.localization.timeFormatter('2026-10-09')).toBe('2026-10-09')
+    const formatter = chart.applyOptions.mock.calls
+      .map(([o]) => (o as { localization?: { priceFormatter?: (v: number) => string } }).localization?.priceFormatter)
+      .find(Boolean)!
+    expect(formatter(68000)).toBe('68,000')
   })
 })

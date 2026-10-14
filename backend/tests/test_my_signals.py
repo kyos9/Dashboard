@@ -378,3 +378,22 @@ def test_cards_tell_my_people_what_the_default_would_say(world):
     assert (mine["FLIP"]["knee_buy_v2"], mine["FLIP"]["knee_buy_v2_default"]) == (True, False)
     for ticker, card in mine.items():
         assert card["knee_buy_v2_default"] is plain[ticker]["knee_buy_v2"]
+
+
+def test_a_stock_without_my_name_shows_the_shared_name(api):
+    """B9 — 내가 이름을 비워 둔 종목은 공용 종목명으로 (0.41.0 사용자 확인: 지인 카드에 "7203.T" 만). 알림과 같은 규칙."""
+    from app.models import Instrument
+
+    client, Session = api
+    with Session() as db:
+        make_stock(db, ticker="7203.T", name=None)
+        db.get(Instrument, "7203.T").name = "トヨタ自動車"
+        make_stock(db, ticker="005930.KS", name="내 삼성")
+        db.commit()
+    names = {c["ticker"]: c["name"] for c in client.get("/api/dashboard").json()}
+    assert names == {"7203.T": "トヨタ自動車", "005930.KS": "내 삼성"}
+    rows = {r["ticker"]: r["name"] for r in client.get("/api/rebalance/current").json()["rows"]}
+    assert rows["7203.T"] == "トヨタ自動車"
+    assert client.get("/api/fundamentals/7203.T").json()["name"] == "トヨタ自動車"
+    listed = {r["ticker"]: r["name"] for r in client.get("/api/fundamentals").json()}
+    assert listed["7203.T"] == "トヨタ自動車"

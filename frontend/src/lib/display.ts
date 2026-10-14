@@ -169,7 +169,7 @@ export function reviewCountdown(review: Pick<ReviewStatus, 'next_date'>, today: 
   return days < 0 ? `D-${-days}` : `${days}일 지남`
 }
 
-export type Tone = 'green' | 'amber' | 'red' | 'blue' | 'grey'
+export type Tone = 'green' | 'amber' | 'red' | 'blue' | 'grey' | 'up' | 'down'
 
 export interface Reading {
   tone: Tone
@@ -186,10 +186,12 @@ export interface Reading {
 /** 이격도 = (종가/MA20 - 1) x 100. 매수 시그널은 이격도가 기준(`disparity_below`)보다 작기를 요구한다. */
 export function readDisparity(v: number | null): Reading {
   if (v === null) return { tone: 'grey', note: '데이터 없음' }
-  if (v >= 5) return { tone: 'green', note: 'MA20 크게 상회' }
-  if (v >= 0) return { tone: 'green', note: 'MA20 상회' }
-  if (v > -5) return { tone: 'red', note: 'MA20 하회' }
-  return { tone: 'red', note: 'MA20 크게 하회' }
+  // 값의 부호로 칠하는 칩은 오르내림 색(`up`/`down`)을 쓴다 — 상승 색을 빨강으로 바꾸면 따라 바뀐다 (0.42.0).
+  // 매수 조건 ✓ 는 이 색과 따로다(시그널 색이 아니라 부호다)
+  if (v >= 5) return { tone: 'up', note: 'MA20 크게 상회' }
+  if (v >= 0) return { tone: 'up', note: 'MA20 상회' }
+  if (v > -5) return { tone: 'down', note: 'MA20 하회' }
+  return { tone: 'down', note: 'MA20 크게 하회' }
 }
 
 /** ADX = 추세의 강도(방향은 말하지 않음). 매수 시그널은 ADX 가 기준(`adx_trend`)보다 크기를 요구한다 —
@@ -207,8 +209,8 @@ export function readAdx(v: number | null, trend: number = LEGACY_SIGNAL_RULES.th
 export function readDi(plus: number | null, minus: number | null): Reading {
   if (plus === null || minus === null) return { tone: 'grey', note: '데이터 없음' }
   const gap = plus - minus
-  if (gap > 0) return { tone: 'green', note: `강세 우위 +${num(gap, 1)}` }
-  if (gap < 0) return { tone: 'red', note: `약세 우위 ${num(gap, 1)}` }
+  if (gap > 0) return { tone: 'up', note: `강세 우위 +${num(gap, 1)}` }
+  if (gap < 0) return { tone: 'down', note: `약세 우위 ${num(gap, 1)}` }
   return { tone: 'grey', note: '방향 중립' }
 }
 
@@ -231,8 +233,8 @@ export function readMa200(close: number | null, ma200: number | null): Reading &
   }
   const pct = (close / ma200 - 1) * 100
   return pct >= 0
-    ? { tone: 'green', note: '장기 상승추세', pct }
-    : { tone: 'red', note: '200일선 이탈', pct }
+    ? { tone: 'up', note: '장기 상승추세', pct }
+    : { tone: 'down', note: '200일선 이탈', pct }
 }
 
 /* ---------- 종합 신호등 ----------

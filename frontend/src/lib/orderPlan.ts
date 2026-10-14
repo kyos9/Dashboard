@@ -1,4 +1,4 @@
-import { amount, qty } from './display'
+import { amount } from './display'
 import type { Currency, FxInfo, RebalanceRow } from '../types'
 
 /** 통화코드 -> "1단위 = 몇 원". 원은 언제나 1이라 표에 넣지 않는다. */
@@ -57,6 +57,10 @@ export interface OrderPlan {
   /** 종목 목표 + 현금 목표 */
   targetSum: number
   orders: OrderLine[]
+  /** 0.42.0 — "팔지 않고 새 돈만 나누기"로 계산했나 (새로 넣을 돈이 있을 때만 켜진다) */
+  buyOnly: boolean
+  /** 새 돈만 나누기에서 어느 종목에도 가지 않고 현금에 남는 돈 (기준통화). 그 밖에는 0 */
+  leftover: number
 }
 
 /** 저장된 현금 — 서버가 기준통화로 환산해서 준다 */
@@ -116,12 +120,17 @@ export function buildOrderPlan(
   krwPer: KrwRates,
   cash: CashInput = { value_base: 0, target_pct: 0 },
   newMoneyInput = '',
+  /** 0.42.0 — 팔지 않고 새 돈만 나누기. 새로 넣을 돈이 없으면 무시한다(지금과 같은 계산) */
+  buyOnlyWanted = false,
 ): OrderPlan {
   const holdingsTotal = rows.reduce((sum, row) => sum + row.current_value_base, 0)
   const newMoney = parseAmount(newMoneyInput) ?? 0
   const cashNow = cash.value_base + newMoney
   const total = holdingsTotal + cashNow
   const targetSum = rows.reduce((sum, row) => sum + row.target_weight_pct, 0) + cash.target_pct
+
+  const buyOnly = buyOnlyWanted && newMoney > 0
+  if (buyOnly) return buyOnlyPlan(rows, baseCurrency, krwPer, cash, newMoney, holdingsTotal, total, targetSum)
 
   const orders = rows.map((row): OrderLine => {
     const targetValue = (total * row.target_weight_pct) / 100
@@ -155,7 +164,84 @@ export function buildOrderPlan(
     },
     targetSum,
     orders,
+    buyOnly: false,
+    leftover: 0,
   }
+}
+
+/**
+ * 팔지 않고 새 돈만 나누기 (0.42.0, 명세 6.4).
+ *
+ * 새로 넣을 돈만을 **목표에 모자란 만큼에 비례해** 나눈다 — 앱이 종목을 고르지 않고, 내가 정한 목표 비중이 정한다
+ * (시그널이 뜬 종목을 먼저 채우거나 순서를 매기지 않는다 — ROADMAP 3절). 현금도 목표보다 모자라면 한 자리로 친다.
+ *
+ * - 모자란 합이 새 돈보다 작으면 모자란 만큼만 사고 나머지는 현금에 남는다.
+ * - 나눈 몫이 전체 자금의 0.5% 미만인 종목은 "유지" — 그 몫도 현금에 남는다(주문 가이드의 잡음 기준과 같다).
+ * - 파는 주문은 없다.
+ */
+function buyOnlyPlan(
+  rows: RebalanceRow[],
+  baseCurrency: Currency,
+  krwPer: KrwRates,
+  cash: CashInput,
+  newMoney: number,
+  holdingsTotal: number,
+  total: number,
+  targetSum: number,
+): OrderPlan {
+  const targets = rows.map((row) => (total * row.target_weight_pct) / 100)
+  const gaps = rows.map((row, i) => Math.max(0, targets[i] - row.current_value_base))
+  const cashTarget = (total * cash.target_pct) / 100
+  const cashGap = Math.max(0, cashTarget - cash.value_base)
+  const gapSum = gaps.reduce((a, b) => a + b, 0) + cashGap
+  const share = gapSum > newMoney ? newMoney / gapSum : 1
+
+  let spent = 0
+  const orders = rows.map((row, i): OrderLine => {
+    const raw = gaps[i] * share
+    const material = total > 0 && raw / total > NOISE_THRESHOLD_PCT / 100
+    const adjust = material ? raw : 0
+    spent += adjust
+    const adjustNative = toNative(adjust, row.currency, baseCurrency, krwPer)
+    const close = row.last_close
+    return {
+      ticker: row.ticker,
+      currency: row.currency,
+      targetValue: targets[i],
+      adjust,
+      adjustNative,
+      shares: close && close > 0 ? adjustNative / close : null,
+      action: material ? 'buy' : 'hold',
+    }
+  })
+
+  const cashNow = cash.value_base + newMoney
+  return {
+    holdingsTotal,
+    total,
+    newMoney,
+    cash: { current: cashNow, targetValue: cashTarget, adjust: -spent, targetPct: cash.target_pct },
+    targetSum,
+    orders,
+    buyOnly: true,
+    leftover: newMoney - spent,
+  }
+}
+
+/**
+ * 주문 주수를 글로 — **정수 주 + 괄호에 소수** (0.42.0, 주인 결정). "62.17주"는 초보에게 "0.17주를 어떻게 사지?"가 된다.
+ * 금액·비중 계산은 그대로이고, 1주 미만이면 그렇게 말한다. `sign` 이면 앞에 +/−.
+ */
+export function sharesText(shares: number, sign = false): string {
+  // 보유 수량(`qty`)과 달리 금액 가리기에도 보인다 — 주수만으로는 얼마를 가졌는지 모른다 (9-3)
+  const count = (n: number) => n.toLocaleString('ko-KR', { maximumFractionDigits: 2 })
+  const abs = Math.abs(shares)
+  const whole = Math.trunc(Number(abs.toFixed(4)))
+  const prefix = sign ? (shares > 0 ? '+' : shares < 0 ? '−' : '') : ''
+  const exact = Number(abs.toFixed(2))
+  if (whole === 0) return `${prefix}1주 미만 (${count(exact)}주)`
+  if (exact === whole) return `${prefix}${count(whole)}주`
+  return `${prefix}${count(whole)}주 (${count(exact)})`
 }
 
 /** "SCHD 78주 팔기" — 폰 카드의 제목. 주수를 모르면(시세 없음) 금액으로 */
@@ -163,5 +249,5 @@ export function orderTitle(label: string, order: Pick<OrderLine, 'action' | 'sha
   if (order.action === 'hold') return `${label} 유지`
   const verb = order.action === 'buy' ? '사기' : '팔기'
   if (order.shares === null) return `${label} ${amount(Math.abs(order.adjustNative), order.currency)}어치 ${verb}`
-  return `${label} ${qty(Math.abs(Number(order.shares.toFixed(2))))}주 ${verb}`
+  return `${label} ${sharesText(order.shares)} ${verb}`
 }

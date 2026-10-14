@@ -104,7 +104,8 @@ class UserStock(Base):
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), primary_key=True)
     ticker: Mapped[str] = mapped_column(String, ForeignKey("instrument.ticker"), primary_key=True)
     # 화면에 보여줄 이름. 사용자가 고쳐 쓸 수 있다 — 야후가 주는 영문 이름 대신 한글로
-    # 부르고 싶은 사람이 있고, 그건 남의 화면까지 바꿀 일이 아니다. 비우면 티커로 보인다.
+    # 부르고 싶은 사람이 있고, 그건 남의 화면까지 바꿀 일이 아니다. 비우면 공용 종목명(`instrument.name`),
+    # 그것도 없으면 티커로 보인다 — 응답은 `shown_name` 을 쓴다 (0.42.0, 알림은 전부터 그랬다).
     name: Mapped[str | None] = mapped_column(String, nullable=True)
     # 포트폴리오상 역할 구분(예: 지수/알파/안전자산). 자유 입력이며 대시보드 필터로만 쓰인다.
     category: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -126,6 +127,12 @@ class UserStock(Base):
     @validates("ticker")
     def _normalize_ticker(self, key: str, value: str) -> str:
         return normalize_ticker(value)
+
+    @property
+    def shown_name(self) -> str | None:
+        """화면에 보낼 이름 — 내가 붙인 이름, 없으면 공용 종목명. 등록 때 이름 해석이 실패했던 종목이
+        한국·일본 종목이면 코드("7203.T")만 보였다(0.41.0 사용자 확인)."""
+        return (self.name or "").strip() or (self.instrument.name or "").strip() or None
 
     @property
     def market(self) -> str:

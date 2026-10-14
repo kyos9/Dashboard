@@ -137,7 +137,7 @@ describe('리밸런싱 · 통화 표기', () => {
 
     // 목표 60% x 210만 = 126만 → 조정 -4만원 = -30.77달러 → 500달러 종가로 -0.06주
     const us = await orderRow('VOO')
-    expect(within(us).getByText(/-0\.06주/)).toBeInTheDocument()
+    expect(within(us).getByText(/−1주 미만 \(0\.06주\)/)).toBeInTheDocument()
     // 파는 주문은 매도 색 — 가격 오르내림 색(상승 색 설정)을 따르지 않는다 (8-4)
     const adjust = within(us).getByText(/^−?-?₩40,000$/).closest('td')!
     expect(adjust).toHaveClass('tone-sell')
@@ -495,7 +495,7 @@ describe('리밸런싱 · 금액 가리기 (9-3)', () => {
     const us = await orderRow('VOO')
     expect(us).not.toHaveTextContent('₩1,300,000')
     expect(us).not.toHaveTextContent('₩40,000')
-    expect(within(us).getByText(/-0\.06주/)).toBeInTheDocument()
+    expect(within(us).getByText(/−1주 미만 \(0\.06주\)/)).toBeInTheDocument()
     expect(screen.queryByText('₩2,100,000')).not.toBeInTheDocument()
 
     // 여기서 풀면 여기 표도 바로 풀린다
@@ -692,7 +692,7 @@ describe('리밸런싱 · 폰', () => {
     const cards = within(guide).getAllByRole('listitem')
     // VOO: 목표 20% x 210만 = 42만 → 88만원 팔기 = $676.92 → 500달러 종가로 1.35주
     // 삼성: 목표 40% = 84만 → 4만원 사기 = 8만원 종가로 0.5주
-    expect(cards.map((c) => c.querySelector('b')?.textContent)).toEqual(['삼성전자 0.5주 사기', 'VOO 1.35주 팔기', '현금'])
+    expect(cards.map((c) => c.querySelector('b')?.textContent)).toEqual(['삼성전자 1주 미만 (0.5주) 사기', 'VOO 1주 (1.35) 팔기', '현금'])
     expect(cards[1]).toHaveTextContent('과중 +41.9%p')
     expect(cards[1]).toHaveTextContent('61.9% → 목표 20%')
   })

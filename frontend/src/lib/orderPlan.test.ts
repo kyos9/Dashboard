@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Currency, RebalanceRow } from '../types'
-import { buildOrderPlan, NOISE_THRESHOLD_PCT, parseAmount, toNative } from './orderPlan'
+import { buildOrderPlan, NOISE_THRESHOLD_PCT, orderTitle, parseAmount, sharesText, toNative } from './orderPlan'
 
 function row(overrides: Partial<RebalanceRow> & { ticker: string; currency: Currency }): RebalanceRow {
   return {
@@ -229,5 +229,90 @@ describe('buildOrderPlan', () => {
   it('종목이 없으면 빈 계획', () => {
     const plan = buildOrderPlan([], 'KRW', { USD: 1300 })
     expect(plan).toMatchObject({ holdingsTotal: 0, total: 0, targetSum: 0, orders: [] })
+  })
+})
+
+describe('팔지 않고 새 돈만 나누기 (0.42.0)', () => {
+  // 목표 50:50, 지금 A 600 · B 400 (기준통화 원), 새 돈 100 → 전체 1100, 목표 550:550
+  const rowsAB = [
+    row({ ticker: 'A', currency: 'KRW', current_value_base: 600, target_weight_pct: 50, last_close: 10 }),
+    row({ ticker: 'B', currency: 'KRW', current_value_base: 400, target_weight_pct: 50, last_close: 10 }),
+  ]
+
+  it('기본(끔)은 지금 계산 그대로 — 파는 주문도 나온다', () => {
+    const plain = buildOrderPlan(rowsAB, 'KRW', {}, undefined, '100')
+    const off = buildOrderPlan(rowsAB, 'KRW', {}, undefined, '100', false)
+    expect(off).toEqual(plain)
+    expect(plain.orders.map((o) => o.action)).toEqual(['sell', 'buy'])
+    expect(plain.buyOnly).toBe(false)
+  })
+
+  it('켜면 파는 주문이 없고, 새 돈이 모자란 만큼에 비례해 간다 — 합 = 새 돈', () => {
+    const plan = buildOrderPlan(rowsAB, 'KRW', {}, undefined, '100', true)
+    expect(plan.buyOnly).toBe(true)
+    expect(plan.orders.map((o) => [o.ticker, o.action, o.adjust])).toEqual([
+      ['A', 'hold', 0],
+      ['B', 'buy', 100],
+    ])
+    expect(plan.leftover).toBeCloseTo(0)
+    expect(plan.cash.adjust).toBeCloseTo(-100)
+  })
+
+  it('모자란 합이 새 돈보다 크면 비례로 나눈다', () => {
+    const three = [
+      row({ ticker: 'A', currency: 'KRW', current_value_base: 0, target_weight_pct: 50, last_close: 10 }),
+      row({ ticker: 'B', currency: 'KRW', current_value_base: 0, target_weight_pct: 25, last_close: 10 }),
+      row({ ticker: 'C', currency: 'KRW', current_value_base: 1000, target_weight_pct: 25, last_close: 10 }),
+    ]
+    // 전체 1100 → 목표 550 · 275 · 275, 모자람 550 · 275 · 0 (합 825) — 새 돈 100 을 2:1 로
+    const plan = buildOrderPlan(three, 'KRW', {}, undefined, '100', true)
+    expect(plan.orders.map((o) => Math.round(o.adjust * 100) / 100)).toEqual([66.67, 33.33, 0])
+    expect(plan.orders.reduce((a, o) => a + o.adjust, 0)).toBeCloseTo(100)
+  })
+
+  it('모자란 합이 새 돈보다 작으면 모자란 만큼만 사고 나머지는 현금', () => {
+    const near = [
+      row({ ticker: 'A', currency: 'KRW', current_value_base: 1000, target_weight_pct: 50, last_close: 10 }),
+      row({ ticker: 'B', currency: 'KRW', current_value_base: 960, target_weight_pct: 50, last_close: 10 }),
+    ]
+    // 전체 2160 → 목표 1080 · 1080, 모자람 80 · 120 — 새 돈 200 을 그대로
+    const plan = buildOrderPlan(near, 'KRW', {}, { value_base: 0, target_pct: 0 }, '200', true)
+    expect(plan.orders.map((o) => Math.round(o.adjust))).toEqual([80, 120])
+    expect(plan.leftover).toBeCloseTo(0)
+    const more = buildOrderPlan(near, 'KRW', {}, { value_base: 0, target_pct: 0 }, '1000', true)
+    // 전체 2960 → 목표 1480 · 1480, 모자람 480 · 520 (합 1000) = 새 돈
+    expect(more.leftover).toBeCloseTo(0)
+  })
+
+  it('현금도 목표에 모자라면 몫을 받아 현금에 남는다 · 잡음(0.5% 미만) 몫도 현금에', () => {
+    const rows = [
+      row({ ticker: 'A', currency: 'KRW', current_value_base: 900, target_weight_pct: 45, last_close: 10 }),
+      row({ ticker: 'B', currency: 'KRW', current_value_base: 1000, target_weight_pct: 45.2, last_close: 10 }),
+    ]
+    // 전체 2000(새 돈 100) → 목표 900 · 904 · 현금 196 — A 모자람 0, B 4(잡음), 현금 96
+    const plan = buildOrderPlan(rows, 'KRW', {}, { value_base: 0, target_pct: 9.8 }, '100', true)
+    expect(plan.orders.map((o) => o.action)).toEqual(['hold', 'hold'])
+    expect(plan.leftover).toBeCloseTo(100)
+  })
+
+  it('새로 넣을 돈이 없으면 켜 둬도 지금 계산', () => {
+    expect(buildOrderPlan(rowsAB, 'KRW', {}, undefined, '', true)).toEqual(buildOrderPlan(rowsAB, 'KRW', {}, undefined, ''))
+  })
+})
+
+describe('주문 주수 — 정수 주 + 괄호에 소수 (0.42.0)', () => {
+  it.each([
+    [62.17, false, '62주 (62.17)'],
+    [45, false, '45주'],
+    [0.45, false, '1주 미만 (0.45주)'],
+    [12.1, true, '+12주 (12.1)'],
+    [-3.5, true, '−3주 (3.5)'],
+    [1608.63, false, '1,608주 (1,608.63)'],
+  ])('%s → %s', (shares, sign, text) => {
+    expect(sharesText(shares as number, sign as boolean)).toBe(text)
+  })
+
+  it('주문 제목도 같은 꼴', () => {
+    expect(orderTitle('SCHD', { action: 'sell', shares: -62.17, adjustNative: -1, currency: 'USD' })).toBe('SCHD 62주 (62.17) 팔기')
   })
 })

@@ -104,7 +104,7 @@ def get_dashboard(db: Session = Depends(get_db), user_id: int = Depends(current_
         cards.append(
             DashboardCard(
                 ticker=stock.ticker,
-                name=stock.name,
+                name=stock.shown_name,
                 category=stock.category,
                 market=market,
                 currency=currency_of_stock(stock),

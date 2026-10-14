@@ -340,7 +340,7 @@ def overview(db: Session, stocks, today: dt.date | None = None) -> list[dict]:
     rows = []
     for stock in stocks:
         row = detail(db, stock.ticker, stock.currency, today, with_quarters=False)
-        row["name"] = stock.name
+        row["name"] = stock.shown_name
         row["category"] = stock.category
         rows.append(row)
     return rows

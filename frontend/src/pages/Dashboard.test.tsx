@@ -934,3 +934,17 @@ describe('대시보드 · 시그널 기준 내 설정 (0.42.0)', () => {
     )
   })
 })
+
+describe('대시보드 · 0종목 안내 (0.42.0 B4)', () => {
+  it('없는 "위의 시그널" 버튼을 가리키지 않고, 종목을 담으면 생기는 단추라고 말한다', async () => {
+    mockApi([])
+    renderDashboard()
+    const guide = await screen.findByText(/세 단계면 시작합니다/)
+    const box = guide.closest('.first-steps')!
+    expect(box).not.toHaveTextContent('위의 "시그널"')
+    expect(box).toHaveTextContent('종목을 담으면')
+    expect(box).toHaveTextContent('포트폴리오 / 시그널')
+    // 0종목 화면에는 그 단추가 실제로 없다 — 안내가 거짓말을 하지 않는지
+    expect(screen.queryByRole('group', { name: '대시보드 보기' })).toBeNull()
+  })
+})

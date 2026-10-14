@@ -404,7 +404,7 @@ def compute_rebalance_current(db: Session, user_id: int, today: dt.date | None =
         rows.append(
             {
                 "ticker": stock.ticker,
-                "name": stock.name,
+                "name": stock.shown_name,
                 "currency": position["currency"].value,
                 "target_weight_pct": stock.target_weight_pct,
                 "actual_weight_pct": actual,
