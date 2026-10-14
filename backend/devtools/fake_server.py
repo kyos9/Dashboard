@@ -6,6 +6,7 @@
     python -m devtools.fake_server            # http://127.0.0.1:8150
     python -m devtools.fake_server --reset    # 데이터를 지우고 처음부터
     python -m devtools.fake_server --demo-rule-change   # 시그널 정의를 오늘 바꾼 것처럼 (0.41.0)
+    python -m devtools.fake_server --demo-custom-thresholds   # 주인 계정이 시그널 기준을 바꾼 것처럼 (0.42.0)
 
 | 바꿔 끼우는 것 | 무엇으로 |
 | --- | --- |
@@ -720,6 +721,26 @@ def recompute_signals(demo_rule_change: bool = False) -> dict | None:
         db.close()
 
 
+# 주인 계정에 넣는 "내 기준" (--demo-custom-thresholds). 데모 시세에서 오늘 매수가 4개 → 5개(TSLA)로 실제로 달라지는
+# 값이다. 지인 계정의 네 종목은 어느 기준에서도 오늘 매수 수가 그대로라 데모가 되지 않는다.
+DEMO_THRESHOLDS = {"adx_trend": 15.0}
+
+
+def set_demo_thresholds() -> None:
+    """주인(owner) 계정이 시그널 기준을 바꾼 것처럼 — 화면의 "내 기준" 표시·요약 줄·차트 범례를 본다."""
+    from app.db import SessionLocal
+    from app.models import User
+    from app.services.settings import get_settings
+
+    db = SessionLocal()
+    try:
+        owner = db.query(User).filter(User.email == OWNER).one()
+        get_settings(db, owner.id).signal_thresholds = dict(DEMO_THRESHOLDS)
+        db.commit()
+    finally:
+        db.close()
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="가짜 로그인·시세 서버 (개발·디자인 확인용)")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
@@ -728,6 +749,10 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument(
         "--demo-rule-change", action="store_true",
         help="시그널 정의를 오늘 바꾼 것처럼 — 켤 때 지난 판정을 다시 계산하고, 신호 요약에 '바뀌었습니다'가 뜬다",
+    )
+    parser.add_argument(
+        "--demo-custom-thresholds", action="store_true",
+        help="주인 계정이 시그널 기준을 바꾼 것처럼 (ADX 15) — '내 기준' 화면을 본다",
     )
     args = parser.parse_args(argv)
 
@@ -744,6 +769,8 @@ def main(argv: list[str] | None = None) -> None:
         seed()
         (data_dir / SEEDED).touch()
     recompute_signals(demo_rule_change=args.demo_rule_change)
+    if args.demo_custom_thresholds:
+        set_demo_thresholds()
 
     import uvicorn
 

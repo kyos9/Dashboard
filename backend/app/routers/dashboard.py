@@ -42,6 +42,8 @@ def get_dashboard(db: Session = Depends(get_db), user_id: int = Depends(current_
     signals_by_ticker = signals.today(tickers)
 
     last_buy_signals = signals.last_buy_dates(tickers)
+    # 내 기준을 쓰는 사람의 신호 요약에 "기본 기준이면 몇 개"를 보이려고 — 저장된 판정 한 행만 더 읽는다
+    default_today = queries.recent_signals(db, tickers, limit=1) if signals.custom else {}
     rules_version = signal_rules.rules_version(t)
     # 오늘 조건은 종목마다가 아니라 한 번에 (signals.buy_conditions_many)
     conditions_by_ticker = buy_conditions_many({tk: indicators_by_ticker.get(tk, []) for tk in tickers}, t)
@@ -110,6 +112,9 @@ def get_dashboard(db: Session = Depends(get_db), user_id: int = Depends(current_
                 price_source=price.source if price else None,
                 indicators=indicators,
                 knee_buy_v2=bool(signal.knee_buy_v2) if signal else False,
+                knee_buy_v2_default=(
+                    bool(rows[0].knee_buy_v2) if (rows := default_today.get(stock.ticker)) else False
+                ) if signals.custom else None,
                 knee_conditions=knee_conditions,
                 buy_conditions=buy_conditions,
                 signal_rules_version=rules_version,

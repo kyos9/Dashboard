@@ -236,6 +236,8 @@ class DashboardCard(BaseModel):
     price_source: Optional[str] = None
     indicators: LatestIndicators
     knee_buy_v2: bool = False
+    # 0.42.0 — 내 기준을 쓰는 사람에게만: 기본(공용) 기준이면 오늘 매수였나. 기본인 사람은 None
+    knee_buy_v2_default: Optional[bool] = None
     knee_conditions: KneeConditions = KneeConditions()
     # 매수 조건별 판정 — 키는 규칙(`signal_rules.py`)의 조건 키 그대로라 조건 수가 바뀌어도 모양이 같다
     # (0.41.0). 지금은 `knee_conditions` 와 같은 네 키다. 옛 화면은 `knee_conditions` 를 읽는다.

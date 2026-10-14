@@ -240,3 +240,20 @@ def test_demo_rule_change_shows_the_notice_and_recomputes(server):
         # 정의 자체는 그대로 — 데모 시그널이 그대로 뜬다
         by_ticker = {r["ticker"]: r for r in owner.get(demo + "/api/dashboard").json()}
         assert by_ticker["NVDA"]["knee_buy_v2"]
+
+
+def test_demo_custom_thresholds_shows_my_thresholds(server):
+    """`--demo-custom-thresholds` — 주인 계정이 시그널 기준을 바꾼 것처럼 (0.42.0). 오늘 매수 수가 실제로 달라진다."""
+    with _serve(DATA_DIRS["main"], "--demo-custom-thresholds") as demo:
+        owner = login(demo, fake_server.OWNER)
+        rules = owner.get(demo + "/api/signal-rules").json()
+        assert (rules["custom"], rules["thresholds"]["adx_trend"]) == (True, 15.0)
+        cards = owner.get(demo + "/api/dashboard").json()
+        mine = sum(c["knee_buy_v2"] for c in cards)
+        default = sum(bool(c["knee_buy_v2_default"]) for c in cards)
+        assert mine != default
+        # 다른 사람은 기본 그대로
+        friend = login(demo, fake_server.FRIEND)
+        assert friend.get(demo + "/api/signal-rules").json()["custom"] is False
+        # 기본값으로 되돌리면 처음과 같다 (다음 시험이 같은 데이터를 쓴다)
+        assert owner.delete(demo + "/api/signal-thresholds").json()["custom"] is False

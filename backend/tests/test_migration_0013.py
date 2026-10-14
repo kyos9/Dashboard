@@ -72,3 +72,16 @@ def test_a_db_from_a_newer_version_still_opens(at_0004, snapshots):
     assert migrate.is_known("0099") is False
     assert migrate.upgrade_to_head(engine) == "0099"
     assert migrate.current_revision(engine) == "0099"
+
+
+def test_downgrade_tool_goes_down_to_0012_and_refuses_irreversible_steps(at_0004, snapshots):
+    """DEPLOY 9-2 의 첫 줄 — 새 이미지로 0012 까지 내린다. 0005·0006 을 건너는 내리기는 거절한다."""
+    import pytest
+
+    engine = at_0004
+    migrate.upgrade_to_head(engine)
+    assert migrate.downgrade_to("0012", engine) == "0012"
+    assert "signal_thresholds" not in _columns(engine, "user_settings")
+    with pytest.raises(ValueError, match="되돌릴 수 없습니다"):
+        migrate.downgrade_to("0004", engine)
+    assert migrate.current_revision(engine) == "0012"

@@ -11,6 +11,7 @@ import {
   type Time,
 } from 'lightweight-charts'
 import type { HistoryResponse } from '../types'
+import { useSignalRules } from '../lib/signalRules'
 import { SignalShape } from './SignalShape'
 
 /* 차트에는 매수/매도 두 가지 점만 찍는다. 색은 대시보드 신호등과 같은 뜻으로 맞춘다
@@ -186,8 +187,11 @@ export function ChartLegend({
   loading: boolean
 }) {
   const counts = useMarkerCounts(history)
+  // 내 기준을 쓰는 사람의 점은 내 기준으로 찍혀 있다 (0.42.0) — 카드와 같은 기준임을 차트에서도 알게
+  const mine = useSignalRules().custom === true
   return (
     <div className="legend-row">
+      {mine && <span className="badge badge-grey">내 기준</span>}
       <span>
         <SignalShape kind="buy" />
         매수 {counts.buy.streaks}구간 · {counts.buy.days}일

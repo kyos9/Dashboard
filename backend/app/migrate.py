@@ -103,6 +103,29 @@ def is_known(revision: str | None) -> bool:
         return False
 
 
+def downgrade_to(revision: str, bind=None) -> str | None:
+    """DB 를 `revision` 까지 내린다 — 옛 이미지로 되돌리기 전에 (DEPLOY.md 9-2, `app.tools.downgrade`).
+
+    되돌릴 수 없는 리비전(`IRREVERSIBLE`)을 건너야 하면 거절한다 — 그건 백업에서 되돌린다(10-1).
+    """
+    from alembic.script import ScriptDirectory
+
+    bind = bind or engine
+    stamped = current_revision(bind)
+    if stamped is None or not is_known(stamped) or not is_known(revision):
+        raise ValueError(f"내릴 수 없습니다: 지금 {stamped}, 목표 {revision}")
+    script = ScriptDirectory(str(SCRIPT_LOCATION))
+    crossing = [rev.revision for rev in script.iterate_revisions(stamped, revision)]
+    crossing = [r for r in crossing if r != revision]
+    if IRREVERSIBLE & set(crossing):
+        raise ValueError(f"{', '.join(sorted(IRREVERSIBLE & set(crossing)))} 은 되돌릴 수 없습니다 — 백업에서 되돌리세요")
+    # 내리기 직전에도 한 벌 — 못 떠도 진행한다(더하기만 한 칸을 지우는 것이라 잃는 것이 작다)
+    backup.snapshot_before_migration(bind, required=False)
+    with bind.begin() as conn:
+        command.downgrade(_config(conn), revision)
+    return current_revision(bind)
+
+
 def upgrade_to_head(bind=None) -> str | None:
     """DB를 최신 스키마로 올리고, 올라간 자리를 돌려준다."""
     bind = bind or engine

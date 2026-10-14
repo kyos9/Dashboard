@@ -845,3 +845,92 @@ describe('대시보드 · 시그널 규칙은 서버에서 (0.41.0)', () => {
     await waitFor(() => expect(rules).toHaveBeenCalledTimes(2))
   })
 })
+
+describe('대시보드 · 시그널 기준 내 설정 (0.42.0)', () => {
+  beforeEach(() => resetSignalRules())
+  afterEach(() => resetSignalRules())
+
+  const DEFAULTS = { adx_trend: 20, vol_ratio_expand: 1.1, disparity_below: 0, lookback_days: 5 }
+  const LIMITS = {
+    adx_trend: { min: 10, max: 40, step: 0.5 },
+    vol_ratio_expand: { min: 0.5, max: 3, step: 0.05 },
+    disparity_below: { min: -20, max: 0, step: 0.5 },
+    lookback_days: { min: 1, max: 20, step: 1 },
+  }
+  function rulesOf(custom: boolean, version = custom ? 'mine' : LEGACY_SIGNAL_RULES.version): SignalRules {
+    return {
+      ...LEGACY_SIGNAL_RULES,
+      version,
+      thresholds: custom ? { ...DEFAULTS, adx_trend: 15 } : DEFAULTS,
+      defaults: DEFAULTS,
+      custom,
+      limits: LIMITS,
+      change_notice: null,
+    }
+  }
+
+  it('0.41.0 서버(custom 없음)·0.40.0 서버(404)에는 "시그널 기준" 버튼이 없다', async () => {
+    mockApi()
+    vi.spyOn(api, 'getSignalRules').mockResolvedValue({ ...LEGACY_SIGNAL_RULES, change_notice: null })
+    const { unmount } = renderDashboard()
+    await screen.findByText('⚙ 종목 설정')
+    await waitFor(() => expect(api.getSignalRules).toHaveBeenCalled())
+    expect(screen.queryByRole('button', { name: /시그널 기준/ })).toBeNull()
+    unmount()
+
+    resetSignalRules()
+    vi.spyOn(api, 'getSignalRules').mockRejectedValue(new ApiError(404, null, 'Not Found', null))
+    renderDashboard()
+    await screen.findByText('⚙ 종목 설정')
+    expect(screen.queryByRole('button', { name: /시그널 기준/ })).toBeNull()
+  })
+
+  it('기본 기준인 사람은 버튼만 더해지고 "내 기준" 줄·표시는 없다', async () => {
+    mockApi()
+    vi.spyOn(api, 'getSignalRules').mockResolvedValue(rulesOf(false))
+    renderDashboard()
+    expect(await screen.findByRole('button', { name: '시그널 기준' })).toBeInTheDocument()
+    expect(screen.queryByText(/내 기준/)).toBeNull()
+  })
+
+  it('내 기준인 사람에게는 신호 요약에 "내 기준 · 오늘 매수 N개 (기본 기준이면 M개)"와 설명 줄 앞 "내 기준"', async () => {
+    mockApi([
+      card({ ticker: 'VOO', knee_buy_v2: true, knee_buy_v2_default: false, signal_rules_version: 'mine' }),
+      card({ ticker: 'QQQ', knee_buy_v2: true, knee_buy_v2_default: true, signal_rules_version: 'mine' }),
+    ])
+    vi.spyOn(api, 'getSignalRules').mockResolvedValue(rulesOf(true))
+    renderDashboard()
+    const note = await screen.findByText((_, el) => !!el?.classList.contains('mine-note'))
+    expect(note).toHaveTextContent('내 기준으로 본 판정 · 오늘 매수 2개 (기본 기준이면 1개)')
+    expect(screen.getByRole('button', { name: '시그널 기준 · 내 기준' })).toBeInTheDocument()
+    expect(screen.getByText((_, el) => el?.tagName === 'P' && !!el.textContent?.startsWith('내 기준: 매수 시그널 ='))).toBeInTheDocument()
+  })
+
+  it('내 기준과 기본 기준의 매수 수가 같으면 그렇다고 말한다 ("4개 (기본 기준이면 4개)"가 아니게)', async () => {
+    mockApi([card({ ticker: 'VOO', knee_buy_v2: true, knee_buy_v2_default: true, signal_rules_version: 'mine' })])
+    vi.spyOn(api, 'getSignalRules').mockResolvedValue(rulesOf(true))
+    renderDashboard()
+    const note = await screen.findByText((_, el) => !!el?.classList.contains('mine-note'))
+    expect(note).toHaveTextContent('오늘 매수 1개 — 기본 기준과 같습니다')
+  })
+
+  it('저장하면 돌려받은 규칙으로 바로 바꾸고 화면을 다시 받는다', async () => {
+    mockApi()
+    vi.spyOn(api, 'getSignalRules').mockResolvedValue(rulesOf(false))
+    const put = vi.spyOn(api, 'putSignalThresholds').mockResolvedValue(rulesOf(true))
+    renderDashboard()
+    await userEvent.click(await screen.findByRole('button', { name: '시그널 기준' }))
+    const dialog = await screen.findByRole('dialog', { name: '시그널 기준' })
+    const adx = within(dialog).getByLabelText('ADX 기준')
+    await userEvent.clear(adx)
+    await userEvent.type(adx, '15')
+    const before = (api.getDashboard as unknown as { mock: { calls: unknown[] } }).mock.calls.length
+    await userEvent.click(within(dialog).getByRole('button', { name: '저장' }))
+    expect(put).toHaveBeenCalledWith({ ...DEFAULTS, adx_trend: 15 })
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(await screen.findByRole('button', { name: '시그널 기준 · 내 기준' })).toBeInTheDocument()
+    await waitFor(() =>
+      expect((api.getDashboard as unknown as { mock: { calls: unknown[] } }).mock.calls.length).toBeGreaterThan(before),
+    )
+  })
+})

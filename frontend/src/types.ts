@@ -165,9 +165,19 @@ export interface SignalRule {
   conditions: SignalRuleCondition[]
 }
 
+export type SignalThresholdKey = 'adx_trend' | 'vol_ratio_expand' | 'disparity_below' | 'lookback_days'
+export type SignalThresholds = Record<SignalThresholdKey, number>
+
 export interface SignalRules {
   version: string
-  thresholds: { adx_trend: number; vol_ratio_expand: number; disparity_below: number; lookback_days: number }
+  /** 이 사람이 쓰는 기준값 (0.42.0 부터 사람마다) */
+  thresholds: SignalThresholds
+  /** 0.42.0 — 공용 기본값. 없으면 0.41.0 서버(기준을 바꿀 수 없다) */
+  defaults?: SignalThresholds
+  /** 0.42.0 — 이 사람이 기준을 바꿨나 */
+  custom?: boolean
+  /** 0.42.0 — 바꿀 수 있는 범위 */
+  limits?: Record<SignalThresholdKey, { min: number; max: number; step: number }>
   rules: SignalRule[]
   changes?: { date: string; what: string; why: string }[]
   changed_on?: string | null
@@ -206,6 +216,8 @@ export interface DashboardCard {
   price_source: string | null
   indicators: LatestIndicators
   knee_buy_v2: boolean
+  /** 0.42.0 — 내 기준을 쓰는 사람에게만: 기본 기준이면 오늘 매수였나 */
+  knee_buy_v2_default?: boolean | null
   knee_conditions: KneeConditions
   /** 매수 조건별 판정 — 키는 규칙의 조건 키. 0.41.0 부터. 옛 서버는 보내지 않는다 */
   buy_conditions?: Record<string, boolean | null>

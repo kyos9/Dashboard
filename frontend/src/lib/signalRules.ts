@@ -58,6 +58,18 @@ export function useSignalRules(version?: string | null): SignalRules {
   return rules
 }
 
+/** 서버가 돌려준 새 규칙으로 바로 바꾼다 — 기준을 저장한 뒤(0.42.0). 종목이 0개라 카드로 판을 못 받는 사람도 */
+export function setSignalRules(rules: SignalRules) {
+  current = rules
+  loaded = rules.version
+  emit()
+}
+
+/** 기준을 바꿀 수 있는 서버인가 — 0.40.0(규칙 API 없음)·0.41.0(`custom` 없음)이면 아니다 */
+export function canCustomize(rules: SignalRules): boolean {
+  return typeof rules.custom === 'boolean' && !!rules.defaults && !!rules.limits
+}
+
 /** 시험용 — 받아 둔 규칙을 처음 상태로 */
 export function resetSignalRules() {
   current = LEGACY_SIGNAL_RULES

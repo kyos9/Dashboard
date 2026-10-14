@@ -331,3 +331,14 @@ def test_ai_sees_my_thresholds_in_all_three_jobs(world):
     assert "① -DI>+DI" in stock_prompt and "ADX>15" in stock_prompt
     assert "FLIP" in watch_prompt
     assert "오늘 매수 시그널 충족" in portfolio_prompt and "오늘 매수 시그널 미충족" in default_prompts[2]
+
+
+def test_cards_tell_my_people_what_the_default_would_say(world):
+    client, Session = world
+    plain = {c["ticker"]: c for c in client.get("/api/dashboard").json()}
+    assert {c["knee_buy_v2_default"] for c in plain.values()} == {None}
+    _set_mine(Session, MINE)
+    mine = {c["ticker"]: c for c in client.get("/api/dashboard").json()}
+    assert (mine["FLIP"]["knee_buy_v2"], mine["FLIP"]["knee_buy_v2_default"]) == (True, False)
+    for ticker, card in mine.items():
+        assert card["knee_buy_v2_default"] is plain[ticker]["knee_buy_v2"]

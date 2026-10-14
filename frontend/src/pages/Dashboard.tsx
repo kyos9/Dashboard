@@ -21,6 +21,8 @@ import { useRecheck } from '../lib/recheck'
 
 // 차트는 누를 때 받는다 (App.tsx의 HistoryChart와 같은 이유)
 const AiSummaryModal = lazyChunk(() => import('../components/AiSummaryModal'), 'AiSummaryModal')
+// 시그널 기준(0.42.0)도 누를 때 받는다 — 첫 화면 JS 를 늘리지 않게
+const SignalThresholdsModal = lazyChunk(() => import('../components/SignalThresholdsModal'), 'SignalThresholdsModal')
 import { useAuth } from '../components/AuthGate'
 import { pushAccount } from '../lib/push'
 import { ErrorNotice } from '../components/ErrorNotice'
@@ -44,7 +46,14 @@ import {
   type MetricKey,
   type Traffic,
 } from '../lib/display'
-import { buyRule, buyRuleSentence, cardConditions, conditionByMetric, useSignalRules } from '../lib/signalRules'
+import {
+  buyRule,
+  buyRuleSentence,
+  canCustomize,
+  cardConditions,
+  conditionByMetric,
+  useSignalRules,
+} from '../lib/signalRules'
 import type { DashboardCard, RebalanceCurrent, Stock, StockUpdateInput } from '../types'
 
 type QuickFilter = 'all' | 'knee' | 'rebalance'
@@ -336,6 +345,7 @@ export function Dashboard() {
   const narrow = useNarrow()
   // 팝업과 어느 탭부터 열지 — 종목 이름은 차트, 맨 오른쪽 "AI 분석" 버튼은 AI 탭
   const [chart, setChart] = useState<{ card: DashboardCard; tab: ChartTab } | null>(null)
+  const [showThresholds, setShowThresholds] = useState(false)
   const openChart = useCallback((card: DashboardCard) => setChart({ card, tab: 'chart' }), [])
   const openAi = useCallback((card: DashboardCard) => setChart({ card, tab: 'ai' }), [])
   const [aiAll, setAiAll] = useState(false)
@@ -506,6 +516,10 @@ export function Dashboard() {
       sellReview: reasons.filter((r) => r.includes('매도')).length,
       buyReview: reasons.filter((r) => r.includes('매수')).length,
       periodicReview: reasons.filter((r) => r.includes('정기')).length,
+      // 내 기준을 쓰는 사람에게만 뜻이 있다 — 같은 카드를 기본 기준의 오늘 매수로 바꿔 센다 (0.42.0)
+      buyDefault: cards.filter(
+        (c) => trafficLight({ ...c, knee_buy_v2: !!c.knee_buy_v2_default }, rules).state === 'buy',
+      ).length,
     }
   }, [cards, rules])
 
@@ -778,6 +792,17 @@ export function Dashboard() {
             ? `${summary.stale}종목은 시세가 오래되어 판정에서 제외됐습니다.`
             : '모든 종목의 시세가 최신 상태입니다.'}
         </p>
+        {/* 내 기준을 쓰는 사람에게만 (0.42.0) — 저장이 됐는지, 지금 어느 기준으로 보는지 */}
+        {rules.custom && (
+          <p className="kpi-foot mine-note" role="note">
+            <strong>내 기준</strong>으로 본 판정 · 오늘 매수 {summary.buy}개
+            {summary.buyDefault === summary.buy ? ' — 기본 기준과 같습니다' : ` (기본 기준이면 ${summary.buyDefault}개)`}
+            {' · '}
+            <button type="button" className="link-btn" onClick={() => setShowThresholds(true)}>
+              시그널 기준
+            </button>
+          </p>
+        )}
         {/* 정의를 바꾼 뒤 30일 — 지난 차트의 점이 왜 달라졌는지 알 수 있게 (주인 결정, 0.41.0) */}
         {rules.change_notice && (
           <p className="kpi-foot" role="note">
@@ -836,8 +861,14 @@ export function Dashboard() {
               setView('edit')
             }}
           >
-            ⚙ 설정
+            ⚙ 종목 설정
           </button>
+          {/* 내 기준 (0.42.0). 옛 서버면 숨긴다 — 바꿀 길이 없다 */}
+          {canCustomize(rules) && (
+            <button className="chip" onClick={() => setShowThresholds(true)} aria-haspopup="dialog">
+              시그널 기준{rules.custom ? ' · 내 기준' : ''}
+            </button>
+          )}
           {narrow && (
             <button
               className={`chip${ordering ? ' active' : ''}`}
@@ -890,6 +921,7 @@ export function Dashboard() {
       </div>
 
       <p className="hint" style={{ marginTop: 14 }}>
+        {rules.custom && <strong>내 기준: </strong>}
         {buyRuleSentence(rules)} 각 조건은 해당 지표 칸에 ✓로 표시됩니다. 매도 시그널은 참고용이며 실제
         매도는 리밸런싱 리뷰 때 비중을 보고 정합니다.
       </p>
@@ -909,6 +941,16 @@ export function Dashboard() {
             name={stockLabel(chart.card)}
             initialTab={chart.tab}
             onClose={() => setChart(null)}
+          />
+        </Suspense>
+      )}
+
+      {showThresholds && (
+        <Suspense fallback={null}>
+          <SignalThresholdsModal
+            rules={rules}
+            onClose={() => setShowThresholds(false)}
+            onSaved={notifyDataChanged}
           />
         </Suspense>
       )}
