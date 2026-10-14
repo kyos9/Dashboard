@@ -284,15 +284,32 @@ describe('팔지 않고 새 돈만 나누기 (0.42.0)', () => {
     expect(more.leftover).toBeCloseTo(0)
   })
 
-  it('현금도 목표에 모자라면 몫을 받아 현금에 남는다 · 잡음(0.5% 미만) 몫도 현금에', () => {
+  it('현금도 목표에 모자라면 한 자리로 몫을 받아 현금에 남는다', () => {
     const rows = [
-      row({ ticker: 'A', currency: 'KRW', current_value_base: 900, target_weight_pct: 45, last_close: 10 }),
-      row({ ticker: 'B', currency: 'KRW', current_value_base: 1000, target_weight_pct: 45.2, last_close: 10 }),
+      row({ ticker: 'A', currency: 'KRW', current_value_base: 800, target_weight_pct: 50, last_close: 10 }),
+      row({ ticker: 'B', currency: 'KRW', current_value_base: 1000, target_weight_pct: 40, last_close: 10 }),
     ]
-    // 전체 2000(새 돈 100) → 목표 900 · 904 · 현금 196 — A 모자람 0, B 4(잡음), 현금 96
-    const plan = buildOrderPlan(rows, 'KRW', {}, { value_base: 0, target_pct: 9.8 }, '100', true)
-    expect(plan.orders.map((o) => o.action)).toEqual(['hold', 'hold'])
+    // 전체 2000(새 돈 200) → 목표 A 1000 · B 800 · 현금 200 — 모자람 A 200 · 현금 200 (합 400) — 새 돈을 반반
+    const plan = buildOrderPlan(rows, 'KRW', {}, { value_base: 0, target_pct: 10 }, '200', true)
+    expect(plan.orders.map((o) => [o.action, Math.round(o.adjust)])).toEqual([
+      ['buy', 100],
+      ['hold', 0],
+    ])
     expect(plan.leftover).toBeCloseTo(100)
+  })
+
+  it('나눈 몫이 잡음(0.5% 미만)이면 "유지"이고 그 몫은 현금에', () => {
+    const rows = [
+      row({ ticker: 'A', currency: 'KRW', current_value_base: 995, target_weight_pct: 50, last_close: 10 }),
+      row({ ticker: 'B', currency: 'KRW', current_value_base: 805, target_weight_pct: 50, last_close: 10 }),
+    ]
+    // 전체 2000 → 모자람 A 5(0.25%) · B 195 — A 는 유지, 5 는 현금에 남는다
+    const plan = buildOrderPlan(rows, 'KRW', {}, { value_base: 0, target_pct: 0 }, '200', true)
+    expect(plan.orders.map((o) => [o.action, Math.round(o.adjust)])).toEqual([
+      ['hold', 0],
+      ['buy', 195],
+    ])
+    expect(plan.leftover).toBeCloseTo(5)
   })
 
   it('새로 넣을 돈이 없으면 켜 둬도 지금 계산', () => {

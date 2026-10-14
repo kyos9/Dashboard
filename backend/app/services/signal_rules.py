@@ -241,7 +241,8 @@ def _build_rules(t: Thresholds) -> tuple[Rule, Rule]:
                 label="DI 약세",
                 detail="-DI > +DI — 하락 방향이 우위",
                 header="-DI > +DI",
-                formula="-DI > +DI",
+                # 설명 줄도 칩과 같은 이름으로 — 예전에는 "-DI > +DI"·"DI 약세"·"+DI / -DI" 셋이었다 (0.42.0 B1)
+                formula="DI 약세(-DI > +DI)",
                 ai_short="-DI>+DI",
                 ai_long="-DI > +DI",
                 evaluate=lambda df, t=t: _gt(df["minus_di"], df["plus_di"]),
@@ -265,7 +266,7 @@ def _build_rules(t: Thresholds) -> tuple[Rule, Rule]:
                 label="변동성·거래량",
                 detail=f"StdDev20 축소 또는 거래량비 > {_num(t.vol_ratio_expand)}",
                 header=f"변동성↓ 또는 >{_num(t.vol_ratio_expand)}",
-                formula=f"(StdDev20 축소 또는 거래량비 > {_num(t.vol_ratio_expand)})",
+                formula=f"변동성·거래량(StdDev20 축소 또는 거래량비 > {_num(t.vol_ratio_expand)})",
                 ai_short="변동성 축소 또는 거래량 증가",
                 ai_long=(
                     f"20일 표준편차가 {t.lookback_days}거래일 전보다 작거나, "

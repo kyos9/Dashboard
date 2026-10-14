@@ -1425,7 +1425,7 @@ function SignalCards({
                 <ConditionTag metric="adx" conditions={cardConditions(card)} />
               </div>
               <div className="stat-box">
-                <span className="k">+DI / -DI</span>
+                <span className="k">DI 방향 (+DI / -DI)</span>
                 <span className="v">
                   {num(ind.plus_di, 1)} / {num(ind.minus_di, 1)}
                 </span>

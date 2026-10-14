@@ -18,10 +18,10 @@ beforeEach(() => {
 })
 afterEach(() => resetSignalRules())
 
-describe('시그널 규칙 — 옛 서버용 규칙은 0.40.0 의 글 그대로', () => {
+describe('시그널 규칙 — 옛 서버용 규칙 (0.40.0 의 기준, 이름은 0.42.0 에 하나로 맞춤)', () => {
   it('설명 줄·열 머리·칩 이름', () => {
     expect(buyRuleSentence(LEGACY_SIGNAL_RULES)).toBe(
-      '매수 시그널 = -DI > +DI · 이격도 < 0 · (StdDev20 축소 또는 거래량비 > 1.1) · ADX > 20 — 네 조건을 모두 만족할 때.',
+      '매수 시그널 = 이격도 < 0 · ADX > 20 · DI 약세(-DI > +DI) · 변동성·거래량(StdDev20 축소 또는 거래량비 > 1.1) — 네 조건을 모두 만족할 때.',
     )
     const byMetric = conditionByMetric(LEGACY_SIGNAL_RULES)
     expect(Object.keys(byMetric).sort()).toEqual(['adx', 'di', 'disparity', 'volume'])

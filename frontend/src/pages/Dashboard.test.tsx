@@ -753,7 +753,7 @@ describe('대시보드 · 시그널 규칙은 서버에서 (0.41.0)', () => {
 
   /** 0.40.0 화면이 적어 두던 글 — 옛 서버든 새 서버든 정의가 같으면 글자까지 같아야 한다 */
   const OLD_SENTENCE =
-    '매수 시그널 = -DI > +DI · 이격도 < 0 · (StdDev20 축소 또는 거래량비 > 1.1) · ADX > 20 — 네 조건을 모두 만족할 때.'
+    '매수 시그널 = 이격도 < 0 · ADX > 20 · DI 약세(-DI > +DI) · 변동성·거래량(StdDev20 축소 또는 거래량비 > 1.1) — 네 조건을 모두 만족할 때.'
   const OLD_HEADERS = ['-DI > +DI', '< 0', '변동성↓ 또는 >1.1', '> 20']
 
   async function expectOldScreen() {
@@ -823,7 +823,7 @@ describe('대시보드 · 시그널 규칙은 서버에서 (0.41.0)', () => {
 
     expect(await screen.findByRole('note')).toHaveTextContent('시그널 계산 방식이 2026-11-02에 바뀌었습니다')
     expect(
-      screen.getByText((_, el) => el?.tagName === 'P' && !!el.textContent?.includes('· ADX > 25 · RSI < 30 — 다섯 조건을 모두 만족할 때.')),
+      screen.getByText((_, el) => el?.tagName === 'P' && !!el.textContent?.includes('이격도 < 0 · ADX > 25 · DI 약세(-DI > +DI) · 변동성·거래량(StdDev20 축소 또는 거래량비 > 1.1) · RSI < 30 — 다섯 조건을 모두 만족할 때.')),
     ).toBeInTheDocument()
     const row = await cardRow('VOO')
     expect(within(row).getByLabelText('ADX > 25 충족')).toBeInTheDocument()

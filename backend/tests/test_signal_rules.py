@@ -321,3 +321,13 @@ def test_ai_context_values_n_trading_days_ago(api):
             assert section["adx_5d_ago"] == pytest.approx(back["adx"]), ticker
             assert section["stddev20_5d_ago"] == pytest.approx(back["stddev20"]), ticker
             assert section["knee_conditions"] == signal_rules.latest_conditions(BUY, ind)
+
+
+def test_each_condition_has_one_name_on_screen():
+    """B1 (0.42.0) — 설명 줄의 식이 칩 이름으로 시작한다. 예전에는 같은 조건이 "-DI > +DI"·"DI 약세"·"+DI / -DI" 셋이었다.
+    내 기준을 바꿔도 그대로다."""
+    for t in (signal_rules.DEFAULT, signal_rules.Thresholds(adx_trend=25.0, vol_ratio_expand=1.3, disparity_below=-2.0)):
+        # 화면이 칩·설명 줄로 보이는 것은 매수 조건이다 (매도는 "참고" 한 줄)
+        buy, _ = signal_rules.build_rules(t)
+        for c in buy.conditions:
+            assert c.formula.startswith(c.label), (c.key, c.label, c.formula)

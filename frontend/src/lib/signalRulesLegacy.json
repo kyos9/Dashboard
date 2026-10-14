@@ -20,7 +20,7 @@
           "label": "DI 약세",
           "detail": "-DI > +DI — 하락 방향이 우위",
           "header": "-DI > +DI",
-          "formula": "-DI > +DI"
+          "formula": "DI 약세(-DI > +DI)"
         },
         {
           "key": "disparity_negative",
@@ -36,7 +36,7 @@
           "label": "변동성·거래량",
           "detail": "StdDev20 축소 또는 거래량비 > 1.1",
           "header": "변동성↓ 또는 >1.1",
-          "formula": "(StdDev20 축소 또는 거래량비 > 1.1)"
+          "formula": "변동성·거래량(StdDev20 축소 또는 거래량비 > 1.1)"
         },
         {
           "key": "adx_trending",
