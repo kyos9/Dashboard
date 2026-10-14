@@ -203,7 +203,8 @@ class SignalThresholdsIn(BaseModel):
                 continue
             if isinstance(value, bool) or not isinstance(value, (int, float)):
                 raise ValueError(f"{key}: 숫자가 아닙니다")
-            if not math.isfinite(value):
+            # 아주 큰 정수(10**400)는 float 로 못 바꿔 isfinite 가 OverflowError 를 낸다 — 범위부터 본다 (A 검토)
+            if isinstance(value, float) and not math.isfinite(value):
                 raise ValueError(f"{key}: 숫자가 아닙니다")
             if not (low <= value <= high):
                 raise ValueError(f"{key}: {low:g} ~ {high:g} 사이여야 합니다")

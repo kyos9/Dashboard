@@ -5,7 +5,7 @@
 
 - 기본인 사람: 지금 길 그대로 — `signal_daily` 를 읽는다(쿼리 수도 그대로).
 - 바꾼 사람: 공용 지표(`indicator_daily`)와 종가(`price_daily`, 매도 "종가 > MA50")를 읽어 그 기준으로 표 전체를
-  판정한다. 결과는 (기준, 종목, 마지막 지표 날짜, 행 수)를 키로 메모리에 둔다 — 같은 기준인 사람끼리 나눠 쓰고,
+  판정한다. 결과는 (기준, 종목, 마지막 지표 날짜, 행 수, 판정이 읽는 지표의 합)을 키로 메모리에 둔다 — 같은 기준인 사람끼리 나눠 쓰고,
   시세가 갱신되면 키가 달라져 저절로 새로 센다.
 
 카드·차트 점·알림·리밸런싱(이번 기간 어깨매도)·AI 가 모두 `source(db, user_id)` 하나로 읽는다 — 한 사람 화면 안에서
@@ -30,6 +30,9 @@ from app.models import IndicatorDaily, PriceDaily, SignalDaily, UserSettings
 from app.services import queries, signal_rules
 from app.services.signal_rules import Thresholds
 from app.services.signals import _INDICATOR_FIELDS, compute_signals
+
+# 판정이 읽는 지표 (`signal_rules` 의 조건들) — 캐시 키의 합에 쓴다
+_JUDGED_FIELDS = ("ma50", "stddev20", "vol_ratio", "disparity", "plus_di", "minus_di", "adx")
 
 # 메모리에 두는 종목 판정의 수. 한 벌이 10년이면 수십 KB 라, 이만큼이면 수십 MB 를 넘지 않는다.
 CACHE_SIZE = 512
@@ -152,15 +155,22 @@ def judge(db: Session, tickers: Sequence[str], t: Thresholds) -> dict[str, Judge
     """종목마다 `t` 기준의 날마다 판정. 지표가 없는 종목은 키가 없다."""
     if not tickers:
         return {}
+    # 갱신은 이미 있는 날의 시세·지표를 그 자리에서 고치기도 한다(`data_ingestion`) — 날짜·행 수만으로는 그것을
+    # 모른다. 판정이 읽는 지표의 합을 키에 넣어 값이 고쳐지면 새로 센다(0.42.0 A 검토). 종가가 고쳐지면
+    # MA20·MA50·이격도가 따라 바뀌므로 지표 합에 드러난다. 처리기가 여럿이어도 맞다(메모리 표시가 아니라 DB 값이다).
+    ind = IndicatorDaily.__table__
     marks = db.execute(
-        select(IndicatorDaily.ticker, func.max(IndicatorDaily.date), func.count())
-        .where(IndicatorDaily.ticker.in_(list(tickers)))
-        .group_by(IndicatorDaily.ticker)
+        select(
+            ind.c.ticker, func.max(ind.c.date), func.count(),
+            *[func.sum(ind.c[name]) for name in _JUDGED_FIELDS],
+        )
+        .where(ind.c.ticker.in_(list(tickers)))
+        .group_by(ind.c.ticker)
     ).all()
     out: dict[str, Judged] = {}
     missing: dict[str, tuple] = {}
-    for ticker, last, count in marks:
-        key = (t, ticker, last, count)
+    for ticker, last, count, *sums in marks:
+        key = (t, ticker, last, count, *(None if v is None else round(float(v), 9) for v in sums))
         judged = _recall(key)
         if judged is None:
             missing[ticker] = key

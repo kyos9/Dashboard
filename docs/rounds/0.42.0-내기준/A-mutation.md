@@ -41,3 +41,19 @@
 | --- | --- | --- |
 | M5 리밸런싱 어깨매도를 공용으로 | `backend/app/services/rebalance.py` | 잡힘 |
 | M8 종목 사이 빈 행 없음 | `backend/app/services/my_signals.py` | **살아남음** |
+
+## A 검토 뒤 (A-review.md 의 R1~R7 + 고친 것 R8·R9)
+
+명령: 각 줄을 바꾸고 `python -m pytest -x -q tests/test_my_signals.py`, 되돌림. 백엔드 전체 1359 passed, 3 skipped.
+
+| 뮤테이션 | 파일 | 결과 |
+| --- | --- | --- |
+| R1 메모리 키에서 기준 뺌 | `backend/app/services/my_signals.py` | 잡힘 FAILED tests/test_my_signals.py::test_memory_has_a_size_limit - AssertionErro... |
+| R3 AI 지시문 'N거래일 전' 숫자를 공용 | `backend/app/services/ai_analysis.py` | 잡힘 FAILED tests/test_my_signals.py::test_ai_names_my_lookback_and_reads_that_many_days_back |
+| R4 사람 판에 ADX 만 | `backend/app/services/signal_rules.py` | 잡힘 FAILED tests/test_my_signals.py::test_every_single_value_gives_its_own_version |
+| R5 차트 점이 기간(since) 무시 | `backend/app/services/my_signals.py` | 잡힘 FAILED tests/test_my_signals.py::test_chart_markers_keep_to_the_chosen_range |
+| R6 기본 여부를 ADX 로만 | `backend/app/services/signal_rules.py` | 잡힘 FAILED tests/test_my_signals.py::test_every_single_value_gives_its_own_version |
+| R7 AI 지표 칸 N거래일 전 행을 공용 N | `backend/app/services/ai_analysis.py` | 잡힘 FAILED tests/test_my_signals.py::test_ai_names_my_lookback_and_reads_that_many_days_back |
+| R8 캐시 키에서 지표 합 뺌 | `backend/app/services/my_signals.py` | 잡힘 FAILED tests/test_my_signals.py::test_memory_notices_values_fixed_on_the_same_day |
+| R9 큰 정수 isfinite 되돌림 | `backend/app/schemas.py` | 잡힘 FAILED tests/test_my_signals.py::test_huge_whole_numbers_are_refused_not_crashed |
+| R2 카드 지표 행 수를 공용 N+1 | `backend/app/routers/dashboard.py` | 잡힘 FAILED tests/test_my_signals.py::test_card_conditions_read_my_lookback_days_back |

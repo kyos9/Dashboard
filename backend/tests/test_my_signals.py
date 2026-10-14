@@ -115,21 +115,31 @@ def test_judging_with_the_default_values_reproduces_every_stored_signal(world):
         assert forced.buy_count_after("BBB", since) == default.buy_count_after("BBB", since)
 
 
-def test_all_four_paths_follow_my_thresholds(world):
+# 값 **하나만** 바꾼 사람도 — 기본인지 가르는 것이 한 값만 보면 나머지 셋을 바꾼 사람이 공용 판정을 본다(A 검토 R6).
+# 비교 기간 10 은 카드가 읽는 지표 행 수(공용 5+1)를 넘는다(R2). 셋 다 이 시세에서 기본과 판정이 갈린다.
+ONE_VALUE = [
+    Thresholds(lookback_days=10),
+    Thresholds(vol_ratio_expand=0.8),
+    Thresholds(disparity_below=-2.0),
+]
+
+
+@pytest.mark.parametrize("mine", [MINE, *ONE_VALUE], ids=["adx15-lookback3", "lookback10", "vol0.8", "disparity-2"])
+def test_all_four_paths_follow_my_thresholds(world, mine):
     """카드·차트 점·알림·리밸런싱이 모두 내 기준 — 시세에서 따로 센 답과 같다."""
     client, Session = world
-    _set_mine(Session, MINE)
+    _set_mine(Session, mine)
 
     cards = {c["ticker"]: c for c in client.get("/api/dashboard").json()}
     for ticker in PRICES:
-        exp = _expected(ticker, MINE)
+        exp = _expected(ticker, mine)
         card = cards[ticker]
         assert card["knee_buy_v2"] is bool(exp["knee_buy_v2"].iloc[-1]), ticker
         assert card["shoulder_sell_ref"] is bool(exp["shoulder_sell_ref"].iloc[-1]), ticker
         buys = exp.index[exp["knee_buy_v2"]]
         assert card["last_buy_signal_date"] == (buys.max().isoformat() if len(buys) else None), ticker
         assert card["buy_conditions"] == signal_rules.latest_conditions(
-            signal_rules.build_rules(MINE)[0], compute_indicators(PRICES[ticker])
+            signal_rules.build_rules(mine)[0], compute_indicators(PRICES[ticker])
         ), ticker
 
         markers = client.get(f"/api/history/{ticker}", params={"range": "max"}).json()["markers"]
@@ -141,10 +151,14 @@ def test_all_four_paths_follow_my_thresholds(world):
     with Session() as db:
         values = alerts.current_values(db, 1)
         today = dt.date.today().isoformat()
-        assert values["buy:FLIP"][0] == today  # 기본 기준이면 오늘 매수가 아니다
+        for ticker in PRICES:
+            on = bool(_expected(ticker, mine)["knee_buy_v2"].iloc[-1])
+            assert (values[f"buy:{ticker}"][0] == today) is on, ticker
+        if mine == MINE:
+            assert values["buy:FLIP"][0] == today  # 기본 기준이면 오늘 매수가 아니다
         stocks = db.query(UserStock).filter_by(user_id=1).all()
         for stock in stocks:
-            exp = _expected(stock.ticker, MINE)
+            exp = _expected(stock.ticker, mine)
             start, end = period_trading_bounds(exp.index[-1], "quarterly", "US")
             want = any(start <= d <= end for d in exp.index[exp["shoulder_sell_ref"]])
             got = rebalance.shoulder_fired_in_current_period(db, stock, exp.index[-1])
@@ -412,3 +426,90 @@ def test_the_stock_list_also_carries_the_shown_name(api):
         db.commit()
     got = {s["ticker"]: s for s in client.get("/api/stocks").json()}
     assert (got["7203.T"]["name"], got["7203.T"]["shown_name"]) == (None, "トヨタ自動車")
+
+
+def test_every_single_value_gives_its_own_version(world):
+    """판(`version`)이 값마다 다르다 — 한 값만 넣으면 그 값만 바꾼 다른 기기 화면이 규칙을 다시 받지 않는다 (A 검토 R4)."""
+    versions = {signal_rules.rules_version(t) for t in [signal_rules.DEFAULT, MINE, *ONE_VALUE, Thresholds(adx_trend=15.0)]}
+    assert len(versions) == 6
+    assert signal_rules.rules_version(signal_rules.DEFAULT) == signal_rules.fingerprint()
+
+
+def test_chart_markers_keep_to_the_chosen_range(world):
+    """`range=1y` 차트에는 1년 안의 점만 — 내 기준도 기간을 지킨다 (A 검토 R5)."""
+    client, Session = world
+    _set_mine(Session, MINE)
+    cutoff = dt.date.today() - dt.timedelta(days=365)
+    for ticker in PRICES:
+        exp = _expected(ticker, MINE)
+        markers = client.get(f"/api/history/{ticker}", params={"range": "1y"}).json()["markers"]
+        got = {(m["date"], m["kind"]) for m in markers}
+        want = {(d.isoformat(), "buy") for d in exp.index[exp["knee_buy_v2"]] if d >= cutoff}
+        want |= {(d.isoformat(), "sell") for d in exp.index[exp["shoulder_sell_ref"]] if d >= cutoff}
+        assert got == want, ticker
+        assert want, ticker  # 1년 안에도 점이 있어야 이 테스트가 헛돌지 않는다
+        everything = client.get(f"/api/history/{ticker}", params={"range": "max"}).json()["markers"]
+        assert len(everything) > len(markers), ticker
+
+
+def test_ai_names_my_lookback_and_reads_that_many_days_back(world):
+    """AI 지표 줄의 "N거래일 전"은 내 N 이고, 그 값도 N 거래일 전의 것 (A 검토 R3·R7)."""
+    from app.services import ai_analysis
+
+    _, Session = world
+    mine = Thresholds(lookback_days=10)
+    _set_mine(Session, mine)
+    ind = compute_indicators(PRICES["FLIP"])
+    ago = ind.iloc[-11]
+    with Session() as db:
+        stock = db.query(UserStock).filter_by(user_id=1, ticker="FLIP").one()
+        prompt = ai_analysis.stock_job(db, stock, None).prompt
+    assert f"(10거래일 전 {ai_analysis._num(ago['adx'], 1)})" in prompt
+    assert f"(10거래일 전 {ai_analysis._num(ago['stddev20'], 2)})" in prompt
+    # 공용 5거래일 전 값과 정말 다르다 — 같으면 이 테스트가 헛돈다
+    assert ai_analysis._num(ind.iloc[-6]["adx"], 1) != ai_analysis._num(ago["adx"], 1)
+    assert "5거래일 전" not in prompt
+
+
+def test_huge_whole_numbers_are_refused_not_crashed(api):
+    """10**400 은 float 로 못 바꾼다 — 500 이 아니라 422 (A 검토)."""
+    client, _ = api
+    for raw in ('{"adx_trend": 1' + "0" * 400 + "}", '{"adx_trend": -1' + "0" * 400 + "}", '{"lookback_days": 1' + "0" * 400 + "}"):
+        res = client.put("/api/signal-thresholds", content=raw, headers={"content-type": "application/json"})
+        assert res.status_code == 422, res.text[:200]
+
+
+def test_memory_notices_values_fixed_on_the_same_day(world):
+    """갱신은 이미 있는 날의 지표를 그 자리에서 고치기도 한다 — 날짜·행 수가 같아도 새로 센다 (A 검토)."""
+    from app.models import IndicatorDaily
+
+    _, Session = world
+    with Session() as db:
+        first = my_signals.judge(db, ["FLIP"], MINE)["FLIP"]
+        assert first.last().knee_buy_v2 is True
+        last = db.query(IndicatorDaily).filter_by(ticker="FLIP").order_by(IndicatorDaily.date.desc()).first()
+        last.adx = 1.0  # 추세 없음 — 내 기준(ADX > 15)으로도 매수가 아니다
+        db.commit()
+        again = my_signals.judge(db, ["FLIP"], MINE)["FLIP"]
+        assert again is not first
+        assert again.last().knee_buy_v2 is False
+
+
+def test_card_conditions_read_my_lookback_days_back(api):
+    """비교 기간이 공용(5)보다 길면 카드는 그만큼 지표 행을 더 읽어야 한다 — 모자라면 "변동성 축소"가 판정 불가로
+    빠져 조건 ✓ 가 매수 판정과 어긋난다 (A 검토 R2). seed 3 의 300행은 마지막 날 10거래일 비교로만 ✓ 다."""
+    client, Session = api
+    prices = _today_ending(_prices(3)[:300])
+    mine = Thresholds(lookback_days=10)
+    with Session() as db:
+        make_stock(db, ticker="SQZ")
+        refresh_ticker(db, "SQZ", price_df=prices)
+        db.commit()
+    _set_mine(Session, mine)
+    ind = compute_indicators(prices)
+    buy = signal_rules.build_rules(mine)[0]
+    want = signal_rules.latest_conditions(buy, ind)
+    assert want["volatility_or_volume"] is True
+    assert signal_rules.latest_conditions(buy, ind.iloc[-6:])["volatility_or_volume"] is not True  # 헛돌지 않게
+    card = client.get("/api/dashboard").json()[0]
+    assert card["buy_conditions"] == want
