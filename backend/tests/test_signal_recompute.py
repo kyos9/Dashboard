@@ -233,18 +233,24 @@ def test_signal_diff_finds_a_new_buy_alert(stored, monkeypatch):
     """정의를 바꾸니 오늘 매수가 새로 켜지는 종목 — 알림이 갈 사람 1명, 그 종목."""
     make_push_subscription(stored, new_device())
     # 오늘 판정을 저장된 쪽에서 꺼 두고, 새 정의(여기서는 모든 조건을 참으로)가 켜게 한다
-    last = stored.execute(select(SignalDaily).where(SignalDaily.ticker == "BBB").order_by(SignalDaily.date.desc())).scalars().first()
-    last.knee_buy_v2 = False
+    # AAA·CCC 는 이미 오늘 매수였다(새 정의에서도) — 새로 켜진 것이 아니라 세지 않는다
+    for ticker in TICKERS:
+        last = stored.execute(
+            select(SignalDaily).where(SignalDaily.ticker == ticker).order_by(SignalDaily.date.desc())
+        ).scalars().first()
+        last.knee_buy_v2 = ticker != "BBB"
     stored.commit()
     monkeypatch.setattr(signal_rules, "evaluate_rule", lambda rule, df: pd.Series(rule.key == "buy", index=df.index))
     report = signal_diff.run(stored)
     assert report["alerts"]["users"] == 1
-    assert "BBB" in report["alerts"]["stocks"]
+    assert report["alerts"]["stocks"] == ["BBB"]
     assert "BBB" in report["today_changed"]
 
 
 def test_admin_status_shows_the_last_recompute(api):
     client, Session = api
+    before = client.get("/api/admin/signal-rules").json()
+    assert before["up_to_date"] is False and before["stored_version"] is None and before["last_recompute"] is None
     with Session() as db:
         signal_recompute.recompute_all(db, reason="manual")
     body = client.get("/api/admin/signal-rules").json()
