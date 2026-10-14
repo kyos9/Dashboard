@@ -231,7 +231,9 @@ def test_demo_rule_change_shows_the_notice_and_recomputes(server):
     with _serve(DATA_DIRS["main"], "--demo-rule-change") as demo:
         owner = login(demo, fake_server.OWNER)
         rules = owner.get(demo + "/api/signal-rules").json()
-        assert rules["change_notice"] == f"시그널 계산 방식이 {dt.date.today().isoformat()}에 바뀌었습니다"
+        assert rules["change_notice"] == (
+            f"시그널 계산 방식이 {dt.date.today().isoformat()}에 바뀌었습니다 — (데모) 바꾼 것처럼 꾸몄을 뿐 판정은 그대로"
+        )
         status = owner.get(demo + "/api/admin/signal-rules").json()
         assert status["last_recompute"]["reason"] == "definition_changed"
         assert status["up_to_date"] is True

@@ -102,16 +102,15 @@ function SignalRulesLine({ status }: { status: SignalRulesStatus }) {
     <section className="diag-slow" aria-labelledby="diag-rules-title">
       <h4 id="diag-rules-title">
         시그널 기준{' '}
-        <span className="hint mono">
-          {status.version}
-          {status.changed_on ? ` · ${status.changed_on}에 바뀜` : ''}
+        <span className="hint">
+          {status.changed_on ? `${status.changed_on}에 바뀜 · ` : ''}정의 지문 <span className="mono">{status.version}</span>
         </span>
       </h4>
       {!status.up_to_date && <p className="hint">지난 판정을 아직 새 기준으로 다시 계산하지 않았습니다 — 다음에 켤 때 합니다.</p>}
       {last ? (
         <p className="hint">
           마지막 다시 계산 {shortTime(last.at)} ({RECOMPUTE_REASON[last.reason] ?? last.reason}) — {last.tickers}종목 중{' '}
-          {last.changed_tickers}종목 {last.changed_rows}줄 바뀜 · {last.seconds}초
+          {last.changed_tickers}종목, 판정이 바뀐 날 {last.changed_rows}개 · {last.seconds}초
           {last.failed.length > 0 && ` · 실패: ${last.failed.join(', ')}`}
         </p>
       ) : (

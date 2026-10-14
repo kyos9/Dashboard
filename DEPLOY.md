@@ -293,19 +293,27 @@ ARM(A1.Flex)이라면 `compose pull` 대신 `--build` 입니다 — 6번 참고:
 
 ```bash
 cd ~/Dashboard
+# 새 이미지를 먼저 받아 둔다 — 없으면 compose 가 서버에서 빌드하려 한다(1GB 인스턴스는 메모리가 모자란다)
+IMAGE_TAG=sha-새커밋7자리 docker compose pull app
 IMAGE_TAG=sha-새커밋7자리 docker compose run --rm --no-deps app python -m app.tools.signal_diff
 ```
+
+**ARM(A1.Flex)처럼 서버에서 빌드하는 경우**는 이미지를 받을 곳이 없습니다. 내 PC 에서 새 코드로 돌립니다 —
+10번으로 백업(`.sql`)을 꺼내 PC 의 Postgres 에 붓고(10-1 의 3번과 같은 명령), `backend` 에서
+`DATABASE_URL=postgresql+psycopg://…(그 DB) python -m app.tools.signal_diff`.
 
 종목별 지난 1·3·5년 매수·매도 시그널이 뜬 날 수(전→후), 오늘 판정이 바뀐 종목, 마지막 매수 시그널 날짜가 바뀐
 종목, **배포 뒤 첫 알림 판정에서 매수 알림이 새로 갈 사람 수**가 나옵니다(수익률은 보지 않습니다). 괜찮으면 9번대로
 올립니다.
 
 **올린 뒤 확인**: 관리자 ⋯ → 진단 맨 위 **시그널 기준** 줄 — "마지막 다시 계산 … (정의가 바뀌어서) — N종목 중
-M종목 K줄 바뀜". "실패" 종목이 있으면 다음에 켤 때 다시 합니다. 손으로 하려면
+M종목, 판정이 바뀐 날 K개". "실패" 종목이 있으면 다음에 켤 때 다시 합니다. 손으로 하려면
 `docker compose exec app python -m app.tools.recompute_signals --force`.
 
 **되돌리기**: 정의를 되돌린 이미지를 올리면 같은 길로 다시 계산됩니다. 다만 **v0.40.x 이하로 내리면** 그 이미지에는 이
-장치가 없어 저절로 다시 계산되지 않습니다 — 종목마다 다음 매일 갱신 때 옛 정의로 덮입니다.
+장치가 없어 저절로 다시 계산되지 않습니다 — 종목마다 다음 매일 갱신 때 옛 정의로 덮입니다. 그 뒤 다시 v0.41.0
+이상으로 올리면 적어 둔 지문이 그대로라 저절로 돌지 않으니, 한 번 손으로 맞춥니다:
+`docker compose exec app python -m app.tools.recompute_signals --force`.
 
 ## 10. 백업 꺼내오기
 

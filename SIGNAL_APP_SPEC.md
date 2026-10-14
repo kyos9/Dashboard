@@ -322,8 +322,8 @@ shoulder_sell_ref = (종가 > MA50) AND (ADX > ADX[5일 전]) AND (vol_ma5 > vol
 5. 전 종목 재계산은 **저절로** 된다 — 서버가 켜질 때 정의의 지문(`signal_rules.fingerprint()`)이 저장된 것과
    다르면 저장된 시세로 다시 계산한다(네트워크 없음). 손으로는 `python -m app.tools.recompute_signals`
 
-화면의 신호 요약에는 정의를 바꾼 뒤 30일 동안 "시그널 계산 방식이 YYYY-MM-DD에 바뀌었습니다"가 뜬다
-(`CHANGES` 의 마지막 날짜). 지난 차트의 점이 왜 달라졌는지 사용자가 알 수 있게 하려는 것이다.
+화면의 신호 요약에는 정의를 바꾼 뒤 30일 동안 "시그널 계산 방식이 YYYY-MM-DD에 바뀌었습니다 — (무엇)"이 뜬다
+(`CHANGES` 의 마지막 줄 — `what` 은 사용자가 읽는 말로). 지난 차트의 점이 왜 달라졌는지 사용자가 알 수 있게 하려는 것이다.
 
 **그대로 두는 것.** API 필드 이름(`knee_buy_v2`, `shoulder_sell_ref`, `knee_conditions` 의 네 키)은 옛 화면이
 쓴다 — 뜻이 바뀌어도 이름은 그대로, 뜻은 이 문서가 정한다. 조건 수가 바뀌면 화면은 새 필드

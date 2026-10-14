@@ -19,7 +19,7 @@ from app.services.data_ingestion import refresh_ticker
 from app.services.indicators import compute_indicators
 from app.services.signals import compute_signals
 from app.tools import signal_diff
-from tests.factories import make_push_state, make_push_subscription, make_stock, new_device
+from tests.factories import make_push_state, make_push_subscription, make_settings, make_stock, new_device
 
 
 def _prices(seed: int, n: int = 400) -> pd.DataFrame:
@@ -258,3 +258,60 @@ def test_admin_status_shows_the_last_recompute(api):
     assert body["up_to_date"] is True
     assert body["last_recompute"]["reason"] == "manual"
     assert body["changed_on"] is None
+
+
+def _stored_frame(db, ticker: str) -> pd.DataFrame:
+    rows = db.execute(
+        select(SignalDaily.date, SignalDaily.knee_buy_v2, SignalDaily.shoulder_sell_ref).where(SignalDaily.ticker == ticker)
+    ).all()
+    return pd.DataFrame(rows, columns=["date", "knee_buy_v2", "shoulder_sell_ref"]).set_index("date").sort_index()
+
+
+def test_signal_diff_every_column_matches_an_independent_count(stored, adx_25):
+    """비교 도구의 칸마다(1·3·5년 매수·매도, 오늘, 마지막 매수일, 바뀐 종목 목록) — 따로 센 것과 같다."""
+    report = signal_diff.run(stored)
+    by = {r["ticker"]: r for r in report["tickers"]}
+    today_changed, last_buy_changed = [], []
+    for ticker, seed in TICKERS.items():
+        new = compute_signals(compute_indicators(_prices(seed)))
+        old = _stored_frame(stored, ticker)
+        last = new.index.max()
+        r = by[ticker]
+        for years in (1, 3, 5):
+            since = last - dt.timedelta(days=365 * years)
+            for side, column in (("buy", "knee_buy_v2"), ("sell", "shoulder_sell_ref")):
+                assert r[side]["after"][years] == int(new.loc[[d > since for d in new.index], column].sum()), (ticker, side, years)
+                assert r[side]["before"][years] == int(old.loc[[d > since for d in old.index], column].sum()), (ticker, side, years)
+        last_old = max((d for d, v in old["knee_buy_v2"].items() if v), default=None)
+        last_new = max((d for d, v in new["knee_buy_v2"].items() if v), default=None)
+        assert r["last_buy"] == [last_old and last_old.isoformat(), last_new and last_new.isoformat()]
+        if last_old != last_new:
+            last_buy_changed.append(ticker)
+        if (bool(old.loc[last, "knee_buy_v2"]), bool(old.loc[last, "shoulder_sell_ref"])) != (
+            bool(new.loc[last, "knee_buy_v2"]), bool(new.loc[last, "shoulder_sell_ref"])
+        ):
+            today_changed.append(ticker)
+    assert report["last_buy_changed"] == last_buy_changed and last_buy_changed  # ADX 25 면 마지막 매수일이 앞당겨지는 종목이 있다
+    assert report["today_changed"] == today_changed
+    # 3·5년 창이 1년과 다른 숫자를 낸다 (같으면 창을 시험한 것이 아니다)
+    assert any(r["buy"]["before"][5] != r["buy"]["before"][1] for r in by.values())
+
+
+def test_signal_diff_sees_a_change_in_todays_sell_only(stored, monkeypatch):
+    last = stored.execute(select(SignalDaily).where(SignalDaily.ticker == "CCC").order_by(SignalDaily.date.desc())).scalars().first()
+    last.shoulder_sell_ref = not last.shoulder_sell_ref
+    stored.commit()
+    report = signal_diff.run(stored)
+    assert report["today_changed"] == ["CCC"]
+    assert {r["ticker"]: r["today"]["buy"][0] == r["today"]["buy"][1] for r in report["tickers"]}["CCC"] is True
+
+
+def test_signal_diff_skips_people_who_turned_buy_alerts_off(stored, monkeypatch):
+    make_push_subscription(stored, new_device())
+    make_settings(stored, push_kinds=[alerts.KIND_BAND])  # 매수 알림은 끔
+    last = stored.execute(select(SignalDaily).where(SignalDaily.ticker == "BBB").order_by(SignalDaily.date.desc())).scalars().first()
+    last.knee_buy_v2 = False
+    stored.commit()
+    monkeypatch.setattr(signal_rules, "evaluate_rule", lambda rule, df: pd.Series(rule.key == "buy", index=df.index))
+    report = signal_diff.run(stored)
+    assert report["alerts"] == {"users_with_alerts_on": 1, "users": 0, "stocks": []}

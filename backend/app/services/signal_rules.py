@@ -43,6 +43,7 @@ VERSION = "knee-v2.shoulder-ref"
 INDICATOR_VERSION = "1"
 
 # 정의가 바뀐 이력. 첫 줄은 처음 정의(바뀐 것이 아니다) — 화면은 둘째 줄부터 "바뀌었다"고 말한다.
+# 마지막 줄의 `what` 은 신호 요약에 그대로 보인다 — 사용자가 읽을 말로 짧게 (예: "추세 기준 ADX 20 → 25").
 CHANGES: list[dict] = [
     {
         "date": "2026-09-17",
@@ -329,7 +330,8 @@ def change_notice(today: dt.date | None = None) -> str | None:
     today = today or dt.date.today()
     if not (0 <= (today - day).days < CHANGE_NOTICE_DAYS):
         return None
-    return f"시그널 계산 방식이 {when}에 바뀌었습니다"
+    what = (CHANGES[-1].get("what") or "").strip()
+    return f"시그널 계산 방식이 {when}에 바뀌었습니다" + (f" — {what}" if what else "")
 
 
 # ---------- 화면 · AI ----------

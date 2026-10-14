@@ -214,7 +214,7 @@ describe('진단 · 시그널 기준 (0.41.0)', () => {
     render(<DiagnosticsModal onClose={() => {}} />)
     const section = (await screen.findByRole('heading', { name: /시그널 기준/ })).closest('section')!
     expect(section).toHaveTextContent('2026-10-14에 바뀜')
-    expect(section).toHaveTextContent('(정의가 바뀌어서) — 12종목 중 3종목 41줄 바뀜 · 1.4초')
+    expect(section).toHaveTextContent('(정의가 바뀌어서) — 12종목 중 3종목, 판정이 바뀐 날 41개 · 1.4초')
   })
 
   it('아직 못 맞췄거나 실패한 종목이 있으면 그렇다고', async () => {

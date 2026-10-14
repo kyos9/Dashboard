@@ -711,7 +711,7 @@ def recompute_signals(demo_rule_change: bool = False) -> dict | None:
         if demo_rule_change:
             signal_rules.CHANGES.append({
                 "date": dt.date.today().isoformat(),
-                "what": "(데모) 정의를 바꾼 것처럼",
+                "what": "(데모) 바꾼 것처럼 꾸몄을 뿐 판정은 그대로",
                 "why": "가짜 서버 --demo-rule-change",
             })
             app_settings.set_value(db, signal_recompute.FINGERPRINT_KEY, "demo-old-definition")

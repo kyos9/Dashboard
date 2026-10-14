@@ -233,7 +233,7 @@ def test_change_notice_shows_for_thirty_days_after_a_change():
     m = _load_rules({})
     m.CHANGES = [*m.CHANGES, {"date": "2026-11-02", "what": "ADX 25", "why": "시험"}]
     assert m.changed_on() == "2026-11-02"
-    assert m.change_notice(dt.date(2026, 11, 2)) == "시그널 계산 방식이 2026-11-02에 바뀌었습니다"
+    assert m.change_notice(dt.date(2026, 11, 2)) == "시그널 계산 방식이 2026-11-02에 바뀌었습니다 — ADX 25"
     assert m.change_notice(dt.date(2026, 12, 1)) is not None  # 29일 뒤
     assert m.change_notice(dt.date(2026, 12, 2)) is None  # 30일 뒤
     assert m.change_notice(dt.date(2026, 11, 1)) is None  # 바꾸기 전 날
