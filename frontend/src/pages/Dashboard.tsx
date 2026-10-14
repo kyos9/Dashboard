@@ -1426,7 +1426,8 @@ function SignalCards({
               </div>
               <div className="stat-box">
                 <span className="k">DI 방향 (+DI / -DI)</span>
-                <span className="v">
+                {/* 표의 칩과 같은 부호 색 — 카드만 흰 글자였다 (B 사용자 확인) */}
+                <span className={`v ${di.tone === 'grey' ? '' : di.tone}`}>
                   {num(ind.plus_di, 1)} / {num(ind.minus_di, 1)}
                 </span>
                 <span className="k">{di.note}</span>
@@ -1440,7 +1441,7 @@ function SignalCards({
               </div>
               <div className="stat-box">
                 <span className="k">200일선 대비</span>
-                <span className="v">{signed(ma200.pct, 1, '%')}</span>
+                <span className={`v ${ma200.tone === 'grey' ? '' : ma200.tone}`}>{signed(ma200.pct, 1, '%')}</span>
                 <span className="k">{ma200.note}</span>
               </div>
               <div className="stat-box">

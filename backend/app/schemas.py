@@ -51,6 +51,8 @@ class StockOut(BaseModel):
 
     ticker: str
     name: Optional[str]
+    # 0.42.0 — 화면에 보일 이름(내가 붙인 이름, 없으면 공용 종목명). `name` 은 고치는 칸의 값이라 그대로 둔다
+    shown_name: Optional[str] = None
     category: Optional[str]
     market: Market = Market.US
     currency: Currency = Currency.USD

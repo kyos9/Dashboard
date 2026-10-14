@@ -161,9 +161,10 @@ def test_ai_text_is_unchanged_to_the_letter():
 
 
 def test_screen_fallback_is_what_this_server_sends():
-    """화면이 옛 서버(규칙 API 없음)일 때 쓰는 규칙 = 0.40.0 의 정의 = 지금 서버가 내려주는 것.
+    """화면이 옛 서버(규칙 API 없음)일 때 쓰는 규칙 = 0.40.0 의 정의 = 지금 서버가 내려주는 기본 응답.
 
-    정의를 바꾸면 지문이 달라지고 이 비교는 건너뛴다 — 그 파일은 0.40.0 서버를 위한 것이라 고치지 않는다.
+    정의를 바꾸면 지문이 달라지고 이 비교는 건너뛴다 — 그 파일의 기준값·판정은 0.40.0 서버를 위한 것이라 고치지 않는다.
+    화면 문구(이름)는 지금 화면과 같게 맞춘다 (0.42.0 에 조건 이름을 하나로 맞추며 함께 바꿨다, 주인 결정).
     """
     legacy = json.loads(LEGACY.read_text(encoding="utf-8"))
     now = signal_rules.payload()

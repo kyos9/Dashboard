@@ -271,17 +271,18 @@ describe('팔지 않고 새 돈만 나누기 (0.42.0)', () => {
   })
 
   it('모자란 합이 새 돈보다 작으면 모자란 만큼만 사고 나머지는 현금', () => {
-    const near = [
-      row({ ticker: 'A', currency: 'KRW', current_value_base: 1000, target_weight_pct: 50, last_close: 10 }),
-      row({ ticker: 'B', currency: 'KRW', current_value_base: 960, target_weight_pct: 50, last_close: 10 }),
+    // 목표 합이 100% 면 모자란 합은 늘 새 돈 이상이다(과중한 종목만큼 더). 목표 합 90% 일 때만 이 경우가 생긴다
+    const rows = [
+      row({ ticker: 'A', currency: 'KRW', current_value_base: 1000, target_weight_pct: 45, last_close: 10 }),
+      row({ ticker: 'B', currency: 'KRW', current_value_base: 960, target_weight_pct: 45, last_close: 10 }),
     ]
-    // 전체 2160 → 목표 1080 · 1080, 모자람 80 · 120 — 새 돈 200 을 그대로
-    const plan = buildOrderPlan(near, 'KRW', {}, { value_base: 0, target_pct: 0 }, '200', true)
-    expect(plan.orders.map((o) => Math.round(o.adjust))).toEqual([80, 120])
-    expect(plan.leftover).toBeCloseTo(0)
-    const more = buildOrderPlan(near, 'KRW', {}, { value_base: 0, target_pct: 0 }, '1000', true)
-    // 전체 2960 → 목표 1480 · 1480, 모자람 480 · 520 (합 1000) = 새 돈
-    expect(more.leftover).toBeCloseTo(0)
+    // 전체 2160 → 목표 972 · 972 — 모자람 A 0 · B 12 (합 12 < 새 돈 200)
+    const plan = buildOrderPlan(rows, 'KRW', {}, { value_base: 0, target_pct: 0 }, '200', true)
+    expect(plan.orders.map((o) => [o.action, Math.round(o.adjust)])).toEqual([
+      ['hold', 0],
+      ['buy', 12],
+    ])
+    expect(plan.leftover).toBeCloseTo(188)
   })
 
   it('현금도 목표에 모자라면 한 자리로 몫을 받아 현금에 남는다', () => {
@@ -296,6 +297,8 @@ describe('팔지 않고 새 돈만 나누기 (0.42.0)', () => {
       ['hold', 0],
     ])
     expect(plan.leftover).toBeCloseTo(100)
+    // 현금 칸의 '목표'는 여전히 목표(전체의 10% = 200)다 — 남는 돈과 섞지 않는다
+    expect(plan.cash.targetValue).toBeCloseTo(200)
   })
 
   it('나눈 몫이 새 돈의 0.5% 미만이면 "유지"이고 그 몫은 현금에', () => {
@@ -339,6 +342,10 @@ describe('주문 주수 — 정수 주 + 괄호에 소수 (0.42.0)', () => {
     [12.1, true, '+12주 (12.1)'],
     [-3.5, true, '−3주 (3.5)'],
     [1608.63, false, '1,608주 (1,608.63)'],
+    // 괄호 값과 정수가 어긋나지 않는다 (B 검토 D3)
+    [0.999, false, '1주'],
+    [61.996, false, '62주'],
+    [61.994, false, '61주 (61.99)'],
   ])('%s → %s', (shares, sign, text) => {
     expect(sharesText(shares as number, sign as boolean)).toBe(text)
   })

@@ -39,3 +39,17 @@
 | 뮤테이션 | 파일 | 결과 |
 | --- | --- | --- |
 | B-M11 새 돈 잡음 기준 없음 | `frontend/src/lib/orderPlan.ts` | 잡힘 |
+
+## 4차 (B 1차 검토 `B-review.md` 의 살아남은 뮤테이션 — 검토자 목록 그대로)
+
+| 뮤테이션 | 파일 | 결과 |
+| --- | --- | --- |
+| R1 매크로 차트 언어 고정 없음 | `frontend/src/components/MacroChart.tsx` | 잡힘 |
+| R2 매크로 차트 눈금 꼴 없음 | `frontend/src/components/MacroChart.tsx` | 잡힘 |
+| R3 새 돈만 나누기 기억 기본 켜짐 | `frontend/src/pages/RebalancePanel.tsx` | 잡힘 |
+| R4 체크 상자가 계획에 안 닿음 | `frontend/src/pages/RebalancePanel.tsx` | 잡힘 |
+| R5 꺼짐 안내 글 옛것 | `frontend/src/pages/RebalancePanel.tsx` | 잡힘 |
+| R6 가이드 맨 위 한 줄 없음 | `frontend/src/pages/RebalancePanel.tsx` | 잡힘 |
+| R7 비례 축소를 늘 함(모자란 합<새 돈이면 넘쳐 삼) | `frontend/src/lib/orderPlan.ts` | 잡힘 |
+| R13 내 이름 공백만이면 공백 그대로 | `backend/app/models.py` | 잡힘 |
+| R15 새 돈만에서 현금 칸 목표 대신 남는 돈 | `frontend/src/lib/orderPlan.ts` | 잡힘 |

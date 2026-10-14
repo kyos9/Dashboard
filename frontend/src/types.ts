@@ -49,7 +49,10 @@ export interface SymbolMatch {
 
 export interface Stock {
   ticker: string
+  /** 내가 붙인 이름 — 고치는 칸의 값 */
   name: string | null
+  /** 0.42.0 — 화면에 보일 이름 (내 이름, 없으면 공용 종목명). 옛 서버는 없다 */
+  shown_name?: string | null
   category: string | null
   market: Market
   currency: Currency

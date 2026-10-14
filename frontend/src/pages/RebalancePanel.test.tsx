@@ -705,3 +705,61 @@ describe('리밸런싱 · 폰', () => {
     expect(within(holdings).getByLabelText('VOO 보유수량').closest('label')).toHaveTextContent('보유수량')
   })
 })
+
+describe('리밸런싱 · 팔지 않고 새 돈만 나누기 (0.42.0 B6)', () => {
+  // VOO 목표 20%(지금 130만 — 과중), 삼성 40%(지금 80만 — 미달). 새 돈 90만이면 전체 300만
+  const SKEWED = { ...CURRENT, rows: CURRENT.rows.map((r) => (r.ticker === 'VOO' ? { ...r, target_weight_pct: 20 } : { ...r, target_weight_pct: 40 })) }
+  beforeEach(() => localStorage.removeItem('rebalance.buy-only'))
+  afterEach(() => localStorage.removeItem('rebalance.buy-only'))
+
+  it('기본은 꺼짐 — 안내 글·맨 위 한 줄이 실제 계산(전체를 다시 맞춘다)과 같고, 파는 주문도 있다', async () => {
+    mockApi(SKEWED)
+    const user = userEvent.setup()
+    renderPanel()
+    await user.type(await screen.findByLabelText(/이번에 새로 넣을 돈/), '900000')
+    expect(screen.getByLabelText('팔지 않고 새 돈만 나누기')).not.toBeChecked()
+    expect(screen.getByText(/새로 넣을 돈까지 더한 전체 자금으로 목표 비중을 다시 맞춘 주문/)).toBeInTheDocument()
+    expect(screen.queryByText(/모자란 종목부터 채우는 주문/)).toBeNull()
+    expect(screen.getByRole('status')).toHaveTextContent('새로 넣을 돈 ₩900,000 반영 — 전체 자금으로 목표 비중을 다시 맞춘 주문입니다')
+    expect(await orderRow('VOO')).toHaveTextContent('매도 (SELL)')
+  })
+
+  it('켜면 파는 주문이 없고 새 돈이 모자란 종목으로 간다 — 기기에 기억한다', async () => {
+    mockApi(SKEWED)
+    const user = userEvent.setup()
+    renderPanel()
+    await user.type(await screen.findByLabelText(/이번에 새로 넣을 돈/), '900000')
+    await user.click(screen.getByLabelText('팔지 않고 새 돈만 나누기'))
+    expect(localStorage.getItem('rebalance.buy-only')).toBe('1')
+    expect(screen.getByRole('status')).toHaveTextContent('목표에 모자란 만큼에 비례해 나눴습니다')
+    expect(screen.getByText(/팔지 않고, 새로 넣을 돈만 목표에 모자란 만큼에 비례해 나눕니다/)).toBeInTheDocument()
+    expect(await orderRow('VOO')).toHaveTextContent('유지 (HOLD)')
+    // 삼성은 모자람 40만(목표 120만 − 80만) — 90만 중 40만만 쓰고 50만은 현금에 남는다(현금 목표 0 이면 몫이 없다)
+    expect(await orderRow('005930.KS')).toHaveTextContent('+₩400,000')
+    expect(screen.getByRole('status')).toHaveTextContent('남는 ₩500,000은 현금')
+  })
+
+  it('기억해 둔 켜짐으로 시작한다', async () => {
+    localStorage.setItem('rebalance.buy-only', '1')
+    mockApi(SKEWED)
+    renderPanel()
+    expect(await screen.findByLabelText('팔지 않고 새 돈만 나누기')).toBeChecked()
+  })
+
+  it('폰 — 카드 위에 넣는 칸으로 가는 길, 현금 카드는 산 뒤 남는 현금', async () => {
+    pretendPhone()
+    try {
+      localStorage.setItem('rebalance.buy-only', '1')
+      mockApi(SKEWED)
+      const user = userEvent.setup()
+      renderPanel()
+      await user.type(await screen.findByLabelText(/이번에 새로 넣을 돈/), '900000')
+      expect(screen.getByRole('button', { name: '새로 넣을 돈 넣기 ↓' })).toBeInTheDocument()
+      const guide = screen.getByRole('region', { name: '주문 가이드' })
+      const cash = within(guide).getAllByRole('listitem').at(-1)!
+      expect(cash).toHaveTextContent('₩900,000 → ₩500,000 남음')
+    } finally {
+      forgetPhone()
+    }
+  })
+})

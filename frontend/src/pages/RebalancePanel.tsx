@@ -1040,13 +1040,20 @@ export function RebalancePanel() {
     </div>
   )
 
+  /** 새 돈만 나누기에서 1주도 안 되는 몫 — 소수 주를 못 사는 증권사면 실제로는 사지 못한다 (B 사용자 확인) */
+  const underOne = plan.buyOnly
+    ? plan.orders.filter((o) => o.action === 'buy' && o.shares !== null && Math.abs(o.shares) < 1).length
+    : 0
+
   /** 새로 넣을 돈이 어디로 갔는지 한 줄 — 주문 가이드 맨 위 */
   const newMoneyLine =
     plan.newMoney > 0 ? (
       <p className="new-money-line" role="status">
         새로 넣을 돈 <b>{amount(plan.newMoney, baseCurrency)}</b>{' '}
         {plan.buyOnly
-          ? `— 모자란 종목에 목표 비중대로 나눴습니다${plan.leftover > 0.5 ? ` (남는 ${amount(plan.leftover, baseCurrency)}은 현금)` : ''}`
+          ? `— 목표에 모자란 만큼에 비례해 나눴습니다${plan.leftover > 0.5 ? ` (남는 ${amount(plan.leftover, baseCurrency)}은 현금)` : ''}${
+              underOne > 0 ? ` · ${underOne}종목은 1주 미만이라 소수 주를 못 사면 그 몫이 현금에 남습니다` : ''
+            }`
           : '반영 — 전체 자금으로 목표 비중을 다시 맞춘 주문입니다'}
       </p>
     ) : null
@@ -1120,6 +1127,22 @@ export function RebalancePanel() {
         </div>
         {!narrow && newMoneyBlock}
         {newMoneyLine}
+        {/* 폰은 답(카드)이 먼저라 넣는 칸이 카드 아래에 있다(8단계) — 찾으러 끝까지 내려가지 않게 바로 가는 길 (B 사용자 확인) */}
+        {narrow && (
+          <p className="hint">
+            <button
+              type="button"
+              className="link-btn"
+              onClick={() => {
+                const input = document.getElementById('new-money')
+                input?.scrollIntoView?.({ block: 'center' })
+                input?.focus({ preventScroll: true })
+              }}
+            >
+              새로 넣을 돈 넣기 ↓
+            </button>
+          </p>
+        )}
         {narrow ? (
           <ul className="order-cards">
             {plan.orders.map((order) => {
@@ -1156,7 +1179,10 @@ export function RebalancePanel() {
                 <span className="hint mono">목표 {num(plan.cash.targetPct, 0)}%</span>
               </div>
               <p className="order-card-line mono">
-                {amount(plan.cash.current, baseCurrency)} → {amount(plan.cash.targetValue, baseCurrency)}
+                {/* 새 돈만 나누기면 산 뒤 실제로 남는 현금 — 목표가 아니다 (B 검토 D4) */}
+                {amount(plan.cash.current, baseCurrency)} →{' '}
+                {amount(plan.buyOnly ? plan.cash.current + plan.cash.adjust : plan.cash.targetValue, baseCurrency)}
+                {plan.buyOnly && ' 남음'}
               </p>
             </li>
           </ul>

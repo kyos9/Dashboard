@@ -1,5 +1,5 @@
 {
-  "_about": "0.40.0 서버(규칙 API 없음)의 시그널 규칙. 화면이 옛 서버를 만나면 이것을 쓴다. 고치지 않는다 — backend/tests/test_signal_rules.py 가 지금 서버와 같은지 본다.",
+  "_about": "0.40.0 서버(규칙 API 없음)를 만났을 때 화면이 쓰는 시그널 규칙. 기준값·판정은 0.40.0 그대로 고치지 않는다. 화면 문구(이름)는 지금 화면과 같게 맞춘다 — 0.42.0 에 조건 이름을 하나로 맞추며 함께 바꿨다(주인 결정). backend/tests/test_signal_rules.py 가 같은 정의인 동안 지금 서버의 기본 응답과 같은지 본다.",
   "version": "faa56cf123c6edfa",
   "thresholds": {
     "adx_trend": 20.0,

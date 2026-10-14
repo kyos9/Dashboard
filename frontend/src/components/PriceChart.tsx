@@ -87,7 +87,8 @@ export function PriceChart({ history, height = 440 }: Props) {
         horzLines: { color: palette.grid },
       },
       rightPriceScale: { mode: PriceScaleMode.Logarithmic, borderColor: palette.grid },
-      timeScale: { borderColor: palette.grid, tickMarkFormatter: chartTick },
+      // 오른쪽에 몇 칸 비워 둔다 — 오늘 찍은 ▲ 가 끝에서 반쯤 잘리고 현재가 이름표와 겹쳤다 (B 사용자 확인)
+      timeScale: { borderColor: palette.grid, tickMarkFormatter: chartTick, rightOffset: 3 },
       crosshair: {
         vertLine: { labelBackgroundColor: palette.line },
         horzLine: { labelBackgroundColor: palette.line },

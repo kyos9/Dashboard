@@ -236,10 +236,10 @@ function buyOnlyPlan(
 export function sharesText(shares: number, sign = false): string {
   // 보유 수량(`qty`)과 달리 금액 가리기에도 보인다 — 주수만으로는 얼마를 가졌는지 모른다 (9-3)
   const count = (n: number) => n.toLocaleString('ko-KR', { maximumFractionDigits: 2 })
-  const abs = Math.abs(shares)
-  const whole = Math.trunc(Number(abs.toFixed(4)))
   const prefix = sign ? (shares > 0 ? '+' : shares < 0 ? '−' : '') : ''
-  const exact = Number(abs.toFixed(2))
+  // 괄호에 보일 값(소수 둘째)에서 정수를 뗀다 — 따로 자르면 0.999 가 "1주 미만 (1주)", 61.996 이 "61주 (62)"가 됐다
+  const exact = Number(Math.abs(shares).toFixed(2))
+  const whole = Math.floor(exact)
   if (whole === 0) return `${prefix}1주 미만 (${count(exact)}주)`
   if (exact === whole) return `${prefix}${count(whole)}주`
   return `${prefix}${count(whole)}주 (${count(exact)})`

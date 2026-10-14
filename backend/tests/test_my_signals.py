@@ -389,11 +389,26 @@ def test_a_stock_without_my_name_shows_the_shared_name(api):
         make_stock(db, ticker="7203.T", name=None)
         db.get(Instrument, "7203.T").name = "トヨタ自動車"
         make_stock(db, ticker="005930.KS", name="내 삼성")
+        make_stock(db, ticker="000660.KS", name="   ")  # 공백뿐인 이름도 비운 것으로 본다
+        db.get(Instrument, "000660.KS").name = "SK하이닉스"
         db.commit()
     names = {c["ticker"]: c["name"] for c in client.get("/api/dashboard").json()}
-    assert names == {"7203.T": "トヨタ自動車", "005930.KS": "내 삼성"}
+    assert names == {"7203.T": "トヨタ自動車", "005930.KS": "내 삼성", "000660.KS": "SK하이닉스"}
     rows = {r["ticker"]: r["name"] for r in client.get("/api/rebalance/current").json()["rows"]}
     assert rows["7203.T"] == "トヨタ自動車"
     assert client.get("/api/fundamentals/7203.T").json()["name"] == "トヨタ自動車"
     listed = {r["ticker"]: r["name"] for r in client.get("/api/fundamentals").json()}
     assert listed["7203.T"] == "トヨタ自動車"
+
+
+def test_the_stock_list_also_carries_the_shown_name(api):
+    """B9 — 종목 목록(`/api/stocks`)도 보일 이름을 준다. 고치는 칸의 값(`name`)은 내가 적은 그대로(비어 있으면 비어 있다)."""
+    from app.models import Instrument
+
+    client, Session = api
+    with Session() as db:
+        make_stock(db, ticker="7203.T", name=None)
+        db.get(Instrument, "7203.T").name = "トヨタ自動車"
+        db.commit()
+    got = {s["ticker"]: s for s in client.get("/api/stocks").json()}
+    assert (got["7203.T"]["name"], got["7203.T"]["shown_name"]) == (None, "トヨタ自動車")

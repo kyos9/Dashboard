@@ -32,9 +32,15 @@ export const CURRENCY_BY_MARKET: Record<Market, Currency> = { US: 'USD', KR: 'KR
  * "Vanguard S&P 500 ETF"를 길게 적어봐야 칸만 넓어지는 반면, `005930.KS`나 `7203.T`는
  * 사람이 읽고 무슨 회사인지 알 수 없다. 이름이 비어 있으면 티커로 떨어진다.
  */
-export function stockLabel(stock: { ticker: string; name?: string | null; market: Market }): string {
+export function stockLabel(stock: {
+  ticker: string
+  name?: string | null
+  /** 종목 목록(`/api/stocks`)이 주는 보일 이름 — 내가 비운 이름이면 공용 종목명 (0.42.0) */
+  shown_name?: string | null
+  market: Market
+}): string {
   if (stock.market === 'US') return stock.ticker
-  const name = (stock.name ?? '').trim()
+  const name = (stock.shown_name ?? stock.name ?? '').trim()
   return name === '' ? stock.ticker : name
 }
 

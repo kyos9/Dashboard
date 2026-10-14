@@ -7,8 +7,8 @@ import legacy from './signalRulesLegacy.json'
    조건 이름표·열 머리·설명 줄·기준값을 화면에 다시 적지 않는다. 서버(`services/signal_rules.py`)가
    `GET /api/signal-rules` 로 내려주고, 여기는 그것을 한 번 받아 둔다.
 
-   - **옛 서버**(그 API 가 없다)면 0.40.0 서버의 규칙(`signalRulesLegacy.json`)을 그대로 쓴다. 지금 서버가
-     내려주는 것과 글자까지 같아서(서버 테스트가 본다) 받기 전후로 화면이 깜빡이지 않는다.
+   - **옛 서버**(그 API 가 없다)면 0.40.0 서버의 규칙(`signalRulesLegacy.json` — 기준값은 0.40.0, 이름은 지금 화면과 같게)을
+     쓴다. 지금 서버의 기본 응답과 글자까지 같아서(서버 테스트가 본다) 받기 전후로 화면이 깜빡이지 않는다.
    - 폰에 설치한 앱은 며칠씩 떠 있다. 대시보드 카드가 다른 판(`signal_rules_version`)을 말하면 다시 받는다. */
 
 export const LEGACY_SIGNAL_RULES: SignalRules = legacy as SignalRules
