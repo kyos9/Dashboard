@@ -175,7 +175,7 @@ def test_screen_fallback_is_what_this_server_sends():
 
 def test_change_history_words_stay_inside_the_regulatory_line():
     """이력의 `what` 은 신호 요약에 그대로 보인다 — 권유·예측·수익률로 읽히는 말을 쓰지 않는다 (ROADMAP 3절)."""
-    banned = ("추천", "사세요", "팔라", "파세요", "저평가", "고평가", "예측", "수익률", "수익")
+    banned = ("추천", "사세요", "팔라", "팔아", "파세요", "저평가", "고평가", "예측", "수익률", "수익")
     for change in signal_rules.CHANGES:
         text = f"{change['what']} {change['why']}"
         assert not [w for w in banned if w in text], change

@@ -256,6 +256,11 @@ def test_admin_status_shows_the_last_recompute(api):
     body = client.get("/api/admin/signal-rules").json()
     assert body["version"] == signal_rules.fingerprint()
     assert body["up_to_date"] is True
+    # 옛 정의의 지문이 적혀 있으면(정의를 바꿔 올렸는데 아직 다시 계산 전) 맞지 않다고 말한다
+    with Session() as db:
+        app_settings.set_value(db, signal_recompute.FINGERPRINT_KEY, "old-definition")
+    stale = client.get("/api/admin/signal-rules").json()
+    assert stale["up_to_date"] is False and stale["stored_version"] == "old-definition"
     assert body["last_recompute"]["reason"] == "manual"
     assert body["changed_on"] is None
 
