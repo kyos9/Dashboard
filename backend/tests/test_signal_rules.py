@@ -261,3 +261,55 @@ def test_thresholds_are_not_written_again_outside_the_rules():
         text = (REPO / rel).read_text(encoding="utf-8")
         found += [f"{rel}: {pattern}" for pattern in SCATTERED if pattern in text]
     assert not found, "기준값·조건 수가 규칙 밖에 다시 적혔습니다: " + ", ".join(found)
+
+
+
+# ---------- 읽는 쪽이 "N거래일 전"을 바르게 가져오나 (검토 조건 0.41.0) ----------
+
+def _seed_many(db, n: int = 12) -> dict[str, pd.DataFrame]:
+    from app.services.data_ingestion import refresh_ticker
+    from tests.factories import make_stock
+
+    frames = {}
+    for i in range(n):
+        ticker = f"S{i:02d}"
+        prices = _prices(260, 100 + i)
+        prices["adj_close"] = prices["close"]
+        make_stock(db, ticker=ticker)
+        refresh_ticker(db, ticker, price_df=prices)
+        frames[ticker] = compute_indicators(prices)
+    return frames
+
+
+def test_dashboard_conditions_use_the_row_n_trading_days_ago(api):
+    """대시보드가 읽는 행 수(N+1)가 하나라도 모자라면 변동성 조건(StdDev20 이 N거래일 전보다 작다)이 틀린다.
+
+    변동성 조건이 **StdDev20 축소만으로** 참인 종목이 하나 이상 있어야 이 시험이 의미가 있다.
+    """
+    client, Session = api
+    with Session() as db:
+        frames = _seed_many(db)
+    cards = {c["ticker"]: c for c in client.get("/api/dashboard").json()}
+    only_by_shrink = 0
+    for ticker, ind in frames.items():
+        expected = signal_rules.latest_conditions(BUY, ind)
+        assert cards[ticker]["buy_conditions"] == expected, ticker
+        assert cards[ticker]["knee_conditions"] == expected, ticker
+        last = ind.iloc[-1]
+        if last["stddev20"] < ind["stddev20"].iloc[-1 - signal_rules.LOOKBACK_DAYS] and not last["vol_ratio"] > signal_rules.VOL_RATIO_EXPAND:
+            only_by_shrink += 1
+    assert only_by_shrink > 0
+
+
+def test_ai_context_values_n_trading_days_ago(api):
+    from app.services import ai_analysis
+
+    _, Session = api
+    with Session() as db:
+        frames = _seed_many(db, n=2)
+        for ticker, ind in frames.items():
+            section = ai_analysis._indicator_section(db, ticker, None)
+            back = ind.iloc[-1 - signal_rules.LOOKBACK_DAYS]
+            assert section["adx_5d_ago"] == pytest.approx(back["adx"]), ticker
+            assert section["stddev20_5d_ago"] == pytest.approx(back["stddev20"]), ticker
+            assert section["knee_conditions"] == signal_rules.latest_conditions(BUY, ind)

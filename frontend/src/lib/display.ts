@@ -183,7 +183,7 @@ export interface Reading {
    "지금 사야 하나"는 색이 아니라 지표 칸에 붙는 조건 표시와 종합 신호등만 말한다. (약세
    구간이 곧 매수 조건이라 색과 신호가 반대로 보이는 일이 생기는데, 그게 정상이다.) */
 
-/** 이격도 = (종가/MA20 - 1) x 100. 매수 시그널은 이격도 < 0을 요구한다. */
+/** 이격도 = (종가/MA20 - 1) x 100. 매수 시그널은 이격도가 기준(`disparity_below`)보다 작기를 요구한다. */
 export function readDisparity(v: number | null): Reading {
   if (v === null) return { tone: 'grey', note: '데이터 없음' }
   if (v >= 5) return { tone: 'green', note: 'MA20 크게 상회' }
@@ -197,7 +197,8 @@ export function readDisparity(v: number | null): Reading {
 export function readAdx(v: number | null, trend: number = LEGACY_SIGNAL_RULES.thresholds.adx_trend): Reading {
   if (v === null) return { tone: 'grey', note: '데이터 없음' }
   if (v < trend) return { tone: 'grey', note: '추세 없음' }
-  if (v < 25) return { tone: 'blue', note: '추세 형성' }
+  // "추세 형성"은 기준 위 5 만큼 — 기준을 올려도 이 구간이 사라지지 않게 (지금 기준 20 이면 25 까지)
+  if (v < trend + 5) return { tone: 'blue', note: '추세 형성' }
   if (v < 40) return { tone: 'amber', note: '추세 강함' }
   return { tone: 'amber', note: '추세 매우 강함' }
 }

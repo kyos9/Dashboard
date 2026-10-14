@@ -152,10 +152,11 @@ class KneeConditions(BaseModel):
     (SIGNAL_APP_SPEC.md 3장의 조건식과 1:1 대응)
     """
 
-    di_bearish: Optional[bool] = None  # -DI > +DI
-    disparity_negative: Optional[bool] = None  # 이격도 < 0
-    volatility_or_volume: Optional[bool] = None  # StdDev20 축소 또는 거래량비 > 1.1
-    adx_trending: Optional[bool] = None  # ADX > 20
+    # 기준값은 services/signal_rules.py 에 있다 (여기 다시 적지 않는다)
+    di_bearish: Optional[bool] = None  # 하락 방향 우위 (-DI 와 +DI)
+    disparity_negative: Optional[bool] = None  # 종가가 MA20 아래 (이격도)
+    volatility_or_volume: Optional[bool] = None  # 변동성 축소 또는 거래량 증가
+    adx_trending: Optional[bool] = None  # 추세가 있다 (ADX)
 
 
 class DashboardCard(BaseModel):

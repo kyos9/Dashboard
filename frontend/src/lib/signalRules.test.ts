@@ -37,6 +37,9 @@ describe('시그널 규칙 — 옛 서버용 규칙은 0.40.0 의 글 그대로'
     expect(readAdx(19.9).note).toBe('추세 없음')
     expect(readAdx(22).note).toBe('추세 형성')
     expect(readAdx(22, 25).note).toBe('추세 없음')
+    expect(readAdx(24.9).note).toBe('추세 형성')
+    expect(readAdx(25).note).toBe('추세 강함')
+    expect(readAdx(27, 25).note).toBe('추세 형성') // 기준을 올려도 '추세 형성' 구간이 남는다
     expect(readVolume(1.15).note).toBe('거래량 증가')
     expect(readVolume(1.15, 1.2).note).toBe('거래량 보통')
   })
