@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { useBackToClose } from '../lib/backToClose'
 import { ErrorNotice } from './ErrorNotice'
-import type { LogsResponse, SlowRequestsResponse } from '../types'
+import type { LogsResponse, SignalRulesStatus, SlowRequestsResponse } from '../types'
 
 /**
  * 진단 — 서버가 남긴 기록 중 **잘못된 것만** 본다.
@@ -86,12 +86,55 @@ function SlowRequests({ slow }: { slow: SlowRequestsResponse }) {
   )
 }
 
+const RECOMPUTE_REASON: Record<string, string> = {
+  first: '처음 켤 때',
+  definition_changed: '정의가 바뀌어서',
+  manual: '손으로',
+}
+
+/**
+ * 시그널 기준 (0.41.0) — 정의의 판과, 정의가 바뀌어 지난 판정을 마지막으로 다시 계산한 것.
+ * 정의를 바꿔 배포한 뒤 "지난 차트의 점이 다 바뀌었나"를 여기서 본다. 못 받으면(옛 서버) 그리지 않는다.
+ */
+function SignalRulesLine({ status }: { status: SignalRulesStatus }) {
+  const last = status.last_recompute
+  return (
+    <section className="diag-slow" aria-labelledby="diag-rules-title">
+      <h4 id="diag-rules-title">
+        시그널 기준{' '}
+        <span className="hint mono">
+          {status.version}
+          {status.changed_on ? ` · ${status.changed_on}에 바뀜` : ''}
+        </span>
+      </h4>
+      {!status.up_to_date && <p className="hint">지난 판정을 아직 새 기준으로 다시 계산하지 않았습니다 — 다음에 켤 때 합니다.</p>}
+      {last ? (
+        <p className="hint">
+          마지막 다시 계산 {shortTime(last.at)} ({RECOMPUTE_REASON[last.reason] ?? last.reason}) — {last.tickers}종목 중{' '}
+          {last.changed_tickers}종목 {last.changed_rows}줄 바뀜 · {last.seconds}초
+          {last.failed.length > 0 && ` · 실패: ${last.failed.join(', ')}`}
+        </p>
+      ) : (
+        <p className="hint">아직 다시 계산한 적이 없습니다.</p>
+      )}
+    </section>
+  )
+}
+
 export function DiagnosticsModal({ onClose }: { onClose: () => void }) {
   const [level, setLevel] = useState<'warning' | 'all'>('warning')
   const [logs, setLogs] = useState<LogsResponse | null>(null)
   const [error, setError] = useState<unknown>(null)
   const [loading, setLoading] = useState(true)
   const [slow, setSlow] = useState<SlowRequestsResponse | null>(null)
+  const [rules, setRules] = useState<SignalRulesStatus | null>(null)
+
+  useEffect(() => {
+    api
+      .getSignalRulesStatus()
+      .then(setRules)
+      .catch(() => setRules(null))
+  }, [])
 
   useEffect(() => {
     api
@@ -159,6 +202,7 @@ export function DiagnosticsModal({ onClose }: { onClose: () => void }) {
         <ErrorNotice error={error} onDismiss={() => setError(null)} />
 
         <div className="diag-body">
+          {rules && <SignalRulesLine status={rules} />}
           {slow && <SlowRequests slow={slow} />}
           {loading && <p className="hint">불러오는 중…</p>}
           {!loading && logs?.available === false && (

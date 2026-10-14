@@ -147,15 +147,19 @@ def _label(stock: UserStock) -> str:
     return name or stock.ticker
 
 
-def current_values(db: Session, user_id: int) -> dict[str, tuple[str, str]]:
+def current_values(db: Session, user_id: int, signals: dict | None = None) -> dict[str, tuple[str, str]]:
     """지금 알릴 만한 것들. `{subject: (value, 종목 이름 또는 날짜)}`.
 
     값이 빈 문자열이면 "지금은 아니다" — 상태를 비워서 다음에 다시 켜질 때 알리게 한다.
+
+    `signals` 를 주면 저장된 시그널 대신 그것을 본다(`{ticker: [최근 행]}`, 행은 `date`·`knee_buy_v2`).
+    정의를 바꾸기 전에 "알림이 몇 명에게 가나"를 실제 판정 그대로 세는 데 쓴다(`tools/signal_diff.py`).
     """
     stocks = ordered_user_stocks(db, user_id, active_only=True)
     values: dict[str, tuple[str, str]] = {}
 
-    signals = queries.recent_signals(db, [s.ticker for s in stocks], limit=1)
+    if signals is None:
+        signals = queries.recent_signals(db, [s.ticker for s in stocks], limit=1)
     for stock in stocks:
         rows = signals.get(stock.ticker) or []
         latest = rows[0] if rows else None
@@ -185,16 +189,23 @@ def current_values(db: Session, user_id: int) -> dict[str, tuple[str, str]]:
     return values
 
 
+def pending_changes(db: Session, user_id: int, values: dict[str, tuple[str, str]]) -> list[tuple[str, str, str]]:
+    """**적지 않고** 새로 켜질 것만 본다 `[(subject, value, label)]` — `_changes` 와 같은 판정."""
+    stored = {row.subject: row.value for row in db.query(PushState).filter(PushState.user_id == user_id)}
+    return [
+        (subject, value, label)
+        for subject, (value, label) in values.items()
+        if value and value != stored.get(subject, "")
+    ]
+
+
 def _changes(db: Session, user_id: int, values: dict[str, tuple[str, str]]) -> list[tuple[str, str, str]]:
     """상태를 새로 적고, **새로 켜진 것**만 돌려준다 `[(subject, value, label)]`."""
+    fired = pending_changes(db, user_id, values)
     stored = {row.subject: row for row in db.query(PushState).filter(PushState.user_id == user_id)}
     now = dt.datetime.utcnow()
-    fired = []
     for subject, (value, label) in values.items():
         row = stored.get(subject)
-        before = row.value if row is not None else ""
-        if value and value != before:
-            fired.append((subject, value, label))
         if row is None:
             if value:
                 db.add(PushState(user_id=user_id, subject=subject, value=value, updated_at=now))

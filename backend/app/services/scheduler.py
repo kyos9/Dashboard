@@ -89,6 +89,7 @@ def _startup_refresh_job() -> None:
     """
     from app.services import pipeline
 
+    _recompute_if_rules_changed()
     db = SessionLocal()
     try:
         results = pipeline.refresh_stale_markets(db)
@@ -105,6 +106,24 @@ def _startup_refresh_job() -> None:
     # 받아온 게 있을 때만. 서버를 다시 띄울 때마다 알림을 판정할 이유는 없다
     if results:
         _send_alerts()
+
+
+def _recompute_if_rules_changed() -> None:
+    """시그널 정의가 바뀌었으면 지난 판정을 다시 계산한다 (0.41.0, signal_recompute.py).
+
+    따라잡기 갱신과 **같은 job 안에서 먼저** 돈다 — 둘이 같은 종목의 `signal_daily` 를 동시에 쓰면 유일키에
+    걸린다. 실패해도 갱신은 계속한다(지문을 적지 않았으니 다음에 켤 때 다시 돈다).
+    """
+    from app.services import signal_recompute
+
+    db = SessionLocal()
+    try:
+        signal_recompute.run_if_changed(db)
+    except Exception:
+        # 되돌리기는 close 가 한다 — 여기서 또 넘어지면 따라잡기 갱신까지 못 한다
+        logger.warning("시그널을 다시 계산하지 못했습니다 — 다음에 켤 때 다시 합니다", exc_info=True)
+    finally:
+        db.close()
 
 
 def _backup_job() -> None:

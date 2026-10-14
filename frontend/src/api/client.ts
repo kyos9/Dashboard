@@ -9,6 +9,7 @@ import type {
   AuthStatus,
   DashboardCard,
   SignalRules,
+  SignalRulesStatus,
   FxInfo,
   Holding,
   FundamentalsResponse,
@@ -258,6 +259,8 @@ export const api = {
     }),
   /** 관리자 — 앱 설정 (9-15). 사용자에게 AI 진단·종목 분석을 열지 */
   getAppSettings: () => request<AppSettings>('/admin/settings'),
+  /** 관리자 — 시그널 정의의 판·마지막 재계산 (0.41.0). 옛 서버는 404 */
+  getSignalRulesStatus: () => request<SignalRulesStatus>('/admin/signal-rules'),
   setAppSettings: (settings: AppSettings) =>
     request<AppSettings>('/admin/settings', { method: 'PUT', body: JSON.stringify(settings) }),
 

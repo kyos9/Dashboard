@@ -175,6 +175,26 @@ export interface SignalRules {
   change_notice?: string | null
 }
 
+/** 관리자 진단 — 시그널 정의의 판과 마지막 재계산 (`GET /api/admin/signal-rules`, 0.41.0) */
+export interface SignalRecomputeSummary {
+  at: string
+  reason: 'first' | 'definition_changed' | 'manual'
+  tickers: number
+  changed_tickers: number
+  changed_rows: number
+  changed_by_ticker: Record<string, number>
+  failed: string[]
+  seconds: number
+}
+
+export interface SignalRulesStatus {
+  version: string
+  stored_version: string | null
+  up_to_date: boolean
+  changed_on: string | null
+  last_recompute: SignalRecomputeSummary | null
+}
+
 export interface DashboardCard {
   ticker: string
   name: string | null

@@ -121,7 +121,10 @@ from pathlib import Path
 #         화면 아래로(대시보드·재무·리밸런싱·매크로·더보기). PC 는 관리자 도구(진단·사용자)만 메뉴로.
 # 0.40.0: 디자인 1차 — 글꼴(Wanted Sans 직접 싣기), 줄바꿈·44px·대비 전역 규칙, 대시보드 "확인할 신호"·
 #         시그널 보기 "신호 요약" 한 장 (ROADMAP 10-1, docs/design/).
-APP_VERSION = "0.40.0"
+# 0.41.0: 시그널 규칙을 한 곳으로 (키우기 1라운드, docs/rounds/0.41.0-시그널규칙/) — 조건·기준값·문구를
+#         services/signal_rules.py 에 두고 계산·화면·AI 가 거기서 가져온다(판정·화면은 그대로). 정의가 바뀌면
+#         켤 때 지난 판정을 다시 계산하고, 바꾸기 전 전후 비교 도구(app.tools.signal_diff). 진단에 "시그널 기준".
+APP_VERSION = "0.41.0"
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 

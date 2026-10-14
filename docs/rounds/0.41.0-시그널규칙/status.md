@@ -37,20 +37,36 @@
 
 ## 항목
 
-- A 시그널 규칙을 한 곳으로 (큼) — 승인됨
-- B 정의를 바꿀 때의 길 (중간/작음) — 승인됨
+- A 시그널 규칙을 한 곳으로 (큼) — 구현 끝, 검토 대기
+- B 정의를 바꿀 때의 길 (중간) — 구현 끝, 검토 대기
 
 ## A 작업 목록
 
-- [ ] `services/signal_rules.py` — 조건 메타데이터 + 평가 함수, 기준값 상수, 판·이력
-- [ ] `signals.py` 를 규칙에서 (벡터 한 벌, 오늘 한 줄은 같은 평가)
-- [ ] `test_knee_conditions.py` 넓히기 (어깨·6행 미만·결측) · 기준값 바꾸면 다 따라오는 테스트
-- [ ] AI 지시문을 규칙에서 — 지금 글자와 같음 테스트
-- [ ] `GET /api/signal-rules` (SHARED, USER) + 카드 `buy_conditions`·`signal_rules_version` + 격리 표
-- [ ] 화면: 규칙 받기(판 다르면 다시), 열 머리·칩·설명 줄·신호등·AiPanel·색 풀이, 옛 서버 테스트
-- [ ] 명세 3·4·10장, 11장 이력
-- [ ] 회귀: 응답 사진·API 모양 비교, 뮤테이션
+- [x] `services/signal_rules.py` — 조건 메타데이터 + 평가 함수, 기준값 상수, 판·이력
+- [x] `signals.py` 를 규칙에서 (벡터 한 벌, 오늘 한 줄은 같은 평가)
+- [x] `test_knee_conditions.py` 넓히기 (어깨·6행 미만·결측) · 기준값 바꾸면 다 따라오는 테스트
+- [x] AI 지시문을 규칙에서 — 지금 글자와 같음 테스트
+- [x] `GET /api/signal-rules` (SHARED, USER) + 카드 `buy_conditions`·`signal_rules_version` + 격리 표
+- [x] 화면: 규칙 받기(판 다르면 다시), 열 머리·칩·설명 줄·신호등·AiPanel·색 풀이, 옛 서버 테스트
+- [x] 명세 3·4·10장, 11장 이력
+- [x] 회귀: 응답 사진·API 모양 비교, 뮤테이션
 - [ ] 검토자·사용자
+
+A 확인 (총괄): 응답 사진 차이 0 · API 모양 빠짐 0(더해짐 7) · AI 지시문 상수 시작 커밋과 같음 · 화면 픽셀 비교 48장 중 45장 같음
+(3장은 포트폴리오 보기 선택 칸 글자 렌더링 잡음 — 내용 같음) · 뮤테이션 13개 중 살아남음 1(동등 변이, `A-mutation.md`) ·
+대시보드 20종목 35.1ms(시작 34.6ms, 같은 날 같은 기계) — 처음 구현은 250ms 였고 한 표 평가로 고쳤다.
+
+## B 작업 목록
+
+- [x] `app_settings.get_value/set_value` (관리자 설정 응답에 안 나옴)
+- [x] `services/signal_recompute.py` — 지문 비교, 전 종목 재계산, 전부 성공일 때만 지문 저장, 요약
+- [x] 스케줄러 켠 직후 job: 재계산 → 따라잡기 갱신 (같은 job, 차례로). 재계산 실패해도 갱신 계속
+- [x] `alerts.pending_changes` (적지 않는 판정) · `current_values(signals=)` — 비교 도구가 실제 알림 판정을 그대로 쓴다
+- [x] `app.tools.signal_diff` · `app.tools.recompute_signals`
+- [x] `GET /api/admin/signal-rules` (SHARED, OWNER — 주인 전용 14개) + 진단 "시그널 기준" 줄
+- [x] 가짜 서버: 켤 때 재계산, `--demo-rule-change`
+- [x] DEPLOY 9-1, README, ROADMAP 11-1·0-1, 명세 10장, version 0.41.0
+- [ ] 뮤테이션 · 검토자·사용자
 
 ## 주인 질문과 답
 
@@ -59,4 +75,4 @@
 
 ## 다음 할 일
 
-1. A 작업 목록대로 구현 (아래)
+1. B 뮤테이션 → A·B 검토자·사용자 (새 서브 에이전트)
