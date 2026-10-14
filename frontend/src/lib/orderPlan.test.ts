@@ -298,18 +298,32 @@ describe('팔지 않고 새 돈만 나누기 (0.42.0)', () => {
     expect(plan.leftover).toBeCloseTo(100)
   })
 
-  it('나눈 몫이 잡음(0.5% 미만)이면 "유지"이고 그 몫은 현금에', () => {
+  it('나눈 몫이 새 돈의 0.5% 미만이면 "유지"이고 그 몫은 현금에', () => {
     const rows = [
-      row({ ticker: 'A', currency: 'KRW', current_value_base: 995, target_weight_pct: 50, last_close: 10 }),
-      row({ ticker: 'B', currency: 'KRW', current_value_base: 805, target_weight_pct: 50, last_close: 10 }),
+      row({ ticker: 'A', currency: 'KRW', current_value_base: 999.5, target_weight_pct: 50, last_close: 10 }),
+      row({ ticker: 'B', currency: 'KRW', current_value_base: 800.5, target_weight_pct: 50, last_close: 10 }),
     ]
-    // 전체 2000 → 모자람 A 5(0.25%) · B 195 — A 는 유지, 5 는 현금에 남는다
+    // 전체 2000 → 모자람 A 0.5(새 돈의 0.25%) · B 199.5 — A 는 유지, 0.5 는 현금에 남는다
     const plan = buildOrderPlan(rows, 'KRW', {}, { value_base: 0, target_pct: 0 }, '200', true)
-    expect(plan.orders.map((o) => [o.action, Math.round(o.adjust)])).toEqual([
+    expect(plan.orders.map((o) => [o.action, o.adjust])).toEqual([
       ['hold', 0],
-      ['buy', 195],
+      ['buy', 199.5],
     ])
-    expect(plan.leftover).toBeCloseTo(5)
+    expect(plan.leftover).toBeCloseTo(0.5)
+  })
+
+  it('큰 포트폴리오에 적은 적립금 — 전체 자금의 0.5% 보다 작아도 새 돈은 나뉜다', () => {
+    // 4.8억에 100만 원(0.2%) — 전체 자금 기준이면 몫이 모두 잡음이라 아무것도 사지 않았다
+    const rows = [
+      row({ ticker: 'A', currency: 'KRW', current_value_base: 230_000_000, target_weight_pct: 50, last_close: 50_000 }),
+      row({ ticker: 'B', currency: 'KRW', current_value_base: 250_000_000, target_weight_pct: 50, last_close: 50_000 }),
+    ]
+    const plan = buildOrderPlan(rows, 'KRW', {}, undefined, '1000000', true)
+    expect(plan.orders.map((o) => [o.ticker, o.action, Math.round(o.adjust)])).toEqual([
+      ['A', 'buy', 1_000_000],
+      ['B', 'hold', 0],
+    ])
+    expect(plan.leftover).toBeCloseTo(0)
   })
 
   it('새로 넣을 돈이 없으면 켜 둬도 지금 계산', () => {

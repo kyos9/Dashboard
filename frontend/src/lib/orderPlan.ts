@@ -176,7 +176,8 @@ export function buildOrderPlan(
  * (시그널이 뜬 종목을 먼저 채우거나 순서를 매기지 않는다 — ROADMAP 3절). 현금도 목표보다 모자라면 한 자리로 친다.
  *
  * - 모자란 합이 새 돈보다 작으면 모자란 만큼만 사고 나머지는 현금에 남는다.
- * - 나눈 몫이 전체 자금의 0.5% 미만인 종목은 "유지" — 그 몫도 현금에 남는다(주문 가이드의 잡음 기준과 같다).
+ * - 나눈 몫이 **새 돈의** 0.5% 미만인 종목은 "유지" — 그 몫도 현금에 남는다. 전체 자금 기준(다시 맞추기의 잡음 기준)을
+ *   쓰면 큰 포트폴리오에 적립금을 넣을 때 몫이 모두 그 아래라 아무것도 사지 않았다(4.8억에 100만 원 — 0.42.0 브라우저 확인).
  * - 파는 주문은 없다.
  */
 function buyOnlyPlan(
@@ -199,7 +200,7 @@ function buyOnlyPlan(
   let spent = 0
   const orders = rows.map((row, i): OrderLine => {
     const raw = gaps[i] * share
-    const material = total > 0 && raw / total > NOISE_THRESHOLD_PCT / 100
+    const material = raw > (newMoney * NOISE_THRESHOLD_PCT) / 100
     const adjust = material ? raw : 0
     spent += adjust
     const adjustNative = toNative(adjust, row.currency, baseCurrency, krwPer)

@@ -1114,7 +1114,8 @@ export function RebalancePanel() {
         <div className="section-head">
           <h3 id="orders-title">주문 가이드</h3>
           <span className="hint">
-            비중조절 신호 {signalled.length}종목 · 조정 금액이 전체의 {NOISE_THRESHOLD_PCT}% 미만이면 "유지"
+            비중조절 신호 {signalled.length}종목 · {plan.buyOnly ? '나눈 몫이 새로 넣을 돈의' : '조정 금액이 전체의'}{' '}
+            {NOISE_THRESHOLD_PCT}% 미만이면 "유지"
           </span>
         </div>
         {!narrow && newMoneyBlock}
