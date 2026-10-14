@@ -235,6 +235,27 @@ def test_signal_diff_counts_the_change_without_writing(stored, adx_25):
     assert report["alerts"]["users_with_alerts_on"] == 1
 
 
+def test_signal_diff_runs_on_a_db_before_0013(stored, adx_25):
+    """올리기 **전에** 새 이미지의 도구를 지금 DB 에 대고 돌린다(DEPLOY 9-1) — 서버가 0.41.x 이하면 사람마다의 기준
+    칸(0013)이 아직 없다. 넘어지지 않고 모두 기본 기준으로 센다 (0.42.0 라운드 끝 검토 D1)."""
+    from sqlalchemy import text
+
+    from tests.factories import make_settings
+
+    make_settings(stored, user_id=1)
+    make_push_subscription(stored, new_device())
+    stored.commit()
+    stored.execute(text("ALTER TABLE user_settings DROP COLUMN signal_thresholds"))
+    stored.expire_all()
+    stored.info.pop("signal_thresholds", None)
+    before_rows = _buy_rows(stored)
+    report = signal_diff.run(stored)
+    assert _buy_rows(stored) == before_rows
+    assert report["alerts"]["users_with_alerts_on"] == 1
+    assert report["alerts"]["users_with_own_thresholds"] == 0
+    assert {r["ticker"] for r in report["tickers"]} == set(TICKERS)
+
+
 def test_signal_diff_finds_a_new_buy_alert(stored, monkeypatch):
     """정의를 바꾸니 오늘 매수가 새로 켜지는 종목 — 알림이 갈 사람 1명, 그 종목."""
     make_push_subscription(stored, new_device())

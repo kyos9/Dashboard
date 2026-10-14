@@ -22,8 +22,8 @@ import sys
 from types import SimpleNamespace
 
 import pandas as pd
-from sqlalchemy import distinct, select
-from sqlalchemy.orm import Session
+from sqlalchemy import distinct, event, inspect, select
+from sqlalchemy.orm import Session, defer
 
 from app.models import PriceDaily, PushSubscription, SignalDaily, User, UserSettings
 from app.services import alerts, my_signals, signal_rules
@@ -84,6 +84,26 @@ def compare_ticker(db: Session, ticker: str) -> dict | None:
     }
 
 
+def _has_thresholds_column(db: Session) -> bool:
+    return "signal_thresholds" in {c["name"] for c in inspect(db.connection()).get_columns("user_settings")}
+
+
+def _read_without_thresholds(db: Session, users: list[int]) -> None:
+    """0.42.0 전의 DB(0012)에 대고 돌릴 때 — 서버를 올리기 **전에** 새 이미지로 이 도구를 돌리므로(DEPLOY 9-1) 흔하다.
+
+    그 DB 에는 사람마다의 기준 칸(0013)이 아직 없다. 칸을 읽지 않고, 모두 기본 기준으로 본다 — 0013 이 칸을 NULL 로
+    만들므로 올린 뒤와 같은 답이다. DB 에는 여전히 아무것도 쓰지 않는다.
+    """
+    known = db.info.setdefault("signal_thresholds", {})
+    for uid in users:
+        known[uid] = signal_rules.DEFAULT
+
+    @event.listens_for(db, "do_orm_execute")
+    def _skip_column(state):
+        if state.is_select and any(d.get("entity") is UserSettings for d in state.statement.column_descriptions):
+            state.statement = state.statement.options(defer(UserSettings.signal_thresholds))
+
+
 def _alert_effect(db: Session, today_rows: dict[str, SimpleNamespace]) -> dict:
     """배포 뒤 첫 알림 판정에서 매수 알림이 **새로**(정의가 바뀌어서) 갈 사람·종목.
 
@@ -99,6 +119,8 @@ def _alert_effect(db: Session, today_rows: dict[str, SimpleNamespace]) -> dict:
     ]
     affected: dict[int, list[str]] = {}
     own = 0
+    if not _has_thresholds_column(db):
+        _read_without_thresholds(db, users)
     for uid in sorted(users):
         kinds = alerts.kinds_for(db.get(User, uid), db.get(UserSettings, uid))
         if alerts.KIND_BUY not in kinds:
