@@ -173,6 +173,14 @@ def test_screen_fallback_is_what_this_server_sends():
         assert now[key] == legacy[key], key
 
 
+def test_change_history_words_stay_inside_the_regulatory_line():
+    """이력의 `what` 은 신호 요약에 그대로 보인다 — 권유·예측·수익률로 읽히는 말을 쓰지 않는다 (ROADMAP 3절)."""
+    banned = ("추천", "사세요", "팔라", "파세요", "저평가", "고평가", "예측", "수익률", "수익")
+    for change in signal_rules.CHANGES:
+        text = f"{change['what']} {change['why']}"
+        assert not [w for w in banned if w in text], change
+
+
 def test_no_change_notice_while_only_the_first_definition_exists():
     assert signal_rules.changed_on() is None
     assert signal_rules.change_notice() is None

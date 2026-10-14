@@ -303,7 +303,12 @@ def test_signal_diff_sees_a_change_in_todays_sell_only(stored, monkeypatch):
     stored.commit()
     report = signal_diff.run(stored)
     assert report["today_changed"] == ["CCC"]
-    assert {r["ticker"]: r["today"]["buy"][0] == r["today"]["buy"][1] for r in report["tickers"]}["CCC"] is True
+    ccc = {r["ticker"]: r for r in report["tickers"]}["CCC"]
+    assert ccc["today"]["buy"][0] == ccc["today"]["buy"][1]
+    # 매도 "전"은 저장된 판정에서, "후"는 다시 계산한 것에서 — 오늘 하나를 뒤집었으니 1년 횟수가 하나 다르다
+    flipped_on = bool(last.shoulder_sell_ref)
+    for years in (1, 3, 5):
+        assert ccc["sell"]["before"][years] - ccc["sell"]["after"][years] == (1 if flipped_on else -1), years
 
 
 def test_signal_diff_skips_people_who_turned_buy_alerts_off(stored, monkeypatch):
@@ -315,3 +320,15 @@ def test_signal_diff_skips_people_who_turned_buy_alerts_off(stored, monkeypatch)
     monkeypatch.setattr(signal_rules, "evaluate_rule", lambda rule, df: pd.Series(rule.key == "buy", index=df.index))
     report = signal_diff.run(stored)
     assert report["alerts"] == {"users_with_alerts_on": 1, "users": 0, "stocks": []}
+
+
+def test_signal_diff_does_not_count_people_who_are_not_active(stored, monkeypatch):
+    """승인 대기·차단된 사람은 알림을 받지 않는다 — 알림 켠 사람 수에도, 새로 갈 사람 수에도 넣지 않는다."""
+    from app.models import User
+
+    make_push_subscription(stored, new_device())
+    stored.get(User, 1).status = "blocked"
+    stored.commit()
+    monkeypatch.setattr(signal_rules, "evaluate_rule", lambda rule, df: pd.Series(rule.key == "buy", index=df.index))
+    report = signal_diff.run(stored)
+    assert report["alerts"] == {"users_with_alerts_on": 0, "users": 0, "stocks": []}
