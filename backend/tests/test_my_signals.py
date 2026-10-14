@@ -44,6 +44,12 @@ PRICES = {
 }
 
 
+# 날짜가 정해진 시세 — 리밸런싱의 "이번 기간(분기)"은 달력을 따라 움직여서, 오늘까지인 시세로는 날마다 답이 바뀐다.
+# seed 51 은 2026년 2분기에 기본 기준으로는 어깨매도가 없고 내 기준(비교 3거래일)으로는 있다.
+QUARTER_END = dt.date(2026, 6, 30)
+SELL_IN_Q2 = _prices(51).set_axis(pd.Index(pd.bdate_range(end=QUARTER_END, periods=400).date, name="date"))
+
+
 @pytest.fixture(autouse=True)
 def fresh_cache():
     my_signals.clear_cache()
@@ -143,6 +149,36 @@ def test_all_four_paths_follow_my_thresholds(world):
             want = any(start <= d <= end for d in exp.index[exp["shoulder_sell_ref"]])
             got = rebalance.shoulder_fired_in_current_period(db, stock, exp.index[-1])
             assert got is want, stock.ticker
+
+
+def test_this_periods_shoulder_follows_my_thresholds(api):
+    """리밸런싱 "이번 기간 어깨매도"가 내 기준 — 기본으로는 없고 내 기준으로는 있는 분기에서."""
+    client, Session = api
+    with Session() as db:
+        make_stock(db, ticker="SELL")
+        refresh_ticker(db, "SELL", price_df=SELL_IN_Q2)
+        db.commit()
+        stock = db.query(UserStock).filter_by(user_id=1, ticker="SELL").one()
+        assert rebalance.shoulder_fired_in_current_period(db, stock, QUARTER_END) is False
+    _set_mine(Session, MINE)
+    with Session() as db:
+        stock = db.query(UserStock).filter_by(user_id=1, ticker="SELL").one()
+        assert rebalance.shoulder_fired_in_current_period(db, stock, QUARTER_END) is True
+
+
+def test_judging_many_tickers_together_is_the_same_as_one_by_one(world):
+    """종목을 표 하나로 이어 판정할 때 "N거래일 전"이 앞 종목의 행을 읽지 않는다 — 비교 기간이 지표가 채워지는 기간(20일)
+    보다 길 때 드러난다."""
+    _, Session = world
+    t = Thresholds(lookback_days=20)
+    with Session() as db:
+        together = my_signals.judge(db, list(PRICES), t)
+        my_signals.clear_cache()
+        for ticker in PRICES:
+            alone = my_signals.judge(db, [ticker], t)[ticker]
+            assert (together[ticker].buy == alone.buy).all() and (together[ticker].sell == alone.sell).all(), ticker
+            exp = _expected(ticker, t)
+            assert (alone.buy == exp["knee_buy_v2"].to_numpy(dtype=bool)).all(), ticker
 
 
 def test_default_people_still_read_the_stored_signals(world):

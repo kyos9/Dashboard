@@ -194,7 +194,8 @@ class SignalThresholdsIn(BaseModel):
 
         from app.services.signal_rules import LIMITS, _on_step
 
-        for key, (low, high, step, kind) in LIMITS.items():
+        # 일수는 단위가 1 이라 아래 단위 확인이 소수(2.5일)를 거른다
+        for key, (low, high, step, _) in LIMITS.items():
             value = getattr(self, key)
             if value is None:
                 continue
@@ -202,8 +203,6 @@ class SignalThresholdsIn(BaseModel):
                 raise ValueError(f"{key}: 숫자가 아닙니다")
             if not math.isfinite(value):
                 raise ValueError(f"{key}: 숫자가 아닙니다")
-            if kind is int and value != int(value):
-                raise ValueError(f"{key}: 정수만 받습니다")
             if not (low <= value <= high):
                 raise ValueError(f"{key}: {low:g} ~ {high:g} 사이여야 합니다")
             if not _on_step(value, low, step):
