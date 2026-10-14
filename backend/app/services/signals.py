@@ -14,7 +14,7 @@ import pandas as pd
 from app.models import IndicatorDaily
 from app.schemas import KneeConditions
 from app.services import signal_rules
-from app.services.signal_rules import BUY, RULES
+from app.services.signal_rules import BUY, Thresholds
 
 # 오늘 한 줄을 판정할 때 지표 표로 옮기는 열 (`indicator_daily` 의 열 전부)
 _INDICATOR_FIELDS = (
@@ -24,9 +24,11 @@ _INDICATOR_FIELDS = (
 )
 
 
-def compute_signals(df: pd.DataFrame) -> pd.DataFrame:
+def compute_signals(df: pd.DataFrame, t: Thresholds | None = None) -> pd.DataFrame:
+    """표 전체의 날마다 판정. 저장하는 판정은 늘 기본 기준이다 — `t` 는 읽을 때 계산하는 길(`my_signals`)만 준다."""
+    t = t or signal_rules.DEFAULT
     out = df.copy()
-    for rule in RULES:
+    for rule in (signal_rules.RULES if t.is_default else signal_rules.build_rules(t)):
         out[rule.column] = signal_rules.evaluate_rule(rule, out)
     return out
 
@@ -40,20 +42,23 @@ def _frame(rows_oldest_first: Sequence[IndicatorDaily | None]) -> pd.DataFrame:
     return pd.DataFrame(records, columns=list(_INDICATOR_FIELDS), dtype="float64")
 
 
-def buy_conditions(recent_desc: Sequence[IndicatorDaily]) -> dict[str, bool | None]:
+def buy_conditions(recent_desc: Sequence[IndicatorDaily], t: Thresholds | None = None) -> dict[str, bool | None]:
     """최근 지표 행들(최신순)로 오늘의 매수 조건별 판정. 키는 규칙의 조건 키 그대로.
 
     "N거래일 전"은 N+1 번째 행이다 — 표 전체 계산의 `shift(N)` 과 같은 기준. 행이 모자라면 그 비교는
     판정 불가가 된다.
     """
+    t = t or signal_rules.DEFAULT
+    buy, _ = signal_rules.build_rules(t)
     if not recent_desc or recent_desc[0] is None:
-        return {c.key: None for c in BUY.conditions}
-    rows = list(reversed(recent_desc[: signal_rules.LOOKBACK_DAYS + 1]))
-    return signal_rules.latest_conditions(BUY, _frame(rows))
+        return {c.key: None for c in buy.conditions}
+    rows = list(reversed(recent_desc[: t.lookback_days + 1]))
+    return signal_rules.latest_conditions(buy, _frame(rows))
 
 
 def buy_conditions_many(
     recent_by_ticker: dict[str, Sequence[IndicatorDaily]],
+    t: Thresholds | None = None,
 ) -> dict[str, dict[str, bool | None]]:
     """여러 종목의 오늘 매수 조건을 **한 번에** — `buy_conditions` 를 종목마다 부른 것과 같은 답.
 
@@ -62,19 +67,21 @@ def buy_conditions_many(
     묶음의 마지막 행에서 "N거래일 전"은 늘 같은 묶음의 첫 행이다. 다른 묶음으로 새는 것은 읽지 않는
     앞쪽 행들뿐이다 — 대시보드가 읽는 것이 원래 N+1 행이라 조건도 그 이상을 볼 수 없다.
     """
-    size = signal_rules.LOOKBACK_DAYS + 1
+    t = t or signal_rules.DEFAULT
+    buy, _ = signal_rules.build_rules(t)
+    size = t.lookback_days + 1
     out: dict[str, dict[str, bool | None]] = {}
     blocks: list[IndicatorDaily | None] = []
     order: list[str] = []
     for ticker, recent_desc in recent_by_ticker.items():
         if not recent_desc or recent_desc[0] is None:
-            out[ticker] = {c.key: None for c in BUY.conditions}
+            out[ticker] = {c.key: None for c in buy.conditions}
             continue
         rows = list(reversed(recent_desc[:size]))
         blocks += [None] * (size - len(rows)) + rows
         order.append(ticker)
     if order:
-        table = signal_rules.evaluate_conditions(BUY, _frame(blocks))
+        table = signal_rules.evaluate_conditions(buy, _frame(blocks))
         for i, ticker in enumerate(order):
             last = table.iloc[(i + 1) * size - 1]
             out[ticker] = {key: (None if pd.isna(value) else bool(value)) for key, value in last.items()}

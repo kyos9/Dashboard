@@ -1,7 +1,7 @@
 import datetime as dt
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.markets import Currency, Market
 from app.models import ReviewPeriod
@@ -133,16 +133,82 @@ class SignalRuleChange(BaseModel):
     why: str
 
 
+class SignalThresholdLimit(BaseModel):
+    min: float
+    max: float
+    step: float
+
+
 class SignalRules(BaseModel):
-    """`GET /api/signal-rules` — 시그널 정의 (공용, 0.41.0). 정의는 `services/signal_rules.py`."""
+    """`GET /api/signal-rules` — 시그널 정의 (0.41.0). 정의는 `services/signal_rules.py`.
+
+    0.42.0 부터 **부른 사람의 기준**으로 문구·기준값을 준다(기본인 사람은 0.41.0 과 같은 값). `custom` 이
+    없는 응답은 0.41.0 서버다 — 화면은 기준 바꾸기를 숨긴다.
+    """
 
     version: str
     thresholds: dict[str, float]
+    # 0.42.0 — 공용 기본값, 이 사람이 바꿨나, 바꿀 수 있는 범위
+    defaults: dict[str, float] = {}
+    custom: bool = False
+    limits: dict[str, SignalThresholdLimit] = {}
     rules: list[SignalRule]
     changes: list[SignalRuleChange]
     changed_on: Optional[str] = None
     # 신호 요약에 붙는 한 줄 — 정의를 바꾼 뒤 30일 동안만
     change_notice: Optional[str] = None
+
+
+class SignalThresholdsIn(BaseModel):
+    """`PUT /api/signal-thresholds` — 내 기준. 빠진 키는 기본값. 범위·단위는 `signal_rules.LIMITS`.
+
+    모르는 키·참거짓·NaN·무한·범위 밖·단위에 안 맞는 값은 받지 않는다(422). 반올림하지 않는다 — 고른 값이
+    소리 없이 다른 값이 되면 화면과 판정이 어긋난다.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    adx_trend: Optional[Any] = None
+    vol_ratio_expand: Optional[Any] = None
+    disparity_below: Optional[Any] = None
+    lookback_days: Optional[Any] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _finite(cls, data):
+        # NaN·무한은 JSON 으로 다시 못 쓴다 — 422 응답에 그 값이 실려 나가면 오류 응답 자체가 깨진다(500).
+        # 글자로 바꿔 둔 뒤 거절한다.
+        import math
+
+        if isinstance(data, dict):
+            bad = [k for k, v in data.items() if isinstance(v, float) and not math.isfinite(v)]
+            for key in bad:
+                data[key] = str(data[key])
+            if bad:
+                raise ValueError(f"{', '.join(bad)}: 숫자가 아닙니다")
+        return data
+
+    @model_validator(mode="after")
+    def _check(self):
+        import math
+
+        from app.services.signal_rules import LIMITS, _on_step
+
+        for key, (low, high, step, kind) in LIMITS.items():
+            value = getattr(self, key)
+            if value is None:
+                continue
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError(f"{key}: 숫자가 아닙니다")
+            if not math.isfinite(value):
+                raise ValueError(f"{key}: 숫자가 아닙니다")
+            if kind is int and value != int(value):
+                raise ValueError(f"{key}: 정수만 받습니다")
+            if not (low <= value <= high):
+                raise ValueError(f"{key}: {low:g} ~ {high:g} 사이여야 합니다")
+            if not _on_step(value, low, step):
+                raise ValueError(f"{key}: {step:g} 단위여야 합니다")
+        return self
 
 
 class KneeConditions(BaseModel):

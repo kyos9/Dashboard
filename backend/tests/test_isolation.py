@@ -98,7 +98,9 @@ ENDPOINTS: dict[tuple[str, str], tuple[str, str]] = {
     ("GET", "/api/fundamentals"): (MINE, USER),
     ("GET", "/api/fundamentals/{ticker}"): (MINE, USER),
     # 시그널 정의 (0.41.0) — 모두에게 같다. 손님 화면에는 시그널 설명이 없어 손님에게는 열지 않는다
-    ("GET", "/api/signal-rules"): (SHARED, USER),
+    ("GET", "/api/signal-rules"): (MINE, USER),  # 0.42.0 — 그 사람의 시그널 기준으로
+    ("PUT", "/api/signal-thresholds"): (MINE, USER),
+    ("DELETE", "/api/signal-thresholds"): (MINE, USER),
     # 내 포트폴리오
     ("GET", "/api/rebalance/targets"): (MINE, USER),
     ("PUT", "/api/rebalance/targets/{ticker}"): (MINE, USER),
@@ -280,7 +282,8 @@ def world(api, monkeypatch) -> World:
         make_settings(db, user_id=A, default_rebalance_band_pct=7.0, base_currency="KRW",
                       fx_overrides={"USD": 1300.0}, pinned_macro=["VIX"],
                       cash={"KRW": 1_000_000}, cash_target_pct=10.0, review_period="annual",
-                      push_kinds=["buy", "signup"], include_fx_effect=True)
+                      push_kinds=["buy", "signup"], include_fx_effect=True,
+                      signal_thresholds={"adx_trend": 25.0})
         make_settings(db, user_id=B, default_rebalance_band_pct=3.0, base_currency="USD",
                       pinned_macro=["DGS10"], cash={"USD": 50})
 
@@ -315,6 +318,7 @@ def _a_is_untouched(w: World) -> None:
         assert settings.cash == {"KRW": 1_000_000}
         assert settings.review_period == "annual"
         assert settings.include_fx_effect is True
+        assert settings.signal_thresholds == {"adx_trend": 25.0}
         assert [(r.id, r.note) for r in db.query(RebalanceSnapshot).filter_by(user_id=A)] == [
             (w.snapshots[A], "A의 기록")
         ]
@@ -649,6 +653,30 @@ def check_update_settings(w: World):
     _a_is_untouched(w)
 
 
+def check_signal_rules(w: World):
+    # A는 ADX 기준을 25로 바꿨다 — B의 규칙 문구·기준값에 얹히지 않는다
+    got = w.as_user(B).get("/api/signal-rules").json()
+    assert (got["custom"], got["thresholds"]["adx_trend"]) == (False, 20.0)
+    theirs = w.as_user(A).get("/api/signal-rules").json()
+    assert (theirs["custom"], theirs["thresholds"]["adx_trend"]) == (True, 25.0)
+    assert got["version"] != theirs["version"]
+
+
+def check_put_thresholds(w: World):
+    res = w.as_user(B).put("/api/signal-thresholds", json={"adx_trend": 30, "lookback_days": 3})
+    assert res.status_code == 200, res.text
+    assert w.get(UserSettings, B).signal_thresholds == {"adx_trend": 30.0, "lookback_days": 3}
+    _a_is_untouched(w)
+
+
+def check_delete_thresholds(w: World):
+    client = w.as_user(B)
+    assert client.put("/api/signal-thresholds", json={"adx_trend": 30}).status_code == 200
+    assert client.delete("/api/signal-thresholds").status_code == 200
+    assert w.get(UserSettings, B).signal_thresholds is None
+    _a_is_untouched(w)
+
+
 def check_current(w: World):
     got = w.as_user(B).get("/api/rebalance/current").json()
     assert got["base_currency"] == "USD"
@@ -837,6 +865,9 @@ CHECKS = {
     ("GET", "/api/rebalance/settings"): check_settings,
     ("PUT", "/api/rebalance/settings"): check_update_settings,
     ("GET", "/api/rebalance/current"): check_current,
+    ("GET", "/api/signal-rules"): check_signal_rules,
+    ("PUT", "/api/signal-thresholds"): check_put_thresholds,
+    ("DELETE", "/api/signal-thresholds"): check_delete_thresholds,
     ("GET", "/api/rebalance/snapshots"): check_list_snapshots,
     ("POST", "/api/rebalance/snapshots"): check_create_snapshot,
     ("DELETE", "/api/rebalance/snapshots/{snapshot_id}"): check_delete_snapshot,

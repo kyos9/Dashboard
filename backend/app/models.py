@@ -268,6 +268,9 @@ class UserSettings(Base):
     # 수익률·평가손익에 환율 효과를 넣을지 (ROADMAP 8-3). 켜면 산 환율을 적은 외화 종목의 손익을
     # 원화로 따진다. **기준통화가 원일 때만 뜻이 있다** — 달러 기준이면 켜 둬도 쓰지 않는다.
     include_fx_effect: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # 시그널 기준 내 설정 (0.42.0). 바꾼 키만 (`{"adx_trend": 25}`), **`None` 은 기본 기준** — 공용 판정과 같다.
+    # 읽을 때 계산하는 데만 쓰고 공용 `signal_daily` 는 바꾸지 않는다 (`services/my_signals.py`).
+    signal_thresholds: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
 
 class RebalanceSnapshot(Base):

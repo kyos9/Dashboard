@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import datetime as dt
 import functools
 import hashlib
@@ -35,6 +36,65 @@ ADX_TREND = 20.0  # ADX 가 이보다 커야 "추세가 있다"
 VOL_RATIO_EXPAND = 1.1  # 거래량비(5일÷20일 평균)가 이보다 커야 "거래가 붙는다"
 DISPARITY_BELOW = 0.0  # 이격도가 이보다 작아야 "MA20 아래"
 LOOKBACK_DAYS = 5  # "N거래일 전" — 달력이 아니라 거래일 행
+
+
+@dataclass(frozen=True)
+class Thresholds:
+    """기준값 넷 한 벌. 기본은 위 상수 — 사람마다 바꿀 수 있다(0.42.0, `user_settings.signal_thresholds`).
+
+    **공용 판정(`signal_daily`)·지문·재계산은 늘 기본값이다.** 사람의 기준은 읽을 때 계산하는 데만 쓴다
+    (`services/my_signals.py`). 조건의 개수·종류는 바꾸지 못한다 — 그건 공용 정의 변경이다.
+    """
+
+    adx_trend: float = ADX_TREND
+    vol_ratio_expand: float = VOL_RATIO_EXPAND
+    disparity_below: float = DISPARITY_BELOW
+    lookback_days: int = LOOKBACK_DAYS
+
+    def as_dict(self) -> dict[str, float | int]:
+        return {
+            "adx_trend": self.adx_trend,
+            "vol_ratio_expand": self.vol_ratio_expand,
+            "disparity_below": self.disparity_below,
+            "lookback_days": self.lookback_days,
+        }
+
+    @property
+    def is_default(self) -> bool:
+        return self == DEFAULT
+
+    @classmethod
+    def from_stored(cls, stored: dict | None) -> "Thresholds":
+        """저장된 값(바꾼 키만)에서. 모르는 키·범위 밖 값은 버리고 그 자리는 기본값 — 저장은 API 가 거른다."""
+        if not stored:
+            return DEFAULT
+        values = {}
+        for key, (low, high, step, kind) in LIMITS.items():
+            value = stored.get(key)
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                continue
+            if not (low <= value <= high) or not _on_step(value, low, step):
+                continue
+            values[key] = kind(value)
+        return dataclasses.replace(DEFAULT, **values) if values else DEFAULT
+
+
+# 사람이 바꿀 수 있는 범위 — (가장 작은 값, 가장 큰 값, 단위, 형). 화면도 이것을 받아 쓴다.
+# 이격도 위쪽이 0 인 까닭: 0 보다 크면 "MA20 아래"라는 조건의 뜻이 바뀐다.
+LIMITS: dict[str, tuple[float, float, float, type]] = {
+    "adx_trend": (10.0, 40.0, 0.5, float),
+    "vol_ratio_expand": (0.5, 3.0, 0.05, float),
+    "disparity_below": (-20.0, 0.0, 0.5, float),
+    "lookback_days": (1, 20, 1, int),
+}
+
+
+def _on_step(value: float, low: float, step: float) -> bool:
+    n = (value - low) / step
+    return abs(n - round(n)) < 1e-6
+
+
+DEFAULT = Thresholds()
 
 # 평가 함수의 동작을 바꾸면 손으로 올린다 (기준값은 지문에 따로 들어간다)
 VERSION = "knee-v2.shoulder-ref"
@@ -91,8 +151,8 @@ def _lt(left, right) -> pd.Series:
     return _compare(left, right, lambda a, b: a < b)
 
 
-def _ago(series: pd.Series) -> pd.Series:
-    return series.shift(LOOKBACK_DAYS)
+def _ago(series: pd.Series, days: int) -> pd.Series:
+    return series.shift(days)
 
 
 def any_of(*parts: pd.Series) -> pd.Series:
@@ -150,114 +210,136 @@ def count_word(n: int) -> str:
     return _KOREAN_COUNT.get(n, str(n))
 
 
-BUY = Rule(
-    key="buy",
-    column="knee_buy_v2",
-    name="매수 시그널",
-    spec_name="무릎매수 v2",
-    conditions=(
-        Condition(
-            key="di_bearish",
-            metric="di",
-            label="DI 약세",
-            detail="-DI > +DI — 하락 방향이 우위",
-            header="-DI > +DI",
-            formula="-DI > +DI",
-            ai_short="-DI>+DI",
-            ai_long="-DI > +DI",
-            evaluate=lambda df: _gt(df["minus_di"], df["plus_di"]),
-            logic="minus_di > plus_di",
-        ),
-        Condition(
-            key="disparity_negative",
-            metric="disparity",
-            label=f"이격도 < {_num(DISPARITY_BELOW)}",
-            detail="종가가 MA20 아래",
-            header=f"< {_num(DISPARITY_BELOW)}",
-            formula=f"이격도 < {_num(DISPARITY_BELOW)}",
-            ai_short=f"이격도<{_num(DISPARITY_BELOW)}",
-            ai_long=f"이격도(종가÷MA20−1) < {_num(DISPARITY_BELOW)}",
-            evaluate=lambda df: _lt(df["disparity"], DISPARITY_BELOW),
-            logic=f"disparity < {DISPARITY_BELOW!r}",
-        ),
-        Condition(
-            key="volatility_or_volume",
-            metric="volume",
-            label="변동성·거래량",
-            detail=f"StdDev20 축소 또는 거래량비 > {_num(VOL_RATIO_EXPAND)}",
-            header=f"변동성↓ 또는 >{_num(VOL_RATIO_EXPAND)}",
-            formula=f"(StdDev20 축소 또는 거래량비 > {_num(VOL_RATIO_EXPAND)})",
-            ai_short="변동성 축소 또는 거래량 증가",
-            ai_long=(
-                f"20일 표준편차가 {LOOKBACK_DAYS}거래일 전보다 작거나, "
-                f"거래량비(5일÷20일 평균) > {_num(VOL_RATIO_EXPAND)}"
-            ),
-            evaluate=lambda df: any_of(
-                _lt(df["stddev20"], _ago(df["stddev20"])),
-                _gt(df["vol_ratio"], VOL_RATIO_EXPAND),
-            ),
-            logic=f"any(stddev20 < stddev20[-{LOOKBACK_DAYS}], vol_ratio > {VOL_RATIO_EXPAND!r})",
-        ),
-        Condition(
-            key="adx_trending",
-            metric="adx",
-            label=f"ADX > {_num(ADX_TREND)}",
-            detail="추세가 형성된 구간",
-            header=f"> {_num(ADX_TREND)}",
-            formula=f"ADX > {_num(ADX_TREND)}",
-            ai_short=f"ADX>{_num(ADX_TREND)}",
-            ai_long=f"ADX > {_num(ADX_TREND)}",
-            evaluate=lambda df: _gt(df["adx"], ADX_TREND),
-            logic=f"adx > {ADX_TREND!r}",
-        ),
-    ),
-)
+def _pct_unit(below: float) -> str:
+    """이격도 기준 뒤에 붙이는 단위 — 기본(0)은 0.40.0 글자 그대로 단위 없이, 바꾼 값은 "%"."""
+    return "" if below == 0 else "%"
 
-SELL = Rule(
-    key="sell",
-    column="shoulder_sell_ref",
-    name="매도 시그널",
-    spec_name="어깨매도 (참고)",
-    conditions=(
-        Condition(
-            key="above_ma50",
-            metric="ma50",
-            label="MA50 위",
-            detail="종가가 MA50 위",
-            header="종가 > MA50",
-            formula="종가 > MA50",
-            ai_short="종가>MA50",
-            ai_long="종가 > MA50",
-            evaluate=lambda df: _gt(df["close"], df["ma50"]),
-            logic="close > ma50",
-        ),
-        Condition(
-            key="adx_rising",
-            metric="adx",
-            label="ADX 상승",
-            detail=f"ADX 가 {LOOKBACK_DAYS}거래일 전보다 큼",
-            header=f"ADX > {LOOKBACK_DAYS}일 전",
-            formula=f"ADX > {LOOKBACK_DAYS}거래일 전 ADX",
-            ai_short="ADX 상승",
-            ai_long=f"ADX 가 {LOOKBACK_DAYS}거래일 전보다 큼",
-            evaluate=lambda df: _gt(df["adx"], _ago(df["adx"])),
-            logic=f"adx > adx[-{LOOKBACK_DAYS}]",
-        ),
-        Condition(
-            key="volume_strong",
-            metric="volume",
-            label="거래량 받침",
-            detail="5일 평균 거래량 > 20일 평균",
-            header="거래량 MA5 > MA20",
-            formula="거래량 MA5 > MA20",
-            ai_short="거래량 MA5>MA20",
-            ai_long="5일 평균 거래량 > 20일 평균",
-            evaluate=lambda df: _gt(df["vol_ma5"], df["vol_ma20"]),
-            logic="vol_ma5 > vol_ma20",
-        ),
-    ),
-)
 
+def _disparity_detail(below: float) -> str:
+    if below == 0:
+        return "종가가 MA20 아래"
+    return f"종가가 MA20 보다 {_num(abs(below))}% 넘게 아래"
+
+
+def build_rules(t: Thresholds | None = None) -> tuple[Rule, Rule]:
+    """기준값 한 벌로 (매수, 매도) 규칙을 만든다. 없거나 기본이면 공용 `BUY`·`SELL` 그대로. 같은 기준이면 같은 객체(캐시)."""
+    t = t or DEFAULT
+    return (BUY, SELL) if t == DEFAULT else _build_rules(t)
+
+
+@functools.lru_cache(maxsize=64)
+def _build_rules(t: Thresholds) -> tuple[Rule, Rule]:
+    buy = Rule(
+        key="buy",
+        column="knee_buy_v2",
+        name="매수 시그널",
+        spec_name="무릎매수 v2",
+        conditions=(
+            Condition(
+                key="di_bearish",
+                metric="di",
+                label="DI 약세",
+                detail="-DI > +DI — 하락 방향이 우위",
+                header="-DI > +DI",
+                formula="-DI > +DI",
+                ai_short="-DI>+DI",
+                ai_long="-DI > +DI",
+                evaluate=lambda df, t=t: _gt(df["minus_di"], df["plus_di"]),
+                logic="minus_di > plus_di",
+            ),
+            Condition(
+                key="disparity_negative",
+                metric="disparity",
+                label=f"이격도 < {_num(t.disparity_below)}{_pct_unit(t.disparity_below)}",
+                detail=_disparity_detail(t.disparity_below),
+                header=f"< {_num(t.disparity_below)}{_pct_unit(t.disparity_below)}",
+                formula=f"이격도 < {_num(t.disparity_below)}{_pct_unit(t.disparity_below)}",
+                ai_short=f"이격도<{_num(t.disparity_below)}{_pct_unit(t.disparity_below)}",
+                ai_long=f"이격도(종가÷MA20−1) < {_num(t.disparity_below)}{_pct_unit(t.disparity_below)}",
+                evaluate=lambda df, t=t: _lt(df["disparity"], t.disparity_below),
+                logic=f"disparity < {t.disparity_below!r}",
+            ),
+            Condition(
+                key="volatility_or_volume",
+                metric="volume",
+                label="변동성·거래량",
+                detail=f"StdDev20 축소 또는 거래량비 > {_num(t.vol_ratio_expand)}",
+                header=f"변동성↓ 또는 >{_num(t.vol_ratio_expand)}",
+                formula=f"(StdDev20 축소 또는 거래량비 > {_num(t.vol_ratio_expand)})",
+                ai_short="변동성 축소 또는 거래량 증가",
+                ai_long=(
+                    f"20일 표준편차가 {t.lookback_days}거래일 전보다 작거나, "
+                    f"거래량비(5일÷20일 평균) > {_num(t.vol_ratio_expand)}"
+                ),
+                evaluate=lambda df, t=t: any_of(
+                    _lt(df["stddev20"], _ago(df["stddev20"], t.lookback_days)),
+                    _gt(df["vol_ratio"], t.vol_ratio_expand),
+                ),
+                logic=f"any(stddev20 < stddev20[-{t.lookback_days}], vol_ratio > {t.vol_ratio_expand!r})",
+            ),
+            Condition(
+                key="adx_trending",
+                metric="adx",
+                label=f"ADX > {_num(t.adx_trend)}",
+                detail="추세가 형성된 구간",
+                header=f"> {_num(t.adx_trend)}",
+                formula=f"ADX > {_num(t.adx_trend)}",
+                ai_short=f"ADX>{_num(t.adx_trend)}",
+                ai_long=f"ADX > {_num(t.adx_trend)}",
+                evaluate=lambda df, t=t: _gt(df["adx"], t.adx_trend),
+                logic=f"adx > {t.adx_trend!r}",
+            ),
+        ),
+    )
+
+    sell = Rule(
+        key="sell",
+        column="shoulder_sell_ref",
+        name="매도 시그널",
+        spec_name="어깨매도 (참고)",
+        conditions=(
+            Condition(
+                key="above_ma50",
+                metric="ma50",
+                label="MA50 위",
+                detail="종가가 MA50 위",
+                header="종가 > MA50",
+                formula="종가 > MA50",
+                ai_short="종가>MA50",
+                ai_long="종가 > MA50",
+                evaluate=lambda df, t=t: _gt(df["close"], df["ma50"]),
+                logic="close > ma50",
+            ),
+            Condition(
+                key="adx_rising",
+                metric="adx",
+                label="ADX 상승",
+                detail=f"ADX 가 {t.lookback_days}거래일 전보다 큼",
+                header=f"ADX > {t.lookback_days}일 전",
+                formula=f"ADX > {t.lookback_days}거래일 전 ADX",
+                ai_short="ADX 상승",
+                ai_long=f"ADX 가 {t.lookback_days}거래일 전보다 큼",
+                evaluate=lambda df, t=t: _gt(df["adx"], _ago(df["adx"], t.lookback_days)),
+                logic=f"adx > adx[-{t.lookback_days}]",
+            ),
+            Condition(
+                key="volume_strong",
+                metric="volume",
+                label="거래량 받침",
+                detail="5일 평균 거래량 > 20일 평균",
+                header="거래량 MA5 > MA20",
+                formula="거래량 MA5 > MA20",
+                ai_short="거래량 MA5>MA20",
+                ai_long="5일 평균 거래량 > 20일 평균",
+                evaluate=lambda df, t=t: _gt(df["vol_ma5"], df["vol_ma20"]),
+                logic="vol_ma5 > vol_ma20",
+            ),
+        ),
+    )
+    return buy, sell
+
+
+BUY, SELL = _build_rules(DEFAULT)
 RULES: tuple[Rule, ...] = (BUY, SELL)
 
 
@@ -308,12 +390,21 @@ def fingerprint() -> str:
 
 
 def thresholds() -> dict[str, float | int]:
-    return {
-        "adx_trend": ADX_TREND,
-        "vol_ratio_expand": VOL_RATIO_EXPAND,
-        "disparity_below": DISPARITY_BELOW,
-        "lookback_days": LOOKBACK_DAYS,
-    }
+    """공용(기본) 기준값."""
+    return DEFAULT.as_dict()
+
+
+def rules_version(t: Thresholds | None = None) -> str:
+    """화면이 규칙을 다시 받을지 가르는 판 — 카드의 `signal_rules_version` 과 `/api/signal-rules` 의 `version`.
+
+    기본 기준이면 공용 지문 그대로(글자까지 같다). 바꾼 사람은 지문 + 그 기준의 지문. **공용 지문(재계산을
+    이끄는 것)에는 사람의 기준을 섞지 않는다.**
+    """
+    t = t or DEFAULT
+    if t.is_default:
+        return fingerprint()
+    raw = json.dumps({"base": fingerprint(), "mine": t.as_dict()}, sort_keys=True)
+    return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 
 def changed_on() -> str | None:
@@ -344,17 +435,21 @@ def _condition_payload(c: Condition) -> dict:
     }
 
 
-def payload(today: dt.date | None = None) -> dict:
-    """`GET /api/signal-rules` 의 몸통."""
+def payload(today: dt.date | None = None, t: Thresholds | None = None) -> dict:
+    """`GET /api/signal-rules` 의 몸통. 규칙 문구는 그 사람의 기준(`t`)으로."""
+    t = t or DEFAULT
     return {
-        "version": fingerprint(),
-        "thresholds": thresholds(),
+        "version": rules_version(t),
+        "thresholds": t.as_dict(),
+        "defaults": DEFAULT.as_dict(),
+        "custom": not t.is_default,
+        "limits": {k: {"min": lo, "max": hi, "step": step} for k, (lo, hi, step, _) in LIMITS.items()},
         "rules": [
             {
                 "key": r.key, "column": r.column, "name": r.name, "spec_name": r.spec_name,
                 "conditions": [_condition_payload(c) for c in r.conditions],
             }
-            for r in RULES
+            for r in build_rules(t)
         ],
         "changes": CHANGES,
         "changed_on": changed_on(),
@@ -365,8 +460,9 @@ def payload(today: dt.date | None = None) -> dict:
 _CIRCLED = "①②③④⑤⑥⑦⑧⑨⑩"
 
 
-def ai_rules_text() -> str:
-    """AI 지시문에 붙는 규칙 설명 (`ai_analysis.SIGNAL_RULES`)."""
+def ai_rules_text(t: Thresholds | None = None) -> str:
+    """AI 지시문에 붙는 규칙 설명 (`ai_analysis.SIGNAL_RULES` 는 기본 기준). 기준을 바꾼 사람은 그 숫자로."""
+    BUY, SELL = build_rules(t)
     buy = [f"{_CIRCLED[i]} {c.ai_long}" for i, c in enumerate(BUY.conditions)]
     # 한 줄이 너무 길지 않게 둘째 조건 뒤에서 줄을 바꾼다 (0.40.0 의 글과 같게)
     head, tail = " ".join(buy[:2]), " ".join(buy[2:])
@@ -381,8 +477,11 @@ def ai_rules_text() -> str:
     )
 
 
-def ai_condition_line(conditions: dict[str, bool | None], yes: Callable[[bool | None], str]) -> str:
+def ai_condition_line(
+    conditions: dict[str, bool | None], yes: Callable[[bool | None], str], t: Thresholds | None = None
+) -> str:
     """AI 에 보내는 "매수 시그널 조건별: ① -DI>+DI 예, …" 줄."""
+    BUY, _ = build_rules(t)
     parts = [
         f"{_CIRCLED[i]} {c.ai_short} {yes(conditions.get(c.key))}" for i, c in enumerate(BUY.conditions)
     ]

@@ -26,7 +26,7 @@ from sqlalchemy import distinct, select
 from sqlalchemy.orm import Session
 
 from app.models import PriceDaily, PushSubscription, SignalDaily, User, UserSettings
-from app.services import alerts, signal_rules
+from app.services import alerts, my_signals, signal_rules
 from app.services.data_ingestion import load_price_frame
 from app.services.indicators import compute_indicators
 from app.services.signals import compute_signals
@@ -98,9 +98,14 @@ def _alert_effect(db: Session, today_rows: dict[str, SimpleNamespace]) -> dict:
         .distinct()
     ]
     affected: dict[int, list[str]] = {}
+    own = 0
     for uid in sorted(users):
         kinds = alerts.kinds_for(db.get(User, uid), db.get(UserSettings, uid))
         if alerts.KIND_BUY not in kinds:
+            continue
+        # 내 기준을 쓰는 사람(0.42.0)은 공용 판정을 보지 않는다 — 공용 정의를 바꿔도 그 사람의 알림은 내 기준을 따른다
+        if my_signals.thresholds_for(db, uid) != signal_rules.DEFAULT:
+            own += 1
             continue
         overrides = {t: [row] for t, row in today_rows.items()}
         before = {s for s, _, _ in alerts.pending_changes(db, uid, alerts.current_values(db, uid))}
@@ -109,7 +114,7 @@ def _alert_effect(db: Session, today_rows: dict[str, SimpleNamespace]) -> dict:
         if new_buys:
             affected[uid] = new_buys
     tickers = sorted({label for labels in affected.values() for label in labels})
-    return {"users_with_alerts_on": len(users), "users": len(affected), "stocks": tickers}
+    return {"users_with_alerts_on": len(users), "users": len(affected), "stocks": tickers, "users_with_own_thresholds": own}
 
 
 def run(db: Session) -> dict:
@@ -149,7 +154,9 @@ def render(report: dict) -> str:
         f"- 오늘 판정이 바뀐 종목: {', '.join(report['today_changed']) or '없음'}",
         f"- 마지막 매수 시그널 날짜가 바뀐 종목: {', '.join(report['last_buy_changed']) or '없음'}",
         f"- 배포 뒤 첫 알림 판정에서 매수 알림이 새로 갈 사람: {a['users']}명 (알림 켠 사람 {a['users_with_alerts_on']}명 중)"
-        f", 종목: {', '.join(a['stocks']) or '없음'}",
+        f", 종목: {', '.join(a['stocks']) or '없음'}"
+        + (f" — 내 기준을 쓰는 {a['users_with_own_thresholds']}명은 세지 않았다(공용 판정을 보지 않는다)"
+           if a.get("users_with_own_thresholds") else ""),
         "- 지난 날짜만 바뀐 것으로는 알림이 가지 않는다. 수익률은 보지 않는다.",
     ]
     return "\n".join(lines)

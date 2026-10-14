@@ -90,6 +90,19 @@ def pending_revisions(stamped: str | None) -> list[str]:
     return [rev.revision for rev in script.iterate_revisions("heads", stamped or "base")]
 
 
+def is_known(revision: str | None) -> bool:
+    """이 코드가 아는 리비전인가. 새 이미지가 올린 DB 를 옛 이미지로 열면 모르는 리비전이 찍혀 있다."""
+    if revision is None:
+        return True
+    from alembic.script import ScriptDirectory
+    from alembic.util import CommandError
+
+    try:
+        return ScriptDirectory(str(SCRIPT_LOCATION)).get_revision(revision) is not None
+    except CommandError:
+        return False
+
+
 def upgrade_to_head(bind=None) -> str | None:
     """DB를 최신 스키마로 올리고, 올라간 자리를 돌려준다."""
     bind = bind or engine
@@ -97,6 +110,13 @@ def upgrade_to_head(bind=None) -> str | None:
     with bind.connect() as conn:
         stamped = MigrationContext.configure(conn).get_current_revision()
         tables = set(inspect(conn).get_table_names())
+
+    # 더 새 이미지가 올린 DB (0.42.0 부터). 예전에는 여기서 넘어져 앱이 켜지지 않았다 — 이미지만 되돌리면
+    # 막혔다. 손대지 않고 그대로 뜬다: 리비전은 앞으로만 칸을 더하므로(더하기만 규칙) 옛 코드는 모르는 칸을
+    # 쓰지 않을 뿐이다. 칸을 바꾸거나 지운 리비전이면 그 리비전의 내리기를 먼저 해야 한다(DEPLOY.md 8번).
+    if not is_known(stamped):
+        logger.warning("DB 리비전 %s 는 이 버전이 모릅니다 — 더 새 버전이 올린 DB 입니다. 그대로 씁니다", stamped)
+        return stamped
 
     adopting = stamped is None and bool(tables - {"alembic_version"})
 

@@ -8,7 +8,7 @@ from app.schemas import (
     LatestIndicators,
     RebalanceSignal,
 )
-from app.services import backfill, queries, rebalance, signal_rules
+from app.services import backfill, my_signals, queries, rebalance, signal_rules
 # 화면이 조건을 나눠 보여주는 판정 — AI 정리(ai_analysis)도 같은 것을 쓴다
 from app.services.signals import buy_conditions_many, knee_conditions_from
 # 옛 이름 — 조건 분해가 엔진과 같은지 보는 테스트가 이 자리로 부른다
@@ -34,14 +34,17 @@ def get_dashboard(db: Session = Depends(get_db), user_id: int = Depends(current_
     # 종목마다 따로 조회하면 종목 수에 비례해 쿼리가 늘어난다. 테이블당 한 번만 읽는다.
     # 등락률에 최근 2거래일, 조건의 "N거래일 전" 비교에 N+1 행이 필요하다
     # (표 전체 계산과 같은 기준 — N 은 signal_rules.LOOKBACK_DAYS).
+    # 0.42.0 — 시그널은 그 사람의 기준으로. 기본이면 저장된 판정을 그대로 읽는다(쿼리 수도 그대로).
+    signals = my_signals.source(db, user_id)
+    t = signals.thresholds
     prices_by_ticker = queries.recent_prices(db, tickers, limit=2)
-    indicators_by_ticker = queries.recent_indicators(db, tickers, limit=signal_rules.LOOKBACK_DAYS + 1)
-    signals_by_ticker = queries.recent_signals(db, tickers, limit=1)
+    indicators_by_ticker = queries.recent_indicators(db, tickers, limit=t.lookback_days + 1)
+    signals_by_ticker = signals.today(tickers)
 
-    last_buy_signals = queries.last_buy_signal_dates(db, tickers)
-    rules_version = signal_rules.fingerprint()
+    last_buy_signals = signals.last_buy_dates(tickers)
+    rules_version = signal_rules.rules_version(t)
     # 오늘 조건은 종목마다가 아니라 한 번에 (signals.buy_conditions_many)
-    conditions_by_ticker = buy_conditions_many({t: indicators_by_ticker.get(t, []) for t in tickers})
+    conditions_by_ticker = buy_conditions_many({tk: indicators_by_ticker.get(tk, []) for tk in tickers}, t)
 
     cards = []
     # "오늘"은 시장마다 다르다. 서버 시계로 재면 한국 종목은 미국이 아직 어제일 때

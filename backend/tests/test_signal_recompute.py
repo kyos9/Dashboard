@@ -55,8 +55,14 @@ def fresh_fingerprint():
 
 
 def _change_definition(monkeypatch):
-    """정의를 바꾼 코드를 배포한 것처럼 — ADX 기준 20 → 25."""
+    """정의를 바꾼 코드를 배포한 것처럼 — 공용 ADX 기준 20 → 25 (기본 기준값과 그것으로 만든 규칙을 바꿔 끼운다)."""
+    new = signal_rules.Thresholds(adx_trend=25.0)
+    buy, sell = signal_rules._build_rules(new)
     monkeypatch.setattr(signal_rules, "ADX_TREND", 25.0)
+    monkeypatch.setattr(signal_rules, "DEFAULT", new)
+    monkeypatch.setattr(signal_rules, "BUY", buy)
+    monkeypatch.setattr(signal_rules, "SELL", sell)
+    monkeypatch.setattr(signal_rules, "RULES", (buy, sell))
     signal_rules.fingerprint.cache_clear()
 
 
@@ -324,7 +330,7 @@ def test_signal_diff_skips_people_who_turned_buy_alerts_off(stored, monkeypatch)
     stored.commit()
     monkeypatch.setattr(signal_rules, "evaluate_rule", lambda rule, df: pd.Series(rule.key == "buy", index=df.index))
     report = signal_diff.run(stored)
-    assert report["alerts"] == {"users_with_alerts_on": 1, "users": 0, "stocks": []}
+    assert report["alerts"] == {"users_with_alerts_on": 1, "users": 0, "stocks": [], "users_with_own_thresholds": 0}
 
 
 def test_signal_diff_does_not_count_people_who_are_not_active(stored, monkeypatch):
@@ -336,4 +342,14 @@ def test_signal_diff_does_not_count_people_who_are_not_active(stored, monkeypatc
     stored.commit()
     monkeypatch.setattr(signal_rules, "evaluate_rule", lambda rule, df: pd.Series(rule.key == "buy", index=df.index))
     report = signal_diff.run(stored)
-    assert report["alerts"] == {"users_with_alerts_on": 0, "users": 0, "stocks": []}
+    assert report["alerts"] == {"users_with_alerts_on": 0, "users": 0, "stocks": [], "users_with_own_thresholds": 0}
+
+
+def test_signal_diff_leaves_out_people_with_their_own_thresholds(stored, monkeypatch):
+    """내 기준을 쓰는 사람의 알림은 공용 정의를 따르지 않는다 (0.42.0) — 새로 갈 알림에서 빼고 몇 명인지 적는다."""
+    make_push_subscription(stored, new_device())
+    make_settings(stored, signal_thresholds={"adx_trend": 15.0})
+    monkeypatch.setattr(signal_rules, "evaluate_rule", lambda rule, df: pd.Series(rule.key == "buy", index=df.index))
+    report = signal_diff.run(stored)
+    assert (report["alerts"]["users"], report["alerts"]["users_with_own_thresholds"]) == (0, 1)
+    assert "내 기준을 쓰는 1명" in signal_diff.render(report)

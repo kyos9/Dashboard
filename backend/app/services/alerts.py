@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 
 from app.markets import Market, market_of_stock
 from app.models import PushState, PushSubscription, User, UserSettings, UserStock
-from app.services import push, queries, rebalance
+from app.services import my_signals, push, queries, rebalance
 from app.services.trading_calendar import market_today
 from app.services.users import STATUS_ACTIVE, ordered_user_stocks
 
@@ -159,7 +159,8 @@ def current_values(db: Session, user_id: int, signals: dict | None = None) -> di
     values: dict[str, tuple[str, str]] = {}
 
     if signals is None:
-        signals = queries.recent_signals(db, [s.ticker for s in stocks], limit=1)
+        # 그 사람의 기준으로 (기본이면 저장된 판정 그대로 — my_signals)
+        signals = my_signals.source(db, user_id).today([s.ticker for s in stocks])
     for stock in stocks:
         rows = signals.get(stock.ticker) or []
         latest = rows[0] if rows else None
@@ -218,6 +219,31 @@ def _changes(db: Session, user_id: int, values: dict[str, tuple[str, str]]) -> l
             db.delete(row)
     db.commit()
     return fired
+
+
+def record_buy_state_quietly(db: Session, user_id: int) -> None:
+    """매수 시그널 상태를 **알리지 않고** 지금 값으로 적는다 — 시그널 기준을 바꾼 직후(0.42.0, 주인 결정).
+
+    기준을 낮추면 여러 종목이 한꺼번에 "매수"가 된다. 다음 판정에서 그게 다 알림으로 가지 않게, 바꾼 순간의
+    상태를 먼저 적어 둔다. 그 뒤 새로 켜지는 것부터 알린다. 알림을 켠 사람만 — 상태는 알림 판정만 쓴다.
+    """
+    if db.query(PushSubscription.id).filter(PushSubscription.user_id == user_id).first() is None:
+        return
+    values = {s: v for s, v in current_values(db, user_id).items() if s.startswith(f"{KIND_BUY}:")}
+    stored = {
+        row.subject: row
+        for row in db.query(PushState).filter(PushState.user_id == user_id, PushState.subject.like(f"{KIND_BUY}:%"))
+    }
+    now = dt.datetime.utcnow()
+    for subject, (value, _) in values.items():
+        row = stored.get(subject)
+        if row is None:
+            if value:
+                db.add(PushState(user_id=user_id, subject=subject, value=value, updated_at=now))
+        elif row.value != value:
+            row.value = value
+            row.updated_at = now
+    db.commit()
 
 
 def compose(fired: list[tuple[str, str, str]], kinds: list[str]) -> dict | None:
