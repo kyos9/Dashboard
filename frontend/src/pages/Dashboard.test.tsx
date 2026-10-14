@@ -952,3 +952,23 @@ describe('대시보드 · 0종목 안내 (0.42.0 B4)', () => {
     expect(screen.queryByRole('group', { name: '대시보드 보기' })).toBeNull()
   })
 })
+
+describe('대시보드 · 카드 보기의 부호 색 (0.42.0 B)', () => {
+  it('DI 와 200일선 숫자는 표의 칩처럼 오르내림 색 — 오르면 up, 내리면 down', async () => {
+    mockApi([
+      card({ ticker: 'VOO', indicators: { ...INDICATORS, close: 110, ma200: 100, plus_di: 30, minus_di: 20 } }),
+      card({ ticker: 'SCHD', indicators: { ...INDICATORS, close: 90, ma200: 100, plus_di: 15, minus_di: 25 } }),
+    ])
+    renderDashboard()
+    await userEvent.click(await screen.findByRole('button', { name: '카드 보기' }))
+
+    const value = (label: string) =>
+      screen.getAllByText(label).map((k) => k.closest('.stat-box')!.querySelector('.v')!)
+    const [vooDi, schdDi] = value('DI 방향 (+DI / -DI)')
+    const [vooMa, schdMa] = value('200일선 대비')
+    expect(vooDi).toHaveClass('up')
+    expect(schdDi).toHaveClass('down')
+    expect(vooMa).toHaveClass('up')
+    expect(schdMa).toHaveClass('down')
+  })
+})

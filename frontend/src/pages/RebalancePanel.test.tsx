@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppStateProvider } from '../AppState'
 import { api } from '../api/client'
-import type { RebalanceCurrent, RebalanceRow, RebalanceSnapshot, Settings } from '../types'
+import type { RebalanceCurrent, RebalanceRow, RebalanceSnapshot, Settings, Stock } from '../types'
 import { forgetPhone, pretendPhone } from '../test/phone'
 import { HIDE_AMOUNTS_KEY, resetPrefs } from '../lib/prefs'
 import { RebalancePanel } from './RebalancePanel'
@@ -761,5 +761,41 @@ describe('리밸런싱 · 팔지 않고 새 돈만 나누기 (0.42.0 B6)', () =>
     } finally {
       forgetPhone()
     }
+  })
+})
+
+describe('리밸런싱 · 폰 이름은 보일 이름으로 (0.42.0 B9)', () => {
+  beforeEach(() => pretendPhone())
+  afterEach(() => forgetPhone())
+
+  it('내가 이름을 비운 종목은 공용 종목명 — 티커(7203.T)로 보이지 않는다', async () => {
+    const toyota = row({
+      ticker: '7203.T',
+      name: 'トヨタ自動車',
+      currency: 'JPY',
+      target_weight_pct: 0,
+      actual_weight_pct: 0,
+      quantity: 0,
+      last_close: 3000,
+    })
+    mockApi({ ...CURRENT, rows: [...CURRENT.rows, toyota] })
+    vi.spyOn(api, 'listStocks').mockResolvedValue([
+      {
+        ticker: '7203.T',
+        name: null,
+        shown_name: 'トヨタ自動車',
+        category: null,
+        market: 'JP',
+        currency: 'JPY',
+        active: true,
+        added_at: '2026-09-01T00:00:00',
+        target_weight_pct: 0,
+        rebalance_band_pct: null,
+      } as Stock,
+    ])
+    renderPanel()
+    const guide = await screen.findByRole('region', { name: '주문 가이드' })
+    await waitFor(() => expect(within(guide).getByText(/^トヨタ自動車/)).toBeInTheDocument())
+    expect(within(guide).queryByText(/^7203\.T/)).toBeNull()
   })
 })

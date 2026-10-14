@@ -636,3 +636,19 @@ describe('시세를 뒤에서 받는 동안', () => {
     expect(list.mock.calls.length).toBe(calls)
   })
 })
+
+describe('종목 관리 · 이름을 비운 종목 (0.42.0 B9)', () => {
+  beforeEach(() => vi.restoreAllMocks())
+
+  it('수정 칸은 비어 있고, 칸 안 글은 공용 종목명 — "비우면 티커"로 읽히지 않게', async () => {
+    mockApi([stock({ ticker: '7203.T', name: null, shown_name: 'トヨタ自動車', market: 'JP', currency: 'JPY' })])
+    const user = userEvent.setup()
+    renderManager()
+
+    await user.click(await screen.findByRole('button', { name: '종목 한 번에 수정' }))
+    const dialog = await screen.findByRole('dialog', { name: '종목 한 번에 수정' })
+    const name = within(dialog).getByRole('textbox', { name: 'トヨタ自動車 표시 이름' })
+    expect(name).toHaveValue('')
+    expect(name).toHaveAttribute('placeholder', 'トヨタ自動車')
+  })
+})
