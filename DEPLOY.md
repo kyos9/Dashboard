@@ -325,6 +325,8 @@ v0.42.0 은 마이그레이션 **0013**(시그널 기준 내 설정 칸 하나)�
 
 ```bash
 cd ~/Dashboard
+# 0) 켜져 있는 앱을 먼저 멈춘다 — 내리는 동안 앱이 그 칸을 읽고 쓰지 않게
+docker compose stop app
 # 1) 지금 이미지로 0012 까지 내린다 — 내리기 직전에 백업을 한 벌 뜬다. 사람마다 바꾼 시그널 기준만 사라진다
 docker compose run --rm --no-deps app python -m app.tools.downgrade 0012
 # 2) 옛 이미지로

@@ -513,3 +513,35 @@ def test_card_conditions_read_my_lookback_days_back(api):
     assert signal_rules.latest_conditions(buy, ind.iloc[-6:])["volatility_or_volume"] is not True  # 헛돌지 않게
     card = client.get("/api/dashboard").json()[0]
     assert card["buy_conditions"] == want
+
+
+@pytest.mark.parametrize(
+    "columns, factor",
+    [(("close",), 1.03), (("volume",), 5.0), (("high", "low"), 1.05)],
+    ids=["close", "volume", "high-low"],
+)
+def test_memory_notices_a_refresh_that_fixes_one_column(world, columns, factor):
+    """갱신(`refresh_ticker`)이 마지막 날의 종가만·거래량만·고가저가만 고쳐도 새로 세고, 새 시세로 따로 센 답과 같다
+    (A 2차 검토). 키에 넣은 지표 하나라도 빠지면 그 칸에서 나온 갱신을 놓친다."""
+    _, Session = world
+    fixed = PRICES["FLIP"].copy()
+    for column in columns:
+        fixed.iloc[-1, fixed.columns.get_loc(column)] *= factor if column != "low" else 1 / factor
+    with Session() as db:
+        first = my_signals.judge(db, ["FLIP"], MINE)["FLIP"]
+        refresh_ticker(db, "FLIP", price_df=fixed)
+        db.commit()
+        again = my_signals.judge(db, ["FLIP"], MINE)["FLIP"]
+    assert again is not first
+    exp = compute_signals(compute_indicators(fixed), MINE)
+    assert list(again.buy) == list(exp["knee_buy_v2"]) and list(again.sell) == list(exp["shoulder_sell_ref"])
+
+
+def test_the_lowest_and_highest_values_are_accepted(api):
+    """범위의 양 끝은 받는다 — 화면이 "10 ~ 40"이라고 보이는 그대로 (A 2차 검토)."""
+    client, Session = api
+    for pick in (0, 1):
+        body = {key: limit[pick] for key, limit in signal_rules.LIMITS.items()}
+        res = client.put("/api/signal-thresholds", json=body)
+        assert res.status_code == 200, (body, res.text)
+        assert res.json()["thresholds"] == body

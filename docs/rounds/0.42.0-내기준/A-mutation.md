@@ -57,3 +57,10 @@
 | R8 캐시 키에서 지표 합 뺌 | `backend/app/services/my_signals.py` | 잡힘 FAILED tests/test_my_signals.py::test_memory_notices_values_fixed_on_the_same_day |
 | R9 큰 정수 isfinite 되돌림 | `backend/app/schemas.py` | 잡힘 FAILED tests/test_my_signals.py::test_huge_whole_numbers_are_refused_not_crashed |
 | R2 카드 지표 행 수를 공용 N+1 | `backend/app/routers/dashboard.py` | 잡힘 FAILED tests/test_my_signals.py::test_card_conditions_read_my_lookback_days_back |
+
+## A 2차 검토 뒤 (A-review-2.md 의 살아남은 N1·N6)
+
+| 뮤테이션 | 파일 | 결과 |
+| --- | --- | --- |
+| N1 키의 지표 합에서 vol_ratio 뺌 | `backend/app/services/my_signals.py` | 잡힘 FAILED tests/test_my_signals.py::test_memory_notices_a_refresh_that_fixes_one_column[volume] |
+| N6 아래 경계 값을 거절 | `backend/app/schemas.py` | 잡힘 FAILED tests/test_my_signals.py::test_the_lowest_and_highest_values_are_accepted |
