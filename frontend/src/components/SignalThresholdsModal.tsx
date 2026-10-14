@@ -27,7 +27,7 @@ const FIELDS: { key: SignalThresholdKey; label: string; unit: string; help: stri
     label: '거래량비 기준',
     unit: '배',
     decimal: true,
-    help: "거래량비 = 최근 5일 평균 거래량 ÷ 20일 평균. 이 값보다 크면 '거래가 붙는다'로 봅니다. 매수 조건 '변동성·거래량'에 쓰입니다 — 변동성이 줄었으면 거래량비와 상관없이 ✓ 입니다.",
+    help: "거래량비 = 최근 5일 평균 거래량 ÷ 20일 평균(5일·20일은 정해진 값으로, 아래 '비교 기간'과 다릅니다). 이 값보다 크면 '거래가 붙는다'로 봅니다. 매수 조건 '변동성·거래량'에 쓰입니다 — 변동성이 줄었으면 거래량비와 상관없이 ✓ 입니다.",
   },
   {
     key: 'disparity_below',
@@ -61,8 +61,8 @@ export function SignalThresholdsModal({
 }: {
   rules: SignalRules
   onClose: () => void
-  /** 저장·되돌리기 뒤 — 카드·차트를 다시 받는다 */
-  onSaved: () => void
+  /** 저장·되돌리기 뒤 — 카드·차트를 다시 받는다. 화면에 잠깐 보일 한 줄을 준다 */
+  onSaved: (message: string) => void
 }) {
   const defaults = rules.defaults ?? rules.thresholds
   const limits = rules.limits
@@ -101,11 +101,13 @@ export function SignalThresholdsModal({
   }, [draft, limits])
 
   const valid = Object.keys(problems).length === 0
+  // 지금 쓰는 값에서 아무것도 안 바꿨으면 저장할 것이 없다
+  const unchanged = FIELDS.every((f) => Number(draft[f.key]) === rules.thresholds[f.key])
   const atDefaults = FIELDS.every((f) => Number(draft[f.key]) === defaults[f.key])
 
   const finish = (next: SignalRules) => {
     setSignalRules(next)
-    onSaved()
+    onSaved(next.custom ? '시그널 기준을 저장했습니다 — 내 기준으로 다시 그립니다' : '기본 기준으로 되돌렸습니다')
     onClose()
   }
 
@@ -184,6 +186,12 @@ export function SignalThresholdsModal({
                   {f.unit}
                   {changed && ' · 바꿈'}
                 </span>
+                {/* 넣을 수 있는 범위를 틀리기 전에 보이게 (0.42.0 사용자 확인) */}
+                {limits?.[f.key] && (
+                  <span className="hint">
+                    {show(limits[f.key].min)} ~ {show(limits[f.key].max)}
+                  </span>
+                )}
               </div>
               {problems[f.key] && (
                 <p className="field-error" role="alert">
@@ -204,7 +212,7 @@ export function SignalThresholdsModal({
         )}
 
         <div className="btn-group thresholds-actions">
-          <button className="primary" onClick={() => void save()} disabled={busy || !valid}>
+          <button className="primary" onClick={() => void save()} disabled={busy || !valid || unchanged}>
             저장
           </button>
           <button

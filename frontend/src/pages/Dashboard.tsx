@@ -346,6 +346,13 @@ export function Dashboard() {
   // 팝업과 어느 탭부터 열지 — 종목 이름은 차트, 맨 오른쪽 "AI 분석" 버튼은 AI 탭
   const [chart, setChart] = useState<{ card: DashboardCard; tab: ChartTab } | null>(null)
   const [showThresholds, setShowThresholds] = useState(false)
+  // 기준을 저장한 뒤 잠깐 보이는 한 줄 — 비교 기간만 바꾸면 화면 숫자가 그대로라 저장됐는지 몰랐다 (0.42.0 사용자 확인)
+  const [thresholdsNote, setThresholdsNote] = useState<string | null>(null)
+  useEffect(() => {
+    if (!thresholdsNote) return
+    const timer = setTimeout(() => setThresholdsNote(null), 6000)
+    return () => clearTimeout(timer)
+  }, [thresholdsNote])
   const openChart = useCallback((card: DashboardCard) => setChart({ card, tab: 'chart' }), [])
   const openAi = useCallback((card: DashboardCard) => setChart({ card, tab: 'ai' }), [])
   const [aiAll, setAiAll] = useState(false)
@@ -520,6 +527,9 @@ export function Dashboard() {
       buyDefault: cards.filter(
         (c) => trafficLight({ ...c, knee_buy_v2: !!c.knee_buy_v2_default }, rules).state === 'buy',
       ).length,
+      buyDiffers: rules.custom
+        ? cards.filter((c) => !c.data_stale && c.knee_buy_v2 !== !!c.knee_buy_v2_default).map((c) => stockLabel(c))
+        : [],
     }
   }, [cards, rules])
 
@@ -799,6 +809,8 @@ export function Dashboard() {
           <p className="kpi-foot mine-note" role="note">
             <strong>내 기준</strong>으로 본 판정 · 오늘 매수 {summary.buy}개
             {summary.buyDefault === summary.buy ? ' — 기본 기준과 같습니다' : ` (기본 기준이면 ${summary.buyDefault}개)`}
+            {/* 어느 종목이 달라졌는지 — 숫자만으로는 찾을 수 없었다 (0.42.0 사용자 확인) */}
+            {summary.buyDiffers.length > 0 && ` · 다른 종목: ${summary.buyDiffers.join(', ')}`}
             {' · '}
             <button type="button" className="link-btn" onClick={() => setShowThresholds(true)}>
               시그널 기준
@@ -883,6 +895,12 @@ export function Dashboard() {
         </div>
       </div>
 
+      {thresholdsNote && (
+        <p className="hint saved-note" role="status">
+          {thresholdsNote}
+        </p>
+      )}
+
       <div ref={listRef}>
       {visible.length === 0 ? (
         <div className="empty-state">
@@ -952,7 +970,10 @@ export function Dashboard() {
           <SignalThresholdsModal
             rules={rules}
             onClose={() => setShowThresholds(false)}
-            onSaved={notifyDataChanged}
+            onSaved={(message) => {
+              setThresholdsNote(message)
+              notifyDataChanged()
+            }}
           />
         </Suspense>
       )}

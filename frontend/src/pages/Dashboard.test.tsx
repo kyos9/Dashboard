@@ -902,6 +902,8 @@ describe('대시보드 · 시그널 기준 내 설정 (0.42.0)', () => {
     renderDashboard()
     const note = await screen.findByText((_, el) => !!el?.classList.contains('mine-note'))
     expect(note).toHaveTextContent('내 기준으로 본 판정 · 오늘 매수 2개 (기본 기준이면 1개)')
+    // 어느 종목이 달라졌는지도 (0.42.0 사용자 확인)
+    expect(note).toHaveTextContent('다른 종목: VOO')
     expect(screen.getByRole('button', { name: '시그널 기준 · 내 기준' })).toBeInTheDocument()
     expect(screen.getByText((_, el) => el?.tagName === 'P' && !!el.textContent?.startsWith('내 기준: 매수 시그널 ='))).toBeInTheDocument()
   })
@@ -929,6 +931,8 @@ describe('대시보드 · 시그널 기준 내 설정 (0.42.0)', () => {
     expect(put).toHaveBeenCalledWith({ ...DEFAULTS, adx_trend: 15 })
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
     expect(await screen.findByRole('button', { name: '시그널 기준 · 내 기준' })).toBeInTheDocument()
+    // 비교 기간만 바꾸면 숫자가 그대로일 수 있다 — 저장했다는 한 줄
+    expect(screen.getByRole('status')).toHaveTextContent('시그널 기준을 저장했습니다')
     await waitFor(() =>
       expect((api.getDashboard as unknown as { mock: { calls: unknown[] } }).mock.calls.length).toBeGreaterThan(before),
     )

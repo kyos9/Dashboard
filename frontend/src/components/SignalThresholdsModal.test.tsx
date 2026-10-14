@@ -69,6 +69,23 @@ describe('시그널 기준 팝업', () => {
     expect(within(dialog).getByRole('button', { name: '저장' })).toBeDisabled()
   })
 
+  it('아무것도 안 바꿨으면 "저장"이 꺼져 있고, 넣을 수 있는 범위는 틀리기 전에 보인다 (0.42.0 사용자 확인)', async () => {
+    const { dialog } = open(true)
+    expect(within(dialog).getByRole('button', { name: '저장' })).toBeDisabled()
+    expect(within(dialog).getByText('10 ~ 40')).toBeInTheDocument()
+    expect(within(dialog).getByText('−20 ~ 0')).toBeInTheDocument()
+    await setField(dialog, 'ADX 기준', '26')
+    expect(within(dialog).getByRole('button', { name: '저장' })).toBeEnabled()
+  })
+
+  it('저장·되돌리기 뒤 화면에 보일 한 줄을 넘긴다', async () => {
+    vi.spyOn(api, 'putSignalThresholds').mockResolvedValue(rules(true))
+    const { dialog, onSaved } = open()
+    await setField(dialog, '비교 기간', '3')
+    await userEvent.click(within(dialog).getByRole('button', { name: '저장' }))
+    expect(onSaved).toHaveBeenCalledWith('시그널 기준을 저장했습니다 — 내 기준으로 다시 그립니다')
+  })
+
   it('이격도는 음수를 받는다', async () => {
     const put = vi.spyOn(api, 'putSignalThresholds').mockResolvedValue(rules(true))
     const { dialog, onSaved, onClose } = open()
@@ -100,6 +117,7 @@ describe('시그널 기준 팝업', () => {
   it('저장이 실패하면 팝업을 닫지 않고 까닭을 보인다', async () => {
     vi.spyOn(api, 'putSignalThresholds').mockRejectedValue(new Error('adx_trend: 10 ~ 40 사이여야 합니다'))
     const { dialog, onClose } = open()
+    await setField(dialog, 'ADX 기준', '25')
     await userEvent.click(within(dialog).getByRole('button', { name: '저장' }))
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('adx_trend')
     expect(onClose).not.toHaveBeenCalled()
