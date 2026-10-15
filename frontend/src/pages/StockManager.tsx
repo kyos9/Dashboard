@@ -85,7 +85,9 @@ function StockRow({
         <div className="ticker-cell">
           <span className="ticker-name">{stockLabel(stock)}</span>
           <span className="ticker-sub">
-            {stock.ticker} · {MARKET_LABEL[stock.market]} · {CURRENCY_META[stock.currency].symbol}
+            {/* 이름 = 티커면(미국 종목) 아래에 다시 쓰지 않는다 — "VOO / VOO · 미국" (디자인 2차) */}
+            {stockLabel(stock) !== stock.ticker && <>{stock.ticker} · </>}
+            {MARKET_LABEL[stock.market]} · {CURRENCY_META[stock.currency].symbol}
             {stock.currency}
           </span>
           {!stock.active && <span className="badge badge-grey">비활성</span>}
@@ -128,6 +130,19 @@ function StockRow({
         </div>
       </td>
     </tr>
+  )
+}
+
+/** 날짜("2026-09")가 줄 끝에서 "2026-" / "09"로 갈라지지 않게 묶는다 — 글은 lib/listing 그대로 (디자인 2차) */
+function keepDates(text: string) {
+  return text.split(/(\d{4}-\d{2}(?:-\d{2})?)/).map((part, i) =>
+    i % 2 === 1 ? (
+      <span key={i} className="nowrap">
+        {part}
+      </span>
+    ) : (
+      part
+    ),
   )
 }
 
@@ -351,16 +366,17 @@ export function StockManager() {
 
       <div className="panel">
         <div className="section-head">
-          <h3>관심 종목 추가</h3>
+          {/* "관심 종목"은 대시보드에서 보유 0 인 종목이다 — 여기는 보유도 같이 넣는 곳이라 "종목 추가" (디자인 2차, 용어 사전) */}
+          <h3>종목 추가</h3>
           {/* 상장 목록은 전원이 같이 쓴다 — 받아오는 건 관리자만 */}
           {isAdmin && (
             <button className="ghost sm" onClick={() => void refreshListing()} disabled={listingBusy}>
               {listingBusy ? '받는 중…' : '거래소 목록 갱신'}
             </button>
           )}
-          <span className="hint">{listingHint(listing, isAdmin)}</span>
+          <span className="hint">{keepDates(listingHint(listing, isAdmin))}</span>
         </div>
-        <div className="form-grid">
+        <div className="form-grid add-stock-form">
           <div className="field field-wide">
             <label htmlFor="new-ticker">종목 검색</label>
             <SymbolSearch
@@ -429,11 +445,11 @@ export function StockManager() {
             </button>
           </div>
         </div>
+        {/* 다섯 줄이던 도움말을 둘로 — "추가" 단추가 아래로 밀렸다 (디자인 2차) */}
         <p className="hint" style={{ marginTop: 10 }}>
-          목표 비중은 <b>현금을 포함한 전체 자금</b> 중 이 종목에 둘 비중입니다. 이미 들고 있는 종목이면 수량과
-          평단가를 같이 적으세요 — 평단가는 {newCurrencyMeta.label} 기준이고 손익을 보여주는 데만 쓰이며 비중에는
-          영향이 없습니다. 수량·평단가는 나중에 아래 목록·대시보드·리밸런싱 탭에서 고칠 수 있습니다. 시세 조회에 실패해도 종목
-          등록은 유지되며 나중에 다시 갱신할 수 있습니다.
+          목표 비중은 <b>현금을 포함한 전체 자금</b> 중 이 종목의 비중입니다. 이미 들고 있으면 수량·평단가도 적으세요 —
+          평단가({newCurrencyMeta.label} 기준)는 손익에만 쓰이고, 나중에 목록·대시보드·리밸런싱에서 고칠 수 있습니다. 시세를
+          못 받아도 종목은 남고 나중에 다시 받습니다.
         </p>
       </div>
 

@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAppState } from '../AppState'
 import { api } from '../api/client'
 import { useAuth } from '../components/AuthGate'
@@ -762,26 +763,43 @@ function SnapshotList({
 
 /* ---------- 주문 가이드 ---------- */
 
+/* 주문은 사기·팔기·유지 — 시그널의 "매수·매도"와 다른 말로 (디자인 2차, 용어 사전). 폰 카드는 이미 그랬다 */
 function ActionBadge({ action }: { action: OrderLine['action'] }) {
-  if (action === 'buy') return <span className="badge badge-green">매수 (BUY)</span>
-  if (action === 'sell') return <span className="badge badge-red">매도 (SELL)</span>
-  return <span className="badge badge-grey">유지 (HOLD)</span>
+  if (action === 'buy') return <span className="badge badge-green">사기</span>
+  if (action === 'sell') return <span className="badge badge-red">팔기</span>
+  return <span className="badge badge-grey">유지</span>
 }
 
+/**
+ * 주문 옆의 신호 — 주문과 다른 것임이 보이게 이름표를 붙인다 (디자인 2차).
+ * "사기" 카드에 "▼ 기간 내 매도"가, "사기" 바로 아래 "밴드 이내"가 이름표 없이 붙어 있어 무엇을 하라는지 헤맸다.
+ * 비중조절 신호는 "비중", 매도 시그널은 "참고"(실제 매도는 리뷰 때 비중으로 정한다).
+ */
 function SignalBadges({ current }: { current: RebalanceRow }) {
+  const reasons = current.rebalance_signal.reasons
   return (
-    <div className="badge-row">
-      {current.rebalance_signal.reasons.map((r) => (
-        <ReasonTag key={r} reason={r} />
-      ))}
+    <div className="badge-row signal-badges">
+      {reasons.length > 0 && (
+        <span className="badge-group">
+          <span className="badge-group-label">비중</span>
+          {reasons.map((r) => (
+            <ReasonTag key={r} reason={r} />
+          ))}
+        </span>
+      )}
       {current.shoulder_signal_fired_in_period && (
-        <span className="badge badge-red badge-nowrap" title="이번 리뷰 기간에 매도 시그널(참고)이 한 번 이상 떴습니다.">
-          <SignalShape kind="sell" size={9} />
-          기간 내 매도
+        <span className="badge-group">
+          <span className="badge-group-label">참고</span>
+          <span className="badge badge-red badge-nowrap" title="이번 리뷰 기간에 매도 시그널(참고)이 한 번 이상 떴습니다.">
+            <SignalShape kind="sell" size={9} />
+            기간 내 매도
+          </span>
         </span>
       )}
       {!current.rebalance_signal.active && !current.shoulder_signal_fired_in_period && (
-        <span className="hint">밴드 이내</span>
+        <span className="hint" title="비중이 밴드 안이라 비중조절 신호가 없습니다. 주문은 목표에 맞춘 참고입니다.">
+          비중조절 신호 없음
+        </span>
       )}
     </div>
   )
@@ -1010,6 +1028,10 @@ export function RebalancePanel() {
       <div className="empty-state">
         <h3>리밸런싱할 종목이 없습니다</h3>
         <p>종목 관리 화면에서 종목을 추가하고 목표 비중을 설정해주세요.</p>
+        {/* 누를 곳이 없었다 — 폰은 종목 관리가 "더보기" 안이다 (디자인 2차, 주인 결정). 대시보드 첫 화면과 같은 단추 */}
+        <Link to="/stocks" className="link-button">
+          종목 추가하러 가기
+        </Link>
       </div>
     )
   }
@@ -1041,6 +1063,9 @@ export function RebalancePanel() {
   )
 
   /** 새 돈만 나누기에서 1주도 안 되는 몫 — 소수 주를 못 사는 증권사면 실제로는 사지 못한다 (B 사용자 확인) */
+  /** 사거나 팔 주문 수 — 유지는 빼고 (디자인 2차: 머리말이 "비중조절 신호 3종목"뿐이라 주문 14개와 어긋나 보였다) */
+  const orderCount = plan.orders.filter((o) => o.action !== 'hold').length
+
   const underOne = plan.buyOnly
     ? plan.orders.filter((o) => o.action === 'buy' && o.shares !== null && Math.abs(o.shares) < 1).length
     : 0
@@ -1121,7 +1146,7 @@ export function RebalancePanel() {
         <div className="section-head">
           <h3 id="orders-title">주문 가이드</h3>
           <span className="hint">
-            비중조절 신호 {signalled.length}종목 · {plan.buyOnly ? '나눈 몫이 새로 넣을 돈의' : '조정 금액이 전체의'}{' '}
+            주문 {orderCount} · 비중조절 신호 {signalled.length}종목 · {plan.buyOnly ? '나눈 몫이 새로 넣을 돈의' : '조정 금액이 전체의'}{' '}
             {NOISE_THRESHOLD_PCT}% 미만이면 "유지"
           </span>
         </div>
@@ -1159,16 +1184,21 @@ export function RebalancePanel() {
                       {drift > 0 ? '과중' : drift < 0 ? '미달' : '목표'} {signed(drift, 1, '%p')}
                     </span>
                   </div>
+                  {/* 비중 줄과 금액 줄 — 한 줄이면 세 줄로 꺾이며 "+"가 줄 끝에 홀로 남았다 (디자인 2차) */}
                   <p className="order-card-line mono">
                     {num(weightNow, 1)}% → 목표 {num(row.current.target_weight_pct, 0)}%
-                    {order.action !== 'hold' && (
-                      <>
-                        {' '}
-                        · {signedAmount(order.adjust, baseCurrency)}
-                        {isForeign && ` (${signedAmount(order.adjustNative, order.currency)})`}
-                      </>
-                    )}
                   </p>
+                  {order.action !== 'hold' && (
+                    <p className="order-card-line mono">
+                      <span className="nowrap">{signedAmount(order.adjust, baseCurrency)}</span>
+                      {isForeign && (
+                        <>
+                          {' '}
+                          <span className="nowrap">({signedAmount(order.adjustNative, order.currency)})</span>
+                        </>
+                      )}
+                    </p>
+                  )}
                   <SignalBadges current={row.current} />
                 </li>
               )
@@ -1215,11 +1245,16 @@ export function RebalancePanel() {
                   return (
                     <tr key={row.ticker}>
                       <td>
+                        {/* 구분 칩은 이름 옆(대시보드 표와 같게) — 이름 위 한 줄을 따로 써서 줄이 높았다. 이름 = 티커면 아래에 다시 쓰지 않는다 (디자인 2차) */}
                         <div className="ticker-cell">
-                          {row.stock?.category && <span className="cat-tag">{row.stock.category}</span>}
-                          <span className="ticker-name">{labelOf(row)}</span>
+                          <div className="stock-line">
+                            {row.stock?.category && <span className="cat-tag">{row.stock.category}</span>}
+                            <span className="ticker-name">{labelOf(row)}</span>
+                          </div>
                           <span className="ticker-sub">
-                            {row.ticker} · {qty(row.current.quantity)}주 · {price(row.current.last_close, native)}
+                            {labelOf(row) !== row.ticker && <>{row.ticker} · </>}
+                            <span className="nowrap">{qty(row.current.quantity)}주</span> ·{' '}
+                            <span className="nowrap">{price(row.current.last_close, native)}</span>
                           </span>
                         </div>
                       </td>
