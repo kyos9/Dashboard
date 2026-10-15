@@ -157,6 +157,18 @@ const SCREENS = [
       }
     },
   })),
+  // 조건이 하나 늘었다고 가정 (PROMPT 0장) — 규칙과 카드 응답에 긴 이름의 매수 조건을 하나 더한다.
+  // DOM 에 끼워 넣지 않고 응답을 바꾼다: 칸 없는 조건이 그려지지 않는 문제(cond-missing)까지 잡으려고
+  ...['dash-signal', 'dash-signal-cards'].map((base) => ({
+    name: base + '-xcond',
+    who: 'owner@example.com',
+    path: '/',
+    view: 'signal',
+    xcond: true,
+    act: base.endsWith('cards')
+      ? async (page) => page.getByRole('button', { name: '카드 보기', exact: true }).click()
+      : undefined,
+  })),
   {
     name: 'modal-macro-chart',
     who: 'owner@example.com',
@@ -271,7 +283,7 @@ function measure(opts) {
   }
   function kind(el) {
     if (el.closest('button, [role=button], [role=tab], .tab-bar a')) return 'button'
-    if (/badge|chip|pill|tag/.test(el.className && el.className.baseVal === undefined ? el.className : ''))
+    if (/badge|chip|pill|tag|\bcond\b/.test(el.className && el.className.baseVal === undefined ? el.className : ''))
       return 'badge'
     if (el.closest('h1,h2,h3,h4,h5,h6,.kpi-title,.modal-title')) return 'title'
     if (el.closest('label, th, dt')) return 'label'
@@ -383,7 +395,64 @@ function measure(opts) {
 
 /* ---------- 실행 ---------- */
 
-const CHECKS = ['page-overflow', 'clipped', 'orphan', 'num-split', 'folded3', 'folded2-360', 'touch', 'contrast', 'console']
+const CHECKS = ['page-overflow', 'clipped', 'orphan', 'num-split', 'folded3', 'folded2-360', 'touch', 'contrast', 'console', 'cond-missing']
+
+const XCOND = {
+  key: 'audit_extra_condition',
+  metric: 'audit_extra',
+  label: '변동성 축소(20일) 길게 쓴 조건',
+  detail: '자동 검사가 더한 가짜 조건 — 이름이 긴 경우',
+  header: '긴 조건 머리',
+  formula: '변동성 축소(20일) 길게 쓴 조건',
+}
+async function routeExtraCondition(page) {
+  await page.route('**/api/signal-rules', async (route) => {
+    const res = await route.fetch()
+    const body = await res.json()
+    const buy = body.rules?.find((r) => r.key === 'buy')
+    if (buy) buy.conditions.push(XCOND)
+    await route.fulfill({ response: res, json: body })
+  })
+  await page.route('**/api/dashboard', async (route) => {
+    const res = await route.fetch()
+    const body = await res.json()
+    if (Array.isArray(body))
+      for (const c of body) {
+        c.buy_conditions = { ...(c.buy_conditions || c.knee_conditions || {}), [XCOND.key]: true }
+      }
+    await route.fulfill({ response: res, json: body })
+  })
+}
+
+// 카드마다 그려진 매수 조건 칩 수가 규칙의 조건 수와 같은가 + 카드 높이
+async function cardChecks(page) {
+  return page.evaluate(async () => {
+    const cards = [...document.querySelectorAll('.stock-card')].filter((c) => c.getBoundingClientRect().height > 0)
+    if (!cards.length && !document.querySelector('.cond-mark')) return { issues: [], heights: [] }
+    let want = null
+    try {
+      const rules = await (await fetch('/api/signal-rules')).json()
+      want = rules.rules?.find((r) => r.key === 'buy')?.conditions.length ?? null
+    } catch {}
+    const issues = []
+    // 표 보기: 줄마다 조건 표시(.cond-mark) 수
+    const rows = [...document.querySelectorAll('tr[data-ticker], tbody tr')].filter(
+      (tr) => tr.querySelector('.cond-mark') && tr.getBoundingClientRect().height > 0,
+    )
+    for (const tr of rows) {
+      const got = tr.querySelectorAll('.cond-mark').length
+      if (want !== null && got !== want)
+        issues.push({ check: 'cond-missing', where: 'tr', text: tr.dataset.ticker || tr.textContent.trim().slice(0, 20), got, want })
+    }
+    for (const c of cards) {
+      const got = c.querySelectorAll('.cond').length
+      if (want !== null && got !== want)
+        issues.push({ check: 'cond-missing', where: 'article.stock-card', text: c.dataset.ticker || '', got, want })
+    }
+    const heights = cards.map((c) => Math.round(c.getBoundingClientRect().height)).sort((a, b) => a - b)
+    return { issues, heights }
+  })
+}
 
 async function loginState(browser, who) {
   const ctx = await browser.newContext()
@@ -430,11 +499,13 @@ async function main() {
         [cond.theme, cond.rise, s.view || null],
       )
       const page = await ctx.newPage()
+      if (s.xcond) await routeExtraCondition(page)
       const errors = []
       page.on('pageerror', (e) => errors.push(String(e.message || e)))
       page.on('console', (m) => m.type() === 'error' && errors.push(m.text()))
       let issues = []
       let failed = null
+      let heights = []
       try {
         await page.goto(BASE + s.path, { waitUntil: 'networkidle' })
         if (s.act) {
@@ -445,12 +516,15 @@ async function main() {
         }
         await page.waitForTimeout(400)
         issues = await page.evaluate(measure, { phone: cond.vp.phone, width: cond.vp.width })
+        const cc = await cardChecks(page)
+        issues.push(...cc.issues)
+        heights = cc.heights
         if (SHOTS) await page.screenshot({ path: join(OUT, 'shots', `${s.name}--${tag}.png`) })
       } catch (e) {
         failed = String(e.message || e).split('\n')[0]
       }
       for (const e of errors) issues.push({ check: 'console', where: 'console', text: e.slice(0, 200) })
-      results.push({ screen: s.name, cond: tag, failed, issues })
+      results.push({ screen: s.name, cond: tag, failed, issues, cardHeights: heights })
       await ctx.close()
       process.stdout.write(`${tag} ${s.name}: ${failed ? 'FAILED ' + failed : issues.length}\n`)
     }
@@ -464,12 +538,17 @@ function summarize(results) {
   const total = Object.fromEntries(CHECKS.map((c) => [c, 0]))
   const orphanByKind = {}
   const rows = []
+  const cardRows = []
   for (const r of results) {
     const n = Object.fromEntries(CHECKS.map((c) => [c, 0]))
     for (const i of r.issues) {
       n[i.check]++
       total[i.check]++
       if (i.check === 'orphan') orphanByKind[i.kind] = (orphanByKind[i.kind] || 0) + 1
+    }
+    if (r.cardHeights?.length) {
+      const h = r.cardHeights
+      cardRows.push(`| ${r.screen} | ${r.cond} | ${h.length} | ${h[Math.floor((h.length - 1) / 2)]} | ${h[0]}~${h[h.length - 1]} |`)
     }
     rows.push(`| ${r.screen} | ${r.cond} | ${r.failed ? '실패: ' + r.failed.slice(0, 40) : ''} | ${CHECKS.map((c) => n[c]).join(' | ')} |`)
   }
@@ -487,6 +566,12 @@ function summarize(results) {
     `| 화면 | 조건 | 상태 | ${CHECKS.join(' | ')} |`,
     `| --- | --- | --- | ${CHECKS.map(() => '---').join(' | ')} |`,
     ...rows,
+    '',
+    '## 카드 높이 (px, 시그널 카드 보기)',
+    '',
+    '| 화면 | 조건 | 카드 수 | 중앙값 | 범위 |',
+    '| --- | --- | --- | --- | --- |',
+    ...cardRows,
     '',
   ].join('\n')
 }
