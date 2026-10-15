@@ -162,6 +162,8 @@ export function coverageText(history: HistoryResponse | null): string {
   return `저장된 시세 ${coverage.first_date} ~ ${coverage.last_date} · ${coverage.rows.toLocaleString('ko-KR')}거래일`
 }
 
+const STREAK_HINT = '시그널이 뜬 날 수 — 괄호는 며칠 이어서 뜬 것을 한 번으로 센 횟수(차트의 점 하나가 한 번)'
+
 export function ChartLegend({
   history,
   loading,
@@ -175,13 +177,14 @@ export function ChartLegend({
   return (
     <div className="legend-row">
       {mine && <span className="badge badge-grey">내 기준</span>}
-      <span>
+      {/* "매수 13구간 · 43일" — "구간"이 무엇인지 몰랐다 (디자인 2차). 날 수가 먼저, 이어진 묶음 수는 괄호에 */}
+      <span title={STREAK_HINT}>
         <SignalShape kind="buy" />
-        매수 {counts.buy.streaks}구간 · {counts.buy.days}일
+        매수 <span className="nowrap">{counts.buy.days}일</span> <span className="nowrap">({counts.buy.streaks}번)</span>
       </span>
-      <span>
+      <span title={STREAK_HINT}>
         <SignalShape kind="sell" />
-        매도 {counts.sell.streaks}구간 · {counts.sell.days}일
+        매도 <span className="nowrap">{counts.sell.days}일</span> <span className="nowrap">({counts.sell.streaks}번)</span>
       </span>
       <span className="hint">
         {loading

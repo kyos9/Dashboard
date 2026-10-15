@@ -735,7 +735,13 @@ describe('폰의 순서 편집 (ROADMAP 8-3)', () => {
     expect(screen.queryByRole('button', { name: /순서 바꾸기/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /위로|아래로/ })).not.toBeInTheDocument()
 
+    // 폰은 보기·설정 단추를 접어 둔다 (디자인 2차) — 펴야 "순서 편집"이 보인다
+    expect(screen.queryByRole('button', { name: '↕ 순서 편집' })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: '보기·설정 ⋯' }))
     await userEvent.click(screen.getByRole('button', { name: '↕ 순서 편집' }))
+    // 편집 중에는 접어도 끝내는 단추가 남는다
+    await userEvent.click(screen.getByRole('button', { name: '보기·설정 ⋯' }))
+    expect(screen.getByRole('button', { name: '순서 편집 끝' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '삼성전자 위로' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'VOO 아래로' })).toBeDisabled()
 
@@ -803,7 +809,7 @@ describe('대시보드 · 시그널 규칙은 서버에서 (0.41.0)', () => {
     changed.thresholds.adx_trend = 25
     const adx = changed.rules[0].conditions.find((c) => c.key === 'adx_trending')!
     Object.assign(adx, { label: 'ADX > 25', header: '> 25', formula: 'ADX > 25' })
-    // 붙일 칸이 없는 조건이 늘어도 화면이 깨지지 않는다 (칸에는 안 붙고 설명 줄에만)
+    // 붙일 칸이 없는 조건이 늘어도 화면이 깨지지 않는다 — 설명 줄, 그리고 표의 "그 밖의 조건" 칸(디자인 2차, 예전에는 표에서 사라졌다)
     changed.rules[0].conditions.push({
       key: 'rsi_low', metric: 'rsi', label: 'RSI < 30', detail: 'RSI 가 30 아래', header: '< 30', formula: 'RSI < 30',
     })
@@ -827,6 +833,14 @@ describe('대시보드 · 시그널 규칙은 서버에서 (0.41.0)', () => {
     ).toBeInTheDocument()
     const row = await cardRow('VOO')
     expect(within(row).getByLabelText('ADX > 25 충족')).toBeInTheDocument()
+    expect(within(row).getByLabelText('RSI < 30 충족')).toBeInTheDocument()
+    // 그 칸은 200일선 뒤, 종합 신호등 앞 — 지표 칸이 없는 조건이 있을 때만
+    const heads = within((await screen.findAllByRole('table'))[0])
+      .getAllByRole('columnheader')
+      .map((th) => th.textContent ?? '')
+    const extra = heads.findIndex((h) => h.startsWith('그 밖의 조건'))
+    expect(heads[extra - 1]).toMatch(/^200일선/)
+    expect(heads[extra + 1]).toBe('종합 신호등')
     // ADX 22 는 새 기준(25) 아래 — 풀이도 같은 기준으로 "추세 없음"
     expect(within(row).getByText('22.0').closest('[title]')).toHaveAttribute('title', '추세 없음')
     expect(within(row).getByText('매수').closest('.traffic')).toHaveAttribute(
@@ -970,5 +984,69 @@ describe('대시보드 · 카드 보기의 부호 색 (0.42.0 B)', () => {
     expect(schdDi).toHaveClass('down')
     expect(vooMa).toHaveClass('up')
     expect(schdMa).toHaveClass('down')
+  })
+})
+
+describe('대시보드 · 시그널 보기 정돈 (디자인 2차)', () => {
+  const SELLING = card({ ticker: 'VOO', shoulder_sell_ref: true })
+  const BUYING = card({ ticker: 'QQQ', knee_buy_v2: true })
+  const WATCHING = card({
+    ticker: 'SCHD',
+    rebalance_signal: { active: true, reasons: ['밴드 미달(매수 검토)'] },
+  })
+
+  it('매도 거르기 — 신호 요약의 "매도" 수와 같은 종목만', async () => {
+    mockApi([SELLING, BUYING, WATCHING])
+    renderDashboard()
+    await userEvent.click(await screen.findByRole('button', { name: /매도 1$/ }))
+    expect(await nameOrder()).toEqual(['VOO'])
+  })
+
+  it('신호 요약의 매수·매도·비중조절 칸을 누르면 그 거르기, 다시 누르면 모두 보기', async () => {
+    mockApi([SELLING, BUYING, WATCHING])
+    renderDashboard()
+    const summary = await screen.findByRole('region', { name: '신호 요약' })
+    const sell = within(summary).getByRole('button', { name: /매도/ })
+    await userEvent.click(sell)
+    expect(sell).toHaveAttribute('aria-pressed', 'true')
+    expect(await nameOrder()).toEqual(['VOO'])
+    await userEvent.click(within(summary).getByRole('button', { name: /비중조절/ }))
+    expect(await nameOrder()).toEqual(['SCHD'])
+    await userEvent.click(within(summary).getByRole('button', { name: /비중조절/ }))
+    expect(await nameOrder()).toEqual(['VOO', 'QQQ', 'SCHD'])
+    // 관망은 거르기가 없어 누르는 칸이 아니다
+    expect(within(summary).queryByRole('button', { name: /관망/ })).toBeNull()
+  })
+
+  it('카드: 시그널 · 비중 · 매수 조건 줄 — 비중은 사유가 있을 때만, 조건은 규칙의 조건 전부와 맞춘 수', async () => {
+    mockApi([
+      card({
+        ticker: 'VOO',
+        shoulder_sell_ref: true,
+        rebalance_signal: { active: true, reasons: ['밴드 미달(매수 검토)'] },
+        knee_conditions: { di_bearish: false, disparity_negative: false, volatility_or_volume: false, adx_trending: true },
+      }),
+      card({ ticker: 'QQQ' }),
+    ])
+    renderDashboard()
+    await userEvent.click(await screen.findByRole('button', { name: '카드 보기' }))
+    const [voo, qqq] = Array.from(document.querySelectorAll('article.signal-card')) as HTMLElement[]
+    const rows = (el: HTMLElement) =>
+      Array.from(el.querySelectorAll('.signal-row-label')).map((l) => l.textContent?.replace(/\s+/g, ' ').trim())
+    expect(rows(voo)).toEqual(['시그널', '비중', '매수 조건 1/4'])
+    expect(rows(qqq)).toEqual(['시그널', '매수 조건 0/4'])
+    // 칩은 표의 칸 순서 — 이격도 · ADX · DI · 변동성·거래량
+    expect(Array.from(voo.querySelectorAll('.cond')).map((c) => c.getAttribute('aria-label'))).toEqual([
+      '이격도 < 0 미충족',
+      'ADX > 20 충족',
+      'DI 약세 미충족',
+      '변동성·거래량 미충족',
+    ])
+    // 지표 줄에는 더 이상 칩이 없다
+    expect(voo.querySelector('.stat-box .cond')).toBeNull()
+    // "▼ 매도"는 시그널 줄, "◆ 매수 검토"는 비중 줄
+    const [signalItems, weightItems] = Array.from(voo.querySelectorAll('.signal-row-items'))
+    expect(signalItems).toHaveTextContent('매도')
+    expect(weightItems).toHaveTextContent('매수 검토')
   })
 })

@@ -55,6 +55,16 @@ function conditions() {
 /* ---------- 화면 ----------
    who: 누구로 들어가나 (null = 손님). path: 주소. act: 열고 나서 할 일(팝업 열기 등). */
 
+// 2차: 폰 시그널 보기는 보기·설정 단추를 "보기·설정 ⋯" 안에 접는다(주인 결정). 접혀 있으면 펴고 누른다
+async function clickViewTool(page, name, exact = false) {
+  const target = page.getByRole('button', { name, exact }).first()
+  if (!(await target.isVisible().catch(() => false))) {
+    const fold = page.getByRole('button', { name: '보기·설정 ⋯' })
+    if (await fold.count()) await fold.first().click()
+  }
+  await page.getByRole('button', { name, exact }).first().click()
+}
+
 const clickText = (re) => async (page) => {
   await page.getByRole('button', { name: re }).first().click()
 }
@@ -122,21 +132,21 @@ const SCREENS = [
     who: 'owner@example.com',
     path: '/',
     view: 'signal',
-    act: async (page) => page.getByRole('button', { name: '카드 보기', exact: true }).click(),
+    act: async (page) => clickViewTool(page, '카드 보기', true),
   },
   {
     name: 'dash-signal-edit',
     who: 'owner@example.com',
     path: '/',
     view: 'signal',
-    act: async (page) => page.getByRole('button', { name: /종목 설정/ }).first().click(),
+    act: async (page) => clickViewTool(page, /종목 설정/),
   },
   {
     name: 'modal-thresholds',
     who: 'owner@example.com',
     path: '/',
     view: 'signal',
-    act: async (page) => page.getByRole('button', { name: /^시그널 기준/ }).first().click(),
+    act: async (page) => clickViewTool(page, /^시그널 기준/),
   },
   ...[
     ['modal-chart-fund', /재무/],
@@ -167,7 +177,7 @@ const SCREENS = [
     view: 'signal',
     xcond: true,
     act: base.endsWith('cards')
-      ? async (page) => page.getByRole('button', { name: '카드 보기', exact: true }).click()
+      ? async (page) => clickViewTool(page, '카드 보기', true)
       : undefined,
   })),
   {

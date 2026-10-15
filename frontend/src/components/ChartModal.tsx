@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { useBackToClose } from '../lib/backToClose'
-import type { FundamentalsResponse, HistoryResponse } from '../types'
+import type { DashboardCard, FundamentalsResponse, HistoryResponse } from '../types'
+import { BuyConditions } from './BuyConditions'
 import { useAuth } from './AuthGate'
 import { ChartLegend, coverageText, PriceChart } from './PriceChart'
 import { ErrorNotice } from './ErrorNotice'
@@ -89,6 +90,9 @@ export function ChartCoverage({
 interface Props {
   ticker: string
   name?: string | null
+  /** 대시보드에서 열면 그 종목의 카드 — 차트 위에 오늘 매수 조건 한 줄(디자인 2차, 주인 결정).
+   * 재무·더보기 차트에서 열면 없다(그때는 그 줄이 없다) */
+  card?: DashboardCard
   /** 어느 탭부터 — "재무" 화면에서 열면 재무, 대시보드의 "AI 분석" 버튼으로 열면 AI */
   initialTab?: ChartTab
   onClose: () => void
@@ -100,7 +104,7 @@ interface Props {
  * 차트를 보려고 페이지를 떠나면 보던 표의 스크롤 위치와 필터가 날아가고, 돌아오면
  * 다시 찾아야 한다. 차트는 "잠깐 확인하는" 것이므로 지금 화면 위에 얹는다.
  */
-export function ChartModal({ ticker, name, initialTab = 'chart', onClose }: Props) {
+export function ChartModal({ ticker, name, card, initialTab = 'chart', onClose }: Props) {
   const [tab, setTab] = useState<ChartTab>(initialTab)
   const [fundamentals, setFundamentals] = useState<FundamentalsResponse | null>(null)
   const [range, setRange] = useState<Range>('1y')
@@ -173,7 +177,8 @@ export function ChartModal({ ticker, name, initialTab = 'chart', onClose }: Prop
         <div className="modal-head">
           <div className="modal-title">
             <h3>{name ?? ticker}</h3>
-            <span className="hint">{ticker}</span>
+            {/* 이름이 티커와 같으면(미국 종목은 늘 그렇다) 두 번 쓰지 않는다 — "VOO VOO" (디자인 2차) */}
+            {name && name !== ticker && <span className="hint">{ticker}</span>}
           </div>
           {tabs.length > 1 && (
             <div className="chip-row" role="tablist" aria-label="보기">
@@ -220,6 +225,12 @@ export function ChartModal({ ticker, name, initialTab = 'chart', onClose }: Prop
         ) : (
           <>
             <ErrorNotice error={error} onDismiss={() => setError(null)} />
+            {/* 신호의 근거를 팝업 안에서 — 닫고 카드로 돌아가 읽지 않게 (과업 3) */}
+            {card && (
+              <div className="signal-rows chart-conditions">
+                <BuyConditions card={card} />
+              </div>
+            )}
             <PriceChart history={history} height={380} />
             <ChartLegend history={history} loading={loading} />
             <ChartCoverage

@@ -19,3 +19,22 @@ describe('차트 범례 · 내 기준 (0.42.0)', () => {
     expect(screen.getByText('내 기준')).toBeInTheDocument()
   })
 })
+
+describe('차트 범례 · 말 (디자인 2차)', () => {
+  it('"구간" 대신 날 수가 먼저, 이어서 뜬 묶음 수는 괄호 — 풀이는 툴팁', () => {
+    const history = {
+      ticker: 'VOO',
+      prices: ['2026-09-14', '2026-09-15', '2026-09-16', '2026-09-17'].map((date) => ({ date, close: 1 })),
+      markers: [
+        { date: '2026-09-14', kind: 'buy' },
+        { date: '2026-09-15', kind: 'buy' },
+        { date: '2026-09-17', kind: 'buy' },
+      ],
+      coverage: null,
+    } as never
+    render(<ChartLegend history={history} loading={false} />)
+    const buy = screen.getByText((_, el) => el?.tagName === 'SPAN' && el.textContent === '매수 3일 (2번)')
+    expect(buy).toHaveAttribute('title', expect.stringContaining('한 번으로 센'))
+    expect(screen.queryByText(/구간/)).toBeNull()
+  })
+})

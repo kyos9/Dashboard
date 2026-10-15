@@ -41,6 +41,31 @@ beforeEach(() => {
 })
 
 describe('차트 팝업', () => {
+  it('이름이 티커와 같으면 제목에 한 번만 — "VOO VOO" (디자인 2차)', async () => {
+    vi.spyOn(api, 'getHistory').mockResolvedValue({ ...HISTORY, ticker: 'VOO' })
+    const { container, unmount } = render(<ChartModal ticker="VOO" name="VOO" onClose={() => {}} />)
+    expect(container.querySelector('.modal-title')!.textContent).toBe('VOO')
+    unmount()
+    render(<ChartModal ticker="005930.KS" name="삼성전자" onClose={() => {}} />)
+    expect(screen.getByText('005930.KS')).toBeInTheDocument()
+  })
+
+  it('대시보드에서 열면(카드가 오면) 차트 위에 오늘 매수 조건 한 줄, 없으면 그 줄이 없다 (디자인 2차)', async () => {
+    vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
+    const card = {
+      ticker: '005930.KS',
+      knee_conditions: { di_bearish: true, disparity_negative: true, volatility_or_volume: false, adx_trending: null },
+    } as never
+    const { unmount } = render(<ChartModal ticker="005930.KS" name="삼성전자" card={card} onClose={() => {}} />)
+    expect(screen.getByText('매수 조건')).toBeInTheDocument()
+    expect(screen.getByText('2/4')).toBeInTheDocument()
+    expect(screen.getByLabelText('DI 약세 충족')).toBeInTheDocument()
+    expect(screen.getByLabelText('ADX > 20 판정 불가')).toBeInTheDocument()
+    unmount()
+    render(<ChartModal ticker="005930.KS" name="삼성전자" onClose={() => {}} />)
+    expect(screen.queryByText('매수 조건')).toBeNull()
+  })
+
   it('종목 이름과 차트를 띄운다', async () => {
     vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
     render(<ChartModal ticker="005930.KS" name="삼성전자" onClose={() => {}} />)
