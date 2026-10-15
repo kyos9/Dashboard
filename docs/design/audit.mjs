@@ -440,7 +440,8 @@ async function routeExtraCondition(page) {
 // 카드마다 그려진 매수 조건 칩 수가 규칙의 조건 수와 같은가 + 카드 높이
 async function cardChecks(page) {
   return page.evaluate(async () => {
-    const cards = [...document.querySelectorAll('.stock-card')].filter((c) => c.getBoundingClientRect().height > 0)
+    // 시그널 카드만(매크로 카드도 .stock-card 다) — 그 밖의 화면에서는 규칙을 받지 않는다(손님은 401)
+    const cards = [...document.querySelectorAll('article.stock-card[data-ticker]')].filter((c) => c.getBoundingClientRect().height > 0)
     if (!cards.length && !document.querySelector('.cond-mark')) return { issues: [], heights: [] }
     let want = null
     try {
