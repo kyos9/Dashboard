@@ -1,0 +1,43 @@
+/* 디자인 2차 시안 — 정돈안 (CSS 만, 화면 코드는 그대로). 폰 시그널 카드를 짧게.
+   찍는 법: 가짜 서버 화면에 이 파일을 page.addStyleTag 로 얹고 폰 390 다크로 찍는다.
+   실제 적용은 index.css 의 폰 분기(max-width: 640px) 안에 넣는다. */
+@media (max-width: 640px) {
+  /* 1. 지표 상자 여섯 개(2열 × 3줄, 상자마다 4줄) → 지표 한 줄씩의 목록.
+        칸 수에 묶이지 않는다 — 조건이 하나 늘면 줄이 하나 는다. */
+  .stock-card .stat-grid {
+    grid-template-columns: 1fr;
+    gap: 0;
+    border-top: 1px solid var(--border);
+  }
+  .stock-card .stat-box {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 12px;
+    row-gap: 2px;
+    align-items: center;
+    background: none;
+    border: 0;
+    border-bottom: 1px solid var(--border);
+    border-radius: 0;
+    padding: 8px 0;
+  }
+  /* 이름 | 값  /  풀이 | 조건 칩 — 지표 하나가 두 줄 */
+  .stock-card .stat-box { padding: 6px 0; }
+  .stock-card .stat-box:last-child { border-bottom: 0; }
+  .stock-card .stat-box > :nth-child(1) { grid-column: 1; grid-row: 1; font-size: var(--fs-sub); color: var(--text-dim); }
+  .stock-card .stat-box > :nth-child(2) { grid-column: 2; grid-row: 1; margin: 0; text-align: right; }
+  .stock-card .stat-box > :nth-child(3) { grid-column: 1; grid-row: 2; }
+  .stock-card .stat-box > :nth-child(4) { grid-column: 2; grid-row: 2; justify-self: end; }
+
+  /* 2. 신호 배지와 비중조절 배지를 한 줄에 */
+  .stock-card { flex-direction: row; flex-wrap: wrap; align-items: center; column-gap: 8px; }
+  .stock-card > * { flex: 1 1 100%; }
+  .stock-card > .badge,
+  .stock-card > .traffic,
+  .stock-card > .badge-row { flex: 0 1 auto; }
+
+  /* 3. 마지막 매수 시그널 · 날짜 · AI 분석을 한 줄에 */
+  .stock-card .card-actions { flex-direction: row; flex-wrap: wrap; align-items: center; column-gap: 8px; }
+  .stock-card .card-actions .ai-open { margin-left: auto; }
+  .stock-card .card-actions { padding-top: 8px; }
+}

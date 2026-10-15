@@ -115,6 +115,57 @@ const SCREENS = [
   { name: 'history', who: 'owner@example.com', path: '/history' },
   { name: 'stocks', who: 'owner@example.com', path: '/stocks' },
   { name: 'policy', who: null, path: '/policy' },
+  // 2차에서 더한 화면 — 차트 팝업의 다른 탭, 카드 보기, 시그널 기준, 매크로 차트, 종목 설정 표
+  {
+    name: 'dash-signal-cards',
+    who: 'owner@example.com',
+    path: '/',
+    view: 'signal',
+    act: async (page) => page.getByRole('button', { name: '카드 보기', exact: true }).click(),
+  },
+  {
+    name: 'dash-signal-edit',
+    who: 'owner@example.com',
+    path: '/',
+    view: 'signal',
+    act: async (page) => page.getByRole('button', { name: /종목 설정/ }).first().click(),
+  },
+  {
+    name: 'modal-thresholds',
+    who: 'owner@example.com',
+    path: '/',
+    view: 'signal',
+    act: async (page) => page.getByRole('button', { name: /^시그널 기준/ }).first().click(),
+  },
+  ...[
+    ['modal-chart-fund', /재무/],
+    ['modal-chart-ai', /AI/],
+  ].map(([name, tab]) => ({
+    name,
+    who: 'owner@example.com',
+    path: '/',
+    view: 'signal',
+    act: async (page) => {
+      // 재무 탭은 재무가 있는 종목에만 있다(ETF 는 없다) — 탭이 있는 종목을 찾을 때까지 연다
+      const names = page.locator('button.stock-name')
+      for (let i = 0, n = await names.count(); i < n; i++) {
+        await names.nth(i).click()
+        await page.waitForSelector('[role=dialog] [role=tab]', { timeout: 15000 })
+        const want = page.locator('[role=dialog]').getByRole('tab', { name: tab })
+        if (await want.count()) return want.first().click()
+        await page.locator('[role=dialog]').getByRole('button', { name: '닫기' }).first().click()
+      }
+    },
+  })),
+  {
+    name: 'modal-macro-chart',
+    who: 'owner@example.com',
+    path: '/macro',
+    act: async (page) => {
+      await page.locator('button.macro-title').first().click()
+      await page.waitForSelector('canvas', { timeout: 15000 }).catch(() => {})
+    },
+  },
   { name: 'menu-display', who: 'owner@example.com', path: '/', act: (p) => openMenu(p, '화면 설정', '화면') },
   { name: 'menu-ai-key', who: 'owner@example.com', path: '/', act: (p) => openMenu(p, 'AI 키 설정') },
   { name: 'menu-push', who: 'owner@example.com', path: '/', act: (p) => openMenu(p, '알림 설정') },
@@ -246,7 +297,8 @@ function measure(opts) {
   }
 
   // 4. 숫자·단위 갈라짐
-  const NUM = /[+\-−]?[\d,.]+\s?(원|%p?|주|개|달러|엔|배|억|만)/g
+  // 2차: 앞에 붙는 부호·통화 기호도 본다 — 리밸런싱 "· +" 줄 끝, "₩81,312,880" 다음 줄 (1차 식은 뒤 단위만 봤다)
+  const NUM = /[+\-−]?[\d,.]+\s?(원|%p?|주|개|달러|엔|배|억|만)|[+\-−]?\s?[₩$¥€]\s?\d[\d,.]*|[+\-−]\d[\d,.]*/g
   const range = document.createRange()
   for (const el of textEls) {
     for (const t of el.childNodes) {
