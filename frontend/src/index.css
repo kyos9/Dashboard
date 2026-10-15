@@ -2250,6 +2250,13 @@ button.stock-name:hover {
   content: ' ▴';
 }
 
+/* 매크로 한 줄의 칩 — 누르면 매크로 탭으로 간다. 표시 칩과 갈리게 끝에 › (디자인 2차 사용자 확인, 어포던스) */
+.macro-chip::after {
+  content: '›';
+  color: var(--text-faint);
+  margin-left: 2px;
+}
+
 /* 재무 "PER 한눈에"의 줄 — 누르면 차트가 열린다. 다른 화면의 종목 이름처럼 밑줄 (디자인 2차, 어포던스) */
 .per-row .per-row-name {
   text-decoration: underline;

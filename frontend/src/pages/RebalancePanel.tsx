@@ -1152,6 +1152,16 @@ export function RebalancePanel() {
         </div>
         {!narrow && newMoneyBlock}
         {newMoneyLine}
+        {/* 폰에는 툴팁이 없다 — 주문 옆 이름표 둘의 뜻을 한 줄로 (디자인 2차 사용자 확인: "참고 ▼ 기간 내 매도"를 풀어 주는 곳이 없다) */}
+        {plan.orders.some((o) => {
+          const r = rowByTicker.get(o.ticker)?.current
+          return !!r && (r.rebalance_signal.active || r.shoulder_signal_fired_in_period)
+        }) && (
+          <p className="hint">
+            <b>비중</b> = 비중이 밴드를 벗어나 리뷰 때 맞출 종목 · <b>참고</b> = 이번 리뷰 기간에 매도 시그널이 뜬 적이 있음 —
+            주문 수는 바꾸지 않습니다
+          </p>
+        )}
         {/* 폰은 답(카드)이 먼저라 넣는 칸이 카드 아래에 있다(8단계) — 찾으러 끝까지 내려가지 않게 바로 가는 길 (B 사용자 확인) */}
         {narrow && (
           <p className="hint">
