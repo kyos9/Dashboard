@@ -277,10 +277,8 @@ td .mono {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
-  border-radius: 999px;
-  background: var(--panel-soft);
-  border: 1px solid var(--border);
+  padding: 8px 4px;
+  /* 테두리·바탕을 두지 않는다 — 둥근 테두리 상자라 단추로 보여 눌러 보게 됐다(디자인 2차, 어포던스). 점 + 글자 */
   font-size: var(--fs-caption);
   color: var(--text-dim);
 }
@@ -823,6 +821,16 @@ button.count-chip {
   font: inherit;
   color: inherit;
   cursor: pointer;
+}
+/* 어포던스 (디자인 2차) — 누르는 칸에는 거르기로 가는 표시(›), 누르지 않는 관망 칸은 상자를 지운다.
+   넷이 같은 상자면 관망도 눌러 보게 되고, 눌러도 아무 일이 없었다 */
+button.count-chip .lbl::after {
+  content: ' ›';
+  color: var(--text-faint);
+}
+.kpi-counts span.count-chip {
+  background: transparent;
+  border-color: transparent;
 }
 button.count-chip:hover:not(:disabled) {
   border-color: var(--border-strong);
@@ -2227,6 +2235,28 @@ button.stock-name {
 }
 
 button.stock-name:hover {
+  color: var(--blue);
+  text-decoration-color: var(--blue);
+}
+
+/* 눌러서 펼치는 보유 줄(폰) — 줄 전체가 단추인데 단추로 안 보였다 (디자인 2차, 어포던스). 금액 옆에 ▾/▴ */
+.holding-toggle .holding-value::after {
+  content: ' ▾';
+  color: var(--text-faint);
+  font-family: var(--font-sans);
+  font-weight: 400;
+}
+.holding-toggle[aria-expanded='true'] .holding-value::after {
+  content: ' ▴';
+}
+
+/* 재무 "PER 한눈에"의 줄 — 누르면 차트가 열린다. 다른 화면의 종목 이름처럼 밑줄 (디자인 2차, 어포던스) */
+.per-row .per-row-name {
+  text-decoration: underline;
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: 3px;
+}
+.per-row:hover .per-row-name {
   color: var(--blue);
   text-decoration-color: var(--blue);
 }

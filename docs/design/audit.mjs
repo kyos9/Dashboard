@@ -347,6 +347,62 @@ function measure(opts) {
     if (cs.position === 'sticky' && cs.left !== 'auto' && !el.closest('.signal-table')) add('sticky-left', el, {})
   }
 
+  // 4-4. 어포던스 (2차, 주인 요청 "어포던스도 고려해줘") — 보이는 꼴과 할 수 있는 일이 맞는가.
+  //   fake-button: 누를 수 없는데 단추처럼 생긴 것 — 테두리나 바탕이 있는 둥근 상자, 높이 34px 이상, 글 짧음
+  //   quiet-target: 누를 수 있는데 단추·링크로 안 보이는 것 — 테두리·바탕·밑줄이 없고 글자색도 본문과 같다
+  const INTERACTIVE = 'button, a[href], input, select, textarea, summary, label, [role=button], [role=tab], [role=link], [role=switch], [tabindex]:not([tabindex="-1"])'
+  const px = (v) => parseFloat(v) || 0
+  const opaque = (c) => {
+    const m = c.match(/rgba?\(([^)]+)\)/)
+    if (!m) return false
+    const parts = m[1].split(/[ ,/]+/).filter(Boolean).map(Number)
+    return parts.length < 4 || parts[3] > 0.02
+  }
+  const bodyColor = getComputedStyle(document.body).color
+  // 펼침·이동 표시(▸ ▾ › → ↓ ▴)를 ::before/::after 로 단 것은 단서가 있는 것으로 본다
+  const cue = (el) => {
+    for (const n of [el, ...el.querySelectorAll('*')].slice(0, 40))
+      for (const pseudo of ['::before', '::after'])
+        if (/[▸▾›→↓▴⌄]/.test(getComputedStyle(n, pseudo).content)) return true
+    // 안쪽 글에 밑줄(링크처럼)이 있어도 단서다
+    for (const n of el.querySelectorAll('*')) if (/underline/.test(getComputedStyle(n).textDecorationLine)) return true
+    return false
+  }
+  for (const el of all) {
+    if (!visible(el)) continue
+    const cs = getComputedStyle(el)
+    const r = el.getBoundingClientRect()
+    const interactive = el.matches(INTERACTIVE)
+    if (!interactive && !el.closest(INTERACTIVE) && !el.querySelector(INTERACTIVE) && !el.closest('.chart, .chart-box, .tv-lightweight-charts, table, svg')) {
+      const boxed =
+        (px(cs.borderTopWidth) >= 1 && opaque(cs.borderTopColor)) || (opaque(cs.backgroundColor) && cs.backgroundColor !== getComputedStyle(el.parentElement || el).backgroundColor)
+      const text = (el.textContent || '').trim()
+      if (
+        boxed &&
+        px(cs.borderTopLeftRadius) >= 6 &&
+        r.height >= 34 &&
+        r.height <= 80 &&
+        r.width <= 260 &&
+        text.length > 0 &&
+        text.length <= 14 &&
+        el.children.length <= 4 &&
+        cs.cursor !== 'pointer'
+      )
+        add('fake-button', el, { h: Math.round(r.height), w: Math.round(r.width) })
+    }
+    if (el.matches('button, a[href], [role=button], summary') && !el.closest('nav, .tab-bar, .tv-lightweight-charts')) {
+      const flat =
+        !(px(cs.borderTopWidth) >= 1 && opaque(cs.borderTopColor)) &&
+        !(px(cs.borderBottomWidth) >= 1 && opaque(cs.borderBottomColor)) &&
+        !opaque(cs.backgroundColor) &&
+        !/underline/.test(cs.textDecorationLine) &&
+        !el.querySelector('svg, img') &&
+        !cue(el) &&
+        cs.color === bodyColor
+      if (flat && (el.textContent || '').trim()) add('quiet-target', el, { cursor: cs.cursor })
+    }
+  }
+
   // 6. 터치 대상 (폰만)
   if (phone) {
     const targets = [...root.querySelectorAll('button, a[href], input, select, textarea, [role=button], summary')]
@@ -418,7 +474,7 @@ function measure(opts) {
 
 /* ---------- 실행 ---------- */
 
-const CHECKS = ['page-overflow', 'clipped', 'orphan', 'num-split', 'folded3', 'folded2-360', 'touch', 'contrast', 'console', 'cond-missing', 'nowrap-split', 'sticky-left']
+const CHECKS = ['page-overflow', 'clipped', 'orphan', 'num-split', 'folded3', 'folded2-360', 'touch', 'contrast', 'console', 'cond-missing', 'nowrap-split', 'sticky-left', 'fake-button', 'quiet-target']
 
 const XCOND = {
   key: 'audit_extra_condition',
