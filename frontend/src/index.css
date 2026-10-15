@@ -1528,6 +1528,17 @@ table.sticky-first tbody tr:hover td:first-child {
     word-break: normal;
   }
 }
+/* 폰에서 표를 끝까지 밀어도 끝 칸 단추들이 붙은 이름 칸 밑에 덮이지 않게 — 단추를 칸 오른쪽에 붙이고 칸 오른쪽 여백·단추 사이를 줄인다
+   (디자인 2차 C 재검토: 360 에서 "삭제"만 보였다. 오른쪽에 붙이기만 하면 첫 단추가 1px 덮였다) */
+@media (max-width: 640px) {
+  table.sticky-first td:last-child:has(> .btn-group) {
+    padding-right: 4px;
+  }
+  table.sticky-first td:last-child > .btn-group {
+    justify-content: flex-end;
+    gap: 4px;
+  }
+}
 /* 고친 줄(tr.dirty)의 바탕은 반투명이라 붙은 칸 밑으로 밀린 글이 비친다 — 같은 빛깔을 불투명하게 */
 table.sticky-first tr.dirty td:first-child,
 table.sticky-first tbody tr.dirty:hover td:first-child {
