@@ -31,21 +31,14 @@
   /* 날짜·출처 풀이는 길어서 다음 줄 전체 */
   .signal-card .stat-box:last-child > :nth-child(3) { grid-column: 1 / -1; grid-row: 2; }
 
-  /* A2. 조건 칩은 지표 줄에서 떼어 "매수 조건" 한 줄로 (마크업 — 시안-카드-조건줄.js 로 흉내) */
-  .signal-card .cond-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
-  .signal-card .cond-row-label,
-  .signal-card .badge-row-label { font-size: var(--fs-caption); color: var(--text-faint); margin-right: 2px; }
-  .signal-card .badge-row { align-items: center; }
-
-  /* 2. 신호 배지와 비중조절 배지를 한 줄에 */
-  .signal-card { flex-direction: row; flex-wrap: wrap; align-items: center; column-gap: 8px; }
-  .signal-card > * { flex: 1 1 100%; }
-  .signal-card > .badge,
-  .signal-card > .traffic,
-  .signal-card > .badge-row { flex: 0 1 auto; }
-
   /* 3. 마지막 매수 시그널 · 날짜 · AI 분석을 한 줄에 */
   .signal-card .card-actions { flex-direction: row; flex-wrap: wrap; align-items: center; column-gap: 8px; }
   .signal-card .card-actions .ai-open { margin-left: auto; }
   .signal-card .card-actions { padding-top: 8px; }
 }
+
+/* A2·A6 — 시그널 · 비중 · 매수 조건 세 줄, 왼쪽 이름표 열이 같다. 폰·PC 모두 (분기 밖) */
+.signal-card .signal-rows { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 10px; align-items: center; }
+.signal-card .signal-row { display: contents; }
+.signal-card .signal-row-label { font-size: var(--fs-caption); color: var(--text-faint); }
+.signal-card .signal-row-items { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; }
