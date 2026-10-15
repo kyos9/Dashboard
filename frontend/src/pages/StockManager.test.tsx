@@ -652,3 +652,45 @@ describe('종목 관리 · 이름을 비운 종목 (0.42.0 B9)', () => {
     expect(name).toHaveAttribute('placeholder', 'トヨタ自動車')
   })
 })
+
+describe('종목 관리 · 정돈 (디자인 2차)', () => {
+  it('추가 칸의 제목은 "종목 추가" — "관심 종목"은 대시보드에서 보유 0 인 종목이다', async () => {
+    mockApi()
+    renderManager()
+    expect(await screen.findByRole('heading', { name: '종목 추가' })).toBeInTheDocument()
+    expect(screen.queryByText('관심 종목 추가')).toBeNull()
+  })
+
+  it('목록 안내의 날짜는 한 덩어리 — "2026-" / "09" 로 갈라지지 않게', async () => {
+    mockApi()
+    renderManager()
+    const hint = await screen.findByText(/내장 목록 176종목/)
+    expect(hint.querySelector('.nowrap')).toHaveTextContent(/^2026-09$/)
+  })
+
+  it('이름 = 티커인 종목(미국)은 아래 줄에 티커를 다시 쓰지 않는다', async () => {
+    mockApi([stock({ ticker: 'VOO' }), stock({ ticker: '005930.KS', name: '삼성전자', market: 'KR', currency: 'KRW' })])
+    renderManager()
+    const voo = (await screen.findAllByRole('row')).find((tr) => tr.getAttribute('data-ticker') === 'VOO')!
+    expect(voo.querySelector('.ticker-sub')!.textContent).not.toMatch(/VOO/)
+    const samsung = screen.getAllByRole('row').find((tr) => tr.getAttribute('data-ticker') === '005930.KS')!
+    expect(samsung.querySelector('.ticker-sub')).toHaveTextContent(/^005930\.KS ·/)
+  })
+
+  it('평단가 칸 안내는 숫자 칸 글꼴이 아니라 본문 글꼴을 쓰도록 폼에 표시가 있다', async () => {
+    mockApi()
+    renderManager()
+    const cost = await screen.findByLabelText(/평단가/)
+    expect(cost.closest('.add-stock-form')).not.toBeNull()
+    expect(cost).toHaveAttribute('placeholder', '모르면 비워두기')
+  })
+})
+
+describe('종목 관리 · 표 이름 칸 고정 (디자인 2차, 주인 결정 ②)', () => {
+  it('등록된 종목 표는 종목 칸이 고정된다 — 폰에서 옆으로 밀어도 이름이 남는다', async () => {
+    mockApi([stock({ ticker: 'VOO' })])
+    renderManager()
+    const table = await screen.findByRole('table')
+    expect(table).toHaveClass('sticky-first')
+  })
+})

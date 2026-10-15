@@ -1,8 +1,10 @@
 import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { MacroStrip } from '../components/MacroStrip'
-import { PortfolioView } from '../components/PortfolioView'
+import { PortfolioView, type SignalFilter } from '../components/PortfolioView'
 import { ReasonTag, SellTooTag, SignalShape } from '../components/SignalShape'
+import { BuyConditions } from '../components/BuyConditions'
+import { hasWeightSignal } from '../components/weightSignal'
 import { useNarrow } from '../lib/narrow'
 import { loadView, saveView, type DashboardView } from '../lib/portfolio'
 import { NumberInput } from '../components/NumberInput'
@@ -52,11 +54,12 @@ import {
   canCustomize,
   cardConditions,
   conditionByMetric,
+  METRIC_ORDER,
   useSignalRules,
 } from '../lib/signalRules'
 import type { DashboardCard, RebalanceCurrent, Stock, StockUpdateInput } from '../types'
 
-type QuickFilter = 'all' | 'knee' | 'rebalance'
+type QuickFilter = 'all' | 'knee' | 'sell' | 'rebalance'
 /** 표 / 카드 / 설정(편집) — 같은 목록을 다른 형태로 보는 것이라 한 자리에서 고른다 */
 type ViewMode = 'table' | 'card' | 'edit'
 
@@ -77,27 +80,9 @@ function TrafficBadge({ traffic }: { traffic: Traffic }) {
   )
 }
 
-/**
- * 이 지표가 매수 조건을 만족하는지 — 지표 바로 아래에 붙인다.
- *
- * 조건 네 개를 종합 신호등 칸에 모아두면 "DI 약세"가 어느 숫자에서 나온 말인지
- * 눈으로 이을 수 없다. 숫자 옆에 두면 25.7 / 30.5를 보면서 바로 읽힌다.
- */
-function ConditionTag({ metric, conditions }: { metric: MetricKey; conditions: Record<string, boolean | null> }) {
-  const condition = conditionByMetric(useSignalRules())[metric]
-  // 정의가 바뀌어 이 칸에 붙는 조건이 없으면 아무것도 붙이지 않는다
-  if (!condition) return null
-  const met = conditions[condition.key]
-  const mark = conditionMark(met)
-  return (
-    <span
-      className={`cond${met === true ? ' met' : ''}`}
-      title={`${condition.detail} — ${mark.word}`}
-    >
-      {mark.sign} {condition.label}
-    </span>
-  )
-}
+/* 카드의 조건 칩은 지표마다 붙이지 않고 "매수 조건" 한 줄로 모은다 — components/BuyConditions.tsx (디자인 2차).
+   1차 때는 "숫자 옆에 두면 바로 읽힌다"고 지표 아래에 붙였지만, 거래량 칸의 "변동성·거래량 ✓"처럼
+   숫자와 판정이 어긋나 보였고 칸이 없는 조건은 그려지지 않았다. 표는 지금처럼 칸마다 기호 하나. */
 
 /**
  * 표에서는 조건을 기호 하나로만 찍는다.
@@ -376,6 +361,9 @@ export function Dashboard() {
 
   const [category, setCategory] = useState<string>('전체')
   const [quick, setQuick] = useState<QuickFilter>('all')
+  // 폰: 보기·설정 단추 다섯(표·카드·종목 설정·시그널 기준·순서 편집)을 접어 둔다 — 필터가 네 줄이라 첫 카드가
+  // 첫 화면 밖이었다 (디자인 2차, 주인 결정). 순서 편집·종목 설정 중에는 접지 않는다(끝내는 단추가 거기 있다)
+  const [viewToolsOpen, setViewToolsOpen] = useState(false)
   const [view, setView] = useState<ViewMode>(() =>
     typeof window !== 'undefined' && window.innerWidth < 1100 ? 'card' : 'table',
   )
@@ -519,7 +507,7 @@ export function Dashboard() {
       watch: lights.filter((l) => l.state === 'watch').length,
       hot: lights.filter((l) => l.state === 'hot').length,
       stale: lights.filter((l) => l.state === 'stale').length,
-      rebalanceCount: cards.filter((c) => c.rebalance_signal.active).length,
+      rebalanceCount: cards.filter(hasWeightSignal).length,
       sellReview: reasons.filter((r) => r.includes('매도')).length,
       buyReview: reasons.filter((r) => r.includes('매수')).length,
       periodicReview: reasons.filter((r) => r.includes('정기')).length,
@@ -549,14 +537,16 @@ export function Dashboard() {
     const shown = cards.filter((c) => {
       if (category !== '전체' && categoryOf(c.category) !== category) return false
       if (quick === 'knee' && !c.knee_buy_v2) return false
-      if (quick === 'rebalance' && !c.rebalance_signal.active) return false
+      // 매도는 신호 요약의 "매도" 수와 같은 것 — 신호등이 매도인 종목 (디자인 2차, 주인 결정)
+      if (quick === 'sell' && trafficLight(c, rules).state !== 'hot') return false
+      if (quick === 'rebalance' && !hasWeightSignal(c)) return false
       return true
     })
     if (!preview) return shown
     // 끄는 동안에는 임시 순서로 보여준다 (저장은 놓을 때 한 번만 한다)
     const rank = new Map(preview.map((ticker, index) => [ticker, index]))
     return [...shown].sort((a, b) => (rank.get(a.ticker) ?? 0) - (rank.get(b.ticker) ?? 0))
-  }, [cards, category, quick, preview])
+  }, [cards, category, quick, preview, rules])
 
   // 순서가 바뀐 렌더에서만 각 행을 새 자리로 미끄러뜨린다.
   // 끄는 동안에는 자리만 즉시 바꾼다 (미끄러뜨리면 크롬이 끌기를 취소한다 — flip.ts 참고)
@@ -613,11 +603,18 @@ export function Dashboard() {
     navigate({ search: '?view=signal' }, { state: { fromDot: true, focus: ticker } })
   }
 
-  // 맨 위 "확인할 신호" 줄 — 점과 같이 뒤로가기 한 칸을 쌓는다(돌아오면 포트폴리오)
-  const openSignals = () => {
+  // 맨 위 "확인할 신호" 줄 — 점과 같이 뒤로가기 한 칸을 쌓는다(돌아오면 포트폴리오).
+  // 종류를 눌렀으면 그 종류로 걸러서 연다 (디자인 2차, 주인 결정 ②)
+  const openSignals = (kind?: SignalFilter) => {
     portfolioScroll.current = window.scrollY
-    navigate({ search: '?view=signal' }, { state: { fromDot: true } })
+    navigate({ search: '?view=signal' }, { state: { fromDot: true, quick: kind ?? 'all' } })
   }
+  const askedQuick = mode === 'signal' ? ((location.state as { quick?: QuickFilter } | null)?.quick ?? null) : null
+  useEffect(() => {
+    if (askedQuick) setQuick(askedQuick)
+    // 같은 칸으로 다시 오면 다시 (focus 와 같은 규칙)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [askedQuick ? location.key : null])
 
   // 시그널 보기로 넘어온 종목 — 필터가 가리고 있으면 "모두 보기"로 돌리고, 편집 중이면 보기로 바꾼다
   const focus = mode === 'signal' ? ((location.state as { focus?: string } | null)?.focus ?? null) : null
@@ -628,7 +625,8 @@ export function Dashboard() {
     if (!target) return
     if (category !== '전체' && categoryOf(target.category) !== category) setCategory('전체')
     if (quick === 'knee' && !target.knee_buy_v2) setQuick('all')
-    if (quick === 'rebalance' && !target.rebalance_signal.active) setQuick('all')
+    if (quick === 'sell' && trafficLight(target, rules).state !== 'hot') setQuick('all')
+    if (quick === 'rebalance' && !hasWeightSignal(target)) setQuick('all')
     if (view === 'edit') setView(narrow ? 'card' : 'table')
     // 필터를 고른 뒤의 화면에서 찾는다 — 한 번만 (같은 칸으로 다시 오면 다시)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -756,29 +754,46 @@ export function Dashboard() {
           <span className="kpi-title">신호 요약</span>
           <span className="hint mono">{cards.length}종목</span>
         </div>
+        {/* 칸이 단추처럼 생겨 누르게 된다 — 누르면 아래 "신호" 거르기가 그 종류로 (디자인 2차, 주인 결정).
+            관망은 거르기가 없어 누르지 않는 칸이다 */}
         <div className="kpi-counts">
-          <span className="count-chip green">
+          <button
+            type="button"
+            className="count-chip green"
+            aria-pressed={quick === 'knee'}
+            onClick={() => setQuick(quick === 'knee' ? 'all' : 'knee')}
+          >
             <span className="num">{summary.buy}</span>
             <span className="lbl">
               <SignalShape kind="buy" size={9} /> 매수
             </span>
-          </span>
+          </button>
           <span className="count-chip amber">
             <span className="num">{summary.watch}</span>
             <span className="lbl">관망</span>
           </span>
-          <span className="count-chip red">
+          <button
+            type="button"
+            className="count-chip red"
+            aria-pressed={quick === 'sell'}
+            onClick={() => setQuick(quick === 'sell' ? 'all' : 'sell')}
+          >
             <span className="num">{summary.hot}</span>
             <span className="lbl">
               <SignalShape kind="sell" size={9} /> 매도
             </span>
-          </span>
-          <span className="count-chip purple">
+          </button>
+          <button
+            type="button"
+            className="count-chip purple"
+            aria-pressed={quick === 'rebalance'}
+            onClick={() => setQuick(quick === 'rebalance' ? 'all' : 'rebalance')}
+          >
             <span className="num">{summary.rebalanceCount}</span>
             <span className="lbl">
               <SignalShape kind="rebalance" size={9} /> 비중조절
             </span>
-          </span>
+          </button>
         </div>
         <div className="badge-row">
           {/* 비중조절은 보라 ◆ — 매도·매수 시그널(빨강·초록)이나 오르내림 색과 섞이지 않게 (8-4) */}
@@ -853,14 +868,29 @@ export function Dashboard() {
           <button className={`chip${quick === 'knee' ? ' active' : ''}`} onClick={() => setQuick('knee')}>
             <SignalShape kind="buy" size={9} /> 매수 {summary.buy}
           </button>
+          <button className={`chip${quick === 'sell' ? ' active' : ''}`} onClick={() => setQuick('sell')}>
+            <SignalShape kind="sell" size={9} /> 매도 {summary.hot}
+          </button>
           <button
             className={`chip${quick === 'rebalance' ? ' active' : ''}`}
             onClick={() => setQuick('rebalance')}
           >
             <SignalShape kind="rebalance" size={9} /> 비중조절 {summary.rebalanceCount}
           </button>
+          {narrow && (
+            <button
+              className={`chip${viewToolsOpen || ordering || view === 'edit' ? ' active' : ''}`}
+              aria-expanded={viewToolsOpen || ordering || view === 'edit'}
+              aria-controls="signal-view-tools"
+              onClick={() => setViewToolsOpen((o) => !o)}
+            >
+              {/* ▾/▴ = 눌러서 펼친다/접는다 (용어 사전 · 어포던스). ⋯ 는 폰 메뉴의 기호라 쓰지 않는다 */}
+              보기·설정 {viewToolsOpen || ordering || view === 'edit' ? '▴' : '▾'}
+            </button>
+          )}
         </div>
-        <div className="chip-row spacer">
+        {(!narrow || viewToolsOpen || ordering || view === 'edit') && (
+        <div className="chip-row spacer" id="signal-view-tools">
           <button className={`chip${view === 'table' ? ' active' : ''}`} onClick={() => setView('table')}>
             표 보기
           </button>
@@ -893,6 +923,7 @@ export function Dashboard() {
             </button>
           )}
         </div>
+        )}
       </div>
 
       {thresholdsNote && (
@@ -942,7 +973,7 @@ export function Dashboard() {
 
       <p className="hint" style={{ marginTop: 14 }}>
         {rules.custom && <strong>내 기준: </strong>}
-        {buyRuleSentence(rules)} 각 조건은 해당 지표 칸에 ✓로 표시됩니다. 매도 시그널은 참고용이며 실제
+        {buyRuleSentence(rules)} 표에서는 각 조건이 해당 지표 칸에, 카드에서는 "매수 조건" 줄에 ✓로 표시됩니다. 매도 시그널은 참고용이며 실제
         매도는 리밸런싱 리뷰 때 비중을 보고 정합니다.
       </p>
       </>
@@ -951,7 +982,11 @@ export function Dashboard() {
       {chart && (
         <Suspense
           fallback={
-            <ModalLoading title={stockLabel(chart.card)} subtitle={chart.card.ticker} onClose={() => setChart(null)} />
+            <ModalLoading
+              title={stockLabel(chart.card)}
+              subtitle={stockLabel(chart.card) !== chart.card.ticker ? chart.card.ticker : undefined}
+              onClose={() => setChart(null)}
+            />
           }
         >
           <ChartModal
@@ -959,6 +994,7 @@ export function Dashboard() {
             key={`${chart.card.ticker}:${chart.tab}`}
             ticker={chart.card.ticker}
             name={stockLabel(chart.card)}
+            card={chart.card}
             initialTab={chart.tab}
             onClose={() => setChart(null)}
           />
@@ -1053,9 +1089,16 @@ function SignalMatrix({
   controls: RowControlProps
 }) {
   const rules = useSignalRules()
+  // 지표 칸이 없는 매수 조건 — 지금 규칙에는 없다. 생기면(정의 변경) 칸 하나에 모아 보인다. 없으면 표는 그대로
+  // (디자인 2차: 칸 수에 묶이지 않게. 예전에는 칸 없는 조건이 표에서 사라졌다)
+  const extras = buyRule(rules).conditions.filter((c) => !METRIC_ORDER.includes(c.metric))
+  // 그 칸의 폭은 가장 긴 조건 이름에 맞춘다 — 이름이 길면 칩이 세 줄로 접혔다(자동 검사 "조건 하나 더")
+  const extraWidth = extras.length
+    ? Math.min(320, Math.max(140, 56 + 13 * Math.max(...extras.map((c) => c.label.length))))
+    : 0
   return (
     <div className="table-scroll">
-      <table className="data-table fixed" style={{ minWidth: 1302 }}>
+      <table className="data-table fixed signal-table" style={{ minWidth: 1302 + extraWidth }}>
         <thead>
           <tr>
             <th style={{ width: 44 }} aria-label="순서" />
@@ -1081,6 +1124,12 @@ function SignalMatrix({
             <th style={{ width: 112 }}>
               <MetricHead title="200일선" sub="(장기 추세)" />
             </th>
+            {extras.length > 0 && (
+              <th style={{ width: extraWidth }}>
+                그 밖의 조건
+                <span className="th-cond">{extras.map((c) => c.header).join(' · ')}</span>
+              </th>
+            )}
             {/* 신호등과 사유 배지가 한 줄에 들어가는 폭 — "관망 ◆ 매수 검토" (8-4) */}
             <th style={{ width: 196 }}>종합 신호등</th>
             <th style={{ width: 136 }}>
@@ -1148,6 +1197,28 @@ function SignalMatrix({
                 <td>
                   <Metric value={signed(ma200.pct, 1, '%')} tone={ma200.tone} note={ma200.note} />
                 </td>
+                {extras.length > 0 && (
+                  <td>
+                    <div className="badge-row">
+                      {extras.map((condition) => {
+                        const met = cardConditions(card)[condition.key]
+                        const mark = conditionMark(met)
+                        return (
+                          <span key={condition.key} className="extra-cond">
+                            <span
+                              className={`cond-mark${met === true ? ' met' : ''}`}
+                              title={`${condition.label} — ${condition.detail} · ${mark.word}`}
+                              aria-label={`${condition.label} ${mark.word}`}
+                            >
+                              {mark.sign}
+                            </span>{' '}
+                            {condition.label}
+                          </span>
+                        )
+                      })}
+                    </div>
+                  </td>
+                )}
                 <td>
                   {/* 신호등과 사유 배지를 한 줄에 — 줄마다 높이가 달라지지 않게 (8-4). 좁으면 배지째 줄을 바꾼다 */}
                   <div className="badge-row signal-cell-row">
@@ -1374,7 +1445,7 @@ function SignalCards({
           <article
             key={card.ticker}
             data-ticker={card.ticker}
-            className={`stock-card ${drag.className}`.trim()}
+            className={`stock-card signal-card ${drag.className}`.trim()}
             onDragOver={drag.onDragOver}
             onDrop={drag.onDrop}
           >
@@ -1398,59 +1469,70 @@ function SignalCards({
               </div>
             </div>
 
-            <TrafficBadge traffic={trafficLight(card, rules)} />
-
-            {(card.rebalance_signal.active || (card.knee_buy_v2 && card.shoulder_sell_ref)) && (
-              <div className="badge-row">
-                {card.knee_buy_v2 && card.shoulder_sell_ref && <SellTooTag />}
-                {card.rebalance_signal.reasons.map((r) => (
-                  <ReasonTag key={r} reason={r} />
-                ))}
+            {/* 시그널 · 비중 · 매수 조건 — 왼쪽 이름표로 종류를 가른다 (디자인 2차, 주인 결정 시안 v4).
+                "▼ 매도"와 "◆ 매수 검토"가 이름표 없이 붙어 있으면 "팔라는데 사라고도?"로 읽혔다 */}
+            <div className="signal-rows">
+              <div className="signal-row">
+                <span className="signal-row-label">시그널</span>
+                <div className="signal-row-items">
+                  <TrafficBadge traffic={trafficLight(card, rules)} />
+                  {card.knee_buy_v2 && card.shoulder_sell_ref && <SellTooTag />}
+                </div>
               </div>
-            )}
+              {card.rebalance_signal.active && card.rebalance_signal.reasons.length > 0 && (
+                <div className="signal-row">
+                  <span className="signal-row-label">비중</span>
+                  <div className="signal-row-items">
+                    {card.rebalance_signal.reasons.map((r) => (
+                      <ReasonTag key={r} reason={r} />
+                    ))}
+                  </div>
+                </div>
+              )}
+              <BuyConditions card={card} />
+            </div>
 
+            {/* 지표는 값과 풀이만 — 조건 칩은 위 "매수 조건" 줄로 옮겼다. 폰에서는 한 줄씩의 목록 (index.css) */}
             <div className="stat-grid">
               <div className="stat-box">
-                <span className="k">이격도 (MA20)</span>
+                <span className="k stat-name">이격도 (MA20)</span>
                 <span className={`v ${disparity.tone === 'grey' ? '' : disparity.tone}`}>
                   {signed(ind.disparity, 2, '%')}
                 </span>
-                <span className="k">{disparity.note}</span>
-                <ConditionTag metric="disparity" conditions={cardConditions(card)} />
+                <span className="k stat-note">{disparity.note}</span>
               </div>
               <div className="stat-box">
-                <span className="k">ADX 추세강도</span>
+                <span className="k stat-name">ADX 추세강도</span>
                 <span className="v">{num(ind.adx, 1)}</span>
-                <span className="k">{adx.note}</span>
-                <ConditionTag metric="adx" conditions={cardConditions(card)} />
+                <span className="k stat-note">{adx.note}</span>
               </div>
               <div className="stat-box">
-                <span className="k">DI 방향 (+DI / -DI)</span>
+                <span className="k stat-name">DI 방향 (+DI / -DI)</span>
                 {/* 표의 칩과 같은 부호 색 — 카드만 흰 글자였다 (B 사용자 확인) */}
                 <span className={`v ${di.tone === 'grey' ? '' : di.tone}`}>
                   {num(ind.plus_di, 1)} / {num(ind.minus_di, 1)}
                 </span>
-                <span className="k">{di.note}</span>
-                <ConditionTag metric="di" conditions={cardConditions(card)} />
+                <span className="k stat-note">{di.note}</span>
               </div>
               <div className="stat-box">
-                <span className="k">거래량비</span>
+                <span className="k stat-name">거래량비</span>
                 <span className="v">{num(ind.vol_ratio, 2)}x</span>
-                <span className="k">{vol.note}</span>
-                <ConditionTag metric="volume" conditions={cardConditions(card)} />
+                <span className="k stat-note">{vol.note}</span>
               </div>
               <div className="stat-box">
-                <span className="k">200일선 대비</span>
+                <span className="k stat-name">200일선 대비</span>
                 <span className={`v ${ma200.tone === 'grey' ? '' : ma200.tone}`}>{signed(ma200.pct, 1, '%')}</span>
-                <span className="k">{ma200.note}</span>
+                <span className="k stat-note">{ma200.note}</span>
               </div>
-              <div className="stat-box">
-                <span className="k">MA20 / MA50</span>
+              <div className="stat-box stat-box-wide-note">
+                <span className="k stat-name">MA20 / MA50</span>
+                {/* 가격마다 한 덩어리 — 좁으면 "/" 뒤에서만 꺾인다 (디자인 2차, 확대 150%) */}
                 <span className="v">
-                  {price(ind.ma20, card.currency)} / {price(ind.ma50, card.currency)}
+                  <span className="nowrap">{price(ind.ma20, card.currency)} /</span>{' '}
+                  <span className="nowrap">{price(ind.ma50, card.currency)}</span>
                 </span>
                 {/* 좁으면 "·" 에서 꺾인다 — 날짜와 출처는 각자 한 덩어리 (디자인 1차) */}
-                <span className="k">
+                <span className="k stat-note">
                   기준일 <span className="nowrap">{ind.date ?? '—'}</span>
                   {providerLabel(card.price_source) && (
                     <>

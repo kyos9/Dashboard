@@ -41,6 +41,31 @@ beforeEach(() => {
 })
 
 describe('차트 팝업', () => {
+  it('이름이 티커와 같으면 제목에 한 번만 — "VOO VOO" (디자인 2차)', async () => {
+    vi.spyOn(api, 'getHistory').mockResolvedValue({ ...HISTORY, ticker: 'VOO' })
+    const { container, unmount } = render(<ChartModal ticker="VOO" name="VOO" onClose={() => {}} />)
+    expect(container.querySelector('.modal-title')!.textContent).toBe('VOO')
+    unmount()
+    render(<ChartModal ticker="005930.KS" name="삼성전자" onClose={() => {}} />)
+    expect(screen.getByText('005930.KS')).toBeInTheDocument()
+  })
+
+  it('대시보드에서 열면(카드가 오면) 차트 위에 오늘 매수 조건 한 줄, 없으면 그 줄이 없다 (디자인 2차)', async () => {
+    vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
+    const card = {
+      ticker: '005930.KS',
+      knee_conditions: { di_bearish: true, disparity_negative: true, volatility_or_volume: false, adx_trending: null },
+    } as never
+    const { unmount } = render(<ChartModal ticker="005930.KS" name="삼성전자" card={card} onClose={() => {}} />)
+    expect(screen.getByText('매수 조건')).toBeInTheDocument()
+    expect(screen.getByText('2/4')).toBeInTheDocument()
+    expect(screen.getByLabelText('DI 약세 충족')).toBeInTheDocument()
+    expect(screen.getByLabelText('ADX > 20 판정 불가')).toBeInTheDocument()
+    unmount()
+    render(<ChartModal ticker="005930.KS" name="삼성전자" onClose={() => {}} />)
+    expect(screen.queryByText('매수 조건')).toBeNull()
+  })
+
   it('종목 이름과 차트를 띄운다', async () => {
     vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
     render(<ChartModal ticker="005930.KS" name="삼성전자" onClose={() => {}} />)
@@ -356,5 +381,47 @@ describe('차트 팝업 · 재무 탭', () => {
     await waitFor(() => expect(createChart).toHaveBeenCalled())
     expect(screen.queryByRole('tab', { name: '재무' })).toBeNull()
     expect(screen.queryByRole('alert')).toBeNull()
+  })
+})
+
+describe('차트 팝업 · 키보드 (디자인 2차 검토)', () => {
+  it('닫으면 포커스가 연 단추로 돌아간다', async () => {
+    vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
+    const opener = document.createElement('button')
+    document.body.append(opener)
+    opener.focus()
+    const { unmount } = render(<ChartModal ticker="005930.KS" name="삼성전자" onClose={() => {}} />)
+    expect(document.activeElement).not.toBe(opener)
+    unmount()
+    expect(document.activeElement).toBe(opener)
+    opener.remove()
+  })
+
+  it('Tab 은 팝업 안에서만 돈다 — 마지막에서 처음으로, Shift+Tab 은 처음에서 마지막으로', async () => {
+    vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
+    const user = userEvent.setup()
+    render(
+      <>
+        <button>뒤 화면 단추</button>
+        <ChartModal ticker="005930.KS" name="삼성전자" onClose={() => {}} />
+      </>,
+    )
+    const dialog = screen.getByRole('dialog')
+    // 열자마자 포커스가 팝업에 있다
+    expect(dialog.contains(document.activeElement)).toBe(true)
+    const close = screen.getByRole('button', { name: '닫기' })
+    close.focus()
+    const seen = new Set<Element | null>()
+    for (let i = 0; i < 12; i++) {
+      await user.tab()
+      expect(dialog.contains(document.activeElement)).toBe(true)
+      seen.add(document.activeElement)
+    }
+    // 제자리에 멈춰 있는 것이 아니라 안에서 돈다
+    expect(seen.size).toBeGreaterThan(3)
+    for (let i = 0; i < 12; i++) {
+      await user.tab({ shift: true })
+      expect(dialog.contains(document.activeElement)).toBe(true)
+    }
   })
 })

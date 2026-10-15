@@ -277,10 +277,8 @@ td .mono {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
-  border-radius: 999px;
-  background: var(--panel-soft);
-  border: 1px solid var(--border);
+  padding: 8px 4px;
+  /* 테두리·바탕을 두지 않는다 — 둥근 테두리 상자라 단추로 보여 눌러 보게 됐다(디자인 2차, 어포던스). 점 + 글자 */
   font-size: var(--fs-caption);
   color: var(--text-dim);
 }
@@ -818,6 +816,52 @@ button.bottom-tab.active {
   color: var(--blue);
 }
 
+/* 신호 요약의 칸을 누르면 그 거르기 (디자인 2차). 단추 기본 꼴(hover 바탕·글자색)이 칸 색을 덮지 않게 */
+button.count-chip {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+/* 어포던스 (디자인 2차) — 누르는 칸에는 거르기로 가는 표시(›), 누르지 않는 관망 칸은 상자를 지운다.
+   넷이 같은 상자면 관망도 눌러 보게 되고, 눌러도 아무 일이 없었다 */
+button.count-chip .lbl::after {
+  content: ' ›';
+  color: var(--text-faint);
+}
+.kpi-counts span.count-chip {
+  background: transparent;
+  border-color: transparent;
+}
+button.count-chip:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  filter: brightness(1.08);
+}
+button.count-chip.green:hover:not(:disabled) {
+  background: var(--green-soft);
+}
+button.count-chip.red:hover:not(:disabled) {
+  background: var(--red-soft);
+}
+button.count-chip.purple:hover:not(:disabled) {
+  background: var(--purple-soft);
+}
+/* 거르기가 걸려 있는 칸 — 테두리를 굵게, 색만이 아니라 두께로 */
+button.count-chip[aria-pressed='true'] {
+  box-shadow: inset 0 0 0 2px currentColor;
+}
+button.count-chip.green[aria-pressed='true'] {
+  color: var(--green);
+}
+button.count-chip.red[aria-pressed='true'] {
+  color: var(--red);
+}
+button.count-chip.purple[aria-pressed='true'] {
+  color: var(--purple);
+}
+button.count-chip[aria-pressed='true'] .lbl {
+  color: var(--text);
+}
+
 .kpi-figure {
   display: flex;
   align-items: baseline;
@@ -1026,6 +1070,24 @@ button.bottom-tab.active {
   gap: 4px;
 }
 
+/* 이름표가 붙은 배지 묶음 — 리밸런싱의 "비중 ◆ 매수 검토", "참고 ▼ 기간 내 매도" (디자인 2차).
+   이름표와 배지가 떨어지지 않게 한 덩어리, 묶음끼리는 꺾일 수 있다 */
+.badge-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.badge-group-label {
+  font-size: var(--fs-caption);
+  color: var(--text-faint);
+  margin-right: 2px;
+}
+.signal-badges {
+  align-items: center;
+  column-gap: 12px;
+}
+
 .badge {
   display: inline-flex;
   align-items: center;
@@ -1209,10 +1271,14 @@ table.data-table tfoot td {
   background: var(--down-soft);
   border-color: color-mix(in srgb, var(--down) 35%, transparent);
 }
+/* "추세 형성"·"거래량 증가" 같은 눈여겨볼 값 (lib/display 의 tone 'blue'). 파랑이면 상승 색 빨강에서 하락(파랑)과
+   같은 색이 되어 "내림"으로 읽혔다 (디자인 2차) — 오르내림·시그널 어느 색도 아닌 진한 중립 바탕 + 굵게.
+   (밑줄은 쓰지 않는다 — 링크로 보였다, C 사용자 확인)
+   (배지·칩은 테두리를 쓰지 않는다 — 주인 결정 ②, 아래 "표시만 하는 배지" 규칙) */
 .metric-chip.blue {
-  color: var(--blue);
-  background: var(--blue-soft);
-  border-color: rgba(59, 130, 246, 0.35);
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 18%, transparent);
+  font-weight: 800;
 }
 
 .ticker-cell {
@@ -1362,6 +1428,182 @@ table.data-table tfoot td {
   gap: 8px;
 }
 
+/* 시그널 카드의 시그널 · 비중 · 매수 조건 — 왼쪽 이름표 열이 같은 줄들 (디자인 2차, 시안 v4).
+   격자 한 장에 줄마다 이름표 | 배지들. 줄 수는 조건·사유가 있을 때만 는다 */
+.signal-rows {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px 12px;
+  align-items: center;
+}
+.signal-row {
+  display: contents;
+}
+.signal-row-label {
+  font-size: var(--fs-caption);
+  color: var(--text-faint);
+}
+.signal-row-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+/* 차트 팝업의 오늘 매수 조건 한 줄 (디자인 2차) */
+.chart-conditions {
+  margin-bottom: 12px;
+}
+
+/* 표의 "그 밖의 조건" 칸 — 지표 칸이 없는 조건이 생겼을 때만 (디자인 2차) */
+.extra-cond {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-caption);
+  color: var(--text-dim);
+}
+
+/* 시그널 표를 옆으로 밀어도 순서·종목 칸은 그 자리에 — 어느 줄인지 놓치지 않게 (디자인 2차).
+   시그널 표에만. 바탕은 불투명해야 밀린 칸이 비치지 않는다 */
+table.signal-table th:nth-child(-n + 2),
+table.signal-table td:nth-child(-n + 2) {
+  position: sticky;
+  background: var(--panel);
+  z-index: 1;
+}
+table.signal-table th:nth-child(-n + 2) {
+  background: var(--panel-soft);
+  z-index: 3;
+}
+table.signal-table th:nth-child(1),
+table.signal-table td:nth-child(1) {
+  left: 0;
+}
+table.signal-table th:nth-child(2),
+table.signal-table td:nth-child(2) {
+  left: 44px;
+  /* 칸을 접어 그리는 표라 sticky 칸의 테두리가 사라진다 — 그림자로 경계를 */
+  box-shadow: inset -1px 0 0 var(--border);
+}
+table.signal-table tbody tr:hover td:nth-child(-n + 2) {
+  background: var(--panel-soft);
+}
+
+/* 종목 관리·리밸런싱의 넓은 표도 종목 칸(첫 칸)은 그 자리에 — 폰·확대 150% 에서 옆으로 밀면 이름이 사라졌다
+   (디자인 2차 사용자 확인, 주인 결정 ②). 붙일 표에만 sticky-first 를 단다 */
+table.sticky-first th:first-child,
+table.sticky-first td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--panel);
+  box-shadow: inset -1px 0 0 var(--border);
+}
+table.sticky-first th:first-child {
+  z-index: 3;
+  background: var(--panel-soft);
+}
+table.sticky-first tbody tr:hover td:first-child {
+  background: var(--panel-soft);
+}
+/* 폰에서는 붙은 칸을 좁게 — 표 머리의 너비(202px 등, 인라인)대로 붙으면 360 폭의 절반을 넘게 덮어 끝 칸 단추가
+   다 보이는 자리가 없었다 (디자인 2차 C 사용자 확인). 인라인 너비를 이기려면 !important 밖에 없다. 이름은 줄을 바꿔 다 보인다 */
+@media (max-width: 640px) {
+  table.sticky-first th:first-child,
+  table.sticky-first td:first-child {
+    width: 132px !important;
+    max-width: 132px;
+  }
+  table.sticky-first td:first-child .ticker-name,
+  table.sticky-first td:first-child .ticker-sub {
+    overflow-wrap: break-word;
+    /* 좁아진 칸에서 긴 이름의 끝줄이 "체나스닥"처럼 짧게 남지 않게 줄 길이를 고른다 */
+    text-wrap: balance;
+  }
+  /* 띄어쓰기 없는 긴 이름("미국필라델피아반도체나스닥", "東京海上ホールディングス")은 keep-all 이면 넘칠 때만 아무 데서나
+     잘려 balance 가 듣지 않는다 — 이 칸의 이름만 글자 사이에서 고르게 꺾는다 */
+  table.sticky-first td:first-child .ticker-name {
+    word-break: normal;
+  }
+}
+/* 폰에서 표를 끝까지 밀어도 끝 칸 단추들이 붙은 이름 칸 밑에 덮이지 않게 — 단추를 칸 오른쪽에 붙이고 칸 오른쪽 여백·단추 사이를 줄인다
+   (디자인 2차 C 재검토: 360 에서 "삭제"만 보였다. 오른쪽에 붙이기만 하면 첫 단추가 1px 덮였다) */
+@media (max-width: 640px) {
+  table.sticky-first td:last-child:has(> .btn-group) {
+    padding-right: 4px;
+  }
+  table.sticky-first td:last-child > .btn-group {
+    justify-content: flex-end;
+    gap: 4px;
+  }
+}
+/* 고친 줄(tr.dirty)의 바탕은 반투명이라 붙은 칸 밑으로 밀린 글이 비친다 — 같은 빛깔을 불투명하게 */
+table.sticky-first tr.dirty td:first-child,
+table.sticky-first tbody tr.dirty:hover td:first-child {
+  background: color-mix(in srgb, var(--amber) 12%, var(--panel));
+}
+
+/* 폰의 시그널 카드: 지표 상자 여섯(2열 × 3줄, 상자마다 네 줄) → 지표 한 줄씩의 목록 (디자인 2차, 시안 v4).
+   "이름 · 풀이 …… 값". 좁으면 풀이만 그 칸 안에서 꺾인다. 칸 수에 묶이지 않는다 — 지표가 늘면 줄이 는다.
+   PC 카드는 상자 그대로. 매크로 카드(.stock-card)에는 걸지 않는다 */
+@media (max-width: 640px) {
+  .signal-card .stat-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    border-top: 1px solid var(--border);
+  }
+  .signal-card .stat-box {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    column-gap: 12px;
+    row-gap: 2px;
+    align-items: baseline;
+    background: none;
+    border: 0;
+    border-bottom: 1px solid var(--border);
+    border-radius: 0;
+    padding: 6px 0;
+  }
+  .signal-card .stat-box:last-child {
+    border-bottom: 0;
+  }
+  .signal-card .stat-box > .stat-name {
+    grid-column: 1;
+    grid-row: 1;
+    font-size: var(--fs-sub);
+    color: var(--text-dim);
+  }
+  .signal-card .stat-box > .stat-note {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .signal-card .stat-box > .v {
+    grid-column: 3;
+    grid-row: 1;
+    margin: 0;
+    text-align: right;
+  }
+  /* 날짜·출처 풀이는 길어서 다음 줄 전체 */
+  .signal-card .stat-box-wide-note > .stat-note {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  /* 마지막 매수 시그널 · 날짜 · AI 분석을 한 줄에 */
+  .signal-card .card-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 8px;
+    padding-top: 8px;
+  }
+  .signal-card .card-actions .ai-open {
+    margin-left: auto;
+    align-self: center;
+  }
+}
+
 /* ---------- 알림/콜아웃 ---------- */
 
 .callout {
@@ -1414,6 +1656,11 @@ table.data-table tfoot td {
   border-radius: var(--radius);
   background: var(--panel);
   color: var(--text-dim);
+}
+
+/* 빈 화면 안내 아래 단추 — 글에 붙지 않게 (디자인 2차, 빈 리밸런싱) */
+.empty-state p + .link-button {
+  margin-top: 12px;
 }
 
 .empty-state h3 {
@@ -1630,6 +1877,11 @@ button:focus-visible {
 
 input::placeholder {
   color: var(--text-faint);
+}
+
+/* 종목 추가 칸의 "모르면 비워두기" — 숫자 칸의 고정폭 글꼴로 쓰면 글자 사이가 벌어진다 (디자인 2차). 이 폼에만 */
+.add-stock-form .num-input::placeholder {
+  font-family: var(--font-sans);
 }
 
 button {
@@ -2039,6 +2291,35 @@ button.stock-name {
 }
 
 button.stock-name:hover {
+  color: var(--blue);
+  text-decoration-color: var(--blue);
+}
+
+/* 눌러서 펼치는 보유 줄(폰) — 줄 전체가 단추인데 단추로 안 보였다 (디자인 2차, 어포던스). 금액 옆에 ▾/▴ */
+.holding-toggle .holding-value::after {
+  content: ' ▾';
+  color: var(--text-faint);
+  font-family: var(--font-sans);
+  font-weight: 400;
+}
+.holding-toggle[aria-expanded='true'] .holding-value::after {
+  content: ' ▴';
+}
+
+/* 매크로 한 줄의 칩 — 누르면 매크로 탭으로 간다. 표시 칩과 갈리게 끝에 › (디자인 2차 사용자 확인, 어포던스) */
+.macro-chip::after {
+  content: '›';
+  color: var(--text-faint);
+  margin-left: 2px;
+}
+
+/* 재무 "PER 한눈에"의 줄 — 누르면 차트가 열린다. 다른 화면의 종목 이름처럼 밑줄 (디자인 2차, 어포던스) */
+.per-row .per-row-name {
+  text-decoration: underline;
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: 3px;
+}
+.per-row:hover .per-row-name {
   color: var(--blue);
   text-decoration-color: var(--blue);
 }
@@ -4017,7 +4298,7 @@ table.data-table tr.dirty:hover td {
   width: 100%;
   min-height: 44px;
   margin: 0 0 12px;
-  padding: 12px 16px;
+  padding: 4px 12px;
   border: 1px solid var(--border);
   border-left: 3px solid var(--accent);
   border-radius: var(--radius);
@@ -4028,10 +4309,6 @@ table.data-table tr.dirty:hover td {
   cursor: pointer;
 }
 
-button.signal-line:hover {
-  border-color: var(--border-strong);
-  border-left-color: var(--accent);
-}
 
 .signal-line.quiet {
   border-left-color: var(--border-strong);
@@ -4058,6 +4335,23 @@ button.signal-line:hover {
   gap: 4px;
   font-weight: 700;
   white-space: nowrap;
+}
+/* 종류마다 누르는 단추 (디자인 2차, 주인 결정 ②) — 단추 기본 꼴 대신 글자 + 밑줄, 44px. 색은 종류 색 그대로 */
+button.signal-line-count,
+button.signal-line-go {
+  min-height: 44px;
+  padding: 0 4px;
+  background: none;
+  border: 0;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 40%, transparent);
+  text-underline-offset: 4px;
+}
+button.signal-line-count:hover:not(:disabled),
+button.signal-line-go:hover:not(:disabled) {
+  background: var(--panel-soft);
 }
 
 .signal-line-count b {
@@ -5146,4 +5440,19 @@ tr.dirty td {
     min-height: 44px;
     align-items: center;
   }
+}
+
+/* ---------- 표시만 하는 배지·칩은 테두리 없이 (디자인 2차, 주인 결정 ②) ----------
+   테두리 있는 둥근 상자 = 누르는 단추. 신호 배지(▼ 매도)·비중 배지(◆ 매수 검토)·조건 칩·표의 값 칩·구분 칩·
+   주문(사기·팔기)·"목표 비중 합계"·헤더의 "관리자" 같은 표시는 바탕색만 — 처음 쓰는 사람이 단추로 알고 눌러 봤다.
+   클래스를 두 번 써서(같은 무게의 앞 규칙보다 뒤에 와서) 색깔별 테두리 규칙을 모두 덮는다 */
+.badge.badge,
+.cond.cond,
+.metric-chip.metric-chip,
+.traffic.traffic,
+.cat-tag.cat-tag {
+  border-color: transparent;
+}
+section.signal-line {
+  cursor: default;
 }

@@ -1,0 +1,44 @@
+/* 디자인 2차 시안 — 정돈안. 폰 시그널 카드를 짧게. 선택자는 시그널 카드에만 붙일 새 클래스 .signal-card (매크로 카드도 .stock-card 다).
+   찍는 법: 가짜 서버 화면에 시안-카드-조건줄.js 를 돌린 뒤 이 파일을 page.addStyleTag 로 얹고 폰 390 다크로 찍는다.
+   실제 적용은 index.css 의 폰 분기(max-width: 640px) 안에 넣는다. */
+@media (max-width: 640px) {
+  /* 1. 지표 상자 여섯 개(2열 × 3줄, 상자마다 4줄) → 지표 한 줄씩의 목록.
+        칸 수에 묶이지 않는다 — 조건이 하나 늘면 줄이 하나 는다. */
+  .signal-card .stat-grid {
+    grid-template-columns: 1fr;
+    gap: 0;
+    border-top: 1px solid var(--border);
+  }
+  .signal-card .stat-box {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 12px;
+    row-gap: 2px;
+    align-items: center;
+    background: none;
+    border: 0;
+    border-bottom: 1px solid var(--border);
+    border-radius: 0;
+    padding: 6px 0;
+  }
+  /* 이름 | 값  /  풀이 | 조건 칩 — 지표 하나가 두 줄 */
+  .signal-card .stat-box:last-child { border-bottom: 0; }
+  /* 한 줄: 이름 · 풀이(작게) …… 값. 좁으면 풀이만 그 칸 안에서 꺾인다 */
+  .signal-card .stat-box { grid-template-columns: auto minmax(0, 1fr) auto; align-items: baseline; }
+  .signal-card .stat-box > :nth-child(1) { grid-column: 1; grid-row: 1; font-size: var(--fs-sub); color: var(--text-dim); }
+  .signal-card .stat-box > :nth-child(3) { grid-column: 2; grid-row: 1; }
+  .signal-card .stat-box > :nth-child(2) { grid-column: 3; grid-row: 1; margin: 0; text-align: right; }
+  /* 날짜·출처 풀이는 길어서 다음 줄 전체 */
+  .signal-card .stat-box:last-child > :nth-child(3) { grid-column: 1 / -1; grid-row: 2; }
+
+  /* 3. 마지막 매수 시그널 · 날짜 · AI 분석을 한 줄에 */
+  .signal-card .card-actions { flex-direction: row; flex-wrap: wrap; align-items: center; column-gap: 8px; }
+  .signal-card .card-actions .ai-open { margin-left: auto; }
+  .signal-card .card-actions { padding-top: 8px; }
+}
+
+/* A2·A6 — 시그널 · 비중 · 매수 조건 세 줄, 왼쪽 이름표 열이 같다. 폰·PC 모두 (분기 밖) */
+.signal-card .signal-rows { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 10px; align-items: center; }
+.signal-card .signal-row { display: contents; }
+.signal-card .signal-row-label { font-size: var(--fs-caption); color: var(--text-faint); }
+.signal-card .signal-row-items { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; }

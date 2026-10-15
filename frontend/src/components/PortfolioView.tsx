@@ -13,6 +13,7 @@ import {
   signed,
   signedAmount,
   stockLabel,
+  trafficLight,
 } from '../lib/display'
 import {
   fxSplitText,
@@ -35,11 +36,13 @@ import {
   type SortKey,
 } from '../lib/portfolio'
 import { setHideAmounts, usePrefs } from '../lib/prefs'
+import { useSignalRules } from '../lib/signalRules'
 import type { Currency, DashboardCard, FxInfo, RebalanceCurrent, Stock } from '../types'
 import type { EditField, HoldingValues } from '../lib/stockEdit'
 import { StockEditModal } from './StockEditModal'
 import { MacroStrip } from './MacroStrip'
 import { SignalShape, type ShapeKind } from './SignalShape'
+import { hasWeightSignal } from './weightSignal'
 
 interface Props {
   current: RebalanceCurrent
@@ -51,10 +54,13 @@ interface Props {
   onChart: (card: DashboardCard) => void
   /** 신호 점을 누르면 — 시그널 보기로 넘어가 그 종목을 보여준다 */
   onSignal: (ticker: string) => void
-  /** 맨 위 "확인할 신호" 줄을 누르면 — 시그널 보기로 */
-  onOpenSignals: () => void
+  /** 맨 위 "확인할 신호" — 종류를 누르면 그 종류만 걸러진 시그널 보기로, "시그널 보기"는 모두 (디자인 2차, 주인 결정 ②) */
+  onOpenSignals: (kind?: SignalFilter) => void
   onSaved: () => void
 }
+
+/** 시그널 보기의 신호 거르기 중 "확인할 신호"에서 고를 수 있는 것 */
+export type SignalFilter = 'knee' | 'sell' | 'rebalance'
 
 function labelOf(item: PortfolioItem): string {
   return item.card ? stockLabel(item.card) : rowLabel(item.row)
@@ -91,16 +97,19 @@ export function PortfolioView({ current, cards, stocks, narrow, onChart, onSigna
   const [pnlChoice, setPnlChoice] = useState<PnlCurrency>(loadPnlCurrency)
   const pnlCurrency: PnlCurrency = pnlOptions.includes(pnlChoice) ? pnlChoice : 'local'
   const signalCount = items.filter((i) => signalsOf(i).length > 0).length
-  // 맨 위 "확인할 신호" — 종류마다 몇 종목인지. 점(▲▼◆)과 같은 규칙(signalsOf)으로 센다
+  // 맨 위 "확인할 신호" — 종류마다 몇 종목인지. 누르면 시그널 보기가 그 종류로 걸러지므로 **시그널 보기의 신호 요약·거르기와
+  // 같은 규칙**으로 센다(디자인 2차, 주인 결정 ②) — 매수 = 신호등 매수, 매도 = 신호등 매도, 비중조절 = 과중·미달(정기 리뷰 빼고, components/weightSignal).
+  // 예전에는 줄 끝 점(▲▼◆)의 규칙이라, 매수와 매도가 같이 뜬 종목은 매도로도 셌다(신호등은 그 종목을 매수로 보인다)
+  const rules = useSignalRules()
   const signalKinds = useMemo(() => {
-    const marks = items.map((i) => signalsOf(i).map((m) => m.kind))
-    const count = (test: (kinds: SignalKind[]) => boolean) => marks.filter(test).length
+    const cardsOnly = items.flatMap((i) => (i.card ? [i.card] : []))
+    const lights = cardsOnly.map((c) => trafficLight(c, rules).state)
     return {
-      buy: count((k) => k.includes('buy')),
-      sell: count((k) => k.includes('sell')),
-      rebalance: count((k) => k.includes('over') || k.includes('under')),
+      buy: lights.filter((l) => l === 'buy').length,
+      sell: lights.filter((l) => l === 'hot').length,
+      rebalance: cardsOnly.filter(hasWeightSignal).length,
     }
-  }, [items])
+  }, [items, rules])
 
   const edit: OnEdit = (item, field = 'quantity') => setEditing({ ticker: item.row.ticker, field })
   // 리밸런싱 응답의 종목(활성)만 — 순서도 그대로
@@ -225,12 +234,12 @@ function SignalLine({
   onOpen,
 }: {
   kinds: { buy: number; sell: number; rebalance: number }
-  onOpen: () => void
+  onOpen: (kind?: SignalFilter) => void
 }) {
-  const parts: { kind: ShapeKind; label: string; n: number; tone: string }[] = [
-    { kind: 'buy', label: '매수', n: kinds.buy, tone: 'tone-buy' },
-    { kind: 'sell', label: '매도', n: kinds.sell, tone: 'tone-sell' },
-    { kind: 'rebalance', label: '비중조절', n: kinds.rebalance, tone: 'tone-rebalance' },
+  const parts: { kind: ShapeKind; filter: SignalFilter; label: string; n: number; tone: string }[] = [
+    { kind: 'buy', filter: 'knee', label: '매수', n: kinds.buy, tone: 'tone-buy' },
+    { kind: 'sell', filter: 'sell', label: '매도', n: kinds.sell, tone: 'tone-sell' },
+    { kind: 'rebalance', filter: 'rebalance', label: '비중조절', n: kinds.rebalance, tone: 'tone-rebalance' },
   ]
   const shown = parts.filter((p) => p.n > 0)
   if (shown.length === 0) {
@@ -240,19 +249,28 @@ function SignalLine({
       </p>
     )
   }
+  // 줄 하나가 단추 하나였다 — "▼ 매도 3"을 눌러도 매도만 걸러지지 않았다 (디자인 2차 사용자 확인, 주인 결정 ②)
   return (
-    <button className="signal-line" onClick={onOpen} aria-label={`확인할 신호: ${shown.map((p) => `${p.label} ${p.n}종목`).join(', ')}. 시그널 보기로`}>
+    <section className="signal-line" aria-label="확인할 신호">
       <span className="signal-line-title">확인할 신호</span>
       <span className="signal-line-counts">
         {shown.map((p) => (
-          <span key={p.kind} className={`signal-line-count ${p.tone}`}>
+          <button
+            key={p.kind}
+            type="button"
+            className={`signal-line-count ${p.tone}`}
+            onClick={() => onOpen(p.filter)}
+            aria-label={`${p.label} ${p.n}종목 — 시그널 보기에서 ${p.label}만`}
+          >
             <SignalShape kind={p.kind} size={10} />
             {p.label} <b className="mono">{p.n}</b>
-          </span>
+          </button>
         ))}
       </span>
-      <span className="signal-line-go">시그널 보기 →</span>
-    </button>
+      <button type="button" className="signal-line-go" onClick={() => onOpen()}>
+        시그널 보기 →
+      </button>
+    </section>
   )
 }
 

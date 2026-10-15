@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState, type ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 import { useAppState } from '../AppState'
 import { api } from '../api/client'
 import { useAuth } from '../components/AuthGate'
@@ -121,6 +122,8 @@ async function saveRow(row: Row, draft: HoldingDraft) {
 function TradeForm({
   row,
   fxNow,
+  initialSide = 'buy',
+  initialQty = '',
   onSaved,
   onError,
   onClose,
@@ -128,7 +131,11 @@ function TradeForm({
   row: Row
   /** 지금 적용 중인 환율 (1단위에 몇 원) — 산 날 환율 칸의 처음 값 */
   fxNow: number | null
-  onSaved: () => void
+  /** 주문 가이드에서 열면 그 주문의 사기·팔기와 정수 주 (디자인 2차, 주인 결정 ②) — 고쳐 쓰는 처음 값일 뿐이다 */
+  initialSide?: TradeSide
+  initialQty?: string
+  /** 반영한 거래 — 주문 가이드가 반영 뒤 바뀐 이유를 한 줄로 알릴 때 쓴다 */
+  onSaved: (done?: { side: TradeSide; qty: number }) => void
   onError: (e: unknown) => void
   onClose: () => void
 }) {
@@ -136,8 +143,8 @@ function TradeForm({
   const native = current.currency
   const foreign = native !== 'KRW'
   const label = labelOf(row)
-  const [side, setSide] = useState<TradeSide>('buy')
-  const [tradeQty, setTradeQty] = useState('')
+  const [side, setSide] = useState<TradeSide>(initialSide)
+  const [tradeQty, setTradeQty] = useState(initialQty)
   // 대개 오늘 종가 근처에 산다 — 비워두는 것보다 고쳐 쓰는 편이 빠르다
   const [tradePrice, setTradePrice] = useState(initial(current.last_close))
   const [tradeFx, setTradeFx] = useState(fxToInput(fxNow, native))
@@ -163,7 +170,7 @@ function TradeForm({
       if (foreign) await api.updateHolding(row.ticker, next.quantity, next.avg_cost, next.avg_fx ?? null)
       else await api.updateHolding(row.ticker, next.quantity, next.avg_cost)
       onClose()
-      onSaved()
+      onSaved({ side, qty: Number(tradeQty || 0) })
     } catch (e) {
       onError(e)
     } finally {
@@ -762,26 +769,150 @@ function SnapshotList({
 
 /* ---------- 주문 가이드 ---------- */
 
-function ActionBadge({ action }: { action: OrderLine['action'] }) {
-  if (action === 'buy') return <span className="badge badge-green">매수 (BUY)</span>
-  if (action === 'sell') return <span className="badge badge-red">매도 (SELL)</span>
-  return <span className="badge badge-grey">유지 (HOLD)</span>
+/** 주문의 주수 → 거래 칸의 처음 값. 제목과 같은 정수 주(1주 미만이면 소수 그대로) */
+function tradeQtyOf(shares: number | null): string {
+  if (shares === null) return ''
+  const exact = Number(Math.abs(shares).toFixed(2))
+  const whole = Math.floor(exact)
+  return String(whole === 0 ? exact : whole)
 }
 
-function SignalBadges({ current }: { current: RebalanceRow }) {
+/**
+ * 주문 옆 "거래 입력" — 주문 가이드를 보고 산·판 것을 그 자리에서 반영한다 (디자인 2차, 주인 결정 ②).
+ * 예전에는 아래 "보유 · 목표 비중"까지 내려가 그 종목을 다시 찾아야 했다. 같은 거래 칸(TradeForm)을 쓴다.
+ */
+function OrderTrade({
+  row,
+  order,
+  fxNow,
+  onSaved,
+  onError,
+}: {
+  row: Row
+  order: OrderLine
+  fxNow: number | null
+  onSaved: (done?: { side: TradeSide; qty: number }) => void
+  onError: (e: unknown) => void
+}) {
+  const [open, setOpen] = useState(false)
+  if (order.action === 'hold') return null
   return (
-    <div className="badge-row">
-      {current.rebalance_signal.reasons.map((r) => (
-        <ReasonTag key={r} reason={r} />
-      ))}
+    <>
+      <button
+        className="sm order-trade-toggle"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-label={open ? `${shortLabel(row)} 거래 칸 닫기` : `${shortLabel(row)} 거래 입력`}
+      >
+        {open ? '닫기' : '거래 입력'}
+      </button>
+      {open && (
+        <TradeForm
+          row={row}
+          fxNow={fxNow}
+          initialSide={order.action === 'sell' ? 'sell' : 'buy'}
+          initialQty={tradeQtyOf(order.shares)}
+          onSaved={onSaved}
+          onError={onError}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </>
+  )
+}
+
+/** PC 주문 표의 한 줄 — 끝에 "거래 입력", 누르면 바로 아래 줄에 거래 칸 (보유 표와 같은 꼴) */
+function OrderTableRow({
+  row,
+  order,
+  fxNow,
+  columns,
+  onSaved,
+  onError,
+  children,
+}: {
+  row: Row
+  order: OrderLine
+  fxNow: number | null
+  columns: number
+  onSaved: (done?: { side: TradeSide; qty: number }) => void
+  onError: (e: unknown) => void
+  children: ReactNode
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <tr>
+        {children}
+        <td>
+          {order.action !== 'hold' && (
+            <button
+              className="sm"
+              onClick={() => setOpen((o) => !o)}
+              aria-expanded={open}
+              aria-label={open ? `${shortLabel(row)} 거래 칸 닫기` : `${shortLabel(row)} 거래 입력`}
+            >
+              {open ? '닫기' : '거래 입력'}
+            </button>
+          )}
+        </td>
+      </tr>
+      {open && (
+        <tr className="trade-row">
+          <td colSpan={columns}>
+            <TradeForm
+              row={row}
+              fxNow={fxNow}
+              initialSide={order.action === 'sell' ? 'sell' : 'buy'}
+              initialQty={tradeQtyOf(order.shares)}
+              onSaved={onSaved}
+              onError={onError}
+              onClose={() => setOpen(false)}
+            />
+          </td>
+        </tr>
+      )}
+    </>
+  )
+}
+
+/* 주문은 사기·팔기·유지 — 시그널의 "매수·매도"와 다른 말로 (디자인 2차, 용어 사전). 폰 카드는 이미 그랬다 */
+function ActionBadge({ action }: { action: OrderLine['action'] }) {
+  if (action === 'buy') return <span className="badge badge-green">사기</span>
+  if (action === 'sell') return <span className="badge badge-red">팔기</span>
+  return <span className="badge badge-grey">유지</span>
+}
+
+/**
+ * 주문 옆의 신호 — 주문과 다른 것임이 보이게 이름표를 붙인다 (디자인 2차).
+ * "사기" 카드에 "▼ 기간 내 매도"가, "사기" 바로 아래 "밴드 이내"가 이름표 없이 붙어 있어 무엇을 하라는지 헤맸다.
+ * 비중조절 신호는 "비중", 매도 시그널은 "참고"(실제 매도는 리뷰 때 비중으로 정한다).
+ */
+function SignalBadges({ current }: { current: RebalanceRow }) {
+  const reasons = current.rebalance_signal.reasons
+  return (
+    <div className="badge-row signal-badges">
+      {reasons.length > 0 && (
+        <span className="badge-group">
+          <span className="badge-group-label">비중</span>
+          {reasons.map((r) => (
+            <ReasonTag key={r} reason={r} />
+          ))}
+        </span>
+      )}
       {current.shoulder_signal_fired_in_period && (
-        <span className="badge badge-red badge-nowrap" title="이번 리뷰 기간에 매도 시그널(참고)이 한 번 이상 떴습니다.">
-          <SignalShape kind="sell" size={9} />
-          기간 내 매도
+        <span className="badge-group">
+          <span className="badge-group-label">참고</span>
+          <span className="badge badge-red badge-nowrap" title="이번 리뷰 기간에 매도 시그널(참고)이 한 번 이상 떴습니다.">
+            <SignalShape kind="sell" size={9} />
+            기간 내 매도
+          </span>
         </span>
       )}
       {!current.rebalance_signal.active && !current.shoulder_signal_fired_in_period && (
-        <span className="hint">밴드 이내</span>
+        <span className="hint" title="비중이 밴드 안이라 비중조절 신호가 없습니다. 주문은 목표에 맞춘 참고입니다.">
+          비중조절 신호 없음
+        </span>
       )}
     </div>
   )
@@ -798,6 +929,9 @@ export function RebalancePanel() {
   const narrow = useNarrow()
   const [rows, setRows] = useState<Row[]>([])
   const [current, setCurrent] = useState<RebalanceCurrent | null>(null)
+  // 주문 옆 거래 입력으로 반영한 뒤 한 줄 — 주문 가이드가 곧바로 다시 계산되어 "606주 사기"가 "109주 사기"로,
+  // 다른 종목의 사기가 팔기로 바뀌는데 이유가 없었다 (디자인 2차 C 사용자 확인)
+  const [tradeNote, setTradeNote] = useState<string | null>(null)
   const [settings, setSettings] = useState<Settings | null>(null)
   const [snapshots, setSnapshots] = useState<RebalanceSnapshot[]>([])
   const [bandInput, setBandInput] = useState('')
@@ -882,6 +1016,13 @@ export function RebalancePanel() {
   const handleSaved = () => {
     setError(null)
     notifyDataChanged()
+  }
+  const orderSaved = (row: Row) => (done?: { side: TradeSide; qty: number }) => {
+    if (done)
+      setTradeNote(
+        `${shortLabel(row)} ${done.qty.toLocaleString('ko-KR')}주 ${done.side === 'buy' ? '산' : '판'} 것을 반영했습니다 — 주문 가이드를 바뀐 보유로 다시 계산했습니다. 남은 주문이 줄거나 다른 종목의 사기·팔기가 바뀔 수 있습니다.`,
+      )
+    handleSaved()
   }
 
   const { busy: settingsBusy, update: updateSettings } = useSettingsUpdate(handleSaved, setError)
@@ -1010,6 +1151,10 @@ export function RebalancePanel() {
       <div className="empty-state">
         <h3>리밸런싱할 종목이 없습니다</h3>
         <p>종목 관리 화면에서 종목을 추가하고 목표 비중을 설정해주세요.</p>
+        {/* 누를 곳이 없었다 — 폰은 종목 관리가 "더보기" 안이다 (디자인 2차, 주인 결정). 대시보드 첫 화면과 같은 단추 */}
+        <Link to="/stocks" className="link-button">
+          종목 추가하러 가기
+        </Link>
       </div>
     )
   }
@@ -1039,6 +1184,9 @@ export function RebalancePanel() {
       </label>
     </div>
   )
+
+  /** 사거나 팔 주문 수 — 유지는 빼고 (디자인 2차: 머리말이 "비중조절 신호 3종목"뿐이라 주문 14개와 어긋나 보였다) */
+  const orderCount = plan.orders.filter((o) => o.action !== 'hold').length
 
   /** 새 돈만 나누기에서 1주도 안 되는 몫 — 소수 주를 못 사는 증권사면 실제로는 사지 못한다 (B 사용자 확인) */
   const underOne = plan.buyOnly
@@ -1121,12 +1269,27 @@ export function RebalancePanel() {
         <div className="section-head">
           <h3 id="orders-title">주문 가이드</h3>
           <span className="hint">
-            비중조절 신호 {signalled.length}종목 · {plan.buyOnly ? '나눈 몫이 새로 넣을 돈의' : '조정 금액이 전체의'}{' '}
+            주문 {orderCount} · 비중조절 신호 {signalled.length}종목 · {plan.buyOnly ? '나눈 몫이 새로 넣을 돈의' : '조정 금액이 전체의'}{' '}
             {NOISE_THRESHOLD_PCT}% 미만이면 "유지"
           </span>
         </div>
         {!narrow && newMoneyBlock}
         {newMoneyLine}
+        {tradeNote && (
+          <p className="new-money-line" role="status">
+            {tradeNote}
+          </p>
+        )}
+        {/* 폰에는 툴팁이 없다 — 주문 옆 이름표 둘의 뜻을 한 줄로 (디자인 2차 사용자 확인: "참고 ▼ 기간 내 매도"를 풀어 주는 곳이 없다) */}
+        {plan.orders.some((o) => {
+          const r = rowByTicker.get(o.ticker)?.current
+          return !!r && (r.rebalance_signal.active || r.shoulder_signal_fired_in_period)
+        }) && (
+          <p className="hint">
+            <b>비중</b> = 비중이 밴드를 벗어나 리뷰 때 맞출 종목 · <b>참고</b> = 이번 리뷰 기간에 매도 시그널이 뜬 적이 있음 —
+            주문 수량에는 영향이 없습니다
+          </p>
+        )}
         {/* 폰은 답(카드)이 먼저라 넣는 칸이 카드 아래에 있다(8단계) — 찾으러 끝까지 내려가지 않게 바로 가는 길 (B 사용자 확인) */}
         {narrow && (
           <p className="hint">
@@ -1159,17 +1322,29 @@ export function RebalancePanel() {
                       {drift > 0 ? '과중' : drift < 0 ? '미달' : '목표'} {signed(drift, 1, '%p')}
                     </span>
                   </div>
+                  {/* 비중 줄과 금액 줄 — 한 줄이면 세 줄로 꺾이며 "+"가 줄 끝에 홀로 남았다 (디자인 2차) */}
                   <p className="order-card-line mono">
                     {num(weightNow, 1)}% → 목표 {num(row.current.target_weight_pct, 0)}%
-                    {order.action !== 'hold' && (
-                      <>
-                        {' '}
-                        · {signedAmount(order.adjust, baseCurrency)}
-                        {isForeign && ` (${signedAmount(order.adjustNative, order.currency)})`}
-                      </>
-                    )}
                   </p>
+                  {order.action !== 'hold' && (
+                    <p className="order-card-line mono">
+                      <span className="nowrap">{signedAmount(order.adjust, baseCurrency)}</span>
+                      {isForeign && (
+                        <>
+                          {' '}
+                          <span className="nowrap">({signedAmount(order.adjustNative, order.currency)})</span>
+                        </>
+                      )}
+                    </p>
+                  )}
                   <SignalBadges current={row.current} />
+                  <OrderTrade
+                    row={row}
+                    order={order}
+                    fxNow={fxNowOf(row.current.currency)}
+                    onSaved={orderSaved(row)}
+                    onError={setError}
+                  />
                 </li>
               )
             })}
@@ -1188,7 +1363,7 @@ export function RebalancePanel() {
           </ul>
         ) : (
           <div className="table-scroll">
-            <table className="data-table" style={{ minWidth: 1020 }}>
+            <table className="data-table sticky-first" style={{ minWidth: 1120 }}>
               <thead>
                 <tr>
                   <th style={{ minWidth: 150 }}>구분 / 종목</th>
@@ -1203,23 +1378,38 @@ export function RebalancePanel() {
                   <th style={{ minWidth: 104 }}>주문 액션</th>
                   <th style={{ minWidth: 104 }}>예상 주문 주수</th>
                   <th style={{ minWidth: 140 }}>비중조절 신호</th>
+                  <th style={{ minWidth: 96 }}>거래</th>
                 </tr>
               </thead>
               <tbody>
-                {plan.orders.map(({ ticker, currency: native, targetValue, adjust, adjustNative, shares, action }) => {
+                {plan.orders.map((order) => {
+                  const { ticker, currency: native, targetValue, adjust, adjustNative, shares, action } = order
                   const row = rowByTicker.get(ticker)
                   if (!row) return null
                   const isForeign = native !== baseCurrency
                   // 새로 넣을 돈이 있으면 비중도 그 돈까지 더한 전체 자금으로 다시 잰다
                   const weightNow = plan.total > 0 ? (row.current.current_value_base / plan.total) * 100 : 0
                   return (
-                    <tr key={row.ticker}>
+                    <OrderTableRow
+                      key={row.ticker}
+                      row={row}
+                      order={order}
+                      fxNow={fxNowOf(native)}
+                      columns={9}
+                      onSaved={orderSaved(row)}
+                      onError={setError}
+                    >
                       <td>
+                        {/* 구분 칩은 이름 옆(대시보드 표와 같게) — 이름 위 한 줄을 따로 써서 줄이 높았다. 이름 = 티커면 아래에 다시 쓰지 않는다 (디자인 2차) */}
                         <div className="ticker-cell">
-                          {row.stock?.category && <span className="cat-tag">{row.stock.category}</span>}
-                          <span className="ticker-name">{labelOf(row)}</span>
+                          <div className="stock-line">
+                            {row.stock?.category && <span className="cat-tag">{row.stock.category}</span>}
+                            <span className="ticker-name">{labelOf(row)}</span>
+                          </div>
                           <span className="ticker-sub">
-                            {row.ticker} · {qty(row.current.quantity)}주 · {price(row.current.last_close, native)}
+                            {labelOf(row) !== row.ticker && <>{row.ticker} · </>}
+                            <span className="nowrap">{qty(row.current.quantity)}주</span> ·{' '}
+                            <span className="nowrap">{price(row.current.last_close, native)}</span>
                           </span>
                         </div>
                       </td>
@@ -1258,7 +1448,7 @@ export function RebalancePanel() {
                       <td>
                         <SignalBadges current={row.current} />
                       </td>
-                    </tr>
+                    </OrderTableRow>
                   )
                 })}
                 <tr className="cash-row">
@@ -1285,7 +1475,7 @@ export function RebalancePanel() {
                       <span className="metric-note">목표 {num(plan.cash.targetPct, 0)}%</span>
                     </div>
                   </td>
-                  <td colSpan={3}>
+                  <td colSpan={4}>
                     <span className="hint">
                       {plan.cash.adjust < 0
                         ? '목표보다 많은 현금 — 매수 재원입니다.'
@@ -1306,7 +1496,7 @@ export function RebalancePanel() {
                   <td className="num-cell">
                     {signedAmount(plan.orders.reduce((s, o) => s + o.adjust, 0) + plan.cash.adjust, baseCurrency)}
                   </td>
-                  <td colSpan={4} />
+                  <td colSpan={5} />
                 </tr>
               </tfoot>
             </table>
@@ -1331,7 +1521,7 @@ export function RebalancePanel() {
           </ul>
         ) : (
           <div className="table-scroll">
-            <table className="data-table fixed" style={{ minWidth: showFxColumn ? 1120 : 980 }}>
+            <table className="data-table fixed sticky-first" style={{ minWidth: showFxColumn ? 1120 : 980 }}>
               <thead>
                 <tr>
                   <th style={{ width: 190 }}>종목</th>
