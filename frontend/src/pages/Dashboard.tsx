@@ -1,7 +1,7 @@
 import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { MacroStrip } from '../components/MacroStrip'
-import { PortfolioView } from '../components/PortfolioView'
+import { PortfolioView, type SignalFilter } from '../components/PortfolioView'
 import { ReasonTag, SellTooTag, SignalShape } from '../components/SignalShape'
 import { BuyConditions } from '../components/BuyConditions'
 import { useNarrow } from '../lib/narrow'
@@ -602,11 +602,18 @@ export function Dashboard() {
     navigate({ search: '?view=signal' }, { state: { fromDot: true, focus: ticker } })
   }
 
-  // 맨 위 "확인할 신호" 줄 — 점과 같이 뒤로가기 한 칸을 쌓는다(돌아오면 포트폴리오)
-  const openSignals = () => {
+  // 맨 위 "확인할 신호" 줄 — 점과 같이 뒤로가기 한 칸을 쌓는다(돌아오면 포트폴리오).
+  // 종류를 눌렀으면 그 종류로 걸러서 연다 (디자인 2차, 주인 결정 ②)
+  const openSignals = (kind?: SignalFilter) => {
     portfolioScroll.current = window.scrollY
-    navigate({ search: '?view=signal' }, { state: { fromDot: true } })
+    navigate({ search: '?view=signal' }, { state: { fromDot: true, quick: kind ?? 'all' } })
   }
+  const askedQuick = mode === 'signal' ? ((location.state as { quick?: QuickFilter } | null)?.quick ?? null) : null
+  useEffect(() => {
+    if (askedQuick) setQuick(askedQuick)
+    // 같은 칸으로 다시 오면 다시 (focus 와 같은 규칙)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [askedQuick ? location.key : null])
 
   // 시그널 보기로 넘어온 종목 — 필터가 가리고 있으면 "모두 보기"로 돌리고, 편집 중이면 보기로 바꾼다
   const focus = mode === 'signal' ? ((location.state as { focus?: string } | null)?.focus ?? null) : null

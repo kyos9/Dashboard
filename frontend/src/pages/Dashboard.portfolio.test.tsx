@@ -84,7 +84,13 @@ function row(o: Partial<RebalanceRow> & { ticker: string }): RebalanceRow {
 }
 
 const CARDS: DashboardCard[] = [
-  card({ ticker: 'SCHD', indicators: { ...IND, close: 130.02 }, knee_buy_v2: true }),
+  // 서버는 카드에도 리밸런싱 응답과 같은 비중조절 신호를 싣는다 — 시그널 보기의 거르기가 카드의 것을 읽는다
+  card({
+    ticker: 'SCHD',
+    indicators: { ...IND, close: 130.02 },
+    knee_buy_v2: true,
+    rebalance_signal: { active: true, reasons: ['밴드 초과(매도 검토)'] },
+  }),
   card({ ticker: '005930.KS', name: '삼성전자', market: 'KR', currency: 'KRW', indicators: { ...IND, close: 69_000 } }),
   card({ ticker: 'QQQ', indicators: { ...IND, close: 500 } }),
   card({ ticker: 'NVDA', indicators: { ...IND, close: 120 }, shoulder_sell_ref: true }),
@@ -269,8 +275,25 @@ describe('맨 위 — 내 돈 한 줄', () => {
     // 신호 개수는 돈 카드가 아니라 맨 위 "확인할 신호" 줄이 말한다 (디자인 1차)
     expect(within(line).queryByText('신호')).not.toBeInTheDocument()
     // SCHD(매수 시그널·과중), NVDA(매도 시그널) — 종류마다 종목 수로 센다
-    const signals = screen.getByRole('button', { name: /^확인할 신호:/ })
-    expect(signals).toHaveAccessibleName('확인할 신호: 매수 1종목, 매도 1종목, 비중조절 1종목. 시그널 보기로')
+    // 종류마다 단추 — 누르면 그 종류만 걸러진 시그널 보기 (디자인 2차, 주인 결정 ②)
+    const signals = screen.getByRole('region', { name: '확인할 신호' })
+    expect(within(signals).getAllByRole('button').map((b) => b.getAttribute('aria-label') ?? b.textContent)).toEqual([
+      '매수 1종목 — 시그널 보기에서 매수만',
+      '매도 1종목 — 시그널 보기에서 매도만',
+      '비중조절 1종목 — 시그널 보기에서 비중조절만',
+      '시그널 보기 →',
+    ])
+  })
+
+  it('"확인할 신호"의 매도를 누르면 시그널 보기가 매도로 걸러져 열린다 — 수가 같다', async () => {
+    mockApi()
+    renderDashboard()
+    const signals = await screen.findByRole('region', { name: '확인할 신호' })
+    await userEvent.click(within(signals).getByRole('button', { name: /^매도 1종목/ }))
+    const summary = await screen.findByRole('region', { name: '신호 요약' })
+    const sell = within(summary).getByRole('button', { name: /매도/ })
+    expect(sell).toHaveAttribute('aria-pressed', 'true')
+    expect(sell).toHaveTextContent('1')
   })
 
   it('빠진 것은 빠졌다고 적는다 — 평단가 없는 종목, 환율 미반영 종목', async () => {

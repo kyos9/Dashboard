@@ -474,7 +474,7 @@ export function StockManager() {
           </div>
         ) : (
           <div className="table-scroll">
-            <table className="data-table fixed" style={{ minWidth: 1070 }}>
+            <table className="data-table fixed sticky-first" style={{ minWidth: 1070 }}>
               <thead>
                 <tr>
                   <th style={{ width: 202 }}>종목</th>

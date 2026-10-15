@@ -341,10 +341,10 @@ function measure(opts) {
     if (lines(el).length > 1) add('nowrap-split', el, {})
   }
 
-  // 4-3. 가로 sticky (2차) — 시그널 표(.signal-table) 밖에서 left 로 붙는 칸이 생기면 회귀
+  // 4-3. 가로 sticky (2차) — 붙이기로 한 표(.signal-table, .sticky-first — 주인 결정 ②) 밖에서 left 로 붙는 칸이 생기면 회귀
   for (const el of root.querySelectorAll('th, td')) {
     const cs = getComputedStyle(el)
-    if (cs.position === 'sticky' && cs.left !== 'auto' && !el.closest('.signal-table')) add('sticky-left', el, {})
+    if (cs.position === 'sticky' && cs.left !== 'auto' && !el.closest('.signal-table, .sticky-first')) add('sticky-left', el, {})
   }
 
   // 4-4. 어포던스 (2차, 주인 요청 "어포던스도 고려해줘") — 보이는 꼴과 할 수 있는 일이 맞는가.

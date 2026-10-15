@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useAppState } from '../AppState'
 import { api } from '../api/client'
@@ -122,6 +122,8 @@ async function saveRow(row: Row, draft: HoldingDraft) {
 function TradeForm({
   row,
   fxNow,
+  initialSide = 'buy',
+  initialQty = '',
   onSaved,
   onError,
   onClose,
@@ -129,6 +131,9 @@ function TradeForm({
   row: Row
   /** 지금 적용 중인 환율 (1단위에 몇 원) — 산 날 환율 칸의 처음 값 */
   fxNow: number | null
+  /** 주문 가이드에서 열면 그 주문의 사기·팔기와 정수 주 (디자인 2차, 주인 결정 ②) — 고쳐 쓰는 처음 값일 뿐이다 */
+  initialSide?: TradeSide
+  initialQty?: string
   onSaved: () => void
   onError: (e: unknown) => void
   onClose: () => void
@@ -137,8 +142,8 @@ function TradeForm({
   const native = current.currency
   const foreign = native !== 'KRW'
   const label = labelOf(row)
-  const [side, setSide] = useState<TradeSide>('buy')
-  const [tradeQty, setTradeQty] = useState('')
+  const [side, setSide] = useState<TradeSide>(initialSide)
+  const [tradeQty, setTradeQty] = useState(initialQty)
   // 대개 오늘 종가 근처에 산다 — 비워두는 것보다 고쳐 쓰는 편이 빠르다
   const [tradePrice, setTradePrice] = useState(initial(current.last_close))
   const [tradeFx, setTradeFx] = useState(fxToInput(fxNow, native))
@@ -763,6 +768,113 @@ function SnapshotList({
 
 /* ---------- 주문 가이드 ---------- */
 
+/** 주문의 주수 → 거래 칸의 처음 값. 제목과 같은 정수 주(1주 미만이면 소수 그대로) */
+function tradeQtyOf(shares: number | null): string {
+  if (shares === null) return ''
+  const exact = Number(Math.abs(shares).toFixed(2))
+  const whole = Math.floor(exact)
+  return String(whole === 0 ? exact : whole)
+}
+
+/**
+ * 주문 옆 "거래 입력" — 주문 가이드를 보고 산·판 것을 그 자리에서 반영한다 (디자인 2차, 주인 결정 ②).
+ * 예전에는 아래 "보유 · 목표 비중"까지 내려가 그 종목을 다시 찾아야 했다. 같은 거래 칸(TradeForm)을 쓴다.
+ */
+function OrderTrade({
+  row,
+  order,
+  fxNow,
+  onSaved,
+  onError,
+}: {
+  row: Row
+  order: OrderLine
+  fxNow: number | null
+  onSaved: () => void
+  onError: (e: unknown) => void
+}) {
+  const [open, setOpen] = useState(false)
+  if (order.action === 'hold') return null
+  return (
+    <>
+      <button
+        className="sm order-trade-toggle"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-label={open ? `${shortLabel(row)} 거래 칸 닫기` : `${shortLabel(row)} 거래 입력`}
+      >
+        {open ? '닫기' : '거래 입력'}
+      </button>
+      {open && (
+        <TradeForm
+          row={row}
+          fxNow={fxNow}
+          initialSide={order.action === 'sell' ? 'sell' : 'buy'}
+          initialQty={tradeQtyOf(order.shares)}
+          onSaved={onSaved}
+          onError={onError}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </>
+  )
+}
+
+/** PC 주문 표의 한 줄 — 끝에 "거래 입력", 누르면 바로 아래 줄에 거래 칸 (보유 표와 같은 꼴) */
+function OrderTableRow({
+  row,
+  order,
+  fxNow,
+  columns,
+  onSaved,
+  onError,
+  children,
+}: {
+  row: Row
+  order: OrderLine
+  fxNow: number | null
+  columns: number
+  onSaved: () => void
+  onError: (e: unknown) => void
+  children: ReactNode
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <tr>
+        {children}
+        <td>
+          {order.action !== 'hold' && (
+            <button
+              className="sm"
+              onClick={() => setOpen((o) => !o)}
+              aria-expanded={open}
+              aria-label={open ? `${shortLabel(row)} 거래 칸 닫기` : `${shortLabel(row)} 거래 입력`}
+            >
+              {open ? '닫기' : '거래 입력'}
+            </button>
+          )}
+        </td>
+      </tr>
+      {open && (
+        <tr className="trade-row">
+          <td colSpan={columns}>
+            <TradeForm
+              row={row}
+              fxNow={fxNow}
+              initialSide={order.action === 'sell' ? 'sell' : 'buy'}
+              initialQty={tradeQtyOf(order.shares)}
+              onSaved={onSaved}
+              onError={onError}
+              onClose={() => setOpen(false)}
+            />
+          </td>
+        </tr>
+      )}
+    </>
+  )
+}
+
 /* 주문은 사기·팔기·유지 — 시그널의 "매수·매도"와 다른 말로 (디자인 2차, 용어 사전). 폰 카드는 이미 그랬다 */
 function ActionBadge({ action }: { action: OrderLine['action'] }) {
   if (action === 'buy') return <span className="badge badge-green">사기</span>
@@ -1210,6 +1322,13 @@ export function RebalancePanel() {
                     </p>
                   )}
                   <SignalBadges current={row.current} />
+                  <OrderTrade
+                    row={row}
+                    order={order}
+                    fxNow={fxNowOf(row.current.currency)}
+                    onSaved={handleSaved}
+                    onError={setError}
+                  />
                 </li>
               )
             })}
@@ -1228,7 +1347,7 @@ export function RebalancePanel() {
           </ul>
         ) : (
           <div className="table-scroll">
-            <table className="data-table" style={{ minWidth: 1020 }}>
+            <table className="data-table sticky-first" style={{ minWidth: 1120 }}>
               <thead>
                 <tr>
                   <th style={{ minWidth: 150 }}>구분 / 종목</th>
@@ -1243,17 +1362,27 @@ export function RebalancePanel() {
                   <th style={{ minWidth: 104 }}>주문 액션</th>
                   <th style={{ minWidth: 104 }}>예상 주문 주수</th>
                   <th style={{ minWidth: 140 }}>비중조절 신호</th>
+                  <th style={{ minWidth: 96 }}>거래</th>
                 </tr>
               </thead>
               <tbody>
-                {plan.orders.map(({ ticker, currency: native, targetValue, adjust, adjustNative, shares, action }) => {
+                {plan.orders.map((order) => {
+                  const { ticker, currency: native, targetValue, adjust, adjustNative, shares, action } = order
                   const row = rowByTicker.get(ticker)
                   if (!row) return null
                   const isForeign = native !== baseCurrency
                   // 새로 넣을 돈이 있으면 비중도 그 돈까지 더한 전체 자금으로 다시 잰다
                   const weightNow = plan.total > 0 ? (row.current.current_value_base / plan.total) * 100 : 0
                   return (
-                    <tr key={row.ticker}>
+                    <OrderTableRow
+                      key={row.ticker}
+                      row={row}
+                      order={order}
+                      fxNow={fxNowOf(native)}
+                      columns={9}
+                      onSaved={handleSaved}
+                      onError={setError}
+                    >
                       <td>
                         {/* 구분 칩은 이름 옆(대시보드 표와 같게) — 이름 위 한 줄을 따로 써서 줄이 높았다. 이름 = 티커면 아래에 다시 쓰지 않는다 (디자인 2차) */}
                         <div className="ticker-cell">
@@ -1303,7 +1432,7 @@ export function RebalancePanel() {
                       <td>
                         <SignalBadges current={row.current} />
                       </td>
-                    </tr>
+                    </OrderTableRow>
                   )
                 })}
                 <tr className="cash-row">
@@ -1330,7 +1459,7 @@ export function RebalancePanel() {
                       <span className="metric-note">목표 {num(plan.cash.targetPct, 0)}%</span>
                     </div>
                   </td>
-                  <td colSpan={3}>
+                  <td colSpan={4}>
                     <span className="hint">
                       {plan.cash.adjust < 0
                         ? '목표보다 많은 현금 — 매수 재원입니다.'
@@ -1351,7 +1480,7 @@ export function RebalancePanel() {
                   <td className="num-cell">
                     {signedAmount(plan.orders.reduce((s, o) => s + o.adjust, 0) + plan.cash.adjust, baseCurrency)}
                   </td>
-                  <td colSpan={4} />
+                  <td colSpan={5} />
                 </tr>
               </tfoot>
             </table>
@@ -1376,7 +1505,7 @@ export function RebalancePanel() {
           </ul>
         ) : (
           <div className="table-scroll">
-            <table className="data-table fixed" style={{ minWidth: showFxColumn ? 1120 : 980 }}>
+            <table className="data-table fixed sticky-first" style={{ minWidth: showFxColumn ? 1120 : 980 }}>
               <thead>
                 <tr>
                   <th style={{ width: 190 }}>종목</th>

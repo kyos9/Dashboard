@@ -857,3 +857,49 @@ describe('리밸런싱 · 주문과 신호를 다른 말로 (디자인 2차)', (
     }
   })
 })
+
+describe('리밸런싱 · 주문 옆 거래 입력 (디자인 2차, 주인 결정 ②)', () => {
+  const SKEW: RebalanceCurrent = {
+    ...CURRENT,
+    rows: CURRENT.rows.map((r) => (r.ticker === 'VOO' ? { ...r, target_weight_pct: 20 } : r)),
+  }
+
+  it('PC: 주문 줄의 "거래 입력"은 그 주문의 팔기·정수 주로 거래 칸을 연다 — 반영하면 보유를 고친다', async () => {
+    mockApi(SKEW)
+    const save = vi.spyOn(api, 'updateHolding').mockResolvedValue(undefined as never)
+    const user = userEvent.setup()
+    renderPanel()
+    const voo = await orderRow('VOO')
+    await user.click(within(voo).getByRole('button', { name: 'VOO 거래 입력' }))
+    // VOO 1주 (1.35) 팔기 → 팔았다 · 1
+    expect(screen.getByRole('button', { name: '팔았다' })).toHaveClass('active')
+    expect(screen.getByLabelText('VOO 거래 수량')).toHaveValue('1')
+    await user.click(screen.getByRole('button', { name: '반영' }))
+    await waitFor(() => expect(save).toHaveBeenCalledWith('VOO', 1, null, null))
+  })
+
+  it('폰: 주문 카드마다 "거래 입력", 사기면 샀다로 연다 · 유지에는 없다', async () => {
+    pretendPhone()
+    try {
+      mockApi(SKEW)
+      const user = userEvent.setup()
+      renderPanel()
+      const guide = await screen.findByRole('region', { name: '주문 가이드' })
+      const samsung = within(guide).getAllByRole('listitem')[0]
+      await user.click(within(samsung).getByRole('button', { name: '삼성전자 거래 입력' }))
+      expect(within(samsung).getByRole('button', { name: '샀다' })).toHaveClass('active')
+      // 1주 미만 (0.5주) → 소수 그대로
+      expect(within(samsung).getByLabelText('005930.KS 거래 수량')).toHaveValue('0.5')
+    } finally {
+      forgetPhone()
+    }
+  })
+
+  it('넓은 표(주문·보유)는 종목 칸이 고정된다 — 옆으로 밀어도 이름이 남는다', async () => {
+    mockApi(SKEW)
+    renderPanel()
+    const tables = await screen.findAllByRole('table')
+    expect(tables[0]).toHaveClass('sticky-first')
+    expect(tables.some((t, i) => i > 0 && t.classList.contains('sticky-first'))).toBe(true)
+  })
+})

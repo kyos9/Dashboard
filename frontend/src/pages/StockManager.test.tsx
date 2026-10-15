@@ -685,3 +685,12 @@ describe('종목 관리 · 정돈 (디자인 2차)', () => {
     expect(cost).toHaveAttribute('placeholder', '모르면 비워두기')
   })
 })
+
+describe('종목 관리 · 표 이름 칸 고정 (디자인 2차, 주인 결정 ②)', () => {
+  it('등록된 종목 표는 종목 칸이 고정된다 — 폰에서 옆으로 밀어도 이름이 남는다', async () => {
+    mockApi([stock({ ticker: 'VOO' })])
+    renderManager()
+    const table = await screen.findByRole('table')
+    expect(table).toHaveClass('sticky-first')
+  })
+})
