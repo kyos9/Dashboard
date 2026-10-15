@@ -47,6 +47,7 @@ function conditions() {
   const out = []
   for (const vp of VIEWPORTS) for (const theme of ['dark', 'light']) out.push({ vp, theme, rise: 'green' })
   out.push({ vp: VIEWPORTS[1], theme: 'dark', rise: 'red' })
+  out.push({ vp: VIEWPORTS[1], theme: 'light', rise: 'red' }) // 2차: 빨강 + 라이트 대비
   out.push({ vp: ZOOM150, theme: 'dark', rise: 'green' })
   return out
 }
@@ -324,6 +325,18 @@ function measure(opts) {
     }
   }
 
+  // 4-2. 묶음 깨짐 (2차) — .nowrap 으로 묶은 요소가 두 줄 이상. 글을 span 으로 나누면 4 의 식이 못 본다
+  for (const el of root.querySelectorAll('.nowrap')) {
+    if (!visible(el)) continue
+    if (lines(el).length > 1) add('nowrap-split', el, {})
+  }
+
+  // 4-3. 가로 sticky (2차) — 시그널 표(.signal-table) 밖에서 left 로 붙는 칸이 생기면 회귀
+  for (const el of root.querySelectorAll('th, td')) {
+    const cs = getComputedStyle(el)
+    if (cs.position === 'sticky' && cs.left !== 'auto' && !el.closest('.signal-table')) add('sticky-left', el, {})
+  }
+
   // 6. 터치 대상 (폰만)
   if (phone) {
     const targets = [...root.querySelectorAll('button, a[href], input, select, textarea, [role=button], summary')]
@@ -395,7 +408,7 @@ function measure(opts) {
 
 /* ---------- 실행 ---------- */
 
-const CHECKS = ['page-overflow', 'clipped', 'orphan', 'num-split', 'folded3', 'folded2-360', 'touch', 'contrast', 'console', 'cond-missing']
+const CHECKS = ['page-overflow', 'clipped', 'orphan', 'num-split', 'folded3', 'folded2-360', 'touch', 'contrast', 'console', 'cond-missing', 'nowrap-split', 'sticky-left']
 
 const XCOND = {
   key: 'audit_extra_condition',
