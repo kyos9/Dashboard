@@ -876,7 +876,8 @@ export function Dashboard() {
               aria-controls="signal-view-tools"
               onClick={() => setViewToolsOpen((o) => !o)}
             >
-              보기·설정 ⋯
+              {/* ▾/▴ = 눌러서 펼친다/접는다 (용어 사전 · 어포던스). ⋯ 는 폰 메뉴의 기호라 쓰지 않는다 */}
+              보기·설정 {viewToolsOpen || ordering || view === 'edit' ? '▴' : '▾'}
             </button>
           )}
         </div>

@@ -383,3 +383,27 @@ describe('차트 팝업 · 재무 탭', () => {
     expect(screen.queryByRole('alert')).toBeNull()
   })
 })
+
+describe('차트 팝업 · 키보드 (디자인 2차 검토)', () => {
+  it('Tab 은 팝업 안에서만 돈다 — 마지막에서 처음으로, Shift+Tab 은 처음에서 마지막으로', async () => {
+    vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
+    const user = userEvent.setup()
+    render(
+      <>
+        <button>뒤 화면 단추</button>
+        <ChartModal ticker="005930.KS" name="삼성전자" onClose={() => {}} />
+      </>,
+    )
+    const dialog = screen.getByRole('dialog')
+    const close = screen.getByRole('button', { name: '닫기' })
+    close.focus()
+    for (let i = 0; i < 12; i++) {
+      await user.tab()
+      expect(dialog.contains(document.activeElement)).toBe(true)
+    }
+    for (let i = 0; i < 12; i++) {
+      await user.tab({ shift: true })
+      expect(dialog.contains(document.activeElement)).toBe(true)
+    }
+  })
+})

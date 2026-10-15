@@ -16,13 +16,6 @@
     <!-- 아이폰은 manifest 의 아이콘을 보지 않는다. 홈 화면 아이콘은 이 링크로만 정해진다. -->
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
-    <!--
-      글꼴을 CSS 를 다 읽기 전에 받기 시작한다 — 느린 연결의 첫 방문에서 시스템 글꼴로 그렸다가 몇 초 뒤
-      바뀌던 것(디자인 1차 남김)을 줄인다. 빌드가 CSS 와 같은 해시 파일로 바꿔 쓴다. crossorigin 이
-      없으면 글꼴을 두 번 받는다.
-    -->
-    <link rel="preload" href="/src/assets/fonts/WantedSansVariable-ko.woff2" as="font" type="font/woff2" crossorigin />
-
     <!-- 주소창·상태바 색. 테마를 바꾸면 화면이 이 값을 고쳐 쓴다(lib/prefs). -->
     <meta name="theme-color" content="#0a0e14" />
 

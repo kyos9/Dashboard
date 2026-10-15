@@ -737,10 +737,10 @@ describe('폰의 순서 편집 (ROADMAP 8-3)', () => {
 
     // 폰은 보기·설정 단추를 접어 둔다 (디자인 2차) — 펴야 "순서 편집"이 보인다
     expect(screen.queryByRole('button', { name: '↕ 순서 편집' })).not.toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: '보기·설정 ⋯' }))
+    await userEvent.click(screen.getByRole('button', { name: '보기·설정 ▾' }))
     await userEvent.click(screen.getByRole('button', { name: '↕ 순서 편집' }))
     // 편집 중에는 접어도 끝내는 단추가 남는다
-    await userEvent.click(screen.getByRole('button', { name: '보기·설정 ⋯' }))
+    await userEvent.click(screen.getByRole('button', { name: '보기·설정 ▴' }))
     expect(screen.getByRole('button', { name: '순서 편집 끝' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '삼성전자 위로' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'VOO 아래로' })).toBeDisabled()

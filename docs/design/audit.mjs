@@ -59,7 +59,7 @@ function conditions() {
 async function clickViewTool(page, name, exact = false) {
   const target = page.getByRole('button', { name, exact }).first()
   if (!(await target.isVisible().catch(() => false))) {
-    const fold = page.getByRole('button', { name: '보기·설정 ⋯' })
+    const fold = page.getByRole('button', { name: /^보기·설정/ })
     if (await fold.count()) await fold.first().click()
   }
   await page.getByRole('button', { name, exact }).first().click()

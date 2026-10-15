@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
 import { useBackToClose } from '../lib/backToClose'
 import type { DashboardCard, FundamentalsResponse, HistoryResponse } from '../types'
@@ -153,7 +153,36 @@ export function ChartModal({ ticker, name, card, initialTab = 'chart', onClose }
   // 폰의 뒤로가기로도 닫힌다
   useBackToClose(onClose)
 
-  // ESC로 닫기 + 뒤 화면이 같이 스크롤되지 않게
+  // ESC로 닫기 + 뒤 화면이 같이 스크롤되지 않게.
+  // Tab 은 팝업 안에서만 돈다 — 밖으로 새면 키보드로 뒤 화면을 누르게 된다 (디자인 2차 검토, DESIGN_PROMPT 3-1)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const focusables = () =>
+      Array.from(
+        dialogRef.current?.querySelectorAll<HTMLElement>(
+          'button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
+        ) ?? [],
+      ).filter((el) => el.offsetParent !== null || el === document.activeElement)
+    const onTab = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab' || !dialogRef.current) return
+      const items = focusables()
+      if (items.length === 0) return
+      const first = items[0]
+      const last = items[items.length - 1]
+      const active = document.activeElement as HTMLElement | null
+      const inside = !!active && dialogRef.current.contains(active)
+      if (e.shiftKey && (!inside || active === first)) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && (!inside || active === last)) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+    document.addEventListener('keydown', onTab)
+    return () => document.removeEventListener('keydown', onTab)
+  }, [])
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
     document.addEventListener('keydown', onKey)
@@ -168,6 +197,7 @@ export function ChartModal({ ticker, name, card, initialTab = 'chart', onClose }
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div
+        ref={dialogRef}
         className="modal chart-modal"
         role="dialog"
         aria-modal="true"
