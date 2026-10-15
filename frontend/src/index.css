@@ -1529,8 +1529,9 @@ table.sticky-first tbody tr:hover td:first-child {
   }
 }
 /* 고친 줄(tr.dirty)의 바탕은 반투명이라 붙은 칸 밑으로 밀린 글이 비친다 — 같은 빛깔을 불투명하게 */
-table.sticky-first tr.dirty td:first-child {
-  background: color-mix(in srgb, var(--amber) 14%, var(--panel));
+table.sticky-first tr.dirty td:first-child,
+table.sticky-first tbody tr.dirty:hover td:first-child {
+  background: color-mix(in srgb, var(--amber) 12%, var(--panel));
 }
 
 /* 폰의 시그널 카드: 지표 상자 여섯(2열 × 3줄, 상자마다 네 줄) → 지표 한 줄씩의 목록 (디자인 2차, 시안 v4).

@@ -1050,3 +1050,21 @@ describe('대시보드 · 시그널 보기 정돈 (디자인 2차)', () => {
     expect(weightItems).toHaveTextContent('매수 검토')
   })
 })
+
+describe('대시보드 · 정기 리뷰 날의 비중조절 수 (디자인 2차, 주인 결정)', () => {
+  it('정기 리뷰 사유만 붙은 종목은 비중조절로 세지 않는다 — 요약·거르기가 과중·미달만', async () => {
+    const review = { active: true, reasons: ['정기 리뷰 도래'] }
+    mockApi([
+      card({ ticker: 'VOO', rebalance_signal: review }),
+      card({ ticker: 'QQQ', rebalance_signal: review }),
+      card({ ticker: 'SCHD', rebalance_signal: { active: true, reasons: ['정기 리뷰 도래', '밴드 초과(매도 검토)'] } }),
+    ])
+    renderDashboard()
+    const summary = await screen.findByRole('region', { name: '신호 요약' })
+    const weight = within(summary).getByRole('button', { name: /비중조절/ })
+    expect(weight).toHaveTextContent('1')
+    expect(within(summary).getByText('정기 리뷰 3')).toBeInTheDocument()
+    await userEvent.click(weight)
+    expect(await nameOrder()).toEqual(['SCHD'])
+  })
+})

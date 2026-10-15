@@ -42,6 +42,7 @@ import type { EditField, HoldingValues } from '../lib/stockEdit'
 import { StockEditModal } from './StockEditModal'
 import { MacroStrip } from './MacroStrip'
 import { SignalShape, type ShapeKind } from './SignalShape'
+import { hasWeightSignal } from './weightSignal'
 
 interface Props {
   current: RebalanceCurrent
@@ -97,7 +98,7 @@ export function PortfolioView({ current, cards, stocks, narrow, onChart, onSigna
   const pnlCurrency: PnlCurrency = pnlOptions.includes(pnlChoice) ? pnlChoice : 'local'
   const signalCount = items.filter((i) => signalsOf(i).length > 0).length
   // 맨 위 "확인할 신호" — 종류마다 몇 종목인지. 누르면 시그널 보기가 그 종류로 걸러지므로 **시그널 보기의 신호 요약·거르기와
-  // 같은 규칙**으로 센다(디자인 2차, 주인 결정 ②) — 매수 = 신호등 매수, 매도 = 신호등 매도, 비중조절 = 비중조절 신호.
+  // 같은 규칙**으로 센다(디자인 2차, 주인 결정 ②) — 매수 = 신호등 매수, 매도 = 신호등 매도, 비중조절 = 과중·미달(정기 리뷰 빼고, components/weightSignal).
   // 예전에는 줄 끝 점(▲▼◆)의 규칙이라, 매수와 매도가 같이 뜬 종목은 매도로도 셌다(신호등은 그 종목을 매수로 보인다)
   const rules = useSignalRules()
   const signalKinds = useMemo(() => {
@@ -106,7 +107,7 @@ export function PortfolioView({ current, cards, stocks, narrow, onChart, onSigna
     return {
       buy: lights.filter((l) => l === 'buy').length,
       sell: lights.filter((l) => l === 'hot').length,
-      rebalance: cardsOnly.filter((c) => c.rebalance_signal.active).length,
+      rebalance: cardsOnly.filter(hasWeightSignal).length,
     }
   }, [items, rules])
 

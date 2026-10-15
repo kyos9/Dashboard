@@ -4,6 +4,7 @@ import { MacroStrip } from '../components/MacroStrip'
 import { PortfolioView, type SignalFilter } from '../components/PortfolioView'
 import { ReasonTag, SellTooTag, SignalShape } from '../components/SignalShape'
 import { BuyConditions } from '../components/BuyConditions'
+import { hasWeightSignal } from '../components/weightSignal'
 import { useNarrow } from '../lib/narrow'
 import { loadView, saveView, type DashboardView } from '../lib/portfolio'
 import { NumberInput } from '../components/NumberInput'
@@ -506,7 +507,7 @@ export function Dashboard() {
       watch: lights.filter((l) => l.state === 'watch').length,
       hot: lights.filter((l) => l.state === 'hot').length,
       stale: lights.filter((l) => l.state === 'stale').length,
-      rebalanceCount: cards.filter((c) => c.rebalance_signal.active).length,
+      rebalanceCount: cards.filter(hasWeightSignal).length,
       sellReview: reasons.filter((r) => r.includes('매도')).length,
       buyReview: reasons.filter((r) => r.includes('매수')).length,
       periodicReview: reasons.filter((r) => r.includes('정기')).length,
@@ -538,7 +539,7 @@ export function Dashboard() {
       if (quick === 'knee' && !c.knee_buy_v2) return false
       // 매도는 신호 요약의 "매도" 수와 같은 것 — 신호등이 매도인 종목 (디자인 2차, 주인 결정)
       if (quick === 'sell' && trafficLight(c, rules).state !== 'hot') return false
-      if (quick === 'rebalance' && !c.rebalance_signal.active) return false
+      if (quick === 'rebalance' && !hasWeightSignal(c)) return false
       return true
     })
     if (!preview) return shown
@@ -625,7 +626,7 @@ export function Dashboard() {
     if (category !== '전체' && categoryOf(target.category) !== category) setCategory('전체')
     if (quick === 'knee' && !target.knee_buy_v2) setQuick('all')
     if (quick === 'sell' && trafficLight(target, rules).state !== 'hot') setQuick('all')
-    if (quick === 'rebalance' && !target.rebalance_signal.active) setQuick('all')
+    if (quick === 'rebalance' && !hasWeightSignal(target)) setQuick('all')
     if (view === 'edit') setView(narrow ? 'card' : 'table')
     // 필터를 고른 뒤의 화면에서 찾는다 — 한 번만 (같은 칸으로 다시 오면 다시)
     // eslint-disable-next-line react-hooks/exhaustive-deps
