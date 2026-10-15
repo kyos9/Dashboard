@@ -134,7 +134,8 @@ function TradeForm({
   /** 주문 가이드에서 열면 그 주문의 사기·팔기와 정수 주 (디자인 2차, 주인 결정 ②) — 고쳐 쓰는 처음 값일 뿐이다 */
   initialSide?: TradeSide
   initialQty?: string
-  onSaved: () => void
+  /** 반영한 거래 — 주문 가이드가 반영 뒤 바뀐 이유를 한 줄로 알릴 때 쓴다 */
+  onSaved: (done?: { side: TradeSide; qty: number }) => void
   onError: (e: unknown) => void
   onClose: () => void
 }) {
@@ -169,7 +170,7 @@ function TradeForm({
       if (foreign) await api.updateHolding(row.ticker, next.quantity, next.avg_cost, next.avg_fx ?? null)
       else await api.updateHolding(row.ticker, next.quantity, next.avg_cost)
       onClose()
-      onSaved()
+      onSaved({ side, qty: Number(tradeQty || 0) })
     } catch (e) {
       onError(e)
     } finally {
@@ -790,7 +791,7 @@ function OrderTrade({
   row: Row
   order: OrderLine
   fxNow: number | null
-  onSaved: () => void
+  onSaved: (done?: { side: TradeSide; qty: number }) => void
   onError: (e: unknown) => void
 }) {
   const [open, setOpen] = useState(false)
@@ -834,7 +835,7 @@ function OrderTableRow({
   order: OrderLine
   fxNow: number | null
   columns: number
-  onSaved: () => void
+  onSaved: (done?: { side: TradeSide; qty: number }) => void
   onError: (e: unknown) => void
   children: ReactNode
 }) {
@@ -928,6 +929,9 @@ export function RebalancePanel() {
   const narrow = useNarrow()
   const [rows, setRows] = useState<Row[]>([])
   const [current, setCurrent] = useState<RebalanceCurrent | null>(null)
+  // 주문 옆 거래 입력으로 반영한 뒤 한 줄 — 주문 가이드가 곧바로 다시 계산되어 "606주 사기"가 "109주 사기"로,
+  // 다른 종목의 사기가 팔기로 바뀌는데 이유가 없었다 (디자인 2차 C 사용자 확인)
+  const [tradeNote, setTradeNote] = useState<string | null>(null)
   const [settings, setSettings] = useState<Settings | null>(null)
   const [snapshots, setSnapshots] = useState<RebalanceSnapshot[]>([])
   const [bandInput, setBandInput] = useState('')
@@ -1012,6 +1016,13 @@ export function RebalancePanel() {
   const handleSaved = () => {
     setError(null)
     notifyDataChanged()
+  }
+  const orderSaved = (row: Row) => (done?: { side: TradeSide; qty: number }) => {
+    if (done)
+      setTradeNote(
+        `${shortLabel(row)} ${done.qty.toLocaleString('ko-KR')}주 ${done.side === 'buy' ? '산' : '판'} 것을 반영했습니다 — 주문 가이드를 바뀐 보유로 다시 계산했습니다. 남은 주문이 줄거나 다른 종목의 사기·팔기가 바뀔 수 있습니다.`,
+      )
+    handleSaved()
   }
 
   const { busy: settingsBusy, update: updateSettings } = useSettingsUpdate(handleSaved, setError)
@@ -1264,6 +1275,11 @@ export function RebalancePanel() {
         </div>
         {!narrow && newMoneyBlock}
         {newMoneyLine}
+        {tradeNote && (
+          <p className="new-money-line" role="status">
+            {tradeNote}
+          </p>
+        )}
         {/* 폰에는 툴팁이 없다 — 주문 옆 이름표 둘의 뜻을 한 줄로 (디자인 2차 사용자 확인: "참고 ▼ 기간 내 매도"를 풀어 주는 곳이 없다) */}
         {plan.orders.some((o) => {
           const r = rowByTicker.get(o.ticker)?.current
@@ -1326,7 +1342,7 @@ export function RebalancePanel() {
                     row={row}
                     order={order}
                     fxNow={fxNowOf(row.current.currency)}
-                    onSaved={handleSaved}
+                    onSaved={orderSaved(row)}
                     onError={setError}
                   />
                 </li>
@@ -1380,7 +1396,7 @@ export function RebalancePanel() {
                       order={order}
                       fxNow={fxNowOf(native)}
                       columns={9}
-                      onSaved={handleSaved}
+                      onSaved={orderSaved(row)}
                       onError={setError}
                     >
                       <td>

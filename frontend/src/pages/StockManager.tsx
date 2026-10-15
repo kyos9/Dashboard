@@ -87,8 +87,10 @@ function StockRow({
           <span className="ticker-sub">
             {/* 이름 = 티커면(미국 종목) 아래에 다시 쓰지 않는다 — "VOO / VOO · 미국" (디자인 2차) */}
             {stockLabel(stock) !== stock.ticker && <>{stock.ticker} · </>}
-            {MARKET_LABEL[stock.market]} · {CURRENCY_META[stock.currency].symbol}
-            {stock.currency}
+            <span className="nowrap">
+              {MARKET_LABEL[stock.market]} · {CURRENCY_META[stock.currency].symbol}
+              {stock.currency}
+            </span>
           </span>
           {!stock.active && <span className="badge badge-grey">비활성</span>}
           {stock.data_status === 'loading' && <span className="badge badge-blue">시세 받는 중…</span>}

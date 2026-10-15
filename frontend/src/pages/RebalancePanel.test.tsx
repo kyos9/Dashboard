@@ -876,6 +876,8 @@ describe('리밸런싱 · 주문 옆 거래 입력 (디자인 2차, 주인 결�
     expect(screen.getByLabelText('VOO 거래 수량')).toHaveValue('1')
     await user.click(screen.getByRole('button', { name: '반영' }))
     await waitFor(() => expect(save).toHaveBeenCalledWith('VOO', 1, null, null))
+    // 반영 뒤 주문 가이드가 다시 계산된다는 것을 한 줄로 (C 사용자 확인)
+    expect(await screen.findByText(/VOO 1주 판 것을 반영했습니다 — 주문 가이드를 바뀐 보유로 다시 계산했습니다/)).toBeInTheDocument()
   })
 
   it('폰: 주문 카드마다 "거래 입력", 사기면 샀다로 연다 · 유지에는 없다', async () => {

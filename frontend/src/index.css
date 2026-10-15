@@ -1272,14 +1272,13 @@ table.data-table tfoot td {
   border-color: color-mix(in srgb, var(--down) 35%, transparent);
 }
 /* "추세 형성"·"거래량 증가" 같은 눈여겨볼 값 (lib/display 의 tone 'blue'). 파랑이면 상승 색 빨강에서 하락(파랑)과
-   같은 색이 되어 "내림"으로 읽혔다 (디자인 2차) — 오르내림·시그널 어느 색도 아닌 진한 중립 바탕 + 밑줄로.
+   같은 색이 되어 "내림"으로 읽혔다 (디자인 2차) — 오르내림·시그널 어느 색도 아닌 진한 중립 바탕 + 굵게.
+   (밑줄은 쓰지 않는다 — 링크로 보였다, C 사용자 확인)
    (배지·칩은 테두리를 쓰지 않는다 — 주인 결정 ②, 아래 "표시만 하는 배지" 규칙) */
 .metric-chip.blue {
   color: var(--text);
-  background: color-mix(in srgb, var(--text) 16%, transparent);
-  text-decoration: underline;
-  text-decoration-color: var(--text-dim);
-  text-underline-offset: 3px;
+  background: color-mix(in srgb, var(--text) 18%, transparent);
+  font-weight: 800;
 }
 
 .ticker-cell {
@@ -1508,6 +1507,26 @@ table.sticky-first th:first-child {
 }
 table.sticky-first tbody tr:hover td:first-child {
   background: var(--panel-soft);
+}
+/* 폰에서는 붙은 칸을 좁게 — 표 머리의 너비(202px 등, 인라인)대로 붙으면 360 폭의 절반을 넘게 덮어 끝 칸 단추가
+   다 보이는 자리가 없었다 (디자인 2차 C 사용자 확인). 인라인 너비를 이기려면 !important 밖에 없다. 이름은 줄을 바꿔 다 보인다 */
+@media (max-width: 640px) {
+  table.sticky-first th:first-child,
+  table.sticky-first td:first-child {
+    width: 132px !important;
+    max-width: 132px;
+  }
+  table.sticky-first td:first-child .ticker-name,
+  table.sticky-first td:first-child .ticker-sub {
+    overflow-wrap: break-word;
+    /* 좁아진 칸에서 긴 이름의 끝줄이 "체나스닥"처럼 짧게 남지 않게 줄 길이를 고른다 */
+    text-wrap: balance;
+  }
+  /* 띄어쓰기 없는 긴 이름("미국필라델피아반도체나스닥", "東京海上ホールディングス")은 keep-all 이면 넘칠 때만 아무 데서나
+     잘려 balance 가 듣지 않는다 — 이 칸의 이름만 글자 사이에서 고르게 꺾는다 */
+  table.sticky-first td:first-child .ticker-name {
+    word-break: normal;
+  }
 }
 /* 고친 줄(tr.dirty)의 바탕은 반투명이라 붙은 칸 밑으로 밀린 글이 비친다 — 같은 빛깔을 불투명하게 */
 table.sticky-first tr.dirty td:first-child {
