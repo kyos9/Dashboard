@@ -162,7 +162,7 @@ export function ChartModal({ ticker, name, card, initialTab = 'chart', onClose }
         dialogRef.current?.querySelectorAll<HTMLElement>(
           'button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
         ) ?? [],
-      ).filter((el) => el.offsetParent !== null || el === document.activeElement)
+      ).filter((el) => !el.closest('[hidden], [aria-hidden="true"]'))
     const onTab = (e: KeyboardEvent) => {
       if (e.key !== 'Tab' || !dialogRef.current) return
       const items = focusables()
@@ -179,8 +179,14 @@ export function ChartModal({ ticker, name, card, initialTab = 'chart', onClose }
         first.focus()
       }
     }
+    // 열면 포커스를 팝업으로, 닫으면 연 단추로 돌려준다 (디자인 2차 재검토)
+    const opener = document.activeElement as HTMLElement | null
+    dialogRef.current?.focus()
     document.addEventListener('keydown', onTab)
-    return () => document.removeEventListener('keydown', onTab)
+    return () => {
+      document.removeEventListener('keydown', onTab)
+      opener?.focus?.()
+    }
   }, [])
 
   useEffect(() => {
@@ -198,6 +204,7 @@ export function ChartModal({ ticker, name, card, initialTab = 'chart', onClose }
     <div className="modal-backdrop" onClick={onClose}>
       <div
         ref={dialogRef}
+        tabIndex={-1}
         className="modal chart-modal"
         role="dialog"
         aria-modal="true"

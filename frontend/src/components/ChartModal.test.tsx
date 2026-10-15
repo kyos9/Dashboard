@@ -385,6 +385,18 @@ describe('차트 팝업 · 재무 탭', () => {
 })
 
 describe('차트 팝업 · 키보드 (디자인 2차 검토)', () => {
+  it('닫으면 포커스가 연 단추로 돌아간다', async () => {
+    vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
+    const opener = document.createElement('button')
+    document.body.append(opener)
+    opener.focus()
+    const { unmount } = render(<ChartModal ticker="005930.KS" name="삼성전자" onClose={() => {}} />)
+    expect(document.activeElement).not.toBe(opener)
+    unmount()
+    expect(document.activeElement).toBe(opener)
+    opener.remove()
+  })
+
   it('Tab 은 팝업 안에서만 돈다 — 마지막에서 처음으로, Shift+Tab 은 처음에서 마지막으로', async () => {
     vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
     const user = userEvent.setup()
@@ -395,12 +407,18 @@ describe('차트 팝업 · 키보드 (디자인 2차 검토)', () => {
       </>,
     )
     const dialog = screen.getByRole('dialog')
+    // 열자마자 포커스가 팝업에 있다
+    expect(dialog.contains(document.activeElement)).toBe(true)
     const close = screen.getByRole('button', { name: '닫기' })
     close.focus()
+    const seen = new Set<Element | null>()
     for (let i = 0; i < 12; i++) {
       await user.tab()
       expect(dialog.contains(document.activeElement)).toBe(true)
+      seen.add(document.activeElement)
     }
+    // 제자리에 멈춰 있는 것이 아니라 안에서 돈다
+    expect(seen.size).toBeGreaterThan(3)
     for (let i = 0; i < 12; i++) {
       await user.tab({ shift: true })
       expect(dialog.contains(document.activeElement)).toBe(true)

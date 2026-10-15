@@ -1062,10 +1062,10 @@ export function RebalancePanel() {
     </div>
   )
 
-  /** 새 돈만 나누기에서 1주도 안 되는 몫 — 소수 주를 못 사는 증권사면 실제로는 사지 못한다 (B 사용자 확인) */
   /** 사거나 팔 주문 수 — 유지는 빼고 (디자인 2차: 머리말이 "비중조절 신호 3종목"뿐이라 주문 14개와 어긋나 보였다) */
   const orderCount = plan.orders.filter((o) => o.action !== 'hold').length
 
+  /** 새 돈만 나누기에서 1주도 안 되는 몫 — 소수 주를 못 사는 증권사면 실제로는 사지 못한다 (B 사용자 확인) */
   const underOne = plan.buyOnly
     ? plan.orders.filter((o) => o.action === 'buy' && o.shares !== null && Math.abs(o.shares) < 1).length
     : 0
@@ -1159,7 +1159,7 @@ export function RebalancePanel() {
         }) && (
           <p className="hint">
             <b>비중</b> = 비중이 밴드를 벗어나 리뷰 때 맞출 종목 · <b>참고</b> = 이번 리뷰 기간에 매도 시그널이 뜬 적이 있음 —
-            주문 수는 바꾸지 않습니다
+            주문 수량에는 영향이 없습니다
           </p>
         )}
         {/* 폰은 답(카드)이 먼저라 넣는 칸이 카드 아래에 있다(8단계) — 찾으러 끝까지 내려가지 않게 바로 가는 길 (B 사용자 확인) */}
