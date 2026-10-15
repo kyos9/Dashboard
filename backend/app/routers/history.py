@@ -5,8 +5,9 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models import PriceDaily, SignalDaily
+from app.models import PriceDaily
 from app.schemas import HistoryCoverage, HistoryMarker, HistoryPoint, HistoryResponse
+from app.services import my_signals
 from app.services.users import current_user_id, find_user_stock
 
 router = APIRouter(prefix="/api/history", tags=["history"])
@@ -56,19 +57,13 @@ def get_history(
     # 기간부터만 생긴다 (스펙: 과거 소급 없음). 그래서 매도 시그널은 히스토리 전체에
     # 깔리는데 매수는 한두 개뿐이거나 아예 없어, 차트만 보면 "매도밖에 없는 종목"처럼
     # 보였다. 둘 다 시그널 판정에서 가져오면 같은 기준으로 비교된다.
-    signal_query = db.query(SignalDaily).filter(
-        SignalDaily.ticker == ticker,
-        (SignalDaily.knee_buy_v2.is_(True)) | (SignalDaily.shoulder_sell_ref.is_(True)),
-    )
-    if cutoff is not None:
-        signal_query = signal_query.filter(SignalDaily.date >= cutoff)
-
+    # 0.42.0 — 그 사람의 시그널 기준으로 (기본이면 저장된 판정 그대로 — my_signals)
     markers = []
-    for row in signal_query.order_by(SignalDaily.date.asc()).all():
-        if row.knee_buy_v2:
-            markers.append(HistoryMarker(date=row.date, kind="buy"))
-        if row.shoulder_sell_ref:
-            markers.append(HistoryMarker(date=row.date, kind="sell"))
+    for date, buy, sell in my_signals.source(db, user_id).markers(ticker, cutoff):
+        if buy:
+            markers.append(HistoryMarker(date=date, kind="buy"))
+        if sell:
+            markers.append(HistoryMarker(date=date, kind="sell"))
 
     return HistoryResponse(
         ticker=ticker,

@@ -2,7 +2,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../api/client'
-import type { LogsResponse, SlowRequestsResponse } from '../types'
+import type { LogsResponse, SignalRulesStatus, SlowRequestsResponse } from '../types'
 import { DiagnosticsModal, summarize } from './DiagnosticsModal'
 
 /**
@@ -187,3 +187,53 @@ describe('느린 요청 (ROADMAP 8-5)', () => {
   })
 })
 
+
+describe('진단 · 시그널 기준 (0.41.0)', () => {
+  const status = (overrides: Partial<SignalRulesStatus> = {}): SignalRulesStatus => ({
+    version: 'faa56cf123c6edfa',
+    stored_version: 'faa56cf123c6edfa',
+    up_to_date: true,
+    changed_on: null,
+    last_recompute: {
+      at: '2026-10-14T03:00:00',
+      reason: 'definition_changed',
+      tickers: 12,
+      changed_tickers: 3,
+      changed_rows: 41,
+      changed_by_ticker: { NVDA: 20 },
+      failed: [],
+      seconds: 1.4,
+    },
+    ...overrides,
+  })
+
+  it('판과 마지막 다시 계산을 한 줄로', async () => {
+    vi.spyOn(api, 'getLogs').mockResolvedValue(logs())
+    vi.spyOn(api, 'getSlowRequests').mockRejectedValue(new Error('404'))
+    vi.spyOn(api, 'getSignalRulesStatus').mockResolvedValue(status({ changed_on: '2026-10-14' }))
+    render(<DiagnosticsModal onClose={() => {}} />)
+    const section = (await screen.findByRole('heading', { name: /시그널 기준/ })).closest('section')!
+    expect(section).toHaveTextContent('2026-10-14에 바뀜')
+    expect(section).toHaveTextContent('(정의가 바뀌어서) — 12종목 중 3종목, 판정이 바뀐 날 41개 · 1.4초')
+  })
+
+  it('아직 못 맞췄거나 실패한 종목이 있으면 그렇다고', async () => {
+    vi.spyOn(api, 'getLogs').mockResolvedValue(logs())
+    vi.spyOn(api, 'getSlowRequests').mockRejectedValue(new Error('404'))
+    const s = status({ up_to_date: false })
+    s.last_recompute!.failed = ['AAPL']
+    vi.spyOn(api, 'getSignalRulesStatus').mockResolvedValue(s)
+    render(<DiagnosticsModal onClose={() => {}} />)
+    expect(await screen.findByText(/다음에 켤 때 합니다/)).toBeInTheDocument()
+    expect(screen.getByText(/실패: AAPL/)).toBeInTheDocument()
+  })
+
+  it('옛 서버(404)면 그 칸을 그리지 않는다', async () => {
+    vi.spyOn(api, 'getLogs').mockResolvedValue(logs())
+    vi.spyOn(api, 'getSlowRequests').mockRejectedValue(new Error('404'))
+    vi.spyOn(api, 'getSignalRulesStatus').mockRejectedValue(new Error('404'))
+    render(<DiagnosticsModal onClose={() => {}} />)
+    await screen.findByText(/005930.KS 갱신 실패/)
+    expect(screen.queryByRole('heading', { name: /시그널 기준/ })).toBeNull()
+  })
+})

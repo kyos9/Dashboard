@@ -104,7 +104,8 @@ class UserStock(Base):
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), primary_key=True)
     ticker: Mapped[str] = mapped_column(String, ForeignKey("instrument.ticker"), primary_key=True)
     # 화면에 보여줄 이름. 사용자가 고쳐 쓸 수 있다 — 야후가 주는 영문 이름 대신 한글로
-    # 부르고 싶은 사람이 있고, 그건 남의 화면까지 바꿀 일이 아니다. 비우면 티커로 보인다.
+    # 부르고 싶은 사람이 있고, 그건 남의 화면까지 바꿀 일이 아니다. 비우면 공용 종목명(`instrument.name`),
+    # 그것도 없으면 티커로 보인다 — 응답은 `shown_name` 을 쓴다 (0.42.0, 알림은 전부터 그랬다).
     name: Mapped[str | None] = mapped_column(String, nullable=True)
     # 포트폴리오상 역할 구분(예: 지수/알파/안전자산). 자유 입력이며 대시보드 필터로만 쓰인다.
     category: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -126,6 +127,12 @@ class UserStock(Base):
     @validates("ticker")
     def _normalize_ticker(self, key: str, value: str) -> str:
         return normalize_ticker(value)
+
+    @property
+    def shown_name(self) -> str | None:
+        """화면에 보낼 이름 — 내가 붙인 이름, 없으면 공용 종목명. 등록 때 이름 해석이 실패했던 종목이
+        한국·일본 종목이면 코드("7203.T")만 보였다(0.41.0 사용자 확인)."""
+        return (self.name or "").strip() or (self.instrument.name or "").strip() or None
 
     @property
     def market(self) -> str:
@@ -268,6 +275,9 @@ class UserSettings(Base):
     # 수익률·평가손익에 환율 효과를 넣을지 (ROADMAP 8-3). 켜면 산 환율을 적은 외화 종목의 손익을
     # 원화로 따진다. **기준통화가 원일 때만 뜻이 있다** — 달러 기준이면 켜 둬도 쓰지 않는다.
     include_fx_effect: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # 시그널 기준 내 설정 (0.42.0). 바꾼 키만 (`{"adx_trend": 25}`), **`None` 은 기본 기준** — 공용 판정과 같다.
+    # 읽을 때 계산하는 데만 쓰고 공용 `signal_daily` 는 바꾸지 않는다 (`services/my_signals.py`).
+    signal_thresholds: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
 
 class RebalanceSnapshot(Base):

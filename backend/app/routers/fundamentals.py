@@ -23,5 +23,5 @@ def get_fundamentals(ticker: str, db: Session = Depends(get_db), user_id: int = 
     stock = find_user_stock(db, user_id, ticker.upper())
     if stock is None:
         raise HTTPException(status_code=404, detail="stock not found")
-    return {**fundamentals.detail(db, stock.ticker, stock.currency), "name": stock.name,
+    return {**fundamentals.detail(db, stock.ticker, stock.currency), "name": stock.shown_name,
             "category": stock.category}

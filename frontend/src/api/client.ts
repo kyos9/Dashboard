@@ -8,6 +8,9 @@ import type {
   AiTarget,
   AuthStatus,
   DashboardCard,
+  SignalRules,
+  SignalThresholds,
+  SignalRulesStatus,
   FxInfo,
   Holding,
   FundamentalsResponse,
@@ -257,6 +260,8 @@ export const api = {
     }),
   /** 관리자 — 앱 설정 (9-15). 사용자에게 AI 진단·종목 분석을 열지 */
   getAppSettings: () => request<AppSettings>('/admin/settings'),
+  /** 관리자 — 시그널 정의의 판·마지막 재계산 (0.41.0). 옛 서버는 404 */
+  getSignalRulesStatus: () => request<SignalRulesStatus>('/admin/signal-rules'),
   setAppSettings: (settings: AppSettings) =>
     request<AppSettings>('/admin/settings', { method: 'PUT', body: JSON.stringify(settings) }),
 
@@ -290,6 +295,13 @@ export const api = {
   refreshAll: () => request<RefreshResult[]>('/stocks/refresh-all', { method: 'POST' }),
 
   getDashboard: () => request<DashboardCard[]>('/dashboard'),
+  /** 시그널 정의 — 조건·문구·기준값 (0.41.0). 옛 서버는 404 */
+  getSignalRules: () => request<SignalRules>('/signal-rules'),
+  /** 내 시그널 기준 (0.42.0) — 바꾼 규칙을 돌려준다 */
+  putSignalThresholds: (thresholds: Partial<SignalThresholds>) =>
+    request<SignalRules>('/signal-thresholds', { method: 'PUT', body: JSON.stringify(thresholds) }),
+  /** 기본값으로 */
+  resetSignalThresholds: () => request<SignalRules>('/signal-thresholds', { method: 'DELETE' }),
 
   getHistory: (ticker: string, range: string = '1y') =>
     request<HistoryResponse>(`/history/${ticker}?range=${range}`),

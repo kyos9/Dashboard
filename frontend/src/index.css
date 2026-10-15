@@ -129,11 +129,15 @@
 :root {
   --up: var(--green);
   --down: var(--red);
+  --up-soft: var(--green-soft);
+  --down-soft: var(--red-soft);
 }
 
 :root[data-rise='red'] {
   --up: var(--red);
   --down: var(--blue);
+  --up-soft: var(--red-soft);
+  --down-soft: var(--blue-soft);
 }
 
 * {
@@ -1193,6 +1197,17 @@ table.data-table tfoot td {
   color: var(--red);
   background: var(--red-soft);
   border-color: rgba(240, 82, 82, 0.35);
+}
+/* 부호로 칠하는 칩(이격도·200일선·DI) — 오르내림 색을 따른다 (0.42.0) */
+.metric-chip.up {
+  color: var(--up);
+  background: var(--up-soft);
+  border-color: color-mix(in srgb, var(--up) 35%, transparent);
+}
+.metric-chip.down {
+  color: var(--down);
+  background: var(--down-soft);
+  border-color: color-mix(in srgb, var(--down) 35%, transparent);
 }
 .metric-chip.blue {
   color: var(--blue);
@@ -2859,6 +2874,17 @@ table.data-table tr.dirty:hover td {
 .record-row input {
   flex: 1 1 auto;
   min-width: 0;
+}
+
+/* 새로 넣을 돈이 어디로 갔는지 (0.42.0) — 주문 가이드 맨 위 한 줄 */
+.new-money-line {
+  margin: 0 0 8px;
+  font-size: var(--fs-body);
+}
+
+.new-money .check-line {
+  min-height: 44px;
+  align-items: center;
 }
 
 .new-money {
@@ -4994,6 +5020,61 @@ tr.dirty td {
 
 .display-row .view-switch button {
   min-width: 72px;
+}
+
+/* ---------- 시그널 기준 — 내 기준 (0.42.0) ---------- */
+
+.thresholds-modal {
+  max-width: 480px;
+}
+
+.threshold-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+
+.threshold-row label {
+  font-size: var(--fs-body);
+  font-weight: 600;
+}
+
+.threshold-row .hint,
+.thresholds-modal > .hint {
+  margin: 0;
+}
+
+.threshold-input {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.threshold-input input {
+  width: 96px;
+  min-height: 44px;
+}
+
+.threshold-input .hint.changed {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.thresholds-modal .field-error {
+  margin: 0;
+  color: var(--red);
+  font-size: var(--fs-sub);
+}
+
+.thresholds-actions {
+  padding-top: 12px;
+}
+
+.thresholds-actions button {
+  min-height: 44px;
 }
 
 .rise-sample {

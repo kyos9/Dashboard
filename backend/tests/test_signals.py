@@ -75,3 +75,10 @@ def test_shoulder_sell_ref_false_when_adx_not_rising():
     )
     out = compute_signals(df)
     assert bool(out["shoulder_sell_ref"].iloc[-1]) is False
+
+
+def test_knee_buy_v2_false_when_vol_ratio_exactly_threshold():
+    # 명세 3장: 부등호는 엄격 — 거래량비 1.1 은 대체조건 불충족 (변동성도 줄지 않았다)
+    df = _make_df([_row(stddev20=10.0, vol_ratio=1.1)])
+    out = compute_signals(df)
+    assert bool(out["knee_buy_v2"].iloc[-1]) is False

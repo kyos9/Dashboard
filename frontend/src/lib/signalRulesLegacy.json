@@ -1,0 +1,84 @@
+{
+  "_about": "0.40.0 서버(규칙 API 없음)를 만났을 때 화면이 쓰는 시그널 규칙. 기준값·판정은 0.40.0 그대로 고치지 않는다. 화면 문구(이름)는 지금 화면과 같게 맞춘다 — 0.42.0 에 조건 이름을 하나로 맞추며 함께 바꿨다(주인 결정). backend/tests/test_signal_rules.py 가 같은 정의인 동안 지금 서버의 기본 응답과 같은지 본다.",
+  "version": "faa56cf123c6edfa",
+  "thresholds": {
+    "adx_trend": 20.0,
+    "vol_ratio_expand": 1.1,
+    "disparity_below": 0.0,
+    "lookback_days": 5
+  },
+  "rules": [
+    {
+      "key": "buy",
+      "column": "knee_buy_v2",
+      "name": "매수 시그널",
+      "spec_name": "무릎매수 v2",
+      "conditions": [
+        {
+          "key": "di_bearish",
+          "metric": "di",
+          "label": "DI 약세",
+          "detail": "-DI > +DI — 하락 방향이 우위",
+          "header": "-DI > +DI",
+          "formula": "DI 약세(-DI > +DI)"
+        },
+        {
+          "key": "disparity_negative",
+          "metric": "disparity",
+          "label": "이격도 < 0",
+          "detail": "종가가 MA20 아래",
+          "header": "< 0",
+          "formula": "이격도 < 0"
+        },
+        {
+          "key": "volatility_or_volume",
+          "metric": "volume",
+          "label": "변동성·거래량",
+          "detail": "StdDev20 축소 또는 거래량비 > 1.1",
+          "header": "변동성↓ 또는 >1.1",
+          "formula": "변동성·거래량(StdDev20 축소 또는 거래량비 > 1.1)"
+        },
+        {
+          "key": "adx_trending",
+          "metric": "adx",
+          "label": "ADX > 20",
+          "detail": "추세가 형성된 구간",
+          "header": "> 20",
+          "formula": "ADX > 20"
+        }
+      ]
+    },
+    {
+      "key": "sell",
+      "column": "shoulder_sell_ref",
+      "name": "매도 시그널",
+      "spec_name": "어깨매도 (참고)",
+      "conditions": [
+        {
+          "key": "above_ma50",
+          "metric": "ma50",
+          "label": "MA50 위",
+          "detail": "종가가 MA50 위",
+          "header": "종가 > MA50",
+          "formula": "종가 > MA50"
+        },
+        {
+          "key": "adx_rising",
+          "metric": "adx",
+          "label": "ADX 상승",
+          "detail": "ADX 가 5거래일 전보다 큼",
+          "header": "ADX > 5일 전",
+          "formula": "ADX > 5거래일 전 ADX"
+        },
+        {
+          "key": "volume_strong",
+          "metric": "volume",
+          "label": "거래량 받침",
+          "detail": "5일 평균 거래량 > 20일 평균",
+          "header": "거래량 MA5 > MA20",
+          "formula": "거래량 MA5 > MA20"
+        }
+      ]
+    }
+  ]
+}

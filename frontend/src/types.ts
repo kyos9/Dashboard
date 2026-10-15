@@ -49,7 +49,10 @@ export interface SymbolMatch {
 
 export interface Stock {
   ticker: string
+  /** 내가 붙인 이름 — 고치는 칸의 값 */
   name: string | null
+  /** 0.42.0 — 화면에 보일 이름 (내 이름, 없으면 공용 종목명). 옛 서버는 없다 */
+  shown_name?: string | null
   category: string | null
   market: Market
   currency: Currency
@@ -144,6 +147,67 @@ export interface KneeConditions {
   adx_trending: boolean | null
 }
 
+/** 시그널 정의 (`GET /api/signal-rules`, 0.41.0). 정의는 서버 `services/signal_rules.py` 한 곳에 있다 */
+export interface SignalRuleCondition {
+  key: string
+  /** 화면에서 이 조건이 붙는 지표 칸 */
+  metric: string
+  label: string
+  detail: string
+  /** 열 머리에 한 번 적는 짧은 조건식 */
+  header: string
+  /** 시그널 보기 설명 줄의 식 */
+  formula: string
+}
+
+export interface SignalRule {
+  key: 'buy' | 'sell'
+  column: string
+  name: string
+  spec_name: string
+  conditions: SignalRuleCondition[]
+}
+
+export type SignalThresholdKey = 'adx_trend' | 'vol_ratio_expand' | 'disparity_below' | 'lookback_days'
+export type SignalThresholds = Record<SignalThresholdKey, number>
+
+export interface SignalRules {
+  version: string
+  /** 이 사람이 쓰는 기준값 (0.42.0 부터 사람마다) */
+  thresholds: SignalThresholds
+  /** 0.42.0 — 공용 기본값. 없으면 0.41.0 서버(기준을 바꿀 수 없다) */
+  defaults?: SignalThresholds
+  /** 0.42.0 — 이 사람이 기준을 바꿨나 */
+  custom?: boolean
+  /** 0.42.0 — 바꿀 수 있는 범위 */
+  limits?: Record<SignalThresholdKey, { min: number; max: number; step: number }>
+  rules: SignalRule[]
+  changes?: { date: string; what: string; why: string }[]
+  changed_on?: string | null
+  /** 신호 요약에 붙는 한 줄 — 정의를 바꾼 뒤 30일 동안만 */
+  change_notice?: string | null
+}
+
+/** 관리자 진단 — 시그널 정의의 판과 마지막 재계산 (`GET /api/admin/signal-rules`, 0.41.0) */
+export interface SignalRecomputeSummary {
+  at: string
+  reason: 'first' | 'definition_changed' | 'manual'
+  tickers: number
+  changed_tickers: number
+  changed_rows: number
+  changed_by_ticker: Record<string, number>
+  failed: string[]
+  seconds: number
+}
+
+export interface SignalRulesStatus {
+  version: string
+  stored_version: string | null
+  up_to_date: boolean
+  changed_on: string | null
+  last_recompute: SignalRecomputeSummary | null
+}
+
 export interface DashboardCard {
   ticker: string
   name: string | null
@@ -155,7 +219,13 @@ export interface DashboardCard {
   price_source: string | null
   indicators: LatestIndicators
   knee_buy_v2: boolean
+  /** 0.42.0 — 내 기준을 쓰는 사람에게만: 기본 기준이면 오늘 매수였나 */
+  knee_buy_v2_default?: boolean | null
   knee_conditions: KneeConditions
+  /** 매수 조건별 판정 — 키는 규칙의 조건 키. 0.41.0 부터. 옛 서버는 보내지 않는다 */
+  buy_conditions?: Record<string, boolean | null>
+  /** 이 판정을 낸 정의의 판. 받아 둔 규칙과 다르면 다시 받는다 */
+  signal_rules_version?: string | null
   shoulder_sell_ref: boolean
   /** 무릎매수(v2)가 마지막으로 뜬 날. 한 번도 없으면 null */
   last_buy_signal_date: string | null

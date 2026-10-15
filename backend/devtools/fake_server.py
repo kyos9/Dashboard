@@ -5,6 +5,8 @@
     cd backend
     python -m devtools.fake_server            # http://127.0.0.1:8150
     python -m devtools.fake_server --reset    # 데이터를 지우고 처음부터
+    python -m devtools.fake_server --demo-rule-change   # 시그널 정의를 오늘 바꾼 것처럼 (0.41.0)
+    python -m devtools.fake_server --demo-custom-thresholds   # 주인 계정이 시그널 기준을 바꾼 것처럼 (0.42.0)
 
 | 바꿔 끼우는 것 | 무엇으로 |
 | --- | --- |
@@ -695,11 +697,63 @@ def seed() -> None:
 # ---------------------------------------------------------------------------
 
 
+def recompute_signals(demo_rule_change: bool = False) -> dict | None:
+    """진짜 서버가 켠 직후 job 에서 하는 것 — 시그널 정의가 바뀌었으면 지난 판정을 다시 계산한다.
+
+    가짜 서버는 스케줄러를 끄므로 여기서 직접 부른다. `demo_rule_change` 면 정의를 오늘 바꾼 것처럼 꾸민다:
+    이력에 오늘 한 줄을 더하고(화면의 "바뀌었습니다"), 적어 둔 지문을 옛 것으로 바꿔 다시 계산이 돌게 한다
+    (정의 자체는 그대로라 바뀌는 행은 0 — 진단에 재계산 한 줄이 뜨는 것까지 본다).
+    """
+    from app.db import SessionLocal
+    from app.services import app_settings, signal_recompute, signal_rules
+
+    db = SessionLocal()
+    try:
+        if demo_rule_change:
+            signal_rules.CHANGES.append({
+                "date": dt.date.today().isoformat(),
+                "what": "(데모) 바꾼 것처럼 꾸몄을 뿐 판정은 그대로",
+                "why": "가짜 서버 --demo-rule-change",
+            })
+            app_settings.set_value(db, signal_recompute.FINGERPRINT_KEY, "demo-old-definition")
+        return signal_recompute.run_if_changed(db)
+    finally:
+        db.close()
+
+
+# 주인 계정에 넣는 "내 기준" (--demo-custom-thresholds). 데모 시세에서 오늘 매수가 4개 → 5개(TSLA)로 실제로 달라지는
+# 값이다. 지인 계정의 네 종목은 어느 기준에서도 오늘 매수 수가 그대로라 데모가 되지 않는다.
+DEMO_THRESHOLDS = {"adx_trend": 15.0}
+
+
+def set_demo_thresholds() -> None:
+    """주인(owner) 계정이 시그널 기준을 바꾼 것처럼 — 화면의 "내 기준" 표시·요약 줄·차트 범례를 본다."""
+    from app.db import SessionLocal
+    from app.models import User
+    from app.services.settings import get_settings
+
+    db = SessionLocal()
+    try:
+        owner = db.query(User).filter(User.email == OWNER).one()
+        get_settings(db, owner.id).signal_thresholds = dict(DEMO_THRESHOLDS)
+        db.commit()
+    finally:
+        db.close()
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="가짜 로그인·시세 서버 (개발·디자인 확인용)")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     parser.add_argument("--data-dir", type=Path, default=DEFAULT_DATA_DIR)
     parser.add_argument("--reset", action="store_true", help="데이터를 지우고 데모 데이터부터 다시 만든다")
+    parser.add_argument(
+        "--demo-rule-change", action="store_true",
+        help="시그널 정의를 오늘 바꾼 것처럼 — 켤 때 지난 판정을 다시 계산하고, 신호 요약에 '바뀌었습니다'가 뜬다",
+    )
+    parser.add_argument(
+        "--demo-custom-thresholds", action="store_true",
+        help="주인 계정이 시그널 기준을 바꾼 것처럼 (ADX 15) — '내 기준' 화면을 본다",
+    )
     args = parser.parse_args(argv)
 
     data_dir = prepare_data_dir(args.data_dir, args.reset)
@@ -714,6 +768,9 @@ def main(argv: list[str] | None = None) -> None:
         print("데모 데이터를 만드는 중… (처음 한 번, 수십 초)", flush=True)
         seed()
         (data_dir / SEEDED).touch()
+    recompute_signals(demo_rule_change=args.demo_rule_change)
+    if args.demo_custom_thresholds:
+        set_demo_thresholds()
 
     import uvicorn
 

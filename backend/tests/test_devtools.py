@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+import contextlib
+import datetime as dt
 import html
 import re
 import socket
@@ -70,12 +72,14 @@ def _free_port() -> int:
         return sock.getsockname()[1]
 
 
-@pytest.fixture(scope="module")
-def server(tmp_path_factory):
+DATA_DIRS: dict[str, Path] = {}
+
+
+@contextlib.contextmanager
+def _serve(data: Path, *extra: str):
     port = _free_port()
-    data = tmp_path_factory.mktemp("devdata")
     proc = subprocess.Popen(
-        [sys.executable, "-m", "devtools.fake_server", "--port", str(port), "--data-dir", str(data)],
+        [sys.executable, "-m", "devtools.fake_server", "--port", str(port), "--data-dir", str(data), *extra],
         cwd=BACKEND, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
     )
     base = f"http://127.0.0.1:{port}"
@@ -98,6 +102,14 @@ def server(tmp_path_factory):
             proc.wait(timeout=10)
         except subprocess.TimeoutExpired:
             proc.kill()
+
+
+@pytest.fixture(scope="module")
+def server(tmp_path_factory):
+    data = tmp_path_factory.mktemp("devdata")
+    DATA_DIRS["main"] = data
+    with _serve(data) as base:
+        yield base
 
 
 def login(base: str, email: str) -> requests.Session:
@@ -197,3 +209,51 @@ def test_adding_a_stock_uses_fake_prices_not_the_internet(server):
             break
         time.sleep(0.5)
     assert rows["AMZN"]["price_source"] == "dev"
+
+
+def test_signal_rules_are_recomputed_once_on_start(server):
+    """진짜 서버는 켠 직후 job 에서, 가짜 서버는 켤 때 직접 — 처음 켜면 한 번 돌고(바뀐 줄 0) 지문을 적는다."""
+    owner = login(server, fake_server.OWNER)
+    status = owner.get(server + "/api/admin/signal-rules").json()
+    assert status["up_to_date"] is True
+    assert status["last_recompute"]["reason"] == "first"
+    assert status["last_recompute"]["changed_rows"] == 0 and status["last_recompute"]["failed"] == []
+    rules = owner.get(server + "/api/signal-rules").json()
+    assert rules["change_notice"] is None
+    card = owner.get(server + "/api/dashboard").json()[0]
+    assert card["signal_rules_version"] == rules["version"]
+    friend = login(server, fake_server.FRIEND)
+    assert friend.get(server + "/api/admin/signal-rules").status_code == 403
+
+
+def test_demo_rule_change_shows_the_notice_and_recomputes(server):
+    """`--demo-rule-change` — 정의를 오늘 바꾼 것처럼. 같은 데이터로 하나 더 띄운다(데모 데이터를 다시 만들지 않는다)."""
+    with _serve(DATA_DIRS["main"], "--demo-rule-change") as demo:
+        owner = login(demo, fake_server.OWNER)
+        rules = owner.get(demo + "/api/signal-rules").json()
+        assert rules["change_notice"] == (
+            f"시그널 계산 방식이 {dt.date.today().isoformat()}에 바뀌었습니다 — (데모) 바꾼 것처럼 꾸몄을 뿐 판정은 그대로"
+        )
+        status = owner.get(demo + "/api/admin/signal-rules").json()
+        assert status["last_recompute"]["reason"] == "definition_changed"
+        assert status["up_to_date"] is True
+        # 정의 자체는 그대로 — 데모 시그널이 그대로 뜬다
+        by_ticker = {r["ticker"]: r for r in owner.get(demo + "/api/dashboard").json()}
+        assert by_ticker["NVDA"]["knee_buy_v2"]
+
+
+def test_demo_custom_thresholds_shows_my_thresholds(server):
+    """`--demo-custom-thresholds` — 주인 계정이 시그널 기준을 바꾼 것처럼 (0.42.0). 오늘 매수 수가 실제로 달라진다."""
+    with _serve(DATA_DIRS["main"], "--demo-custom-thresholds") as demo:
+        owner = login(demo, fake_server.OWNER)
+        rules = owner.get(demo + "/api/signal-rules").json()
+        assert (rules["custom"], rules["thresholds"]["adx_trend"]) == (True, 15.0)
+        cards = owner.get(demo + "/api/dashboard").json()
+        mine = sum(c["knee_buy_v2"] for c in cards)
+        default = sum(bool(c["knee_buy_v2_default"]) for c in cards)
+        assert mine != default
+        # 다른 사람은 기본 그대로
+        friend = login(demo, fake_server.FRIEND)
+        assert friend.get(demo + "/api/signal-rules").json()["custom"] is False
+        # 기본값으로 되돌리면 처음과 같다 (다음 시험이 같은 데이터를 쓴다)
+        assert owner.delete(demo + "/api/signal-thresholds").json()["custom"] is False

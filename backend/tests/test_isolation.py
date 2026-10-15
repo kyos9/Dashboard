@@ -73,7 +73,7 @@ ANYONE = "누구나"  # 로그인 화면이 쓰는 것
 
 # (메서드, 경로) → (누구 것인가, 누가 쓰는가)
 #
-# 주인 전용 13개는 `require_owner` 로 잠겨 있다 — 표와 라우터가 어긋나면 아래 테스트가 잡는다.
+# 주인 전용 14개는 `require_owner` 로 잠겨 있다 — 표와 라우터가 어긋나면 아래 테스트가 잡는다.
 ENDPOINTS: dict[tuple[str, str], tuple[str, str]] = {
     # 로그인
     ("GET", "/api/auth/status"): (PUBLIC, ANYONE),
@@ -97,6 +97,10 @@ ENDPOINTS: dict[tuple[str, str], tuple[str, str]] = {
     ("GET", "/api/history/{ticker}"): (MINE, USER),
     ("GET", "/api/fundamentals"): (MINE, USER),
     ("GET", "/api/fundamentals/{ticker}"): (MINE, USER),
+    # 시그널 정의 (0.41.0) — 모두에게 같다. 손님 화면에는 시그널 설명이 없어 손님에게는 열지 않는다
+    ("GET", "/api/signal-rules"): (MINE, USER),  # 0.42.0 — 그 사람의 시그널 기준으로
+    ("PUT", "/api/signal-thresholds"): (MINE, USER),
+    ("DELETE", "/api/signal-thresholds"): (MINE, USER),
     # 내 포트폴리오
     ("GET", "/api/rebalance/targets"): (MINE, USER),
     ("PUT", "/api/rebalance/targets/{ticker}"): (MINE, USER),
@@ -132,6 +136,8 @@ ENDPOINTS: dict[tuple[str, str], tuple[str, str]] = {
     # 앱 설정 (9-15) — 사용자에게 AI 진단·분석을 열지 같은, 모두에게 걸리는 스위치
     ("GET", "/api/admin/settings"): (SHARED, OWNER),
     ("PUT", "/api/admin/settings"): (SHARED, OWNER),
+    # 시그널 정의의 판·마지막 재계산 (0.41.0) — 실패한 종목 이름(남의 종목일 수 있다)이 들어 있다
+    ("GET", "/api/admin/signal-rules"): (SHARED, OWNER),
     # 푸시 알림 — 서버 공개키만 공용이고, 기기·받을 종류·시험은 그 사람 것이다
     ("GET", "/api/push/key"): (SHARED, USER),
     ("GET", "/api/push/settings"): (MINE, USER),
@@ -186,10 +192,11 @@ def test_the_table_has_no_api_that_is_gone():
 
 
 def test_owner_only_list_matches_the_plan():
-    """주인 전용은 13개다 (ROADMAP 6-1의 8개 + 4-4b 사용자 목록·승인 + 8-5 느린 요청
-    + 9-15 앱 설정 둘). 늘거나 줄면 계획과 같이 고친다. 9-7·9-8 AI 진단·분석 4개는 9-15 에서 `열면`으로 갔다."""
+    """주인 전용은 14개다 (ROADMAP 6-1의 8개 + 4-4b 사용자 목록·승인 + 8-5 느린 요청
+    + 9-15 앱 설정 둘 + 0.41.0 시그널 재계산 상태). 늘거나 줄면 계획과 같이 고친다. 9-7·9-8 AI 진단·분석 4개는
+    9-15 에서 `열면`으로 갔다."""
     owner_only = sorted(key for key, (_, who) in ENDPOINTS.items() if who == OWNER)
-    assert len(owner_only) == 13, owner_only
+    assert len(owner_only) == 14, owner_only
     # 주인 전용은 전부 공용 자원을 건드리는 것이다 — 사용자별 자원을 주인만 쓰게 하는 것은 이제 없다
     assert [key for key in owner_only if ENDPOINTS[key][0] != SHARED] == []
     advice = sorted(key for key, (_, who) in ENDPOINTS.items() if who == ADVICE)
@@ -275,7 +282,8 @@ def world(api, monkeypatch) -> World:
         make_settings(db, user_id=A, default_rebalance_band_pct=7.0, base_currency="KRW",
                       fx_overrides={"USD": 1300.0}, pinned_macro=["VIX"],
                       cash={"KRW": 1_000_000}, cash_target_pct=10.0, review_period="annual",
-                      push_kinds=["buy", "signup"], include_fx_effect=True)
+                      push_kinds=["buy", "signup"], include_fx_effect=True,
+                      signal_thresholds={"adx_trend": 25.0})
         make_settings(db, user_id=B, default_rebalance_band_pct=3.0, base_currency="USD",
                       pinned_macro=["DGS10"], cash={"USD": 50})
 
@@ -310,6 +318,7 @@ def _a_is_untouched(w: World) -> None:
         assert settings.cash == {"KRW": 1_000_000}
         assert settings.review_period == "annual"
         assert settings.include_fx_effect is True
+        assert settings.signal_thresholds == {"adx_trend": 25.0}
         assert [(r.id, r.note) for r in db.query(RebalanceSnapshot).filter_by(user_id=A)] == [
             (w.snapshots[A], "A의 기록")
         ]
@@ -644,6 +653,30 @@ def check_update_settings(w: World):
     _a_is_untouched(w)
 
 
+def check_signal_rules(w: World):
+    # A는 ADX 기준을 25로 바꿨다 — B의 규칙 문구·기준값에 얹히지 않는다
+    got = w.as_user(B).get("/api/signal-rules").json()
+    assert (got["custom"], got["thresholds"]["adx_trend"]) == (False, 20.0)
+    theirs = w.as_user(A).get("/api/signal-rules").json()
+    assert (theirs["custom"], theirs["thresholds"]["adx_trend"]) == (True, 25.0)
+    assert got["version"] != theirs["version"]
+
+
+def check_put_thresholds(w: World):
+    res = w.as_user(B).put("/api/signal-thresholds", json={"adx_trend": 30, "lookback_days": 3})
+    assert res.status_code == 200, res.text
+    assert w.get(UserSettings, B).signal_thresholds == {"adx_trend": 30.0, "lookback_days": 3}
+    _a_is_untouched(w)
+
+
+def check_delete_thresholds(w: World):
+    client = w.as_user(B)
+    assert client.put("/api/signal-thresholds", json={"adx_trend": 30}).status_code == 200
+    assert client.delete("/api/signal-thresholds").status_code == 200
+    assert w.get(UserSettings, B).signal_thresholds is None
+    _a_is_untouched(w)
+
+
 def check_current(w: World):
     got = w.as_user(B).get("/api/rebalance/current").json()
     assert got["base_currency"] == "USD"
@@ -832,6 +865,9 @@ CHECKS = {
     ("GET", "/api/rebalance/settings"): check_settings,
     ("PUT", "/api/rebalance/settings"): check_update_settings,
     ("GET", "/api/rebalance/current"): check_current,
+    ("GET", "/api/signal-rules"): check_signal_rules,
+    ("PUT", "/api/signal-thresholds"): check_put_thresholds,
+    ("DELETE", "/api/signal-thresholds"): check_delete_thresholds,
     ("GET", "/api/rebalance/snapshots"): check_list_snapshots,
     ("POST", "/api/rebalance/snapshots"): check_create_snapshot,
     ("DELETE", "/api/rebalance/snapshots/{snapshot_id}"): check_delete_snapshot,
@@ -955,6 +991,7 @@ OWNER_CALLS = {
     ("PUT", "/api/admin/users/{user_id}/status"): {"json": {"status": "blocked"}},
     ("GET", "/api/admin/settings"): {},
     ("PUT", "/api/admin/settings"): {"json": {"ai_advice_for_users": False}},
+    ("GET", "/api/admin/signal-rules"): {},
 }
 
 
@@ -964,7 +1001,7 @@ def _url(path: str) -> str:
 
 
 def test_user_is_refused_every_owner_api(world):
-    """사용자 계정은 주인 전용 13개 모두 403. 아무것도 받아오지 않는다 (자기를 차단하지도 못한다)."""
+    """사용자 계정은 주인 전용 14개 모두 403. 아무것도 받아오지 않는다 (자기를 차단하지도 못한다)."""
     assert set(OWNER_CALLS) == {key for key, (_, who) in ENDPOINTS.items() if who == OWNER}
     client = world.as_user(B)
     for (method, path), kwargs in OWNER_CALLS.items():

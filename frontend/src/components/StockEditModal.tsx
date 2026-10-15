@@ -276,7 +276,8 @@ function StockFields({
             <input
               type="text"
               value={draft.name}
-              placeholder={stock.ticker}
+              // 비우면 공용 종목명으로 보인다 (0.42.0) — 칸 안 글도 그 이름이어야 "비우면 티커"로 읽히지 않는다
+              placeholder={stock.shown_name || stock.ticker}
               onChange={(e) => onChange('name', e.target.value)}
               aria-label={`${label} 표시 이름`}
             />

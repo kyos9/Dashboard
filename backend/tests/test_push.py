@@ -527,6 +527,15 @@ def test_a_signal_that_went_off_is_not_told(db_session, me):
     assert _run(db_session, server, device) == []
 
 
+def test_a_told_signal_that_goes_off_the_next_day_is_not_told_again(db_session, me):
+    """어제 켜져서 알렸고 오늘 꺼졌다 — 꺼진 것은 소식이 아니다 (상태만 비운다)."""
+    device, server = me
+    _signal(db_session, "VOO", DAY - dt.timedelta(days=1), buy=True)
+    assert [m["body"] for m in _run(db_session, server, device)] == ["VOO"]
+    _signal(db_session, "VOO", DAY, buy=False)
+    assert _run(db_session, server, device) == []
+
+
 def test_band_is_told_when_it_starts_not_every_day(db_session, me):
     device, server = me
     assert _run(db_session, server, device) == []  # 50:50 — 밴드 안

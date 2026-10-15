@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppStateProvider } from '../AppState'
 import { api } from '../api/client'
-import type { RebalanceCurrent, RebalanceRow, RebalanceSnapshot, Settings } from '../types'
+import type { RebalanceCurrent, RebalanceRow, RebalanceSnapshot, Settings, Stock } from '../types'
 import { forgetPhone, pretendPhone } from '../test/phone'
 import { HIDE_AMOUNTS_KEY, resetPrefs } from '../lib/prefs'
 import { RebalancePanel } from './RebalancePanel'
@@ -137,7 +137,7 @@ describe('리밸런싱 · 통화 표기', () => {
 
     // 목표 60% x 210만 = 126만 → 조정 -4만원 = -30.77달러 → 500달러 종가로 -0.06주
     const us = await orderRow('VOO')
-    expect(within(us).getByText(/-0\.06주/)).toBeInTheDocument()
+    expect(within(us).getByText(/−1주 미만 \(0\.06주\)/)).toBeInTheDocument()
     // 파는 주문은 매도 색 — 가격 오르내림 색(상승 색 설정)을 따르지 않는다 (8-4)
     const adjust = within(us).getByText(/^−?-?₩40,000$/).closest('td')!
     expect(adjust).toHaveClass('tone-sell')
@@ -495,7 +495,7 @@ describe('리밸런싱 · 금액 가리기 (9-3)', () => {
     const us = await orderRow('VOO')
     expect(us).not.toHaveTextContent('₩1,300,000')
     expect(us).not.toHaveTextContent('₩40,000')
-    expect(within(us).getByText(/-0\.06주/)).toBeInTheDocument()
+    expect(within(us).getByText(/−1주 미만 \(0\.06주\)/)).toBeInTheDocument()
     expect(screen.queryByText('₩2,100,000')).not.toBeInTheDocument()
 
     // 여기서 풀면 여기 표도 바로 풀린다
@@ -692,7 +692,7 @@ describe('리밸런싱 · 폰', () => {
     const cards = within(guide).getAllByRole('listitem')
     // VOO: 목표 20% x 210만 = 42만 → 88만원 팔기 = $676.92 → 500달러 종가로 1.35주
     // 삼성: 목표 40% = 84만 → 4만원 사기 = 8만원 종가로 0.5주
-    expect(cards.map((c) => c.querySelector('b')?.textContent)).toEqual(['삼성전자 0.5주 사기', 'VOO 1.35주 팔기', '현금'])
+    expect(cards.map((c) => c.querySelector('b')?.textContent)).toEqual(['삼성전자 1주 미만 (0.5주) 사기', 'VOO 1주 (1.35) 팔기', '현금'])
     expect(cards[1]).toHaveTextContent('과중 +41.9%p')
     expect(cards[1]).toHaveTextContent('61.9% → 목표 20%')
   })
@@ -703,5 +703,99 @@ describe('리밸런싱 · 폰', () => {
     const holdings = await screen.findByRole('region', { name: /보유 · 목표 비중/ })
     expect(within(holdings).queryByRole('table')).not.toBeInTheDocument()
     expect(within(holdings).getByLabelText('VOO 보유수량').closest('label')).toHaveTextContent('보유수량')
+  })
+})
+
+describe('리밸런싱 · 팔지 않고 새 돈만 나누기 (0.42.0 B6)', () => {
+  // VOO 목표 20%(지금 130만 — 과중), 삼성 40%(지금 80만 — 미달). 새 돈 90만이면 전체 300만
+  const SKEWED = { ...CURRENT, rows: CURRENT.rows.map((r) => (r.ticker === 'VOO' ? { ...r, target_weight_pct: 20 } : { ...r, target_weight_pct: 40 })) }
+  beforeEach(() => localStorage.removeItem('rebalance.buy-only'))
+  afterEach(() => localStorage.removeItem('rebalance.buy-only'))
+
+  it('기본은 꺼짐 — 안내 글·맨 위 한 줄이 실제 계산(전체를 다시 맞춘다)과 같고, 파는 주문도 있다', async () => {
+    mockApi(SKEWED)
+    const user = userEvent.setup()
+    renderPanel()
+    await user.type(await screen.findByLabelText(/이번에 새로 넣을 돈/), '900000')
+    expect(screen.getByLabelText('팔지 않고 새 돈만 나누기')).not.toBeChecked()
+    expect(screen.getByText(/새로 넣을 돈까지 더한 전체 자금으로 목표 비중을 다시 맞춘 주문/)).toBeInTheDocument()
+    expect(screen.queryByText(/모자란 종목부터 채우는 주문/)).toBeNull()
+    expect(screen.getByRole('status')).toHaveTextContent('새로 넣을 돈 ₩900,000 반영 — 전체 자금으로 목표 비중을 다시 맞춘 주문입니다')
+    expect(await orderRow('VOO')).toHaveTextContent('매도 (SELL)')
+  })
+
+  it('켜면 파는 주문이 없고 새 돈이 모자란 종목으로 간다 — 기기에 기억한다', async () => {
+    mockApi(SKEWED)
+    const user = userEvent.setup()
+    renderPanel()
+    await user.type(await screen.findByLabelText(/이번에 새로 넣을 돈/), '900000')
+    await user.click(screen.getByLabelText('팔지 않고 새 돈만 나누기'))
+    expect(localStorage.getItem('rebalance.buy-only')).toBe('1')
+    expect(screen.getByRole('status')).toHaveTextContent('목표에 모자란 만큼에 비례해 나눴습니다')
+    expect(screen.getByText(/팔지 않고, 새로 넣을 돈만 목표에 모자란 만큼에 비례해 나눕니다/)).toBeInTheDocument()
+    expect(await orderRow('VOO')).toHaveTextContent('유지 (HOLD)')
+    // 삼성은 모자람 40만(목표 120만 − 80만) — 90만 중 40만만 쓰고 50만은 현금에 남는다(현금 목표 0 이면 몫이 없다)
+    expect(await orderRow('005930.KS')).toHaveTextContent('+₩400,000')
+    expect(screen.getByRole('status')).toHaveTextContent('남는 ₩500,000은 현금')
+  })
+
+  it('기억해 둔 켜짐으로 시작한다', async () => {
+    localStorage.setItem('rebalance.buy-only', '1')
+    mockApi(SKEWED)
+    renderPanel()
+    expect(await screen.findByLabelText('팔지 않고 새 돈만 나누기')).toBeChecked()
+  })
+
+  it('폰 — 카드 위에 넣는 칸으로 가는 길, 현금 카드는 산 뒤 남는 현금', async () => {
+    pretendPhone()
+    try {
+      localStorage.setItem('rebalance.buy-only', '1')
+      mockApi(SKEWED)
+      const user = userEvent.setup()
+      renderPanel()
+      await user.type(await screen.findByLabelText(/이번에 새로 넣을 돈/), '900000')
+      expect(screen.getByRole('button', { name: '새로 넣을 돈 넣기 ↓' })).toBeInTheDocument()
+      const guide = screen.getByRole('region', { name: '주문 가이드' })
+      const cash = within(guide).getAllByRole('listitem').at(-1)!
+      expect(cash).toHaveTextContent('₩900,000 → ₩500,000 남음')
+    } finally {
+      forgetPhone()
+    }
+  })
+})
+
+describe('리밸런싱 · 폰 이름은 보일 이름으로 (0.42.0 B9)', () => {
+  beforeEach(() => pretendPhone())
+  afterEach(() => forgetPhone())
+
+  it('내가 이름을 비운 종목은 공용 종목명 — 티커(7203.T)로 보이지 않는다', async () => {
+    const toyota = row({
+      ticker: '7203.T',
+      name: 'トヨタ自動車',
+      currency: 'JPY',
+      target_weight_pct: 0,
+      actual_weight_pct: 0,
+      quantity: 0,
+      last_close: 3000,
+    })
+    mockApi({ ...CURRENT, rows: [...CURRENT.rows, toyota] })
+    vi.spyOn(api, 'listStocks').mockResolvedValue([
+      {
+        ticker: '7203.T',
+        name: null,
+        shown_name: 'トヨタ自動車',
+        category: null,
+        market: 'JP',
+        currency: 'JPY',
+        active: true,
+        added_at: '2026-09-01T00:00:00',
+        target_weight_pct: 0,
+        rebalance_band_pct: null,
+      } as Stock,
+    ])
+    renderPanel()
+    const guide = await screen.findByRole('region', { name: '주문 가이드' })
+    await waitFor(() => expect(within(guide).getByText(/^トヨタ自動車/)).toBeInTheDocument())
+    expect(within(guide).queryByText(/^7203\.T/)).toBeNull()
   })
 })

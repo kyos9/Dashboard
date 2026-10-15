@@ -10,38 +10,16 @@ import {
   type SeriesMarker,
   type Time,
 } from 'lightweight-charts'
+import { chartDate, chartPrice, chartTick, collapseStreaks, currencyOfTicker, markerDays } from '../lib/chartFormat'
 import type { HistoryResponse } from '../types'
+import { useSignalRules } from '../lib/signalRules'
 import { SignalShape } from './SignalShape'
 
 /* 차트에는 매수/매도 두 가지 점만 찍는다. 색은 대시보드 신호등과 같은 뜻으로 맞춘다
-   (초록 = 사라는 신호, 빨강 = 팔라는 신호). */
+   (초록 = 매수 시그널, 빨강 = 매도 시그널). */
 export const MARKER_COLOR: Record<string, string> = {
   buy: '#22c55e',
   sell: '#f05252',
-}
-
-/** 같은 흐름으로 볼 최대 간격(일). 주말/공휴일을 건너뛰어도 연속으로 인정하도록 넉넉히 잡는다. */
-const STREAK_GAP_DAYS = 4
-
-/**
- * 시그널은 며칠씩 연달아 뜨기 때문에 그대로 찍으면 점이 뭉쳐 하나의 덩어리가 된다.
- * 연속 발동 구간을 하나로 묶어 시작일에만 찍는다.
- */
-export function collapseStreaks<T extends { date: string }>(items: T[]): { head: T; length: number }[] {
-  const sorted = [...items].sort((a, b) => a.date.localeCompare(b.date))
-  const groups: { head: T; length: number; tail: string }[] = []
-  const asDays = (d: string) => new Date(`${d}T00:00:00Z`).getTime() / 86_400_000
-
-  for (const item of sorted) {
-    const last = groups[groups.length - 1]
-    if (last && asDays(item.date) - asDays(last.tail) <= STREAK_GAP_DAYS) {
-      last.length += 1
-      last.tail = item.date
-      continue
-    }
-    groups.push({ head: item, length: 1, tail: item.date })
-  }
-  return groups.map(({ head, length }) => ({ head, length }))
 }
 
 /** 차트는 CSS 변수를 읽지 못하므로 현재 테마를 직접 확인해 색을 넘긴다 */
@@ -102,12 +80,15 @@ export function PriceChart({ history, height = 440 }: Props) {
     const chart = createChart(container, {
       height,
       layout: { textColor: palette.text, background: { color: palette.bg }, attributionLogo: false },
+      // 언어를 못 박는다 — 브라우저 언어 태그가 이상하면("en-US@posix") 라이브러리가 Intl 에서 넘어져 차트가 빈 칸이 됐다
+      localization: { locale: 'ko-KR', timeFormatter: chartDate },
       grid: {
         vertLines: { color: palette.grid },
         horzLines: { color: palette.grid },
       },
       rightPriceScale: { mode: PriceScaleMode.Logarithmic, borderColor: palette.grid },
-      timeScale: { borderColor: palette.grid },
+      // 오른쪽에 몇 칸 비워 둔다 — 오늘 찍은 ▲ 가 끝에서 반쯤 잘리고 현재가 이름표와 겹쳤다 (B 사용자 확인)
+      timeScale: { borderColor: palette.grid, tickMarkFormatter: chartTick, rightOffset: 3 },
       crosshair: {
         vertLine: { labelBackgroundColor: palette.line },
         horzLine: { labelBackgroundColor: palette.line },
@@ -131,15 +112,18 @@ export function PriceChart({ history, height = 440 }: Props) {
   useEffect(() => {
     if (!handles || !history) return
 
+    const currency = currencyOfTicker(history.ticker)
+    handles.chart.applyOptions({ localization: { priceFormatter: (v: number) => chartPrice(v, currency) } })
     handles.series.setData(
       history.prices.map((p) => ({ time: p.date as Time, value: p.close })),
     )
+    const tradingDays = history.prices.map((p) => p.date)
 
     // 글자는 붙이지 않는다 — 몇 달치를 한 화면에 놓으면 라벨끼리 겹쳐서 선이 안 보인다.
     // 매수는 선 아래 ▲, 매도는 선 위 ▼ — 색·위치·모양 셋으로 구분된다 (화면의 시그널 모양과 같다, 8-4).
     const dots = (kind: 'buy' | 'sell'): SeriesMarker<Time>[] =>
-      collapseStreaks(history.markers.filter((m) => m.kind === kind)).map(({ head }) => ({
-        time: head.date as Time,
+      markerDays(history.markers.filter((m) => m.kind === kind), tradingDays).map((day) => ({
+        time: day.date as Time,
         position: kind === 'buy' ? 'belowBar' : 'aboveBar',
         color: MARKER_COLOR[kind],
         shape: kind === 'buy' ? 'arrowUp' : 'arrowDown',
@@ -165,7 +149,7 @@ export function useMarkerCounts(history: HistoryResponse | null) {
   return useMemo(() => {
     const count = (kind: 'buy' | 'sell') => {
       const days = history?.markers.filter((m) => m.kind === kind) ?? []
-      return { days: days.length, streaks: collapseStreaks(days).length }
+      return { days: days.length, streaks: collapseStreaks(days, history?.prices.map((p) => p.date)).length }
     }
     return { buy: count('buy'), sell: count('sell') }
   }, [history])
@@ -186,8 +170,11 @@ export function ChartLegend({
   loading: boolean
 }) {
   const counts = useMarkerCounts(history)
+  // 내 기준을 쓰는 사람의 점은 내 기준으로 찍혀 있다 (0.42.0) — 카드와 같은 기준임을 차트에서도 알게
+  const mine = useSignalRules().custom === true
   return (
     <div className="legend-row">
+      {mine && <span className="badge badge-grey">내 기준</span>}
       <span>
         <SignalShape kind="buy" />
         매수 {counts.buy.streaks}구간 · {counts.buy.days}일

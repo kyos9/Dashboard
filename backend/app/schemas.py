@@ -1,7 +1,7 @@
 import datetime as dt
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.markets import Currency, Market
 from app.models import ReviewPeriod
@@ -51,6 +51,8 @@ class StockOut(BaseModel):
 
     ticker: str
     name: Optional[str]
+    # 0.42.0 — 화면에 보일 이름(내가 붙인 이름, 없으면 공용 종목명). `name` 은 고치는 칸의 값이라 그대로 둔다
+    shown_name: Optional[str] = None
     category: Optional[str]
     market: Market = Market.US
     currency: Currency = Currency.USD
@@ -110,6 +112,107 @@ class RebalanceSignal(BaseModel):
     reasons: list[str] = []
 
 
+class SignalRuleCondition(BaseModel):
+    key: str
+    metric: str  # 화면에서 붙는 지표 칸
+    label: str
+    detail: str
+    header: str
+    formula: str
+
+
+class SignalRule(BaseModel):
+    key: Literal["buy", "sell"]
+    column: str
+    name: str
+    spec_name: str
+    conditions: list[SignalRuleCondition]
+
+
+class SignalRuleChange(BaseModel):
+    date: str
+    what: str
+    why: str
+
+
+class SignalThresholdLimit(BaseModel):
+    min: float
+    max: float
+    step: float
+
+
+class SignalRules(BaseModel):
+    """`GET /api/signal-rules` — 시그널 정의 (0.41.0). 정의는 `services/signal_rules.py`.
+
+    0.42.0 부터 **부른 사람의 기준**으로 문구·기준값을 준다(기본인 사람은 0.41.0 과 같은 값). `custom` 이
+    없는 응답은 0.41.0 서버다 — 화면은 기준 바꾸기를 숨긴다.
+    """
+
+    version: str
+    thresholds: dict[str, float]
+    # 0.42.0 — 공용 기본값, 이 사람이 바꿨나, 바꿀 수 있는 범위
+    defaults: dict[str, float] = {}
+    custom: bool = False
+    limits: dict[str, SignalThresholdLimit] = {}
+    rules: list[SignalRule]
+    changes: list[SignalRuleChange]
+    changed_on: Optional[str] = None
+    # 신호 요약에 붙는 한 줄 — 정의를 바꾼 뒤 30일 동안만
+    change_notice: Optional[str] = None
+
+
+class SignalThresholdsIn(BaseModel):
+    """`PUT /api/signal-thresholds` — 내 기준. 빠진 키는 기본값. 범위·단위는 `signal_rules.LIMITS`.
+
+    모르는 키·참거짓·NaN·무한·범위 밖·단위에 안 맞는 값은 받지 않는다(422). 반올림하지 않는다 — 고른 값이
+    소리 없이 다른 값이 되면 화면과 판정이 어긋난다.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    adx_trend: Optional[Any] = None
+    vol_ratio_expand: Optional[Any] = None
+    disparity_below: Optional[Any] = None
+    lookback_days: Optional[Any] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _finite(cls, data):
+        # NaN·무한은 JSON 으로 다시 못 쓴다 — 422 응답에 그 값이 실려 나가면 오류 응답 자체가 깨진다(500).
+        # 글자로 바꿔 둔 뒤 거절한다.
+        import math
+
+        if isinstance(data, dict):
+            bad = [k for k, v in data.items() if isinstance(v, float) and not math.isfinite(v)]
+            for key in bad:
+                data[key] = str(data[key])
+            if bad:
+                raise ValueError(f"{', '.join(bad)}: 숫자가 아닙니다")
+        return data
+
+    @model_validator(mode="after")
+    def _check(self):
+        import math
+
+        from app.services.signal_rules import LIMITS, _on_step
+
+        # 일수는 단위가 1 이라 아래 단위 확인이 소수(2.5일)를 거른다
+        for key, (low, high, step, _) in LIMITS.items():
+            value = getattr(self, key)
+            if value is None:
+                continue
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError(f"{key}: 숫자가 아닙니다")
+            # 아주 큰 정수(10**400)는 float 로 못 바꿔 isfinite 가 OverflowError 를 낸다 — 범위부터 본다 (A 검토)
+            if isinstance(value, float) and not math.isfinite(value):
+                raise ValueError(f"{key}: 숫자가 아닙니다")
+            if not (low <= value <= high):
+                raise ValueError(f"{key}: {low:g} ~ {high:g} 사이여야 합니다")
+            if not _on_step(value, low, step):
+                raise ValueError(f"{key}: {step:g} 단위여야 합니다")
+        return self
+
+
 class KneeConditions(BaseModel):
     """무릎매수(v2)를 이루는 네 조건의 개별 충족 여부.
 
@@ -117,10 +220,11 @@ class KneeConditions(BaseModel):
     (SIGNAL_APP_SPEC.md 3장의 조건식과 1:1 대응)
     """
 
-    di_bearish: Optional[bool] = None  # -DI > +DI
-    disparity_negative: Optional[bool] = None  # 이격도 < 0
-    volatility_or_volume: Optional[bool] = None  # StdDev20 축소 또는 거래량비 > 1.1
-    adx_trending: Optional[bool] = None  # ADX > 20
+    # 기준값은 services/signal_rules.py 에 있다 (여기 다시 적지 않는다)
+    di_bearish: Optional[bool] = None  # 하락 방향 우위 (-DI 와 +DI)
+    disparity_negative: Optional[bool] = None  # 종가가 MA20 아래 (이격도)
+    volatility_or_volume: Optional[bool] = None  # 변동성 축소 또는 거래량 증가
+    adx_trending: Optional[bool] = None  # 추세가 있다 (ADX)
 
 
 class DashboardCard(BaseModel):
@@ -134,7 +238,14 @@ class DashboardCard(BaseModel):
     price_source: Optional[str] = None
     indicators: LatestIndicators
     knee_buy_v2: bool = False
+    # 0.42.0 — 내 기준을 쓰는 사람에게만: 기본(공용) 기준이면 오늘 매수였나. 기본인 사람은 None
+    knee_buy_v2_default: Optional[bool] = None
     knee_conditions: KneeConditions = KneeConditions()
+    # 매수 조건별 판정 — 키는 규칙(`signal_rules.py`)의 조건 키 그대로라 조건 수가 바뀌어도 모양이 같다
+    # (0.41.0). 지금은 `knee_conditions` 와 같은 네 키다. 옛 화면은 `knee_conditions` 를 읽는다.
+    buy_conditions: dict[str, Optional[bool]] = {}
+    # 이 판정을 낸 정의의 판(`GET /api/signal-rules` 의 version). 화면이 받아 둔 규칙과 다르면 다시 받는다.
+    signal_rules_version: Optional[str] = None
     shoulder_sell_ref: bool = False
     # 무릎매수(v2)가 마지막으로 뜬 날 (저장된 히스토리 전체에서). 적립할 때 "이번 달에 벌써
     # 떴나"를 보는 용도 — 기간을 정해 기록을 잡아두던 매수 워크플로우를 대신한다.

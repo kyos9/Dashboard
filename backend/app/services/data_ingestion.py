@@ -122,14 +122,15 @@ def _same(stored, computed) -> bool:
     return stored == computed or (stored != stored and computed != computed)
 
 
-def _write(db: Session, model, inserts: list[dict], updates: list[dict]) -> None:
-    """바뀐 행만 한 번에 쓴다. 행마다 ORM 객체를 만들지 않아 수천 행에서 차이가 크다."""
+def _write(db: Session, model, inserts: list[dict], updates: list[dict]) -> int:
+    """바뀐 행만 한 번에 쓴다. 행마다 ORM 객체를 만들지 않아 수천 행에서 차이가 크다. 쓴 행 수를 돌려준다."""
     if inserts:
         db.execute(insert(model), inserts)
     if updates:
         db.execute(update(model), updates)
     if inserts or updates:
         db.commit()
+    return len(inserts) + len(updates)
 
 
 def _existing_by_date(db: Session, model, ticker: str, columns: Sequence[str]) -> dict:
@@ -237,7 +238,9 @@ def recompute_signals(db: Session, ticker: str, indicator_df: pd.DataFrame | Non
         elif any(bool(getattr(old, col)) != record[col] for col in SIGNAL_COLUMNS):
             updates.append({"id": old.id, **record})
 
-    _write(db, SignalDaily, inserts, updates)
+    # 지난 판정이 몇 줄 바뀌었나 — 정의를 바꾼 뒤 다시 계산할 때 진단에 남긴다 (signal_recompute.py)
+    signal_df.attrs["changed_rows"] = _write(db, SignalDaily, inserts, updates)
+    signal_df.attrs["updated_rows"] = len(updates)
     return signal_df
 
 

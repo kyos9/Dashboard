@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models import User, UserStock
-from app.services import app_settings, pipeline
+from app.services import app_settings, pipeline, signal_recompute, signal_rules
 from app.services.users import (
     STATUS_ACTIVE,
     STATUS_BLOCKED,
@@ -122,3 +122,19 @@ def change_settings(payload: SettingsChange, db: Session = Depends(get_db)) -> d
     app_settings.set_flag(db, app_settings.AI_ADVICE_FOR_USERS, payload.ai_advice_for_users)
     logger.info("사용자 AI 진단·분석을 %s", "열었습니다" if payload.ai_advice_for_users else "닫았습니다")
     return _settings(db)
+
+
+@router.get("/signal-rules")
+def signal_rules_status(db: Session = Depends(get_db)) -> dict:
+    """시그널 정의의 판과 마지막 재계산 (0.41.0) — 진단 화면이 한 줄로 보인다.
+
+    관리자만: 실패한 종목 이름이 들어 있다(남이 담은 종목일 수 있다).
+    """
+    stored = signal_recompute.stored_fingerprint(db)
+    return {
+        "version": signal_rules.fingerprint(),
+        "stored_version": stored,
+        "up_to_date": stored == signal_rules.fingerprint(),
+        "changed_on": signal_rules.changed_on(),
+        "last_recompute": signal_recompute.last_summary(db),
+    }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { collapseStreaks } from './PriceChart'
+import { TickMarkType, type Time } from 'lightweight-charts'
+import { chartDate, chartPrice, chartTick, collapseStreaks, currencyOfTicker, markerDays } from '../lib/chartFormat'
 
 /**
  * 어깨매도는 며칠씩 연속으로 발동한다. 그대로 마커를 찍으면 라벨이 겹쳐 읽을 수 없어서
@@ -14,13 +15,13 @@ describe('연속 시그널 묶기', () => {
   })
 
   it('하루짜리 발동은 그대로 하나', () => {
-    expect(collapseStreaks([d('2026-09-10')])).toEqual([{ head: d('2026-09-10'), length: 1 }])
+    expect(collapseStreaks([d('2026-09-10')])).toEqual([{ head: d('2026-09-10'), tail: d('2026-09-10'), length: 1 }])
   })
 
   it('연달아 뜬 날은 한 묶음으로 센다', () => {
     const groups = collapseStreaks([d('2026-09-10'), d('2026-09-11'), d('2026-09-14')])
     expect(groups).toHaveLength(1)
-    expect(groups[0]).toEqual({ head: d('2026-09-10'), length: 3 })
+    expect(groups[0]).toEqual({ head: d('2026-09-10'), tail: d('2026-09-14'), length: 3 })
   })
 
   it('간격이 벌어지면 다른 묶음으로 나눈다', () => {
@@ -67,5 +68,54 @@ describe('연속 시그널 묶기', () => {
     })
 
     expect(collapseStreaks(dates)).toHaveLength(1)
+  })
+})
+
+describe('연속은 거래일로 센다 (0.42.0)', () => {
+  // 10-01~05 와 10-08~14 — 10-06·07 은 거래일인데 신호가 꺼졌다. 달력 4일 안이라 예전에는 한 구간이 됐다
+  const trading = ['2026-10-01', '2026-10-02', '2026-10-05', '2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09', '2026-10-12', '2026-10-13', '2026-10-14']
+  const on = ['2026-10-01', '2026-10-02', '2026-10-05', '2026-10-08', '2026-10-09', '2026-10-12', '2026-10-13', '2026-10-14'].map(d)
+
+  it('거래일 하나라도 끊기면 다른 구간', () => {
+    expect(collapseStreaks(on, trading).map((g) => [g.head.date, g.tail.date])).toEqual([
+      ['2026-10-01', '2026-10-05'],
+      ['2026-10-08', '2026-10-14'],
+    ])
+  })
+
+  it('주말·휴장일(거래일이 아닌 날)은 건너도 이어진다', () => {
+    expect(collapseStreaks([d('2026-10-09'), d('2026-10-12')], trading)).toHaveLength(1)
+  })
+
+  it('오늘까지 이어진 구간은 첫날과 오늘 둘 다 찍는다 — 오늘 뜬 매수가 차트에 보인다', () => {
+    expect(markerDays(on, trading).map((x) => x.date)).toEqual(['2026-10-01', '2026-10-08', '2026-10-14'])
+  })
+
+  it('오늘에 닿지 않은 구간은 첫날만, 오늘 하루짜리는 하나만', () => {
+    expect(markerDays([d('2026-10-01'), d('2026-10-02')], trading).map((x) => x.date)).toEqual(['2026-10-01'])
+    expect(markerDays([d('2026-10-14')], trading).map((x) => x.date)).toEqual(['2026-10-14'])
+  })
+})
+
+describe('차트 글자 꼴 (0.42.0)', () => {
+  it('세로축 가격 — 원·엔은 정수 + 쉼표, 달러는 센트까지', () => {
+    expect(chartPrice(68000, 'KRW')).toBe('68,000')
+    expect(chartPrice(2850.4, 'JPY')).toBe('2,850')
+    expect(chartPrice(1234.5, 'USD')).toBe('1,234.50')
+  })
+
+  it('티커로 통화 — 서버와 같은 규칙', () => {
+    expect(currencyOfTicker('005930.KS')).toBe('KRW')
+    expect(currencyOfTicker('247540.KQ')).toBe('KRW')
+    expect(currencyOfTicker('7203.T')).toBe('JPY')
+    expect(currencyOfTicker('VOO')).toBe('USD')
+  })
+
+  it('날짜 — 십자선 "2026-10-09", 눈금은 해·달·날', () => {
+    expect(chartDate('2026-10-09' as Time)).toBe('2026-10-09')
+    expect(chartDate({ year: 2026, month: 3, day: 5 } as Time)).toBe('2026-03-05')
+    expect(chartTick({ year: 2026, month: 10, day: 9 } as Time, TickMarkType.DayOfMonth)).toBe('10.09')
+    expect(chartTick({ year: 2026, month: 10, day: 1 } as Time, TickMarkType.Month)).toBe('10월')
+    expect(chartTick({ year: 2027, month: 1, day: 1 } as Time, TickMarkType.Year)).toBe('2027')
   })
 })

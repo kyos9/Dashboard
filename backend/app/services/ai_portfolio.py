@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 
 from app.markets import currency_of_stock, market_of_stock
 from app.services import ai_analysis as base
-from app.services import fundamentals
+from app.services import fundamentals, my_signals
 from app.services import rebalance as rebalance_service
 from app.services.providers import ai as providers
 from app.services.users import ordered_user_stocks
@@ -183,10 +183,12 @@ def portfolio_context(db: Session, user_id: int, today: dt.date | None = None) -
     invested = sum(r["actual"] for r in held)
     # 투자 자산 안에서의 비중으로 — 현금을 빼고 종목끼리 얼마나 몰렸나
     inner = sorted((r["actual"] / invested * 100 for r in held), reverse=True) if invested > 0 else []
+    # 시그널은 그 사람의 기준으로 — 리밸런싱의 어깨매도(`shoulder`)와 같은 기준 (0.42.0)
+    signals = my_signals.source(db, user_id)
     for row in rows:
         public = base._price_section(db, row["ticker"])
-        ind = base._indicator_section(db, row["ticker"], public.get("close"))
-        sig = base._signal_section(db, row["ticker"])
+        ind = base._indicator_section(db, row["ticker"], public.get("close"), signals.thresholds)
+        sig = base._signal_section(db, row["ticker"], signals)
         per = fundamentals.detail(db, row["ticker"], row["currency"], today, with_quarters=False)
         row["year_change_pct"] = public.get("year_change_pct")
         row["from_high_pct"] = public.get("from_high_pct")
@@ -200,6 +202,7 @@ def portfolio_context(db: Session, user_id: int, today: dt.date | None = None) -
     cost = current["cost_value_base"]
     pnl = current["unrealized_pnl_base"]
     return {
+        "thresholds": signals.thresholds,
         "base_currency": current["base_currency"],
         "rows": rows,
         "held_count": len(held),
@@ -296,7 +299,7 @@ def render_portfolio(ctx: dict, question: str | None = None, today: dt.date | No
         )
     if not rows:
         lines.append("- 보유하거나 목표를 정한 종목이 없음")
-    lines += ["", "[시장 배경 — 공용 매크로 지표]", *base._macro_lines(ctx["macro"]), "", base.SIGNAL_RULES,
+    lines += ["", "[시장 배경 — 공용 매크로 지표]", *base._macro_lines(ctx["macro"]), "", base.rules_text(ctx),
               *base._request_lines(question)]
     return "\n".join(lines)
 

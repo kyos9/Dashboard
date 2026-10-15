@@ -7,6 +7,7 @@ import {
   type ISeriesApi,
   type Time,
 } from 'lightweight-charts'
+import { chartDate, chartTick } from '../lib/chartFormat'
 import type { MacroHistory } from '../types'
 
 /**
@@ -76,9 +77,11 @@ export function MacroChart({ history, height = 340 }: Props) {
     const chart = createChart(container, {
       height,
       layout: { textColor: colors.text, background: { color: colors.bg }, attributionLogo: false },
+      // 브라우저 언어 태그가 이상해도("en-US@posix") 넘어지지 않게 — PriceChart 와 같다
+      localization: { locale: 'ko-KR', timeFormatter: chartDate },
       grid: { vertLines: { color: colors.grid }, horzLines: { color: colors.grid } },
       rightPriceScale: { borderColor: colors.grid },
-      timeScale: { borderColor: colors.grid },
+      timeScale: { borderColor: colors.grid, tickMarkFormatter: chartTick },
       crosshair: {
         vertLine: { labelBackgroundColor: colors.line },
         horzLine: { labelBackgroundColor: colors.line },

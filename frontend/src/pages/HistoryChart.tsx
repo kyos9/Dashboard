@@ -62,7 +62,7 @@ export function HistoryChart() {
         <div>
           <h2>히스토리 차트</h2>
           <p className="hint">
-            로그 스케일 종가 차트에 매수·매도 시그널이 뜬 날을 점으로 표시합니다.
+            로그 스케일 종가 차트에 매수(▲)·매도(▼) 시그널이 뜬 날을 표시합니다.
           </p>
         </div>
       </div>

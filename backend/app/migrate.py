@@ -90,6 +90,42 @@ def pending_revisions(stamped: str | None) -> list[str]:
     return [rev.revision for rev in script.iterate_revisions("heads", stamped or "base")]
 
 
+def is_known(revision: str | None) -> bool:
+    """이 코드가 아는 리비전인가. 새 이미지가 올린 DB 를 옛 이미지로 열면 모르는 리비전이 찍혀 있다."""
+    if revision is None:
+        return True
+    from alembic.script import ScriptDirectory
+    from alembic.util import CommandError
+
+    try:
+        return ScriptDirectory(str(SCRIPT_LOCATION)).get_revision(revision) is not None
+    except CommandError:
+        return False
+
+
+def downgrade_to(revision: str, bind=None) -> str | None:
+    """DB 를 `revision` 까지 내린다 — 옛 이미지로 되돌리기 전에 (DEPLOY.md 9-2, `app.tools.downgrade`).
+
+    되돌릴 수 없는 리비전(`IRREVERSIBLE`)을 건너야 하면 거절한다 — 그건 백업에서 되돌린다(10-1).
+    """
+    from alembic.script import ScriptDirectory
+
+    bind = bind or engine
+    stamped = current_revision(bind)
+    if stamped is None or not is_known(stamped) or not is_known(revision):
+        raise ValueError(f"내릴 수 없습니다: 지금 {stamped}, 목표 {revision}")
+    script = ScriptDirectory(str(SCRIPT_LOCATION))
+    crossing = [rev.revision for rev in script.iterate_revisions(stamped, revision)]
+    crossing = [r for r in crossing if r != revision]
+    if IRREVERSIBLE & set(crossing):
+        raise ValueError(f"{', '.join(sorted(IRREVERSIBLE & set(crossing)))} 은 되돌릴 수 없습니다 — 백업에서 되돌리세요")
+    # 내리기 직전에도 한 벌 — 못 떠도 진행한다(더하기만 한 칸을 지우는 것이라 잃는 것이 작다)
+    backup.snapshot_before_migration(bind, required=False)
+    with bind.begin() as conn:
+        command.downgrade(_config(conn), revision)
+    return current_revision(bind)
+
+
 def upgrade_to_head(bind=None) -> str | None:
     """DB를 최신 스키마로 올리고, 올라간 자리를 돌려준다."""
     bind = bind or engine
@@ -97,6 +133,13 @@ def upgrade_to_head(bind=None) -> str | None:
     with bind.connect() as conn:
         stamped = MigrationContext.configure(conn).get_current_revision()
         tables = set(inspect(conn).get_table_names())
+
+    # 더 새 이미지가 올린 DB (0.42.0 부터). 예전에는 여기서 넘어져 앱이 켜지지 않았다 — 이미지만 되돌리면
+    # 막혔다. 손대지 않고 그대로 뜬다: 리비전은 앞으로만 칸을 더하므로(더하기만 규칙) 옛 코드는 모르는 칸을
+    # 쓰지 않을 뿐이다. 칸을 바꾸거나 지운 리비전이면 그 리비전의 내리기를 먼저 해야 한다(DEPLOY.md 9-2).
+    if not is_known(stamped):
+        logger.warning("DB 리비전 %s 는 이 버전이 모릅니다 — 더 새 버전이 올린 DB 입니다. 그대로 씁니다", stamped)
+        return stamped
 
     adopting = stamped is None and bool(tables - {"alembic_version"})
 

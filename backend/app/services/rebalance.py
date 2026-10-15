@@ -26,7 +26,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.markets import CURRENCY_BY_MARKET, Currency, Market, currency_of_stock, market_of_stock
-from app.models import Holding, RebalanceSnapshot, ReviewPeriod, SignalDaily, UserSettings, UserStock
+from app.models import Holding, RebalanceSnapshot, ReviewPeriod, UserSettings, UserStock
 from app.services import fx, queries
 from app.services import settings as settings_service
 from app.services.trading_calendar import (
@@ -163,15 +163,10 @@ def _shoulder_flags(
         return {stock.ticker: False for stock in stocks}
 
     earliest = min(start for start, _ in ranges.values())
-    rows = (
-        db.query(SignalDaily.ticker, SignalDaily.date)
-        .filter(
-            SignalDaily.ticker.in_(list(ranges)),
-            SignalDaily.date >= earliest,
-            SignalDaily.shoulder_sell_ref.is_(True),
-        )
-        .all()
-    )
+    # 그 사람의 시그널 기준으로 (기본이면 저장된 판정 그대로 — my_signals)
+    from app.services import my_signals
+
+    rows = my_signals.source(db, stocks[0].user_id).sell_days(list(ranges), earliest)
 
     flags = {stock.ticker: False for stock in stocks}
     for ticker, date in rows:
@@ -409,7 +404,7 @@ def compute_rebalance_current(db: Session, user_id: int, today: dt.date | None =
         rows.append(
             {
                 "ticker": stock.ticker,
-                "name": stock.name,
+                "name": stock.shown_name,
                 "currency": position["currency"].value,
                 "target_weight_pct": stock.target_weight_pct,
                 "actual_weight_pct": actual,
