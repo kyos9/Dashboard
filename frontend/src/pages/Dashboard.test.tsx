@@ -308,27 +308,61 @@ describe('대시보드 · 상태 표시', () => {
 })
 
 describe('대시보드 · 신호 칸은 짧게, 모양으로도 (ROADMAP 8-4)', () => {
-  it('신호등은 "매수"·"매도" 글자와 ▲·▼ 모양, 비중조절은 "매수 검토"·"매도 검토"와 ◆ — 풀이는 설명으로', async () => {
+  it('신호 칸은 이름표 두 줄 — 시그널(▲ 매수·▼ 매도)과 비중(◆ 비중 미달·초과), 풀이는 설명으로 (0.44.0)', async () => {
     mockApi([
       card({ ticker: 'VOO', knee_buy_v2: true, rebalance_signal: { active: true, reasons: ['밴드 미달(매수 검토)'] } }),
       card({ ticker: 'QQQ', shoulder_sell_ref: true, rebalance_signal: { active: true, reasons: ['밴드 초과(매도 검토)', '정기 리뷰 도래'] } }),
       card({ ticker: 'SCHD', knee_buy_v2: true, shoulder_sell_ref: true }),
+      card({ ticker: 'GOOG', knee_buy_v2: true, rebalance_signal: { active: false, reasons: ['밴드 초과(매도 검토)'] } }),
     ])
     renderDashboard()
 
-    const badges = (row: HTMLElement) =>
-      [...row.querySelectorAll('.signal-cell-row > *')].map(
-        (el) => `${el.querySelector('.signal-shape')?.getAttribute('class')?.split(' ')[1] ?? '-'}:${el.textContent?.trim()}`,
-      )
+    // 줄마다 "이름표 | 모양:글자 …"
+    const lines = (row: HTMLElement) =>
+      [...row.querySelectorAll('.signal-cell-rows .signal-row')].map((line) => {
+        const label = line.querySelector('.signal-row-label')?.textContent
+        const items = [...line.querySelectorAll('.signal-row-items > *')].map(
+          (el) => `${el.querySelector('.signal-shape')?.getAttribute('class')?.split(' ')[1] ?? '-'}:${el.textContent?.trim()}`,
+        )
+        return `${label} | ${items.join(' ')}`
+      })
     const voo = await cardRow('VOO')
-    expect(badges(voo)).toEqual(['buy:매수', 'rebalance:매수 검토'])
-    expect(within(voo).getByText('매수 검토').closest('.badge')).toHaveAttribute('title', expect.stringMatching(/^밴드 미달/))
+    expect(lines(voo)).toEqual(['시그널 | buy:매수', '비중 | rebalance:비중 미달'])
+    expect(within(voo).getByText('비중 미달').closest('.badge')).toHaveAttribute('title', expect.stringMatching(/^밴드 미달/))
     expect(within(voo).getByText('매수').closest('.traffic')).toHaveAttribute('title', expect.stringMatching(/^매수 시그널/))
 
     // 정기 리뷰는 모든 종목에 걸리는 날짜라 모양을 붙이지 않는다
-    expect(badges(await cardRow('QQQ'))).toEqual(['sell:매도', 'rebalance:매도 검토', '-:정기 리뷰'])
-    // 둘 다 뜨면 신호등은 매수, 매도 쪽은 ▼ 배지로 남는다
-    expect(badges(await cardRow('SCHD'))).toEqual(['buy:매수', 'sell:매도 조건도'])
+    expect(lines(await cardRow('QQQ'))).toEqual(['시그널 | sell:매도', '비중 | rebalance:비중 초과 -:정기 리뷰'])
+    // 둘 다 뜨면 신호등은 매수, 매도 쪽은 ▼ 배지로 남는다. 비중 신호가 없으면 비중 줄도 없다
+    expect(lines(await cardRow('SCHD'))).toEqual(['시그널 | buy:매수 sell:매도 조건도'])
+    // 사유가 와도 비중 신호가 꺼져 있으면(active=false) 비중 줄을 그리지 않는다
+    expect(lines(await cardRow('GOOG'))).toEqual(['시그널 | buy:매수'])
+    // 지표 신호와 비중 신호가 같은 말("매수 검토")로 겹치지 않는다
+    expect(screen.queryByText('매수 검토')).toBeNull()
+    expect(screen.queryByText('매도 검토')).toBeNull()
+  })
+
+  it('관망은 흐린 "—" — 상자 없이, 설명과 읽어 주는 말은 "관망" (0.44.0)', async () => {
+    mockApi([
+      card({ ticker: 'VOO' }),
+      card({ ticker: 'QQQ', data_stale: true }),
+    ])
+    renderDashboard()
+
+    const voo = await cardRow('VOO')
+    const watch = voo.querySelector('.signal-cell-rows .traffic-watch') as HTMLElement
+    expect(watch.textContent).toBe('—')
+    expect(watch).toHaveAttribute('title', '관망 — 매수·매도 조건 미충족')
+    expect(within(voo).getByLabelText('관망 — 매수·매도 조건 미충족')).toBe(watch)
+    expect(voo.querySelector('.traffic')).toBeNull()
+    expect(within(voo).queryByText('관망')).toBeNull()
+    // 시세가 없는 종목은 "—" 가 아니라 "갱신 필요" 그대로 — 둘이 같아 보이지 않는다
+    const qqq = await cardRow('QQQ')
+    expect(within(qqq).getByText('갱신 필요').closest('.traffic')).not.toBeNull()
+    expect(qqq.querySelector('.traffic-watch')).toBeNull()
+    // 수는 그대로 센다 — 신호 요약의 관망 칸
+    const watchChip = document.querySelector('.count-chip.amber') as HTMLElement
+    expect(watchChip.textContent).toBe('1관망')
   })
 
   it('맨 위 요약도 같은 모양 — 매수 ▲ · 매도 ▼ · 비중조절 ◆ (보라, 파랑이 아니다)', async () => {
@@ -338,10 +372,10 @@ describe('대시보드 · 신호 칸은 짧게, 모양으로도 (ROADMAP 8-4)', 
     ])
     renderDashboard()
     await cardRow('VOO')
-    const review = screen.getByText(/^매수 검토 1$/).closest('.badge')!
+    const review = screen.getByText(/^비중 미달 1$/).closest('.badge')!
     expect(review).toHaveClass('badge-purple')
     expect(review.querySelector('.signal-shape.rebalance')).not.toBeNull()
-    expect(screen.getByText(/^매도 검토 1$/).closest('.badge')).toHaveClass('badge-purple')
+    expect(screen.getByText(/^비중 초과 1$/).closest('.badge')).toHaveClass('badge-purple')
     expect(document.querySelector('.count-chip.green .signal-shape.buy')).not.toBeNull()
     expect(document.querySelector('.count-chip.red .signal-shape.sell')).not.toBeNull()
   })
@@ -840,7 +874,7 @@ describe('대시보드 · 시그널 규칙은 서버에서 (0.41.0)', () => {
       .map((th) => th.textContent ?? '')
     const extra = heads.findIndex((h) => h.startsWith('그 밖의 조건'))
     expect(heads[extra - 1]).toMatch(/^200일선/)
-    expect(heads[extra + 1]).toBe('종합 신호등')
+    expect(heads[extra + 1]).toBe('신호')
     // ADX 22 는 새 기준(25) 아래 — 풀이도 같은 기준으로 "추세 없음"
     expect(within(row).getByText('22.0').closest('[title]')).toHaveAttribute('title', '추세 없음')
     expect(within(row).getByText('매수').closest('.traffic')).toHaveAttribute(
@@ -1044,10 +1078,10 @@ describe('대시보드 · 시그널 보기 정돈 (디자인 2차)', () => {
     ])
     // 지표 줄에는 더 이상 칩이 없다
     expect(voo.querySelector('.stat-box .cond')).toBeNull()
-    // "▼ 매도"는 시그널 줄, "◆ 매수 검토"는 비중 줄
+    // "▼ 매도"는 시그널 줄, "◆ 비중 미달"은 비중 줄
     const [signalItems, weightItems] = Array.from(voo.querySelectorAll('.signal-row-items'))
     expect(signalItems).toHaveTextContent('매도')
-    expect(weightItems).toHaveTextContent('매수 검토')
+    expect(weightItems).toHaveTextContent('비중 미달')
   })
 })
 

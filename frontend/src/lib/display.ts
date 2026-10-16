@@ -284,8 +284,11 @@ export function trafficLight(card: DashboardCard, rules: SignalRules = LEGACY_SI
 }
 
 /* ---------- 비중조절 사유 — 배지는 짧게, 풀이는 설명으로 (8-4) ----------
-   서버가 주는 사유 글("밴드 미달(매수 검토)")을 그대로 배지에 쓰면 신호 칸이 꺾인다. 배지에는 할 일만
-   ("매수 검토") 쓰고 왜 그런지는 설명(툴팁)과 범례로 옮긴다. 모르는 사유가 오면 그대로 보여준다. */
+   서버가 주는 사유 글("밴드 미달(매수 검토)")을 그대로 배지에 쓰면 신호 칸이 꺾인다. 배지에는 짧게 쓰고 왜 그런지는
+   설명(툴팁)과 범례로 옮긴다. 모르는 사유가 오면 그대로 보여준다.
+   0.44.0 (주인 결정): 배지 말은 **상태**로 — "비중 초과 / 비중 미달". "매도 검토 / 매수 검토"는 지표 시그널의 "▼ 매도 /
+   ▲ 매수"와 겹쳐 같은 카드에서 "팔라는데 사라고도?"로 읽혔다. "채우기·줄이기"는 할 일만 남아 명령처럼 읽힌다(규제).
+   서버 사유 글은 그대로다 — 옛 화면과 `weightSignal.ts`·`portfolio.ts` 가 그 글을 보고 센다. */
 
 export interface ReasonBadge {
   label: string
@@ -296,12 +299,12 @@ export interface ReasonBadge {
 
 const REASON_BADGE: Record<string, ReasonBadge> = {
   '밴드 초과(매도 검토)': {
-    label: '매도 검토',
+    label: '비중 초과',
     desc: '밴드 초과 — 목표 비중보다 밴드 이상 많습니다. 줄일지 검토하세요.',
     rebalance: true,
   },
   '밴드 미달(매수 검토)': {
-    label: '매수 검토',
+    label: '비중 미달',
     desc: '밴드 미달 — 목표 비중보다 밴드 이상 적습니다. 채울지 검토하세요.',
     rebalance: true,
   },

@@ -57,14 +57,26 @@ import {
   METRIC_ORDER,
   useSignalRules,
 } from '../lib/signalRules'
-import type { DashboardCard, RebalanceCurrent, Stock, StockUpdateInput } from '../types'
+import type { DashboardCard, RebalanceCurrent, SignalRules, Stock, StockUpdateInput } from '../types'
 
 type QuickFilter = 'all' | 'knee' | 'sell' | 'rebalance'
 /** 표 / 카드 / 설정(편집) — 같은 목록을 다른 형태로 보는 것이라 한 자리에서 고른다 */
 type ViewMode = 'table' | 'card' | 'edit'
 
-/** 신호등 — 매수 ▲ · 매도 ▼ 는 모양이 붙는다. 색만으로 가리지 않는다 (8-4) */
+/** 관망을 대신하는 흐린 "—" 의 풀이 — 마우스를 올리거나 읽어 주는 기기가 이 말을 쓴다 (0.44.0, 주인 결정) */
+const WATCH_HINT = '관망 — 매수·매도 조건 미충족'
+
+/** 신호등 — 매수 ▲ · 매도 ▼ 는 모양이 붙는다. 색만으로 가리지 않는다 (8-4).
+    관망은 할 일이 없다는 뜻이라 눈에 띄지 않게 흐린 "—" 만 (0.44.0). 빈칸으로 두면 "시세 없음"과 같아 보이고,
+    매수·매도만 남아 할 일 목록처럼 읽힌다(계획 검토). 수는 그대로 센다 — 신호 요약의 "관망 N" */
 function TrafficBadge({ traffic }: { traffic: Traffic }) {
+  if (traffic.state === 'watch') {
+    return (
+      <span className="traffic-watch" title={WATCH_HINT} aria-label={WATCH_HINT}>
+        —
+      </span>
+    )
+  }
   return (
     <span className={`traffic ${traffic.tone}`} title={traffic.desc}>
       {traffic.state === 'buy' || traffic.state === 'hot' ? (
@@ -77,6 +89,38 @@ function TrafficBadge({ traffic }: { traffic: Traffic }) {
       )}
       {traffic.label}
     </span>
+  )
+}
+
+/**
+ * 시그널 줄과 비중 줄 — 왼쪽 이름표로 지표 신호(▲▼)와 비중 신호(◆)를 가른다.
+ *
+ * 디자인 2차가 카드에 넣은 모양을 시그널 표의 칸에도 같이 쓴다 (0.44.0, 주인 결정 "한 칸에 이름표 두 줄").
+ * 표에서는 "▼ 매도"와 "◆ 매수 검토"가 이름 없이 한 줄로 붙어 "팔라는데 사라고도?"로 읽혔다.
+ * 부르는 쪽이 `.signal-rows` 격자 안에 둔다(카드는 그 아래 매수 조건 줄을 더 붙인다).
+ */
+function SignalAndWeightRows({ card, rules }: { card: DashboardCard; rules: SignalRules }) {
+  return (
+    <>
+      <div className="signal-row">
+        <span className="signal-row-label">시그널</span>
+        <div className="signal-row-items">
+          <TrafficBadge traffic={trafficLight(card, rules)} />
+          {/* 둘 다 뜨면 신호등은 매수를 보여준다 — 매도 쪽이 조용히 사라지지 않게 */}
+          {card.knee_buy_v2 && card.shoulder_sell_ref && <SellTooTag />}
+        </div>
+      </div>
+      {card.rebalance_signal.active && card.rebalance_signal.reasons.length > 0 && (
+        <div className="signal-row">
+          <span className="signal-row-label">비중</span>
+          <div className="signal-row-items">
+            {card.rebalance_signal.reasons.map((r) => (
+              <ReasonTag key={r} reason={r} />
+            ))}
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 
@@ -800,13 +844,13 @@ export function Dashboard() {
           {summary.sellReview > 0 && (
             <span className="badge badge-purple badge-nowrap">
               <SignalShape kind="rebalance" size={9} />
-              매도 검토 {summary.sellReview}
+              비중 초과 {summary.sellReview}
             </span>
           )}
           {summary.buyReview > 0 && (
             <span className="badge badge-purple badge-nowrap">
               <SignalShape kind="rebalance" size={9} />
-              매수 검토 {summary.buyReview}
+              비중 미달 {summary.buyReview}
             </span>
           )}
           {summary.periodicReview > 0 && (
@@ -1130,8 +1174,8 @@ function SignalMatrix({
                 <span className="th-cond">{extras.map((c) => c.header).join(' · ')}</span>
               </th>
             )}
-            {/* 신호등과 사유 배지가 한 줄에 들어가는 폭 — "관망 ◆ 매수 검토" (8-4) */}
-            <th style={{ width: 196 }}>종합 신호등</th>
+            {/* 이름표 + 배지가 한 줄에 들어가는 폭 — "비중 ◆ 비중 미달" (8-4, 0.44.0 에 두 줄로) */}
+            <th style={{ width: 196 }}>신호</th>
             <th style={{ width: 136 }}>
               <MetricHead title="마지막 매수" sub="시그널" />
             </th>
@@ -1220,14 +1264,9 @@ function SignalMatrix({
                   </td>
                 )}
                 <td>
-                  {/* 신호등과 사유 배지를 한 줄에 — 줄마다 높이가 달라지지 않게 (8-4). 좁으면 배지째 줄을 바꾼다 */}
-                  <div className="badge-row signal-cell-row">
-                    <TrafficBadge traffic={trafficLight(card, rules)} />
-                    {/* 둘 다 뜨면 신호등은 매수를 보여준다 — 매도 쪽이 조용히 사라지지 않게 */}
-                    {card.knee_buy_v2 && card.shoulder_sell_ref && <SellTooTag />}
-                    {card.rebalance_signal.reasons.map((r) => (
-                      <ReasonTag key={r} reason={r} />
-                    ))}
+                  {/* 시그널 · 비중 이름표 두 줄 — 카드와 같은 모양 (0.44.0) */}
+                  <div className="signal-rows signal-cell-rows">
+                    <SignalAndWeightRows card={card} rules={rules} />
                   </div>
                 </td>
                 <td>
@@ -1472,23 +1511,7 @@ function SignalCards({
             {/* 시그널 · 비중 · 매수 조건 — 왼쪽 이름표로 종류를 가른다 (디자인 2차, 주인 결정 시안 v4).
                 "▼ 매도"와 "◆ 매수 검토"가 이름표 없이 붙어 있으면 "팔라는데 사라고도?"로 읽혔다 */}
             <div className="signal-rows">
-              <div className="signal-row">
-                <span className="signal-row-label">시그널</span>
-                <div className="signal-row-items">
-                  <TrafficBadge traffic={trafficLight(card, rules)} />
-                  {card.knee_buy_v2 && card.shoulder_sell_ref && <SellTooTag />}
-                </div>
-              </div>
-              {card.rebalance_signal.active && card.rebalance_signal.reasons.length > 0 && (
-                <div className="signal-row">
-                  <span className="signal-row-label">비중</span>
-                  <div className="signal-row-items">
-                    {card.rebalance_signal.reasons.map((r) => (
-                      <ReasonTag key={r} reason={r} />
-                    ))}
-                  </div>
-                </div>
-              )}
+              <SignalAndWeightRows card={card} rules={rules} />
               <BuyConditions card={card} />
             </div>
 

@@ -823,7 +823,7 @@ describe('리밸런싱 · 주문과 신호를 다른 말로 (디자인 2차)', (
     expect(voo).toHaveTextContent('팔기')
     expect(voo).not.toHaveTextContent('SELL')
     const groups = Array.from(voo.querySelectorAll('.badge-group')).map((g) => g.textContent)
-    expect(groups).toEqual(['비중매도 검토', '참고기간 내 매도'])
+    expect(groups).toEqual(['비중비중 초과', '참고기간 내 매도'])
     const samsung = await orderRow('005930.KS')
     expect(samsung).toHaveTextContent('사기')
     expect(samsung).toHaveTextContent('비중조절 신호 없음')

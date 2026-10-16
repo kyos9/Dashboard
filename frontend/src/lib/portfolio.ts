@@ -34,8 +34,9 @@ export interface SignalMark {
 export const SIGNAL_LABEL: Record<SignalKind, string> = {
   buy: '매수 시그널',
   sell: '매도 시그널',
-  over: '과중 — 매도 검토',
-  under: '미달 — 매수 검토',
+  // 비중 신호는 상태로 — 시그널의 "매수·매도"와 겹치지 않게 (0.44.0, 주인 결정)
+  over: '비중 초과',
+  under: '비중 미달',
 }
 
 export function signalsOf(item: PortfolioItem): SignalMark[] {

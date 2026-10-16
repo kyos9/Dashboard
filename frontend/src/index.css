@@ -4731,12 +4731,19 @@ button.signal-line-go:hover:not(:disabled) {
   vertical-align: middle;
 }
 
-.signal-cell-row {
-  align-items: center;
+/* 시그널 표의 "신호" 칸 — 카드와 같은 이름표 두 줄 (0.44.0) */
+.signal-cell-rows {
+  gap: 4px 8px;
+}
+.signal-cell-rows .traffic {
+  align-self: center;
 }
 
-.signal-cell-row .traffic {
-  align-self: center;
+/* 관망 — 할 일이 없다는 뜻이라 흐린 "—" 하나 (0.44.0). 상자·바탕이 없어 누르는 것으로도, 신호로도 보이지 않는다 */
+.traffic-watch {
+  color: var(--text-faint);
+  font-weight: 700;
+  padding: 0 4px;
 }
 
 .signal-dot-btn {
