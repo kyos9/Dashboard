@@ -313,6 +313,14 @@ describe('맨 위 — 내 돈 한 줄', () => {
     expect(line).not.toHaveTextContent('+₩0')
   })
 
+  it('신호 모양 풀이는 용어집의 말 — "비중 초과·미달", "과중"은 쓰지 않는다 (0.44.0)', async () => {
+    mockApi()
+    renderDashboard()
+    const legend = await screen.findByLabelText('신호 모양 풀이')
+    expect(legend).toHaveTextContent('비중조절(비중 초과·미달)')
+    expect(legend.textContent).not.toMatch(/과중/)
+  })
+
   it('리뷰 D-day 는 아래에 작게 남는다', async () => {
     mockApi({ ...CURRENT, review: { ...CURRENT.review, due: true, next_date: '2026-09-30' } })
     renderDashboard()

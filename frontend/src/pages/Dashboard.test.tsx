@@ -345,6 +345,25 @@ describe('대시보드 · 신호 칸은 짧게, 모양으로도 (ROADMAP 8-4)', 
     expect(screen.queryByText('매도 검토')).toBeNull()
   })
 
+  it('폰에서도 "—"·비중 줄의 풀이가 화면 글로 보인다 — 툴팁은 폰에서 못 본다 (0.44.0, B 검토)', async () => {
+    vi.stubGlobal('innerWidth', 360)
+    vi.stubGlobal('matchMedia', (q: string) => ({
+      matches: true,
+      media: q,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }))
+    mockApi([card({ ticker: 'VOO' })])
+    renderDashboard()
+    // 폰 배치(카드)로 그려졌는지 — 표가 아니다
+    await waitFor(() => expect(document.querySelector('.signal-cards, .signal-card, [class*="signal-card"]')).not.toBeNull())
+    const key = document.querySelector('.signal-key') as HTMLElement
+    expect(key).not.toBeNull()
+    expect(key).toBeVisible()
+    expect(key.textContent).toMatch(/흐린 —는 관망\(매수·매도 조건 미충족\)입니다/)
+    vi.unstubAllGlobals()
+  })
+
   it('관망은 흐린 "—" — 상자 없이, 설명과 읽어 주는 말은 "관망" (0.44.0)', async () => {
     mockApi([
       card({ ticker: 'VOO' }),

@@ -19,3 +19,10 @@
 | 리밸런싱 묶음 옛 말 | `frontend/src/lib/portfolio.ts` | 잡힘 |
 
 "비활성 비중도 보이기"가 처음엔 살아남았다 — 사유가 와도 `active=false` 면 비중 줄을 그리지 않는다는 테스트가 없었다. Dashboard.test.tsx 에 GOOG(active=false) 줄을 더한 뒤 다시 돌려 잡힘. **13/13 잡힘.**
+
+## 두 번째 검토 뒤 (조건부 — 테스트 둘)
+
+| 뮤테이션 | 파일 | 결과 |
+| --- | --- | --- |
+| M3 범례를 과중으로 (검토자) | `frontend/src/components/PortfolioView.tsx` | 살아남았음 → 범례 테스트(Dashboard.portfolio.test.tsx) 더한 뒤 잡힘 |
+| M4 폰에서만 풀이 숨기기 (검토자) | `frontend/src/pages/Dashboard.tsx` | 살아남았음 → 폰 배치(matchMedia) 테스트 더한 뒤 잡힘 |
