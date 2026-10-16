@@ -82,10 +82,68 @@ export class ApiError extends Error {
   }
 }
 
+/** 서버가 범위를 검사하는 입력 칸의 화면 이름 (backend/app/schemas.py 의 Field 범위). 모르는 칸은 "입력값" */
+const FIELD_LABEL: Record<string, string> = {
+  target_weight_pct: '목표 비중',
+  rebalance_band_pct: '밴드',
+  cash_target_pct: '현금 목표 비중',
+  quantity: '수량',
+  avg_cost: '평단가',
+  avg_fx: '산 환율',
+  note: '메모',
+  value: '예상치',
+}
+
+interface ValidationItem {
+  type?: string
+  loc?: (string | number)[]
+  msg?: string
+  ctx?: Record<string, unknown>
+}
+
+/** 칸 하나의 허용 범위를 한국어로 — "0~100 사이", "0 이상", "200자 이하" */
+function rangeText(item: ValidationItem): string {
+  const ctx = item.ctx ?? {}
+  const n = (v: unknown) => (typeof v === 'number' ? String(v) : null)
+  if (item.type === 'missing') return '필요합니다'
+  if (item.type?.endsWith('_parsing') || item.type === 'float_type' || item.type === 'int_type') return '숫자여야 합니다'
+  if (n(ctx.max_length)) return `${n(ctx.max_length)}자 이하여야 합니다`
+  if (n(ctx.min_length)) return `${n(ctx.min_length)}자 이상이어야 합니다`
+  if (n(ctx.le) && (n(ctx.ge) ?? n(ctx.gt)) === null) return `${n(ctx.le)} 이하여야 합니다`
+  if (n(ctx.le)) return `${n(ctx.ge) ?? n(ctx.gt)}~${n(ctx.le)} 사이여야 합니다`
+  if (n(ctx.lt)) return `${n(ctx.lt)}보다 작아야 합니다`
+  if (n(ctx.ge)) return `${n(ctx.ge)} 이상이어야 합니다`
+  if (n(ctx.gt)) return `${n(ctx.gt)}보다 커야 합니다`
+  return '올바르지 않습니다'
+}
+
+/** 은/는 — 끝 글자에 받침이 있으면 "은" ("수량은", "밴드는") */
+function topicParticle(word: string): string {
+  const code = word.charCodeAt(word.length - 1) - 0xac00
+  return code >= 0 && code <= 11171 && code % 28 !== 0 ? '은' : '는'
+}
+
+/**
+ * 422(입력 검사 실패)의 `detail` 은 **목록**이다 — 칸마다 `{loc, msg, ctx}`. 예전에는 객체로 잘못 읽혀 영어 JSON 원문이
+ * 화면에 떴다(0.44.0 C2). 칸 이름 + 범위를 한국어 한 줄로 만든다. 영어 원문은 기술적 원인(detail)으로 남긴다.
+ */
+function validationHint(items: ValidationItem[]): string {
+  const parts = items.map((item) => {
+    const field = [...(item.loc ?? [])].reverse().find((part) => typeof part === 'string' && part !== 'body')
+    const label = (typeof field === 'string' && FIELD_LABEL[field]) || '입력값'
+    return `${label}${topicParticle(label)} ${rangeText(item)}`
+  })
+  return `입력값을 확인해 주세요 — ${[...new Set(parts)].join(' · ')}`
+}
+
 function parseError(status: number, statusText: string, body: string): ApiError {
   try {
     const parsed = JSON.parse(body)
     const detail = parsed?.detail
+    if (Array.isArray(detail) && detail.length > 0) {
+      const technical = detail.map((item: ValidationItem) => item?.msg ?? '').filter(Boolean).join('; ')
+      return new ApiError(status, validationHint(detail as ValidationItem[]), technical || body)
+    }
     if (detail && typeof detail === 'object') {
       return new ApiError(status, detail.hint ?? null, detail.message ?? body, detail.code ?? null)
     }

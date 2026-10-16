@@ -115,12 +115,19 @@ describe('종목 등록', () => {
     expect(await screen.findByText(/삼성전자 → 005930\.KS 추가 완료/)).toBeInTheDocument()
   })
 
-  it('국내 종목을 고르면 평단가 단위가 원화로 바뀐다', async () => {
+  it('고르기 전에는 평단가에 단위가 없고, 국내 종목을 고르면 원화로 (0.44.0 C3)', async () => {
     mockApi()
     const user = userEvent.setup()
     renderManager()
 
-    expect(screen.getByLabelText(/평단가 \(\$\)/)).toBeInTheDocument()
+    // 예전에는 미국이 기본이라 "($)"가 먼저 떴다 — 원화 종목도 달러로 적게 만들었다
+    expect(screen.getByLabelText('평단가')).toBeInTheDocument()
+    expect(screen.queryByLabelText(/평단가 \(/)).toBeNull()
+    expect(screen.getByText(/평단가\(그 종목을 거래하는 통화 기준\)/)).toBeInTheDocument()
+    // 구분은 미리 차 있지 않다 — 회색 "지수"가 고른 값으로 읽혔다
+    const category = screen.getByLabelText('구분')
+    expect(category).toHaveValue('')
+    expect(category).toHaveAttribute('placeholder', '비워 둬도 됩니다')
 
     await user.type(symbolInput(), '삼성전자')
     await user.click(await screen.findByText('삼성전자'))
@@ -682,7 +689,7 @@ describe('종목 관리 · 정돈 (디자인 2차)', () => {
     renderManager()
     const cost = await screen.findByLabelText(/평단가/)
     expect(cost.closest('.add-stock-form')).not.toBeNull()
-    expect(cost).toHaveAttribute('placeholder', '모르면 비워두기')
+    expect(cost).toHaveAttribute('placeholder', '모르면 비움')
   })
 })
 

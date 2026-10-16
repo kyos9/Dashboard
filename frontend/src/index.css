@@ -1879,7 +1879,7 @@ input::placeholder {
   color: var(--text-faint);
 }
 
-/* 종목 추가 칸의 "모르면 비워두기" — 숫자 칸의 고정폭 글꼴로 쓰면 글자 사이가 벌어진다 (디자인 2차). 이 폼에만 */
+/* 종목 추가 칸의 "모르면 비움"(0.44.0 C3 — "모르면 비워두기"는 360 에서 잘렸다) — 숫자 칸의 고정폭 글꼴로 쓰면 글자 사이가 벌어진다 (디자인 2차). 이 폼에만 */
 .add-stock-form .num-input::placeholder {
   font-family: var(--font-sans);
 }
@@ -5462,4 +5462,12 @@ tr.dirty td {
 }
 section.signal-line {
   cursor: default;
+}
+
+/* 차트 위 한 줄 — 가리킨 날(없으면 마지막 날)의 날짜·종가 (0.44.0 C1) */
+.chart-readout {
+  margin: 0 0 6px;
+  font-size: var(--fs-sub);
+  color: var(--text-dim);
+  word-break: keep-all;
 }

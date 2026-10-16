@@ -328,9 +328,9 @@ export function StockManager() {
 
   const targetSum =
     stocks.filter((s) => s.active).reduce((sum, s) => sum + s.target_weight_pct, 0) + cashTarget
-  // 평단가는 그 종목을 실제로 거래하는 통화 기준이므로, 고른 종목에 맞춰 단위를 보여준다
-  const newMarket = picked?.market ?? 'US'
-  const newCurrencyMeta = CURRENCY_META[CURRENCY_BY_MARKET[newMarket]]
+  // 평단가는 그 종목을 실제로 거래하는 통화 기준이므로, 고른 종목에 맞춰 단위를 보여준다.
+  // 고르기 전에는 단위를 붙이지 않는다 — 예전에는 미국이 기본이라 "($)"가 먼저 떠 원화 종목도 달러로 적게 했다 (0.44.0 C3)
+  const newCurrencyMeta = picked ? CURRENCY_META[CURRENCY_BY_MARKET[picked.market]] : null
 
   return (
     <div>
@@ -394,7 +394,8 @@ export function StockManager() {
               id="new-category"
               type="text"
               list="category-options"
-              placeholder="지수"
+              // 회색 "지수"가 미리 채운 값으로 읽혔다(사용자 확인) — 고를 말은 목록(datalist)이 보여 준다 (0.44.0 C3)
+              placeholder="비워 둬도 됩니다"
               value={form.category}
               onChange={(e) => setForm({ ...form, category: e.target.value })}
             />
@@ -419,10 +420,10 @@ export function StockManager() {
             />
           </div>
           <div className="field">
-            <label htmlFor="new-cost">평단가 ({newCurrencyMeta.symbol})</label>
+            <label htmlFor="new-cost">평단가{newCurrencyMeta ? ` (${newCurrencyMeta.symbol})` : ''}</label>
             <NumberInput
               id="new-cost"
-              placeholder="모르면 비워두기"
+              placeholder="모르면 비움"
               value={form.avgCost}
               onChange={(v) => setForm({ ...form, avgCost: v })}
               // 원·엔은 소수점이 의미가 없다
@@ -434,7 +435,7 @@ export function StockManager() {
               <label htmlFor="new-fx">산 환율 ({fxUnitLabel(pickedCurrency)})</label>
               <NumberInput
                 id="new-fx"
-                placeholder="모르면 비워두기"
+                placeholder="모르면 비움"
                 value={form.avgFx}
                 onChange={(v) => setForm({ ...form, avgFx: v })}
               />
@@ -450,7 +451,7 @@ export function StockManager() {
         {/* 다섯 줄이던 도움말을 세 줄로 — "추가" 단추가 아래로 밀렸다 (디자인 2차) */}
         <p className="hint" style={{ marginTop: 10 }}>
           목표 비중은 <b>현금을 포함한 전체 자금</b> 중 이 종목의 비중입니다. 이미 들고 있으면 수량·평단가도 적으세요 —
-          평단가({newCurrencyMeta.label} 기준)는 손익에만 쓰이고 비중에는 영향이 없습니다. 둘 다 나중에 목록·대시보드·리밸런싱에서 고칠 수 있습니다. 시세를
+          평단가({newCurrencyMeta ? `${newCurrencyMeta.label} 기준` : '그 종목을 거래하는 통화 기준'})는 손익에만 쓰이고 비중에는 영향이 없습니다. 둘 다 나중에 목록·대시보드·리밸런싱에서 고칠 수 있습니다. 시세를
           못 받아도 종목은 남고 나중에 다시 받습니다.
         </p>
       </div>

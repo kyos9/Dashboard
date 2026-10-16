@@ -17,6 +17,11 @@ const chart = {
   addSeries: vi.fn(() => series),
   applyOptions: vi.fn(),
   remove: vi.fn(),
+  subscribeCrosshairMove: vi.fn(),
+  unsubscribeCrosshairMove: vi.fn(),
+  subscribeClick: vi.fn(),
+  unsubscribeClick: vi.fn(),
+  setCrosshairPosition: vi.fn(),
   timeScale: () => ({ fitContent: vi.fn() }),
 }
 
@@ -136,5 +141,62 @@ describe('차트 마커', () => {
       .map(([o]) => (o as { localization?: { priceFormatter?: (v: number) => string } }).localization?.priceFormatter)
       .find(Boolean)!
     expect(formatter(68000)).toBe('68,000')
+  })
+})
+
+describe('차트 위 한 줄과 짧은 탭 (0.44.0 C1)', () => {
+  type Handler = (param: { time?: string; seriesData: Map<unknown, unknown> }) => void
+  const handler = (fn: unknown) => (fn as { mock: { lastCall: [Handler] } }).mock.lastCall[0]
+  const at = (time: string | undefined, value?: number) => ({
+    time,
+    seriesData: new Map(value === undefined ? [] : [[series, { value }]]),
+  })
+
+  it('처음에는 마지막 날의 날짜·종가, 그 날이 "마지막 날"임을 말한다', () => {
+    const { container } = render(<PriceChart history={history([])} />)
+    const line = container.querySelector('.chart-readout')!
+    expect(line).toHaveTextContent('2026-09-16 · 종가 102.00')
+    expect(line).toHaveTextContent('마지막 날 — 차트를 누르면 그 날')
+  })
+
+  it('짧게 탭하면 십자선을 그 자리로 옮기고, 한 줄이 그 날을 말한다', async () => {
+    const { container } = render(<PriceChart history={history([])} />)
+    const { act } = await import('@testing-library/react')
+    act(() => handler(chart.subscribeClick)(at('2026-09-14', 100)))
+    // 앞서 있던 자리(고점 등)에 남지 않는다 — 탭한 날의 종가에
+    expect(chart.setCrosshairPosition).toHaveBeenLastCalledWith(100, '2026-09-14', series)
+    const line = container.querySelector('.chart-readout')!
+    expect(line).toHaveTextContent('2026-09-14 · 종가 100.00')
+    expect(line).not.toHaveTextContent('마지막 날')
+  })
+
+  it('십자선이 움직이면 그 날, 차트를 떠나면 마지막 날로 돌아간다. 빈 자리 탭은 아무것도 옮기지 않는다', async () => {
+    const { container } = render(<PriceChart history={history([])} />)
+    const { act } = await import('@testing-library/react')
+    const line = () => container.querySelector('.chart-readout')!
+    act(() => handler(chart.subscribeCrosshairMove)(at('2026-09-15', 101)))
+    expect(line()).toHaveTextContent('2026-09-15 · 종가 101.00')
+    act(() => handler(chart.subscribeCrosshairMove)(at(undefined)))
+    expect(line()).toHaveTextContent('2026-09-16 · 종가 102.00')
+
+    chart.setCrosshairPosition.mockClear()
+    act(() => handler(chart.subscribeClick)(at(undefined)))
+    expect(chart.setCrosshairPosition).not.toHaveBeenCalled()
+  })
+
+  it('종목을 바꾸면 가리켰던 날을 버리고 새 종목의 마지막 날 (그 날·값이 새 데이터에 없다)', async () => {
+    const { container, rerender } = render(<PriceChart history={history([])} />)
+    const { act } = await import('@testing-library/react')
+    act(() => handler(chart.subscribeClick)(at('2026-09-14', 100)))
+    const other = { ...history([]), ticker: 'QQQ', prices: [{ date: '2026-09-14', close: 300 }, { date: '2026-09-16', close: 310 }] }
+    rerender(<PriceChart history={other} />)
+    expect(container.querySelector('.chart-readout')).toHaveTextContent('2026-09-16 · 종가 310.00')
+  })
+
+  it('닫으면 구독을 푼다', () => {
+    const { unmount } = render(<PriceChart history={history([])} />)
+    unmount()
+    expect(chart.unsubscribeClick).toHaveBeenCalled()
+    expect(chart.unsubscribeCrosshairMove).toHaveBeenCalled()
   })
 })
