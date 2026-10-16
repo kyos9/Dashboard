@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models import User, UserStock
-from app.services import app_settings, pipeline, signal_recompute, signal_rules
+from app.services import app_settings, pipeline, signal_recompute, signal_rules, value_record
 from app.services.users import (
     STATUS_ACTIVE,
     STATUS_BLOCKED,
@@ -138,3 +138,9 @@ def signal_rules_status(db: Session = Depends(get_db)) -> dict:
         "changed_on": signal_rules.changed_on(),
         "last_recompute": signal_recompute.last_summary(db),
     }
+
+
+@router.get("/records")
+def records_status(db: Session = Depends(get_db)) -> dict:
+    """기록이 살아 있나 (0.44.0) — 진단 화면. 날마다의 평가금액은 합계만(누구의 금액도 담지 않는다)."""
+    return {"value_record": value_record.status(db)}

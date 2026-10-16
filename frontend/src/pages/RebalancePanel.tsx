@@ -40,6 +40,7 @@ import type {
   ReviewStatus,
   Settings,
   Stock,
+  ValueRecord,
 } from '../types'
 
 interface Row {
@@ -639,6 +640,27 @@ function RecordPanel({
 }
 
 /* ---------- 지난 기록 ---------- */
+
+/**
+ * 날마다의 평가금액 (0.44.0) — 서버가 매일 아침 스스로 남기는 기록이 쌓이고 있다는 한 줄.
+ * 위의 리뷰 기록("지금 상태 기록하기")과 다른 것이라 그렇다고 같이 적는다. 옛 서버·꺼 둔 서버면 그리지 않는다.
+ */
+export function ValueRecordLine({ record }: { record: ValueRecord | null | undefined }) {
+  if (!record?.enabled) return null
+  return (
+    <p className="hint value-record-line">
+      리뷰 기록과 따로, 평가금액은 매일 아침 자동으로 남깁니다 —{' '}
+      {record.days > 0 && record.since ? (
+        <>
+          {/* 날짜가 줄 끝에서 "2026-" / "10-12" 로 갈라지지 않게 */}
+          <span className="nowrap">{record.since}부터</span> <span className="nowrap">{record.days}일째.</span>
+        </>
+      ) : (
+        '보유나 현금이 있으면 다음 아침부터 쌓입니다.'
+      )}
+    </p>
+  )
+}
 
 function SnapshotList({
   snapshots,
@@ -1570,6 +1592,7 @@ export function RebalancePanel() {
         </div>
         <RecordPanel review={current.review} onSaved={handleSaved} onError={setError} />
         <SnapshotList snapshots={snapshots} onDeleted={handleSaved} onError={setError} />
+        <ValueRecordLine record={current.value_record} />
       </section>
 
       <details className="section settings-fold">

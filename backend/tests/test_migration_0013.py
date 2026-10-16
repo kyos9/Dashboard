@@ -57,10 +57,10 @@ def test_downgrade_removes_only_that_column_and_lands_where_old_code_knows(at_00
     assert _rows(engine, "SELECT user_id, base_currency FROM user_settings ORDER BY user_id") == settings
     # 옛 이미지(0.41.x)가 켜질 때 하는 일 — 찍힌 리비전에서 남은 리비전을 센다. 0012 면 넘어지지 않는다
     assert migrate.current_revision(engine) == "0012"
-    assert migrate.pending_revisions("0012") == ["0013"]
+    assert migrate.pending_revisions("0012")[-1] == "0013"
 
     migrate.upgrade_to_head(engine)
-    assert migrate.current_revision(engine) == migrate.head_revision() == "0013"
+    assert migrate.current_revision(engine) == migrate.head_revision()
 
 
 def test_a_db_from_a_newer_version_still_opens(at_0004, snapshots):

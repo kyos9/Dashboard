@@ -691,6 +691,13 @@ def seed() -> None:
             macro.mark_checked(db, series)
         db.commit()
 
+        # 날마다의 평가금액 (0.44.0) — 가짜 서버는 스케줄러를 끄므로 지난 닷새 아침에 남긴 것처럼 직접 쓴다.
+        # 진단의 "기록" 줄과 리밸런싱의 "○일째"가 보인다(값은 오늘 보유·종가 그대로)
+        from app.services import value_record
+
+        for back in range(4, -1, -1):
+            value_record.record_day(db, now=now - dt.timedelta(days=back))
+
 
 # ---------------------------------------------------------------------------
 #  실행

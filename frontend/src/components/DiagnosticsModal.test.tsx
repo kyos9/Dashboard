@@ -2,8 +2,8 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../api/client'
-import type { LogsResponse, SignalRulesStatus, SlowRequestsResponse } from '../types'
-import { DiagnosticsModal, summarize } from './DiagnosticsModal'
+import type { LogsResponse, RecordsStatus, SignalRulesStatus, SlowRequestsResponse } from '../types'
+import { DiagnosticsModal, RecordsLine, summarize } from './DiagnosticsModal'
 
 /**
  * 이 화면은 "문제가 났을 때 여는 곳"이다. 그래서 확인할 것은 예쁘냐가 아니라
@@ -235,5 +235,39 @@ describe('진단 · 시그널 기준 (0.41.0)', () => {
     render(<DiagnosticsModal onClose={() => {}} />)
     await screen.findByText(/005930.KS 갱신 실패/)
     expect(screen.queryByRole('heading', { name: /시그널 기준/ })).toBeNull()
+  })
+})
+
+describe('진단 — 기록 (0.44.0)', () => {
+  const status = (value: Partial<RecordsStatus['value_record']>): RecordsStatus => ({
+    value_record: { enabled: true, last_date: null, users: 0, rows: 0, ...value },
+  })
+
+  it('마지막 날짜·그날 사람 수·모든 줄 수만 보인다', () => {
+    render(<RecordsLine status={status({ last_date: '2026-10-16', users: 3, rows: 41 })} />)
+    expect(screen.getByText('평가금액 기록: 마지막 2026-10-16 · 그날 3명 · 모두 41줄')).toBeTruthy()
+  })
+
+  it('아직 없으면 언제 쌓이는지, 꺼 두었으면 꺼졌다고', () => {
+    const { unmount } = render(<RecordsLine status={status({})} />)
+    expect(screen.getByText(/아직 없습니다 — 매일 아침 미국 시세를 받은 뒤 남깁니다/)).toBeTruthy()
+    unmount()
+    render(<RecordsLine status={status({ enabled: false, last_date: '2026-10-16', rows: 5 })} />)
+    expect(screen.getByText(/꺼져 있습니다/)).toBeTruthy()
+    expect(screen.queryByText(/마지막 2026-10-16/)).toBeNull()
+  })
+
+  it('진단 창에 붙고, 옛 서버(없는 경로)면 그리지 않는다', async () => {
+    vi.spyOn(api, 'getLogs').mockResolvedValue(logs())
+    const spy = vi.spyOn(api, 'getRecordsStatus').mockResolvedValue(status({ last_date: '2026-10-16', users: 1, rows: 2 }))
+    const { unmount } = render(<DiagnosticsModal onClose={() => {}} />)
+    expect(await screen.findByRole('heading', { name: '기록' })).toBeTruthy()
+    expect(spy).toHaveBeenCalled()
+    unmount()
+
+    spy.mockRejectedValue(new Error('404'))
+    render(<DiagnosticsModal onClose={() => {}} />)
+    await screen.findByText(/005930.KS 갱신 실패/)
+    expect(screen.queryByRole('heading', { name: '기록' })).toBeNull()
   })
 })

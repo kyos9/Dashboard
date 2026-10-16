@@ -1,6 +1,6 @@
 # 0.44.0 — 평가금액 기록 시작 + 종합 신호등 정리 + 작은 고치기 2 (+ 백업·알림) (키우기 3라운드)
 
-**상태: 진행 중** — 주인 승인 ① 끝, A 구현 중
+**상태: 진행 중** — A 검토 중
 
 - 작업 브랜치: `claude/new-session-fftcg1` (main `4844bf0` 끝으로 앞당김, 2026-10-16 주인 허락)
 - 시작 커밋(비교 기준): `4844bf0` (2026-10-15, "0.43.0 디자인 2차 합치기")
@@ -38,20 +38,26 @@
 
 ## 항목
 
-- A 날마다 평가금액 기록 (큼) — 구현 중
+- A 날마다 평가금액 기록 (큼) — 구현 끝, 검토 중
 - B 종합 신호등 정리 (중간)
 - C 작은 고치기 2: C1 차트 짧은 탭 · C2 422 한국어 · C3 종목 추가 창 (중간)
 - D0 진단에 백업 상태 (작음)
 
 ## A 작업 목록
 
-- [ ] 0014 `portfolio_value_daily` + 0013 DB 로 앱이 뜬다 + 0014 를 건너는 내리기는 백업 성공 조건
-- [ ] `services/value_record.py`: 총액 계산을 rebalance 와 같이 쓰기, upsert, 사람마다 rollback, `in_use`·0 줄
-- [ ] 스케줄러: 미국 갱신 뒤(실패해도) · 켤 때(결과 없어도) · `SIGNAL_DASHBOARD_VALUE_RECORD=0`
-- [ ] 탈퇴 지우기 + metadata 로 모은 탈퇴 테스트 · `_a_is_untouched`
-- [ ] 진단 합계 줄(주인) · 리밸런싱 "리뷰 · 기록" 안 안내 줄 · 가짜 서버 seed
-- [ ] 방침 1·5절 · 명세 · DEPLOY 9-2 · README
+- [x] 0014 `portfolio_value_daily` + 0013 DB 로 앱이 뜬다 + 0014 를 건너는 내리기는 백업 성공 조건(`migrate.DATA_ON_DOWNGRADE`)
+- [x] `services/value_record.py`: 총액 계산을 `rebalance.portfolio_valuation` 로 같이 쓰기, upsert, 사람마다 rollback, `in_use`·0 줄, 빈 사람에게 설정 행 안 만듦
+- [x] 스케줄러: 미국 갱신 뒤(실패해도) · 켤 때(결과 없어도) · `SIGNAL_DASHBOARD_VALUE_RECORD=0`
+- [x] 탈퇴 지우기 + metadata 로 모은 탈퇴 테스트(표마다 B 줄이 먼저 있는지) · `_a_is_untouched`
+- [x] 진단 "기록" 줄(`GET /api/admin/records`, 주인) · 리밸런싱 "리뷰 · 기록" 안 안내 줄(`value_record` 칸 더하기) · 가짜 서버 닷새치
+- [x] 방침 1·5절·시행일 2026-10-16 · 명세 13장 · DEPLOY 9-3 (README 는 라운드 끝)
+- [x] 회귀: 응답 사진 차이 0, API 빠짐 0·바뀜 0·더해짐 3, AI 지시문 상수 같음
+- [x] 뮤테이션 18개 다 잡힘 (`A-mutation.md`)
+- [x] 브라우저: PC 1400·폰 390/360 × 두 테마 — 가로 넘침 0, 콘솔 오류 0. 360 에서 날짜가 갈라져 `nowrap` 으로 고침
+- [ ] 검토자·사용자
+
+A 수치: 백엔드 1364 → 1391, 프런트 884 → 891, lint 22, tsc 통과.
 
 ## 다음 할 일
 
-- A 구현
+- A 검토자·사용자 → B 구현

@@ -226,6 +226,19 @@ def test_signal_rules_are_recomputed_once_on_start(server):
     assert friend.get(server + "/api/admin/signal-rules").status_code == 403
 
 
+def test_demo_has_daily_value_records(server):
+    """평가금액 기록 (0.44.0) — 스케줄러가 꺼진 가짜 서버도 닷새치를 깔아 진단·리밸런싱 안내가 보인다."""
+    owner = login(server, fake_server.OWNER)
+    records = owner.get(server + "/api/admin/records").json()["value_record"]
+    assert records["enabled"] is True and records["last_date"] is not None
+    # 주인·지인 두 사람(처음 온 사람은 아무것도 없어 빠진다) × 닷새
+    assert (records["users"], records["rows"]) == (2, 10)
+    assert owner.get(server + "/api/rebalance/current").json()["value_record"]["days"] == 5
+    newcomer = login(server, fake_server.NEWCOMER)
+    assert newcomer.get(server + "/api/rebalance/current").json()["value_record"]["days"] == 0
+    assert newcomer.get(server + "/api/admin/records").status_code == 403
+
+
 def test_demo_rule_change_shows_the_notice_and_recomputes(server):
     """`--demo-rule-change` — 정의를 오늘 바꾼 것처럼. 같은 데이터로 하나 더 띄운다(데모 데이터를 다시 만들지 않는다)."""
     with _serve(DATA_DIRS["main"], "--demo-rule-change") as demo:

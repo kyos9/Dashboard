@@ -10,6 +10,7 @@ import type {
   DashboardCard,
   SignalRules,
   SignalThresholds,
+  RecordsStatus,
   SignalRulesStatus,
   FxInfo,
   Holding,
@@ -262,6 +263,7 @@ export const api = {
   getAppSettings: () => request<AppSettings>('/admin/settings'),
   /** 관리자 — 시그널 정의의 판·마지막 재계산 (0.41.0). 옛 서버는 404 */
   getSignalRulesStatus: () => request<SignalRulesStatus>('/admin/signal-rules'),
+  getRecordsStatus: () => request<RecordsStatus>('/admin/records'),
   setAppSettings: (settings: AppSettings) =>
     request<AppSettings>('/admin/settings', { method: 'PUT', body: JSON.stringify(settings) }),
 
