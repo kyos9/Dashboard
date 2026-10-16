@@ -234,6 +234,10 @@ def test_demo_has_daily_value_records(server):
     # 주인·지인 두 사람(처음 온 사람은 아무것도 없어 빠진다) × 닷새
     assert (records["users"], records["rows"]) == (2, 10)
     assert owner.get(server + "/api/rebalance/current").json()["value_record"]["days"] == 5
+    # 백업 한 벌 (D0) — 시각·크기·벌 수, 이름·경로는 없다
+    backup = owner.get(server + "/api/admin/records").json()["backup"]
+    assert backup["count"] == 1 and backup["last_size"] > 0 and backup["last_at"] and backup["last_failure"] is None
+    assert "signalboard-" not in str(backup)
     newcomer = login(server, fake_server.NEWCOMER)
     assert newcomer.get(server + "/api/rebalance/current").json()["value_record"]["days"] == 0
     assert newcomer.get(server + "/api/admin/records").status_code == 403

@@ -37,6 +37,30 @@ PREFIX = "signalboard-"
 STAMP = "%Y%m%d-%H%M%S"
 
 
+# 마지막으로 실패한 때와 그 갈래 — 진단 화면이 본다 (0.44.0 D0). 이 프로세스 안에만 두고, 성공하면 비운다.
+# 사유는 갈래 이름만 — 예외 글에는 DB 파일 경로·pg_dump 의 접속 주소가 들 수 있다.
+_last_failure: dict | None = None
+
+
+def _failure_kind(exc: BaseException) -> str:
+    import errno
+
+    text = str(exc)
+    if "pg_dump 를 찾을 수 없습니다" in text:
+        return "pg_dump 가 없습니다"
+    if text.startswith("pg_dump 실패"):
+        return "pg_dump 가 실패했습니다"
+    if isinstance(exc, FileNotFoundError):
+        return "DB 파일을 찾지 못했습니다"
+    if isinstance(exc, PermissionError):
+        return "백업 폴더에 쓸 수 없습니다"
+    if isinstance(exc, OSError) and exc.errno == errno.ENOSPC:
+        return "디스크가 찼습니다"
+    if isinstance(exc, OSError):
+        return "파일을 쓰지 못했습니다"
+    return "알 수 없는 오류 — 서버 로그를 보세요"
+
+
 def _stamp() -> str:
     return dt.datetime.now().strftime(STAMP)
 
@@ -138,12 +162,18 @@ def prune(keep: int | None = None, backup_dir: Path | None = None) -> list[Path]
 
 def run_backup() -> Path | None:
     """스케줄러가 부르는 자리. 백업이 실패해도 앱은 계속 돌아야 한다."""
+    global _last_failure
     try:
         path = create_backup()
     except Exception as exc:
         # 조용히 넘어가면 안 된다 — 백업이 없는 걸 모르는 게 백업이 없는 것보다 나쁘다.
         logger.error("백업에 실패했습니다: %s", exc)
+        _last_failure = {
+            "at": dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat(),
+            "reason": _failure_kind(exc),
+        }
         return None
+    _last_failure = None
     try:
         prune()
     except OSError as exc:
@@ -161,6 +191,32 @@ def latest_age(backup_dir: Path | None = None) -> dt.timedelta | None:
     except ValueError:
         return None
     return dt.datetime.now() - stamp
+
+
+def status(backup_dir: Path | None = None) -> dict:
+    """진단(주인)에 보일 백업 상태 (0.44.0 D0) — 마지막 백업 시각·크기·벌 수·마지막 실패.
+
+    **파일 이름·경로는 담지 않는다.** 시각은 이름에 찍힌 서버 시각을 UTC 로 바꿔 준다(화면이 보는 사람의 시간대로).
+    """
+    found = existing_backups(backup_dir)
+    last_at = last_size = None
+    if found:
+        try:
+            stamp = dt.datetime.strptime(found[0].name[len(PREFIX) :][: len(_stamp())], STAMP)
+            last_at = stamp.astimezone(dt.timezone.utc).isoformat()
+        except ValueError:
+            last_at = None
+        try:
+            last_size = found[0].stat().st_size
+        except OSError:
+            last_size = None
+    return {
+        "count": len(found),
+        "keep": KEEP,
+        "last_at": last_at,
+        "last_size": last_size,
+        "last_failure": _last_failure,
+    }
 
 
 def run_backup_if_stale(max_age_hours: float = 12, backup_dir: Path | None = None) -> Path | None:

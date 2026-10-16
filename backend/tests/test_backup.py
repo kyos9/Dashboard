@@ -236,3 +236,64 @@ def test_missing_pg_dump_says_what_to_install(tmp_path, monkeypatch):
     monkeypatch.setattr(backup.shutil, "which", lambda name: None)
     with pytest.raises(RuntimeError, match="postgresql-client"):
         backup.create_backup(url="postgresql+psycopg://u:p@h/d", backup_dir=tmp_path / "b")
+
+
+# --- 진단의 백업 상태 (0.44.0 D0) ---------------------------------------------
+
+
+def test_status_tells_when_how_big_and_how_many_without_names(tmp_path, monkeypatch):
+    monkeypatch.setattr(backup, "_last_failure", None)
+    made = _fake_backups(tmp_path / "b", 3)
+    made[-1].write_bytes(b"x" * 1234)
+
+    status = backup.status(backup_dir=tmp_path / "b")
+
+    assert status["count"] == 3 and status["keep"] == backup.KEEP
+    assert status["last_size"] == 1234
+    # 이름에 찍힌 서버 시각(가장 최근)을 UTC 로
+    newest = dt.datetime(2026, 9, 12, 3, 0, 0).astimezone(dt.timezone.utc)
+    assert status["last_at"] == newest.isoformat()
+    assert status["last_failure"] is None
+    # 파일 이름·경로는 담지 않는다
+    text = repr(status)
+    assert backup.PREFIX not in text and str(tmp_path) not in text
+
+
+def test_status_with_no_backups(tmp_path, monkeypatch):
+    monkeypatch.setattr(backup, "_last_failure", None)
+    assert backup.status(backup_dir=tmp_path / "없음") == {
+        "count": 0, "keep": backup.KEEP, "last_at": None, "last_size": None, "last_failure": None,
+    }
+
+
+def test_a_failure_is_remembered_as_a_kind_and_cleared_by_the_next_success(live_db, tmp_path, monkeypatch):
+    """사유는 갈래 이름만 — 예외 글에 든 DB 경로가 화면으로 나가지 않는다."""
+    monkeypatch.setattr(backup, "_last_failure", None)
+    monkeypatch.setattr(backup, "BACKUP_DIR", tmp_path / "b")
+    missing = tmp_path / "아무도모르는경로" / "없음.db"
+    monkeypatch.setattr(backup, "database_url", lambda: f"sqlite:///{missing}")
+
+    assert backup.run_backup() is None
+    failure = backup.status()["last_failure"]
+    assert failure["reason"] == "DB 파일을 찾지 못했습니다"
+    assert dt.datetime.fromisoformat(failure["at"]).tzinfo is not None
+    assert "아무도모르는경로" not in repr(backup.status())
+
+    monkeypatch.setattr(backup, "database_url", lambda: f"sqlite:///{live_db[0]}")
+    assert backup.run_backup() is not None
+    assert backup.status()["last_failure"] is None
+
+
+@pytest.mark.parametrize(
+    "exc, kind",
+    [
+        (RuntimeError("pg_dump 를 찾을 수 없습니다. postgresql-client 를 설치해야 백업할 수 있습니다."), "pg_dump 가 없습니다"),
+        (RuntimeError("pg_dump 실패 (코드 1): connection to postgresql://u:secret@db/x failed"), "pg_dump 가 실패했습니다"),
+        (PermissionError(13, "Permission denied", "/srv/backups/x.db"), "백업 폴더에 쓸 수 없습니다"),
+        (OSError(28, "No space left on device"), "디스크가 찼습니다"),
+        (OSError(5, "I/O error"), "파일을 쓰지 못했습니다"),
+        (ValueError("뭔가"), "알 수 없는 오류 — 서버 로그를 보세요"),
+    ],
+)
+def test_failure_kinds_never_carry_the_message(exc, kind):
+    assert backup._failure_kind(exc) == kind

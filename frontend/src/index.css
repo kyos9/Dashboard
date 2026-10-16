@@ -5471,3 +5471,8 @@ section.signal-line {
   color: var(--text-dim);
   word-break: keep-all;
 }
+
+/* 진단의 경고 한 줄 — 백업이 멈췄거나 실패했을 때 (0.44.0 D0) */
+.diag-warn {
+  color: var(--amber);
+}

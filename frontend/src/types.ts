@@ -492,6 +492,17 @@ export interface RecordsStatus {
     users: number
     rows: number
   }
+  /** 0.44.0 D0 — 옛 서버는 보내지 않는다. 파일 이름·경로는 없다 */
+  backup?: BackupStatus
+}
+
+export interface BackupStatus {
+  count: number
+  keep: number
+  /** 마지막 백업 시각(UTC ISO) */
+  last_at: string | null
+  last_size: number | null
+  last_failure: { at: string; reason: string } | null
 }
 
 /** 리밸런싱 기록에 얼려둔 종목 한 줄 */

@@ -696,11 +696,16 @@ def seed() -> None:
         db.commit()
 
         # 날마다의 평가금액 (0.44.0) — 가짜 서버는 스케줄러를 끄므로 지난 닷새 아침에 남긴 것처럼 직접 쓴다.
-        # 진단의 "기록" 줄과 리밸런싱의 "○일째"가 보인다(값은 오늘 보유·종가 그대로)
+        # 진단의 "평가금액 기록 · 백업" 칸과 리밸런싱의 "○일째"가 보인다(값은 오늘 보유·종가 그대로)
         from app.services import value_record
 
         for back in range(4, -1, -1):
             value_record.record_day(db, now=now - dt.timedelta(days=back))
+
+    # 백업 한 벌 (0.44.0 D0) — 진단의 백업 줄(시각·크기·벌 수)이 보이게. 데이터 폴더 안 backups/ 에 뜬다
+    from app.services import backup
+
+    backup.run_backup()
 
 
 # ---------------------------------------------------------------------------
