@@ -666,10 +666,14 @@ def seed() -> None:
         owner = ensure_local_owner(db)
         # 구글 계정은 붙이지 않는다 — 처음 로그인할 때 앱이 주인 주소를 보고 1번에 붙인다(진짜와 같은 길)
         owner.email, owner.name, owner.status, owner.last_login_at = OWNER, "owner", "active", now
+        # 가입은 기록보다 앞 — 평가금액 기록을 지난 아침들로 채우므로, 가입일이 오늘이면 켤 때 치우기
+        # (value_record.sweep_orphans: 가입하기 전의 줄)가 그 줄들을 남의 것으로 본다
+        joined = now - dt.timedelta(days=30)
+        owner.created_at = joined
         users = {}
         for email, status in ((FRIEND, "active"), (NEWCOMER, "active"), (PENDING, "pending")):
             user = User(google_sub="dev-" + email, email=email, name=email.split("@")[0], status=status,
-                        is_owner=False, created_at=now, last_login_at=now)
+                        is_owner=False, created_at=joined, last_login_at=now)
             db.add(user)
             users[email] = user
         db.flush()

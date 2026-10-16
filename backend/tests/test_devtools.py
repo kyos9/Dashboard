@@ -270,3 +270,4 @@ def test_demo_custom_thresholds_shows_my_thresholds(server):
         assert friend.get(demo + "/api/signal-rules").json()["custom"] is False
         # 기본값으로 되돌리면 처음과 같다 (다음 시험이 같은 데이터를 쓴다)
         assert owner.delete(demo + "/api/signal-thresholds").json()["custom"] is False
+

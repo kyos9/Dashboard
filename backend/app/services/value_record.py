@@ -165,7 +165,7 @@ def record_day(db: Session, now: dt.datetime | None = None) -> dict | None:
 
 
 def sweep_orphans(db: Session) -> int:
-    """주인 없는 줄을 지운다 — 켤 때 한 번 (A 검토 조건 1).
+    """주인 없는 줄을 지운다 — 켤 때 한 번, 요청을 받기 전에(`db.init_db`) (A 검토 조건 1).
 
     0.43 으로 이미지만 되돌린 동안(DEPLOY 9-3) 그 코드는 이 표를 모르고 탈퇴를 처리한다. Postgres 는 외래키
     CASCADE 가 지우지만 SQLite 는 외래키를 강제하지 않아 줄이 남는다. 게다가 `users.id` 는 다시 쓰일 수 있다 —

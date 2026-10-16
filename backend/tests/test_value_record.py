@@ -283,11 +283,9 @@ def test_startup_records_whether_or_not_anything_was_fetched(monkeypatch, caught
     monkeypatch.setattr(scheduler, "SessionLocal", lambda: _Closable())
     monkeypatch.setattr(scheduler, "_recompute_if_rules_changed", lambda: None)
     monkeypatch.setattr(alerts, "run_daily", lambda db: None)
-    monkeypatch.setattr(value_record, "sweep_orphans", lambda db: calls.append("sweep"))
     monkeypatch.setattr(value_record, "record_day", lambda db: calls.append(1))
     scheduler._startup_refresh_job()
-    # 켤 때는 주인 없는 줄을 먼저 치우고 남긴다
-    assert calls == ["sweep", 1]
+    assert calls == [1]
 
 
 def test_startup_records_even_when_the_catch_up_fails(monkeypatch):
@@ -301,11 +299,9 @@ def test_startup_records_even_when_the_catch_up_fails(monkeypatch):
     monkeypatch.setattr(pipeline, "refresh_stale_markets", offline)
     monkeypatch.setattr(scheduler, "SessionLocal", lambda: _Closable())
     monkeypatch.setattr(scheduler, "_recompute_if_rules_changed", lambda: None)
-    monkeypatch.setattr(value_record, "sweep_orphans", lambda db: calls.append("sweep"))
     monkeypatch.setattr(value_record, "record_day", lambda db: calls.append(1))
     scheduler._startup_refresh_job()
-    # 켤 때는 주인 없는 줄을 먼저 치우고 남긴다
-    assert calls == ["sweep", 1]
+    assert calls == [1]
 
 
 def test_a_failing_record_does_not_break_the_job(monkeypatch):
@@ -329,8 +325,11 @@ def test_holding_nothing_that_counts_gets_no_row_and_no_settings_row(db_session,
         make_stock(db, "VOO")
         make_holding(db, "VOO", 0.0)
     else:
+        # 활성 종목은 있지만 들고 있지 않고, 보유는 숨긴 종목에만 — 보유와 종목은 같은 종목끼리 짝짓는다
+        make_stock(db, "QQQ", sort_order=1)
         make_stock(db, "VOO", active=False)
         make_holding(db, "VOO", 3.0)
+        _prices(db, "QQQ", 400.0)
     _prices(db, "VOO", 500.0)
 
     assert value_record.record_day(db, now=MORNING)["written"] == 0
@@ -373,36 +372,49 @@ def test_sweep_removes_rows_whose_person_is_gone_or_came_later(db_session):
     assert value_record.sweep_orphans(db) == 0
 
 
-def test_startup_still_records_when_the_sweep_fails(monkeypatch):
-    from app.services import pipeline, scheduler
-
-    class _Session(_Closable):
-        def rollback(self):
-            calls.append("rollback")
+def test_init_db_sweeps_before_any_request(tmp_path, monkeypatch):
+    """치우기는 앱이 요청을 받기 전(`init_db`) — 스케줄러에 두면 그 사이 같은 번호의 새 사람에게 앞사람의 날 수가 보인다."""
+    from app import db as app_db
 
     calls = []
+    monkeypatch.setattr(value_record, "sweep_orphans", lambda session: calls.append("sweep") or 0)
+    from tests import dbsetup
 
-    def broken_sweep(db):
+    engine = dbsetup.make_engine(f"sqlite:///{tmp_path / 'i.db'}")
+    try:
+        app_db.init_db(bind=engine)
+    finally:
+        dbsetup.dispose(engine)
+    assert calls == ["sweep"]
+
+
+def test_init_db_still_starts_when_the_sweep_fails(tmp_path, monkeypatch):
+    from app import db as app_db
+    from tests import dbsetup
+
+    def broken(session):
         raise RuntimeError("치우기 이상")
 
-    monkeypatch.setattr(pipeline, "refresh_stale_markets", lambda db: {})
-    monkeypatch.setattr(scheduler, "SessionLocal", lambda: _Session())
-    monkeypatch.setattr(scheduler, "_recompute_if_rules_changed", lambda: None)
-    monkeypatch.setattr(value_record, "sweep_orphans", broken_sweep)
-    monkeypatch.setattr(value_record, "record_day", lambda db: calls.append(1))
-    scheduler._startup_refresh_job()
-    assert calls == ["rollback", 1]
+    monkeypatch.setattr(value_record, "sweep_orphans", broken)
+    engine = dbsetup.make_engine(f"sqlite:///{tmp_path / 'j.db'}")
+    try:
+        app_db.init_db(bind=engine)  # 넘어지지 않는다
+    finally:
+        dbsetup.dispose(engine)
 
 
-def test_the_daily_job_does_not_sweep(monkeypatch):
-    """치우기는 켤 때 한 번 — 옛 버전에서 돌아온 순간에만 필요하다."""
-    from app.services import alerts, scheduler
+def test_the_scheduler_does_not_sweep(monkeypatch):
+    """스케줄러의 켤 때·아침 길은 치우지 않는다 — 치우기는 init_db 한 곳."""
+    from app.services import alerts, pipeline, scheduler
 
     calls = []
     monkeypatch.setattr(scheduler, "refresh_all_active_stocks", lambda db, market=None: [])
+    monkeypatch.setattr(pipeline, "refresh_stale_markets", lambda db: {})
     monkeypatch.setattr(scheduler, "SessionLocal", lambda: _Closable())
+    monkeypatch.setattr(scheduler, "_recompute_if_rules_changed", lambda: None)
     monkeypatch.setattr(alerts, "run_daily", lambda db: None)
     monkeypatch.setattr(value_record, "sweep_orphans", lambda db: calls.append("sweep"))
     monkeypatch.setattr(value_record, "record_day", lambda db: calls.append(1))
     scheduler._daily_refresh_job()
-    assert calls == [1]
+    scheduler._startup_refresh_job()
+    assert calls == [1, 1]

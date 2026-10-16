@@ -69,22 +69,15 @@ def _send_alerts() -> None:
         db.close()
 
 
-def _record_values(sweep: bool = False) -> None:
+def _record_values() -> None:
     """날마다의 평가금액 (0.44.0, services/value_record.py). 넘어져도 앱·갱신은 그대로다.
 
-    `sweep` — 켤 때만: 옛 버전에서의 탈퇴가 남긴 주인 없는 줄을 먼저 치운다(`value_record.sweep_orphans`).
+    주인 없는 줄 치우기는 여기가 아니라 `db.init_db` 에서 한다 — 요청을 받기 전에.
     """
     from app.services import value_record
 
     db = SessionLocal()
     try:
-        if sweep:
-            # 치우기가 넘어져도 그날 줄은 남긴다
-            try:
-                value_record.sweep_orphans(db)
-            except Exception:
-                db.rollback()
-                logger.warning("주인 없는 평가금액 기록을 치우지 못했습니다", exc_info=True)
         value_record.record_day(db)
     except Exception:
         logger.warning("평가금액을 기록하지 못했습니다", exc_info=True)
@@ -134,7 +127,7 @@ def _startup_refresh_job() -> None:
     if results:
         _send_alerts()
     # 평가금액은 받은 게 없어도 — 꺼져 있던 아침의 줄을 채운다(같은 날 줄이 있으면 고쳐 쓴다)
-    _record_values(sweep=True)
+    _record_values()
 
 
 def _recompute_if_rules_changed() -> None:

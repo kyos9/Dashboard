@@ -44,3 +44,16 @@
 
 **9/9 잡힘** (둘은 테스트를 더한 뒤). Postgres 16(이 컨테이너)에서: 0014 의 외래키 `ondelete=CASCADE`, users 행을 지우면
 (0.43 의 탈퇴가 하는 일) 평가금액 줄 0 — 손으로 확인. `test_value_record`·`test_migration_0014`·`test_isolation` 87 passed.
+
+## 두 번째 검토 뒤 (합격 — 살아남은 R2 하나, 참고 둘)
+
+치우기를 스케줄러(켠 뒤 30초)에서 `db.init_db`(요청을 받기 전)로 옮김, 데모 가입일을 기록보다 앞(30일 전)으로.
+
+| 뮤테이션 | 파일 | 결과 |
+| --- | --- | --- |
+| R2 보유·종목 짝에서 ticker 빼기 (검토자) | `backend/app/services/value_record.py` | 살아남았음 → 활성 종목(보유 없음) + 숨긴 종목(보유) 테스트로 잡힘 |
+| init_db 에서 치우지 않기 | `backend/app/db.py` | 잡힘 |
+| 치우기가 넘어지면 앱도 멈춤 | `backend/app/db.py` | 잡힘 |
+| 데모 가입일을 오늘로 | `backend/devtools/fake_server.py` | 잡힘 (기존 `test_demo_has_daily_value_records` — 켤 때 치우기가 데모 줄을 지운다) |
+
+백엔드 1398 passed / 3 skipped. Postgres 16: value_record·0014·isolation·devtools 101 passed.
