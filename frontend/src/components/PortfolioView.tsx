@@ -412,7 +412,7 @@ function SignalLegend() {
         <SignalShape kind="sell" size={9} /> 매도 시그널
       </span>
       <span>
-        <SignalShape kind="rebalance" size={9} /> 비중조절(과중·미달)
+        <SignalShape kind="rebalance" size={9} /> 비중조절(비중 초과·미달)
       </span>
       <span>— 누르면 시그널 보기</span>
     </p>

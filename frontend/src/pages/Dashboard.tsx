@@ -72,7 +72,7 @@ const WATCH_HINT = '관망 — 매수·매도 조건 미충족'
 function TrafficBadge({ traffic }: { traffic: Traffic }) {
   if (traffic.state === 'watch') {
     return (
-      <span className="traffic-watch" title={WATCH_HINT} aria-label={WATCH_HINT}>
+      <span className="traffic-watch" role="img" title={WATCH_HINT} aria-label={WATCH_HINT}>
         —
       </span>
     )
@@ -1018,7 +1018,12 @@ export function Dashboard() {
       )}
       </div>
 
-      <p className="hint" style={{ marginTop: 14 }}>
+      {/* "—" 의 풀이가 툴팁에만 있으면 폰·키보드로는 볼 수 없다(B 검토·사용자) — 화면에 한 줄로 */}
+      <p className="hint signal-key" style={{ marginTop: 14 }}>
+        <strong>시그널</strong> 줄은 지표로 본 매수·매도이고, 흐린 <span className="traffic-watch" aria-hidden="true">—</span>는 관망(매수·매도 조건 미충족)입니다.{' '}
+        <strong>비중</strong> 줄은 지표와 따로, 목표 비중에서 벗어났는지(비중 초과·비중 미달)를 말합니다.
+      </p>
+      <p className="hint" style={{ marginTop: 6 }}>
         {rules.custom && <strong>내 기준: </strong>}
         {buyRuleSentence(rules)} 표에서는 각 조건이 해당 지표 칸에, 카드에서는 "매수 조건" 줄에 ✓로 표시됩니다. 매도 시그널은 참고용이며 실제
         매도는 리밸런싱 리뷰 때 비중을 보고 정합니다.

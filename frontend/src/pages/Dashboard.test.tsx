@@ -357,6 +357,11 @@ describe('대시보드 · 신호 칸은 짧게, 모양으로도 (ROADMAP 8-4)', 
     expect(watch.textContent).toBe('—')
     expect(watch).toHaveAttribute('title', '관망 — 매수·매도 조건 미충족')
     expect(within(voo).getByLabelText('관망 — 매수·매도 조건 미충족')).toBe(watch)
+    // 이름을 가진 기호(role=img) — role 없는 span 의 aria-label 은 읽기 기기마다 다르다
+    expect(within(voo).getByRole('img', { name: '관망 — 매수·매도 조건 미충족' })).toBe(watch)
+    // 툴팁은 폰·키보드로 못 본다 — 같은 풀이가 화면 글로도 있다
+    expect(document.querySelector('.signal-key')?.textContent).toMatch(/흐린 —는 관망\(매수·매도 조건 미충족\)입니다/)
+    expect(document.querySelector('.signal-key')?.textContent).toMatch(/비중 줄은 지표와 따로/)
     expect(voo.querySelector('.traffic')).toBeNull()
     expect(within(voo).queryByText('관망')).toBeNull()
     // 시세가 없는 종목은 "—" 가 아니라 "갱신 필요" 그대로 — 둘이 같아 보이지 않는다
