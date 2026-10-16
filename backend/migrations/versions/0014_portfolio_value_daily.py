@@ -23,7 +23,9 @@ def upgrade() -> None:
     op.create_table(
         "portfolio_value_daily",
         sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=False),
+        # CASCADE: 0.43 이미지는 이 표를 모른다 — 되돌린 동안의 탈퇴가 Postgres 에서 넘어지지 않게.
+        # SQLite 는 외래키를 강제하지 않으므로 남은 줄은 0.44 가 켤 때 치운다(value_record.sweep_orphans).
+        sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
         sa.Column("date", sa.Date(), nullable=False),
         sa.Column("base_currency", sa.String(), nullable=False),
         sa.Column("total_value_base", sa.Float(), nullable=False),

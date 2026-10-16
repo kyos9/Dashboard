@@ -26,11 +26,11 @@ import logging
 import os
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models import Holding, PortfolioValueDaily, User, UserSettings
+from app.models import Holding, PortfolioValueDaily, User, UserSettings, UserStock
 from app.services import rebalance
 from app.services.pipeline import in_use
 
@@ -84,9 +84,16 @@ def _holds_anything(db: Session, user_id: int) -> bool:
     """보유나 현금이 있을 수도 있나 — 없으면 계산도 하지 않는다.
 
     평가 계산(`get_settings`)은 설정 행이 없으면 만든다. 아무것도 없는 사람에게 매일 빈 설정 행을
-    만들어 줄 까닭이 없다.
+    만들어 줄 까닭이 없다. 평가 계산과 같은 것을 센다 — **활성 종목**의 수량 > 0 (수량 0 행·숨긴 종목만 있는
+    사람은 평가가 0 이다).
     """
-    if db.query(Holding.ticker).filter(Holding.user_id == user_id, Holding.quantity > 0).first():
+    held = (
+        db.query(Holding.ticker)
+        .join(UserStock, (UserStock.user_id == Holding.user_id) & (UserStock.ticker == Holding.ticker))
+        .filter(Holding.user_id == user_id, Holding.quantity > 0, UserStock.active.is_(True))
+        .first()
+    )
+    if held:
         return True
     settings = db.get(UserSettings, user_id)
     return bool(settings and settings.cash and any(settings.cash.values()))
@@ -155,6 +162,27 @@ def record_day(db: Session, now: dt.datetime | None = None) -> dict | None:
             logger.warning("사용자 %s 의 평가금액을 기록하지 못했습니다", user_id, exc_info=True)
     logger.info("평가금액 기록 %s: 대상 %d명 중 %d명 (실패 %d)", day, len(user_ids), written, failed)
     return {"date": day.isoformat(), "users": len(user_ids), "written": written, "failed": failed}
+
+
+def sweep_orphans(db: Session) -> int:
+    """주인 없는 줄을 지운다 — 켤 때 한 번 (A 검토 조건 1).
+
+    0.43 으로 이미지만 되돌린 동안(DEPLOY 9-3) 그 코드는 이 표를 모르고 탈퇴를 처리한다. Postgres 는 외래키
+    CASCADE 가 지우지만 SQLite 는 외래키를 강제하지 않아 줄이 남는다. 게다가 `users.id` 는 다시 쓰일 수 있다 —
+    맨 끝 번호가 탈퇴하면 다음 가입자가 같은 번호를 받는다. 그래서 둘 다 지운다:
+    사람이 없는 줄, 그 사람이 **가입하기 전**에 쓰인 줄(제 줄일 수 없다). 지운 수를 돌려준다.
+    """
+    ids = [
+        row_id
+        for (row_id,) in db.query(PortfolioValueDaily.id)
+        .outerjoin(User, User.id == PortfolioValueDaily.user_id)
+        .filter(or_(User.id.is_(None), PortfolioValueDaily.recorded_at < User.created_at))
+    ]
+    if ids:
+        db.query(PortfolioValueDaily).filter(PortfolioValueDaily.id.in_(ids)).delete(synchronize_session=False)
+        db.commit()
+        logger.warning("주인 없는 평가금액 기록 %d줄을 지웠습니다(옛 버전에서의 탈퇴)", len(ids))
+    return len(ids)
 
 
 def status(db: Session) -> dict:

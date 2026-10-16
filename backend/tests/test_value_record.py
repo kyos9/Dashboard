@@ -283,9 +283,11 @@ def test_startup_records_whether_or_not_anything_was_fetched(monkeypatch, caught
     monkeypatch.setattr(scheduler, "SessionLocal", lambda: _Closable())
     monkeypatch.setattr(scheduler, "_recompute_if_rules_changed", lambda: None)
     monkeypatch.setattr(alerts, "run_daily", lambda db: None)
+    monkeypatch.setattr(value_record, "sweep_orphans", lambda db: calls.append("sweep"))
     monkeypatch.setattr(value_record, "record_day", lambda db: calls.append(1))
     scheduler._startup_refresh_job()
-    assert calls == [1]
+    # 켤 때는 주인 없는 줄을 먼저 치우고 남긴다
+    assert calls == ["sweep", 1]
 
 
 def test_startup_records_even_when_the_catch_up_fails(monkeypatch):
@@ -299,9 +301,11 @@ def test_startup_records_even_when_the_catch_up_fails(monkeypatch):
     monkeypatch.setattr(pipeline, "refresh_stale_markets", offline)
     monkeypatch.setattr(scheduler, "SessionLocal", lambda: _Closable())
     monkeypatch.setattr(scheduler, "_recompute_if_rules_changed", lambda: None)
+    monkeypatch.setattr(value_record, "sweep_orphans", lambda db: calls.append("sweep"))
     monkeypatch.setattr(value_record, "record_day", lambda db: calls.append(1))
     scheduler._startup_refresh_job()
-    assert calls == [1]
+    # 켤 때는 주인 없는 줄을 먼저 치우고 남긴다
+    assert calls == ["sweep", 1]
 
 
 def test_a_failing_record_does_not_break_the_job(monkeypatch):
@@ -315,3 +319,90 @@ def test_a_failing_record_does_not_break_the_job(monkeypatch):
     monkeypatch.setattr(alerts, "run_daily", lambda db: None)
     monkeypatch.setattr(value_record, "record_day", boom)
     scheduler._daily_refresh_job()  # 넘어지지 않는다
+
+
+@pytest.mark.parametrize("case", ["zero quantity", "hidden stock"])
+def test_holding_nothing_that_counts_gets_no_row_and_no_settings_row(db_session, case):
+    """평가 계산이 세는 것과 같은 것을 본다 — 수량 0 행, 숨긴(비활성) 종목에만 있는 보유는 0 이다 (A 검토 조건 2)."""
+    db = db_session
+    if case == "zero quantity":
+        make_stock(db, "VOO")
+        make_holding(db, "VOO", 0.0)
+    else:
+        make_stock(db, "VOO", active=False)
+        make_holding(db, "VOO", 3.0)
+    _prices(db, "VOO", 500.0)
+
+    assert value_record.record_day(db, now=MORNING)["written"] == 0
+    assert _rows(db) == []
+    assert db.get(UserSettings, LOCAL_USER_ID) is None
+
+
+def _row(db, user_id: int, day: dt.date, recorded_at: dt.datetime) -> None:
+    db.add(PortfolioValueDaily(user_id=user_id, date=day, base_currency="KRW", total_value_base=1.0,
+                               stock_value_base=1.0, cash_value_base=0.0, cash={}, fx={}, positions=[],
+                               recorded_at=recorded_at))
+    db.commit()
+
+
+def test_sweep_removes_rows_whose_person_is_gone_or_came_later(db_session):
+    """0.43 으로 이미지만 되돌린 동안의 탈퇴는 이 표를 모른다 (A 검토 조건 1).
+
+    SQLite 는 외래키를 강제하지 않아 줄이 남고, `users.id` 는 다시 쓰인다 — 다음 가입자가 남의 기록을 받는다.
+    """
+    db = db_session
+    joined = dt.datetime(2026, 10, 1)
+    make_user(db, id=2, email="kept@example.com", is_owner=False, status="active", created_at=joined)
+    make_user(db, id=3, email="reused@example.com", is_owner=False, status="active", created_at=dt.datetime(2026, 10, 14))
+    _row(db, 2, dt.date(2026, 10, 2), joined + dt.timedelta(days=1))  # 제 줄 — 남는다
+    _row(db, 3, dt.date(2026, 10, 10), dt.datetime(2026, 10, 9, 22, 40))  # 3번이 가입하기 전 — 앞사람의 줄
+    _row(db, 3, dt.date(2026, 10, 15), dt.datetime(2026, 10, 14, 22, 40))  # 가입한 뒤 — 남는다
+    _row(db, 2, dt.date(2026, 10, 1), joined)  # 가입한 그 순간에 쓴 줄 — 제 줄이다
+    gone = db.bind.dialect.name == "sqlite"
+    if gone:
+        # 운영 SQLite 처럼 외래키를 끄고 — 사람이 사라진 줄(Postgres 는 CASCADE 가 지우므로 생기지 않는다)
+        db.connection().exec_driver_sql("PRAGMA foreign_keys=OFF")
+        _row(db, 99, dt.date(2026, 10, 3), dt.datetime(2026, 10, 2, 22, 40))
+        db.connection().exec_driver_sql("PRAGMA foreign_keys=ON")
+
+    assert value_record.sweep_orphans(db) == (2 if gone else 1)
+
+    db.rollback()  # 지운 것이 저장됐는지 — 켤 때 한 번 돌고 끝나는 세션이다
+    left = sorted((r.user_id, r.date.isoformat()) for r in db.query(PortfolioValueDaily))
+    assert left == [(2, "2026-10-01"), (2, "2026-10-02"), (3, "2026-10-15")]
+    assert value_record.sweep_orphans(db) == 0
+
+
+def test_startup_still_records_when_the_sweep_fails(monkeypatch):
+    from app.services import pipeline, scheduler
+
+    class _Session(_Closable):
+        def rollback(self):
+            calls.append("rollback")
+
+    calls = []
+
+    def broken_sweep(db):
+        raise RuntimeError("치우기 이상")
+
+    monkeypatch.setattr(pipeline, "refresh_stale_markets", lambda db: {})
+    monkeypatch.setattr(scheduler, "SessionLocal", lambda: _Session())
+    monkeypatch.setattr(scheduler, "_recompute_if_rules_changed", lambda: None)
+    monkeypatch.setattr(value_record, "sweep_orphans", broken_sweep)
+    monkeypatch.setattr(value_record, "record_day", lambda db: calls.append(1))
+    scheduler._startup_refresh_job()
+    assert calls == ["rollback", 1]
+
+
+def test_the_daily_job_does_not_sweep(monkeypatch):
+    """치우기는 켤 때 한 번 — 옛 버전에서 돌아온 순간에만 필요하다."""
+    from app.services import alerts, scheduler
+
+    calls = []
+    monkeypatch.setattr(scheduler, "refresh_all_active_stocks", lambda db, market=None: [])
+    monkeypatch.setattr(scheduler, "SessionLocal", lambda: _Closable())
+    monkeypatch.setattr(alerts, "run_daily", lambda db: None)
+    monkeypatch.setattr(value_record, "sweep_orphans", lambda db: calls.append("sweep"))
+    monkeypatch.setattr(value_record, "record_day", lambda db: calls.append(1))
+    scheduler._daily_refresh_job()
+    assert calls == [1]

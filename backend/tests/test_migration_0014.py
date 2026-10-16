@@ -104,3 +104,15 @@ def test_the_previous_image_still_opens_a_db_at_0014(at_0004, snapshots, monkeyp
     monkeypatch.setattr(migrate, "is_known", lambda revision: revision != "0014")
     assert migrate.upgrade_to_head(engine) == "0014"
     assert _rows(engine, "SELECT COUNT(*) FROM portfolio_value_daily") == [(1,)]
+
+
+def test_the_owner_link_cascades(at_0004, snapshots):
+    """0.43 이미지(이 표를 모른다)로 되돌린 동안의 탈퇴가 Postgres 에서 넘어지지 않게 — 외래키는 CASCADE (A 검토).
+
+    SQLite 는 운영에서 외래키를 강제하지 않는다 — 그쪽은 0.44 가 켤 때 치운다(test_value_record 의 sweep).
+    """
+    engine = at_0004
+    migrate.upgrade_to_head(engine)
+    (fk,) = inspect(engine).get_foreign_keys("portfolio_value_daily")
+    assert fk["referred_table"] == "users"
+    assert (fk.get("options") or {}).get("ondelete", "").upper() == "CASCADE"

@@ -317,7 +317,10 @@ class PortfolioValueDaily(Base):
     __table_args__ = (UniqueConstraint("user_id", "date", name="uq_portfolio_value_daily_user_date"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    # CASCADE — 0.43 으로 이미지만 되돌린 동안의 탈퇴(그 코드는 이 표를 모른다)가 Postgres 에서 넘어지지 않게 (A 검토)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     date: Mapped[dt.date] = mapped_column(Date, nullable=False)
     base_currency: Mapped[str] = mapped_column(String, nullable=False)
     total_value_base: Mapped[float] = mapped_column(Float, nullable=False)
