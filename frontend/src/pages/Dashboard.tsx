@@ -4,7 +4,7 @@ import { MacroStrip } from '../components/MacroStrip'
 import { PortfolioView, type SignalFilter } from '../components/PortfolioView'
 import { ReasonTag, SellTooTag, SignalShape } from '../components/SignalShape'
 import { BuyConditions } from '../components/BuyConditions'
-import { hasWeightSignal } from '../components/weightSignal'
+import { hasWeightSignal, isWeightReason } from '../components/weightSignal'
 import { useNarrow } from '../lib/narrow'
 import { loadView, saveView, type DashboardView } from '../lib/portfolio'
 import { NumberInput } from '../components/NumberInput'
@@ -100,6 +100,9 @@ function TrafficBadge({ traffic }: { traffic: Traffic }) {
  * 부르는 쪽이 `.signal-rows` 격자 안에 둔다(카드는 그 아래 매수 조건 줄을 더 붙인다).
  */
 function SignalAndWeightRows({ card, rules }: { card: DashboardCard; rules: SignalRules }) {
+  // 비중 줄에는 초과·미달만. 정기 리뷰는 모든 종목에 같은 날 붙는 포트폴리오의 날짜라 줄마다 세우면 시끄럽다 —
+  // 신호 요약의 "정기 리뷰 N" 배지가 말한다(계획 B, 0.43 의 `hasWeightSignal` 과 같은 기준)
+  const weight = card.rebalance_signal.active ? card.rebalance_signal.reasons.filter(isWeightReason) : []
   return (
     <>
       <div className="signal-row">
@@ -110,11 +113,11 @@ function SignalAndWeightRows({ card, rules }: { card: DashboardCard; rules: Sign
           {card.knee_buy_v2 && card.shoulder_sell_ref && <SellTooTag />}
         </div>
       </div>
-      {card.rebalance_signal.active && card.rebalance_signal.reasons.length > 0 && (
+      {weight.length > 0 && (
         <div className="signal-row">
           <span className="signal-row-label">비중</span>
           <div className="signal-row-items">
-            {card.rebalance_signal.reasons.map((r) => (
+            {weight.map((r) => (
               <ReasonTag key={r} reason={r} />
             ))}
           </div>

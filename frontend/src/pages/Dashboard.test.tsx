@@ -314,6 +314,7 @@ describe('대시보드 · 신호 칸은 짧게, 모양으로도 (ROADMAP 8-4)', 
       card({ ticker: 'QQQ', shoulder_sell_ref: true, rebalance_signal: { active: true, reasons: ['밴드 초과(매도 검토)', '정기 리뷰 도래'] } }),
       card({ ticker: 'SCHD', knee_buy_v2: true, shoulder_sell_ref: true }),
       card({ ticker: 'GOOG', knee_buy_v2: true, rebalance_signal: { active: false, reasons: ['밴드 초과(매도 검토)'] } }),
+      card({ ticker: 'MSFT', rebalance_signal: { active: true, reasons: ['정기 리뷰 도래'] } }),
     ])
     renderDashboard()
 
@@ -331,12 +332,14 @@ describe('대시보드 · 신호 칸은 짧게, 모양으로도 (ROADMAP 8-4)', 
     expect(within(voo).getByText('비중 미달').closest('.badge')).toHaveAttribute('title', expect.stringMatching(/^밴드 미달/))
     expect(within(voo).getByText('매수').closest('.traffic')).toHaveAttribute('title', expect.stringMatching(/^매수 시그널/))
 
-    // 정기 리뷰는 모든 종목에 걸리는 날짜라 모양을 붙이지 않는다
-    expect(lines(await cardRow('QQQ'))).toEqual(['시그널 | sell:매도', '비중 | rebalance:비중 초과 -:정기 리뷰'])
+    // 정기 리뷰는 모든 종목에 같은 날 붙는 날짜라 비중 줄에 세우지 않는다 — 신호 요약의 "정기 리뷰 N" 이 말한다
+    expect(lines(await cardRow('QQQ'))).toEqual(['시그널 | sell:매도', '비중 | rebalance:비중 초과'])
     // 둘 다 뜨면 신호등은 매수, 매도 쪽은 ▼ 배지로 남는다. 비중 신호가 없으면 비중 줄도 없다
     expect(lines(await cardRow('SCHD'))).toEqual(['시그널 | buy:매수 sell:매도 조건도'])
     // 사유가 와도 비중 신호가 꺼져 있으면(active=false) 비중 줄을 그리지 않는다
     expect(lines(await cardRow('GOOG'))).toEqual(['시그널 | buy:매수'])
+    // 정기 리뷰만 있으면 비중 줄이 없다
+    expect(lines(await cardRow('MSFT'))).toEqual(['시그널 | -:—'])
     // 지표 신호와 비중 신호가 같은 말("매수 검토")로 겹치지 않는다
     expect(screen.queryByText('매수 검토')).toBeNull()
     expect(screen.queryByText('매도 검토')).toBeNull()

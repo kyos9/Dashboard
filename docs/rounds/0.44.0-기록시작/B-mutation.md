@@ -15,6 +15,7 @@
 | 요약 미달 옛 말 | `frontend/src/pages/Dashboard.tsx` | 잡힘 |
 | 배지 초과 옛 말 | `frontend/src/lib/display.ts` | 잡힘 |
 | 배지 미달 옛 말 | `frontend/src/lib/display.ts` | 잡힘 |
+| 비중 줄에 정기 리뷰도 세우기 | `frontend/src/pages/Dashboard.tsx` | 잡힘 (계획 B "비중 칸에는 과중·미달만"을 빠뜨렸던 것을 고친 뒤 더함) |
 | 리밸런싱 묶음 옛 말 | `frontend/src/lib/portfolio.ts` | 잡힘 |
 
-"비활성 비중도 보이기"가 처음엔 살아남았다 — 사유가 와도 `active=false` 면 비중 줄을 그리지 않는다는 테스트가 없었다. Dashboard.test.tsx 에 GOOG(active=false) 줄을 더한 뒤 다시 돌려 잡힘. **12/12 잡힘.**
+"비활성 비중도 보이기"가 처음엔 살아남았다 — 사유가 와도 `active=false` 면 비중 줄을 그리지 않는다는 테스트가 없었다. Dashboard.test.tsx 에 GOOG(active=false) 줄을 더한 뒤 다시 돌려 잡힘. **13/13 잡힘.**
