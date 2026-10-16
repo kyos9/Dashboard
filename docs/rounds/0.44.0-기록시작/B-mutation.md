@@ -33,3 +33,10 @@
 | --- | --- | --- |
 | N3 풀이 줄 비중 말을 과중으로 (검토자) | `frontend/src/pages/Dashboard.tsx` | 살아남았음 → 폰 테스트가 비중 말·"과중" 없음까지 본 뒤 잡힘 |
 | M4 다시 — 실패가 다른 테스트로 번지지 않는지 | `frontend/src/pages/Dashboard.tsx` | 정확히 1 failed (폰 배치를 `pretendPhone`/`forgetPhone` + finally 로) |
+
+## 네 번째 검토 뒤 (조건부 — 요약 배지 수)
+
+| 뮤테이션 | 파일 | 결과 |
+| --- | --- | --- |
+| O4 초과 배지에 미달 수 (검토자) | `frontend/src/pages/Dashboard.tsx` | 살아남았음(라운드 시작부터 — 테스트 데이터가 1·1) → 초과 2·미달 1 로 바꾼 뒤 잡힘 |
+| 미달 배지에 초과 수 | `frontend/src/pages/Dashboard.tsx` | 잡힘 |

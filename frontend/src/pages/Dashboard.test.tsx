@@ -398,13 +398,15 @@ describe('대시보드 · 신호 칸은 짧게, 모양으로도 (ROADMAP 8-4)', 
     mockApi([
       card({ ticker: 'VOO', knee_buy_v2: true, rebalance_signal: { active: true, reasons: ['밴드 미달(매수 검토)'] } }),
       card({ ticker: 'QQQ', rebalance_signal: { active: true, reasons: ['밴드 초과(매도 검토)'] } }),
+      // 초과 2 · 미달 1 — 수가 다르면 두 배지의 수가 뒤바뀐 것을 잡는다 (B 네 번째 검토)
+      card({ ticker: 'SCHD', rebalance_signal: { active: true, reasons: ['밴드 초과(매도 검토)'] } }),
     ])
     renderDashboard()
     await cardRow('VOO')
     const review = screen.getByText(/^비중 미달 1$/).closest('.badge')!
     expect(review).toHaveClass('badge-purple')
     expect(review.querySelector('.signal-shape.rebalance')).not.toBeNull()
-    expect(screen.getByText(/^비중 초과 1$/).closest('.badge')).toHaveClass('badge-purple')
+    expect(screen.getByText(/^비중 초과 2$/).closest('.badge')).toHaveClass('badge-purple')
     expect(document.querySelector('.count-chip.green .signal-shape.buy')).not.toBeNull()
     expect(document.querySelector('.count-chip.red .signal-shape.sell')).not.toBeNull()
   })
