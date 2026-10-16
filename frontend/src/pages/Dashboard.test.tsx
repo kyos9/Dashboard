@@ -347,21 +347,23 @@ describe('대시보드 · 신호 칸은 짧게, 모양으로도 (ROADMAP 8-4)', 
 
   it('폰에서도 "—"·비중 줄의 풀이가 화면 글로 보인다 — 툴팁은 폰에서 못 본다 (0.44.0, B 검토)', async () => {
     vi.stubGlobal('innerWidth', 360)
-    vi.stubGlobal('matchMedia', (q: string) => ({
-      matches: true,
-      media: q,
-      addEventListener: () => {},
-      removeEventListener: () => {},
-    }))
-    mockApi([card({ ticker: 'VOO' })])
-    renderDashboard()
-    // 폰 배치(카드)로 그려졌는지 — 표가 아니다
-    await waitFor(() => expect(document.querySelector('.signal-cards, .signal-card, [class*="signal-card"]')).not.toBeNull())
-    const key = document.querySelector('.signal-key') as HTMLElement
-    expect(key).not.toBeNull()
-    expect(key).toBeVisible()
-    expect(key.textContent).toMatch(/흐린 —는 관망\(매수·매도 조건 미충족\)입니다/)
-    vi.unstubAllGlobals()
+    pretendPhone()
+    // 넘어져도 다음 테스트로 폰 배치가 새지 않게 (B 세 번째 검토)
+    try {
+      mockApi([card({ ticker: 'VOO' })])
+      renderDashboard()
+      // 폰 배치(카드)로 그려졌는지 — 표가 아니다
+      await waitFor(() => expect(document.querySelector('.signal-cards, .signal-card, [class*="signal-card"]')).not.toBeNull())
+      const key = document.querySelector('.signal-key') as HTMLElement
+      expect(key).not.toBeNull()
+      expect(key).toBeVisible()
+      expect(key.textContent).toMatch(/흐린 —는 관망\(매수·매도 조건 미충족\)입니다/)
+      // 비중 줄의 말도 용어집대로 — "과중"이 이 줄로 돌아오지 않는다
+      expect(key).toHaveTextContent('비중 초과·비중 미달')
+      expect(key.textContent).not.toMatch(/과중/)
+    } finally {
+      forgetPhone()
+    }
   })
 
   it('관망은 흐린 "—" — 상자 없이, 설명과 읽어 주는 말은 "관망" (0.44.0)', async () => {

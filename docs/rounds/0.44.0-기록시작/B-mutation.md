@@ -26,3 +26,10 @@
 | --- | --- | --- |
 | M3 범례를 과중으로 (검토자) | `frontend/src/components/PortfolioView.tsx` | 살아남았음 → 범례 테스트(Dashboard.portfolio.test.tsx) 더한 뒤 잡힘 |
 | M4 폰에서만 풀이 숨기기 (검토자) | `frontend/src/pages/Dashboard.tsx` | 살아남았음 → 폰 배치(matchMedia) 테스트 더한 뒤 잡힘 |
+
+## 세 번째 검토 뒤 (조건부 — 테스트 한 줄)
+
+| 뮤테이션 | 파일 | 결과 |
+| --- | --- | --- |
+| N3 풀이 줄 비중 말을 과중으로 (검토자) | `frontend/src/pages/Dashboard.tsx` | 살아남았음 → 폰 테스트가 비중 말·"과중" 없음까지 본 뒤 잡힘 |
+| M4 다시 — 실패가 다른 테스트로 번지지 않는지 | `frontend/src/pages/Dashboard.tsx` | 정확히 1 failed (폰 배치를 `pretendPhone`/`forgetPhone` + finally 로) |
