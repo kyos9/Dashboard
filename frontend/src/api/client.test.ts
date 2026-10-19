@@ -81,7 +81,10 @@ describe('오류 응답 해석', () => {
     // 같은 칸의 같은 말은 한 번만
     expect(error.message).toBe('입력값을 확인해 주세요 — 밴드는 100 이하여야 합니다 · 수량은 0 이상이어야 합니다')
     expect(error.message).not.toMatch(/Input should|\{/)
-    expect(error.detail).toContain('Input should be less than or equal to 100')
+    // 기술적 원인은 영어 msg 만 이어 붙인 것 — JSON 원문(본문 전체)이 아니다
+    expect(error.detail).toBe(
+      'Input should be less than or equal to 100; Input should be greater than or equal to 0; Input should be less than or equal to 100',
+    )
   })
 
   it('422 범위 말 — 양쪽 범위·글자 수·빠진 값·숫자 아님·모르는 칸', async () => {

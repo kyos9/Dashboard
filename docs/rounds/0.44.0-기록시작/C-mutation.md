@@ -25,3 +25,15 @@
 
 오른쪽 빈 칸(오늘 ▲ 자리로 비워 둔 `rightOffset`)을 누르면 그 자리에 날이 없어 아무 일이 없었다 → 왼쪽으로 가장 가까운 날(`dataByIndex(…, NearestLeft)`)로.
 테스트 하나 더함. 폰 390 터치로 그림 칸 오른쪽 끝에서 3px 안쪽 탭 → 2026-10-19(마지막 날), 8·15·25px 안쪽은 그 날들.
+
+## 검토 뒤 (`C-review.md` 조건부 — 테스트 둘) + 날짜 따라 넘어지던 데모 시험
+
+| 뮤테이션 | 파일 | 결과 |
+| --- | --- | --- |
+| 한 줄 통화를 늘 USD (검토자) | `frontend/src/components/PriceChart.tsx` | 살아남았음 → 원화 종목 테스트 더한 뒤 잡힘 |
+| 기술적 원인에 본문 전체 (검토자) | `frontend/src/api/client.ts` | 살아남았음 → detail 을 `toBe` 로 본 뒤 잡힘 |
+| 데모 기준을 늘 첫 후보 | `backend/devtools/fake_server.py` | 잡힘 |
+
+검토자가 찾은 `test_devtools::test_demo_custom_thresholds_shows_my_thresholds` 실패(라운드 시작 4844bf0 에서도 같다): 데모 "내 기준"을
+ADX 15 로 못 박았는데 TSLA 는 모양을 정하지 않은 종목이라 날짜가 바뀌면 마지막 날이 달라져 2026-10-19 엔 기본과 같았다 →
+그날 오늘 매수 수가 달라지는 첫 후보(15·12·17.5·10·25…)를 고른다. 백엔드 1407 passed.

@@ -737,9 +737,31 @@ def recompute_signals(demo_rule_change: bool = False) -> dict | None:
         db.close()
 
 
-# 주인 계정에 넣는 "내 기준" (--demo-custom-thresholds). 데모 시세에서 오늘 매수가 4개 → 5개(TSLA)로 실제로 달라지는
-# 값이다. 지인 계정의 네 종목은 어느 기준에서도 오늘 매수 수가 그대로라 데모가 되지 않는다.
-DEMO_THRESHOLDS = {"adx_trend": 15.0}
+# 주인 계정에 넣는 "내 기준" (--demo-custom-thresholds). 오늘 매수 수가 기본과 **실제로 달라지는** ADX 기준을 고른다.
+# 처음엔 15 로 못 박았는데(TSLA 가 4개 → 5개) TSLA 는 모양을 정하지 않은 종목이라 날짜가 바뀌면 마지막 날이 달라져
+# 어떤 날(2026-10-19)엔 15 에서도 같았다. 이 후보를 차례로 보고 처음으로 달라지는 값을 쓴다. 지인 계정의 네 종목은
+# 어느 기준에서도 오늘 매수 수가 그대로라 데모가 되지 않는다.
+DEMO_ADX_CANDIDATES = (15.0, 12.0, 17.5, 10.0, 25.0, 30.0, 35.0, 40.0)
+DEMO_THRESHOLDS = {"adx_trend": DEMO_ADX_CANDIDATES[0]}
+
+
+def demo_thresholds(db, user_id: int) -> dict:
+    """그 사람의 오늘 매수 수가 기본과 달라지는 첫 ADX 기준. 하나도 없으면 첫 후보."""
+    from app.services import my_signals
+    from app.services.signal_rules import DEFAULT, Thresholds
+    from app.services.users import ordered_user_stocks
+
+    tickers = [s.ticker for s in ordered_user_stocks(db, user_id, active_only=True)]
+
+    def today_buys(t) -> int:
+        judged = my_signals.judge(db, tickers, t)
+        return sum(1 for j in judged.values() if (last := j.last()) and last.knee_buy_v2)
+
+    default = today_buys(DEFAULT)
+    for adx in DEMO_ADX_CANDIDATES:
+        if today_buys(Thresholds(adx_trend=adx)) != default:
+            return {"adx_trend": adx}
+    return dict(DEMO_THRESHOLDS)
 
 
 def set_demo_thresholds() -> None:
@@ -751,7 +773,7 @@ def set_demo_thresholds() -> None:
     db = SessionLocal()
     try:
         owner = db.query(User).filter(User.email == OWNER).one()
-        get_settings(db, owner.id).signal_thresholds = dict(DEMO_THRESHOLDS)
+        get_settings(db, owner.id).signal_thresholds = demo_thresholds(db, owner.id)
         db.commit()
     finally:
         db.close()

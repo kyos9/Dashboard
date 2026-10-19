@@ -420,13 +420,13 @@ cd backend
 python -m devtools.fake_server            # http://127.0.0.1:8150  (데이터: backend/.devdata/)
 python -m devtools.fake_server --reset    # 데모 데이터부터 다시
 python -m devtools.fake_server --demo-rule-change   # 시그널 정의를 오늘 바꾼 것처럼 (v0.41.0)
-python -m devtools.fake_server --demo-custom-thresholds   # 주인 계정이 시그널 기준을 ADX 15 로 바꾼 것처럼 (v0.42.0)
+python -m devtools.fake_server --demo-custom-thresholds   # 주인 계정이 시그널 기준(ADX)을 바꾼 것처럼 — 그날 오늘 매수 수가 달라지는 값으로 (v0.42.0)
 ```
 
 `--demo-rule-change` 는 정의 자체는 그대로 두고 "오늘 바꿨다"는 이력만 더합니다 — 신호 요약에 "시그널 계산 방식이
 …에 바뀌었습니다"가 뜨고, 켤 때 지난 판정을 다시 계산해 진단의 **시그널 기준** 줄에 남습니다.
-`--demo-custom-thresholds` 는 주인 계정에 내 기준(ADX 15)을 넣습니다 — 오늘 매수가 4개에서 5개(TSLA)가 되어 "내 기준" 표시와
-신호 요약 줄을 볼 수 있습니다. 화면에서 "기본값으로"를 누르면 지워집니다.
+`--demo-custom-thresholds` 는 주인 계정에 내 기준(ADX)을 넣습니다 — 그날의 데모 시세에서 오늘 매수 수가 기본과 달라지는 값
+(15·12·17.5 … 차례로 보고 처음 것)이라 "내 기준" 표시와 신호 요약 줄을 볼 수 있습니다. 화면에서 "기본값으로"를 누르면 지워집니다.
 
 "로그인"을 누르면 구글 대신 **계정 고르는 화면**이 뜹니다. 계정마다 볼 수 있는 화면이 다릅니다.
 

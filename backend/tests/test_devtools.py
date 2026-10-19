@@ -264,7 +264,8 @@ def test_demo_custom_thresholds_shows_my_thresholds(server):
     with _serve(DATA_DIRS["main"], "--demo-custom-thresholds") as demo:
         owner = login(demo, fake_server.OWNER)
         rules = owner.get(demo + "/api/signal-rules").json()
-        assert (rules["custom"], rules["thresholds"]["adx_trend"]) == (True, 15.0)
+        # 기준은 그날의 데모 시세에서 오늘 매수 수가 달라지는 값 — 날짜가 바뀌어도 데모가 된다
+        assert rules["custom"] is True and rules["thresholds"]["adx_trend"] in fake_server.DEMO_ADX_CANDIDATES
         cards = owner.get(demo + "/api/dashboard").json()
         mine = sum(c["knee_buy_v2"] for c in cards)
         default = sum(bool(c["knee_buy_v2_default"]) for c in cards)

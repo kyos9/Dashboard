@@ -205,6 +205,13 @@ describe('차트 위 한 줄과 짧은 탭 (0.44.0 C1)', () => {
     expect(container.querySelector('.chart-readout')).toHaveTextContent('2026-09-16 · 종가 102.00')
   })
 
+  it('한 줄의 값은 그 종목의 통화 꼴 — 원화는 소수점 없이', () => {
+    const krw = { ...history([]), ticker: '005930.KS', prices: [{ date: '2026-09-15', close: 67_900 }, { date: '2026-09-16', close: 68_000 }] }
+    const { container } = render(<PriceChart history={krw} />)
+    expect(container.querySelector('.chart-readout')).toHaveTextContent('2026-09-16 · 종가 68,000')
+    expect(container.querySelector('.chart-readout')?.textContent).not.toMatch(/68,000\.00/)
+  })
+
   it('닫으면 구독을 푼다', () => {
     const { unmount } = render(<PriceChart history={history([])} />)
     unmount()
