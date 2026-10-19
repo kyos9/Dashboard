@@ -12,7 +12,7 @@ import { MARKER_COLOR, PriceChart } from './PriceChart'
  */
 
 const setMarkers = vi.fn()
-const series = { setData: vi.fn() }
+const series = { setData: vi.fn(), dataByIndex: vi.fn() }
 const chart = {
   addSeries: vi.fn(() => series),
   applyOptions: vi.fn(),
@@ -33,6 +33,7 @@ vi.mock('lightweight-charts', () => ({
   },
   createSeriesMarkers: () => ({ setMarkers: (m: unknown) => setMarkers(m) }),
   LineSeries: 'Line',
+  MismatchDirection: { NearestLeft: -1 },
   PriceScaleMode: { Logarithmic: 1 },
 }))
 
@@ -191,6 +192,17 @@ describe('차트 위 한 줄과 짧은 탭 (0.44.0 C1)', () => {
     const other = { ...history([]), ticker: 'QQQ', prices: [{ date: '2026-09-14', close: 300 }, { date: '2026-09-16', close: 310 }] }
     rerender(<PriceChart history={other} />)
     expect(container.querySelector('.chart-readout')).toHaveTextContent('2026-09-16 · 종가 310.00')
+  })
+
+  it('오른쪽 빈 칸(날이 없는 자리)을 탭하면 마지막 날로 — 오늘로 돌아가는 길', async () => {
+    const { container } = render(<PriceChart history={history([])} />)
+    const { act } = await import('@testing-library/react')
+    act(() => handler(chart.subscribeClick)(at('2026-09-14', 100)))
+    series.dataByIndex.mockReturnValueOnce({ time: '2026-09-16', value: 102 })
+    act(() => handler(chart.subscribeClick)({ ...at(undefined), logical: 4 } as never))
+    expect(series.dataByIndex).toHaveBeenLastCalledWith(4, -1)
+    expect(chart.setCrosshairPosition).toHaveBeenLastCalledWith(102, '2026-09-16', series)
+    expect(container.querySelector('.chart-readout')).toHaveTextContent('2026-09-16 · 종가 102.00')
   })
 
   it('닫으면 구독을 푼다', () => {

@@ -3,6 +3,7 @@ import {
   createChart,
   createSeriesMarkers,
   LineSeries,
+  MismatchDirection,
   PriceScaleMode,
   type IChartApi,
   type ISeriesApi,
@@ -156,7 +157,13 @@ export function PriceChart({ history, height = 440 }: Props) {
       setPointed(hit ? { date: chartDate(hit.time), close: hit.close } : null)
     }
     const onClick = (param: MouseEventParams<Time>) => {
-      const hit = read(param)
+      let hit = read(param)
+      // 오른쪽 빈 칸(오늘 ▲ 자리로 비워 둔 rightOffset)을 누르면 그 자리에 날이 없다 — 왼쪽으로 가장 가까운 날(= 마지막 날).
+      // 맨 끝을 눌러 오늘로 돌아가려 해도 아무 일이 없었다(C 사용자 확인)
+      if (!hit && param.logical !== undefined) {
+        const near = series.dataByIndex(param.logical, MismatchDirection.NearestLeft) as { time?: Time; value?: unknown } | null
+        if (near?.time !== undefined && typeof near.value === 'number') hit = { time: near.time, close: near.value }
+      }
       if (!hit) return
       chart.setCrosshairPosition(hit.close, hit.time, series)
       setPointed({ date: chartDate(hit.time), close: hit.close })
