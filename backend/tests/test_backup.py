@@ -475,6 +475,7 @@ def _daily(directory, when: dt.datetime) -> None:
     [
         (2, None, False, False),  # 꺼낸 적이 없으면 점은 없다
         (2, 3, False, False),
+        (2, 29, False, False),  # 30일 안
         (2, 31, False, True),  # 꺼낸 지 30일 넘음
         (40, 3, False, True),  # 매일 백업이 36시간 넘게 없음
         (2, 3, True, True),  # 마지막 매일 백업이 실패
