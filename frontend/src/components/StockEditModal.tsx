@@ -5,6 +5,7 @@ import { CURRENCY_META, MARKET_LABEL, stockLabel } from '../lib/display'
 import { fxFromInput, fxUnitLabel } from '../lib/fxInput'
 import { CATEGORY_SUGGESTIONS, changesOf, draftOf, type EditDraft, type EditField, type HoldingValues } from '../lib/stockEdit'
 import type { Stock } from '../types'
+import { ConfirmDialog } from './ConfirmDialog'
 import { ErrorNotice } from './ErrorNotice'
 import { NumberInput } from './NumberInput'
 
@@ -32,7 +33,9 @@ interface Props {
  * - 바뀐 종목의 바뀐 쪽만 보낸다. 한 종목이 실패해도 나머지는 저장되고, 실패한 종목만 남는다.
  * - 산 환율은 **고쳤을 때만** 보낸다 — 엔은 100엔 단위로 받아 되돌리므로 안 고친 값도 끝자리가
  *   흔들린다(리밸런싱 탭과 같은 규칙).
- * - 고치던 중에는 바깥을 눌러도 닫히지 않는다. 폰의 뒤로가기·취소는 그대로 닫는다.
+ * - 고치던 중에는 바깥을 눌러도 닫히지 않는다. 폰의 뒤로가기·취소·✕ 는 **저장 안 한 것이 있으면 묻는다**
+ *   (0.45.0 — 전에는 그대로 닫아, 저장에 실패한 종목이 남은 채 뒤로가기를 누르면 말없이 사라졌다).
+ * - 저장에 실패하면 첫 실패 줄로 옮긴다 — 폰에서는 아래 칸에 쌓인 오류가 그 줄을 가렸다(0.45.0).
  */
 export function StockEditModal({ stocks, holdings, cashTargetPct = 0, focus, onClose, onSaved }: Props) {
   // 처음 연 값. 저장에 성공한 종목은 그 값이 새 기준이 된다
@@ -43,6 +46,7 @@ export function StockEditModal({ stocks, holdings, cashTargetPct = 0, focus, onC
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>(null)
   const [failed, setFailed] = useState<string[]>([])
+  const [asking, setAsking] = useState(false)
   const savedAny = useRef(false)
   const bodyRef = useRef<HTMLDivElement>(null)
 
@@ -64,7 +68,20 @@ export function StockEditModal({ stocks, holdings, cashTargetPct = 0, focus, onC
     onClose()
   }
 
-  useBackToClose(close, !busy)
+  // 저장 안 한 것이 있으면 닫지 않고 묻는다 — 뒤로가기는 칸을 다시 쌓고 확인 창을 그 위에 띄운다
+  const requestClose = () => {
+    if (busy) return
+    if (dirty.length > 0) setAsking(true)
+    else close()
+  }
+  useBackToClose(close, !busy && dirty.length === 0, () => !busy && setAsking(true))
+
+  // 저장에 실패하면 첫 실패 줄로 — 그 줄이 화면 밖이거나 아래 칸에 가려 있었다
+  useEffect(() => {
+    if (failed.length === 0) return
+    const row = bodyRef.current?.querySelector<HTMLElement>(`[data-ticker="${CSS.escape(failed[0])}"]`)
+    row?.scrollIntoView?.({ block: 'start', behavior: 'smooth' })
+  }, [failed])
 
   // 처음 커서 — 고른 종목의 고른 칸, 없으면 첫 종목의 수량
   useEffect(() => {
@@ -171,7 +188,7 @@ export function StockEditModal({ stocks, holdings, cashTargetPct = 0, focus, onC
             <h3>종목 한 번에 수정</h3>
             <span className="hint">{stocks.length}종목</span>
           </div>
-          <button className="icon-btn" onClick={close} disabled={busy} aria-label="닫기">
+          <button className="icon-btn" onClick={requestClose} disabled={busy} aria-label="닫기">
             ✕
           </button>
         </div>
@@ -214,12 +231,15 @@ export function StockEditModal({ stocks, holdings, cashTargetPct = 0, focus, onC
               </p>
             )}
             <ErrorNotice error={error} />
-            <p className="hint">
-              수량을 비우면 0 — 관심 종목으로 내려갑니다. 평단가를 비우면 손익만 비고 비중은 그대로입니다. 밴드를
-              비우면 기본값을 씁니다.
-            </p>
+            {/* 오류가 있을 때는 늘 보이는 안내를 접는다 — 폰에서 아래 칸이 화면 절반을 덮었다 */}
+            {failedLabels.length === 0 && !error && (
+              <p className="hint">
+                수량을 비우면 0 — 관심 종목으로 내려갑니다. 평단가를 비우면 손익만 비고 비중은 그대로입니다. 밴드를
+                비우면 기본값을 씁니다.
+              </p>
+            )}
             <div className="btn-group confirm-actions">
-              <button type="button" disabled={busy} onClick={close}>
+              <button type="button" disabled={busy} onClick={requestClose}>
                 취소
               </button>
               <button type="submit" className="primary" disabled={busy || dirty.length === 0}>
@@ -229,6 +249,23 @@ export function StockEditModal({ stocks, holdings, cashTargetPct = 0, focus, onC
           </div>
         </form>
       </div>
+      {asking && (
+        <ConfirmDialog
+          title="저장하지 않고 닫을까요?"
+          confirmLabel="버리고 닫기"
+          cancelLabel="계속 고치기"
+          onConfirm={() => {
+            setAsking(false)
+            close()
+          }}
+          onCancel={() => setAsking(false)}
+        >
+          <p>
+            저장하지 않은 종목 {dirty.length}개({dirty.map(stockLabel).join(', ')})가 있습니다. 닫으면 고친 것이
+            사라집니다.
+          </p>
+        </ConfirmDialog>
+      )}
     </div>
   )
 }

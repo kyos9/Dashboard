@@ -84,6 +84,8 @@ describe('히스토리 차트', () => {
 
     renderChart()
     expect(screen.getByText(/차트로 볼 종목이 없습니다/)).toBeInTheDocument()
+    // 누를 곳 — 리밸런싱·재무와 같은 단추 (0.45.0 D5)
+    expect(screen.getByRole('link', { name: '종목 추가하러 가기' })).toHaveAttribute('href', '/stocks')
 
     await waitFor(() => expect(createChart).toHaveBeenCalled())
     await waitFor(() => expect(series.setData).toHaveBeenCalled())

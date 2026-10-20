@@ -1,3 +1,4 @@
+import { NoStocksYet } from '../components/NoStocksYet'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAppState } from '../AppState'
@@ -47,10 +48,7 @@ export function HistoryChart() {
 
   if (stocks.length === 0 && !error) {
     return (
-      <div className="empty-state">
-        <h3>차트로 볼 종목이 없습니다</h3>
-        <p>종목 관리 화면에서 종목을 먼저 추가해주세요.</p>
-      </div>
+      <NoStocksYet title="차트로 볼 종목이 없습니다" shows="종목별 차트가" />
     )
   }
 

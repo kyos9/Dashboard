@@ -1,3 +1,4 @@
+import { NoStocksYet } from '../components/NoStocksYet'
 import { Suspense, useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { useAppState } from '../AppState'
@@ -70,10 +71,7 @@ export function FundamentalsPage() {
       {rows === null ? (
         !error && <PageSkeleton blocks={0} rows={5} />
       ) : rows.length === 0 ? (
-        <div className="empty-state">
-          <h3>담은 종목이 없습니다</h3>
-          <p>종목 관리에서 종목을 담으면 여기에 재무가 보입니다.</p>
-        </div>
+        <NoStocksYet title="담은 종목이 없습니다" shows="재무가" />
       ) : (
         <>
           <PerChart rows={shown} onOpen={setOpen} />

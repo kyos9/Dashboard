@@ -553,7 +553,7 @@ describe('보유 종목 표', () => {
     expect(update).toHaveBeenCalledWith('QQQ', 0, null, undefined)
   })
 
-  it('취소·Esc 는 저장하지 않고 닫는다. 고치던 중엔 바깥을 눌러도, Esc 로도 닫히지 않는다', async () => {
+  it('취소·Esc 는 저장하지 않고 닫는다. 고치던 중엔 바깥을 눌러도, Esc 로도 닫히지 않고, 취소는 버릴지 묻는다 (0.45.0)', async () => {
     mockApi()
     const update = vi.spyOn(api, 'updateHolding')
     renderDashboard()
@@ -570,6 +570,7 @@ describe('보유 종목 표', () => {
     await userEvent.click(dialog.parentElement as HTMLElement)
     expect(screen.getByRole('dialog', { name: '종목 한 번에 수정' })).toBeInTheDocument()
     await userEvent.click(within(dialog).getByRole('button', { name: '취소' }))
+    await userEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: '버리고 닫기' }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(update).not.toHaveBeenCalled()
   })
