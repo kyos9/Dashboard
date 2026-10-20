@@ -247,6 +247,9 @@ class DashboardCard(BaseModel):
     # 이 판정을 낸 정의의 판(`GET /api/signal-rules` 의 version). 화면이 받아 둔 규칙과 다르면 다시 받는다.
     signal_rules_version: Optional[str] = None
     shoulder_sell_ref: bool = False
+    # 어깨매도(참고) 조건별 오늘 판정 (0.45.0 C — 차트 팝업의 "매도 조건 (참고)", 화면은 매도 신호가 켜진 날만 보인다).
+    # 키는 규칙의 매도 조건 키. 판정 날짜와 지표 날짜가 다르면 None — 배지와 다른 날의 근거를 보이지 않는다
+    sell_conditions: Optional[dict[str, Optional[bool]]] = None
     # 무릎매수(v2)가 마지막으로 뜬 날 (저장된 히스토리 전체에서). 적립할 때 "이번 달에 벌써
     # 떴나"를 보는 용도 — 기간을 정해 기록을 잡아두던 매수 워크플로우를 대신한다.
     last_buy_signal_date: Optional[dt.date] = None

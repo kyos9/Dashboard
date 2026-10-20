@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useBackToClose } from '../lib/backToClose'
 import { AiKeyForm } from './AiKeyForm'
+import { lockBodyScroll } from '../lib/scrollLock'
 
 /**
  * 헤더의 "AI" — 내 AI 키 넣기·바꾸기·지우기 (ROADMAP 3c).
@@ -14,11 +15,10 @@ export function AiKeyModal({ account, onClose }: { account: string; onClose: () 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
     document.addEventListener('keydown', onKey)
-    const previous = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    const release = lockBodyScroll()
     return () => {
       document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = previous
+      release()
     }
   }, [onClose])
 

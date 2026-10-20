@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useBackToClose } from '../lib/backToClose'
 import { AiPanel } from './AiPanel'
+import { lockBodyScroll } from '../lib/scrollLock'
 
 const TITLES = {
   watchlist: { title: 'AI 전체 정리', sub: '담은 종목 전체를 한 장으로' },
@@ -28,11 +29,10 @@ export function AiSummaryModal({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
     document.addEventListener('keydown', onKey)
-    const previous = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    const release = lockBodyScroll()
     return () => {
       document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = previous
+      release()
     }
   }, [onClose])
 

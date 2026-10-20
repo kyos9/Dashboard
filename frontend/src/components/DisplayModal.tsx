@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useBackToClose } from '../lib/backToClose'
 import { setRise, setThemeChoice, usePrefs, type Rise, type ThemeChoice } from '../lib/prefs'
+import { lockBodyScroll } from '../lib/scrollLock'
 
 /**
  * 화면 설정 — 테마 · 상승 색 (ROADMAP 8-4).
@@ -28,11 +29,10 @@ export function DisplayModal({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
     document.addEventListener('keydown', onKey)
-    const previous = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    const release = lockBodyScroll()
     return () => {
       document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = previous
+      release()
     }
   }, [onClose])
 

@@ -3,6 +3,7 @@ import { api } from '../api/client'
 import { useBackToClose } from '../lib/backToClose'
 import { ErrorNotice } from './ErrorNotice'
 import type { BackupStatus, LogsResponse, RecordsStatus, SignalRulesStatus, SlowRequestsResponse } from '../types'
+import { lockBodyScroll } from '../lib/scrollLock'
 
 /**
  * 진단 — 서버가 남긴 기록 중 **잘못된 것만** 본다.
@@ -256,11 +257,10 @@ export function DiagnosticsModal({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
     document.addEventListener('keydown', onKey)
-    const previous = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    const release = lockBodyScroll()
     return () => {
       document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = previous
+      release()
     }
   }, [onClose])
 

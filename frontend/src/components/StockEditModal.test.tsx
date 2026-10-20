@@ -1,8 +1,10 @@
 import { act, cleanup, render, screen, within } from '@testing-library/react'
+import { useState } from 'react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../api/client'
 import { resetBackToClose } from '../lib/backToClose'
+import { resetScrollLock } from '../lib/scrollLock'
 import type { Stock } from '../types'
 import { StockEditModal } from './StockEditModal'
 
@@ -52,6 +54,8 @@ async function editQuantity(user: ReturnType<typeof userEvent.setup>, dialog: HT
 beforeEach(() => {
   vi.restoreAllMocks()
   resetBackToClose()
+  resetScrollLock()
+  document.body.style.overflow = ''
   window.history.replaceState(null, '', '/stocks')
 })
 
@@ -150,4 +154,56 @@ describe('저장에 실패하면', () => {
       Element.prototype.scrollIntoView = original
     }
   })
+})
+
+describe('닫은 뒤 뒤 화면이 다시 스크롤된다 (D 검토 — "버리고 닫기" 뒤 앱 전체가 멈춰 있었다)', () => {
+  /** 진짜 화면처럼 부모가 시트를 지운다 — onClose 를 가짜로 두면 시트와 확인 창이 같은 박자에 사라지는 길을 못 본다 */
+  function Host() {
+    const [open, setOpen] = useState(true)
+    return open ? <StockEditModal stocks={STOCKS} holdings={HOLDINGS} onClose={() => setOpen(false)} onSaved={() => {}} /> : <p>닫힘</p>
+  }
+
+  it.each([
+    ['✕', async (user: ReturnType<typeof userEvent.setup>, dialog: HTMLElement) => user.click(within(dialog).getByRole('button', { name: '닫기' }))],
+    ['취소', async (user: ReturnType<typeof userEvent.setup>, dialog: HTMLElement) => user.click(within(dialog).getByRole('button', { name: '취소' }))],
+    ['뒤로가기', async () => back()],
+  ])('%s → 버리고 닫기', async (_name, ask) => {
+    const user = userEvent.setup()
+    render(<Host />)
+    const dialog = screen.getByRole('dialog', { name: '종목 한 번에 수정' })
+    expect(document.body.style.overflow).toBe('hidden')
+    await editQuantity(user, dialog, 'VOO', '5')
+    await ask(user, dialog)
+    await user.click(screen.getByRole('button', { name: '버리고 닫기' }))
+    expect(screen.getByText('닫힘')).toBeInTheDocument()
+    expect(document.body.style.overflow).toBe('')
+  })
+
+  it('고친 것이 없을 때 닫아도', async () => {
+    render(<Host />)
+    await back()
+    expect(screen.getByText('닫힘')).toBeInTheDocument()
+    expect(document.body.style.overflow).toBe('')
+  })
+})
+
+it('여러 종목이 실패하면 **첫** 실패 줄로', async () => {
+  const scrolled: string[] = []
+  const original = Element.prototype.scrollIntoView
+  Element.prototype.scrollIntoView = function (this: Element) {
+    scrolled.push((this as HTMLElement).dataset.ticker ?? '')
+  }
+  try {
+    vi.spyOn(api, 'updateHolding').mockRejectedValue(new Error('down'))
+    const user = userEvent.setup()
+    const { dialog } = open()
+    scrolled.length = 0
+    await editQuantity(user, dialog, 'VOO', '5')
+    await editQuantity(user, dialog, 'QQQ', '6')
+    await user.click(within(dialog).getByRole('button', { name: '2종목 저장' }))
+    expect(await within(dialog).findByText(/저장하지 못한 종목: VOO, QQQ/)).toBeInTheDocument()
+    expect(scrolled).toEqual(['VOO'])
+  } finally {
+    Element.prototype.scrollIntoView = original
+  }
 })

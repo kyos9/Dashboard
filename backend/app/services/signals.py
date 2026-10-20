@@ -33,13 +33,19 @@ def compute_signals(df: pd.DataFrame, t: Thresholds | None = None) -> pd.DataFra
     return out
 
 
-def _frame(rows_oldest_first: Sequence[IndicatorDaily | None]) -> pd.DataFrame:
-    """ORM 행들을 지표 표로. 빈 자리(None)는 값이 없는 행이 된다."""
+def _frame(rows_oldest_first: Sequence[IndicatorDaily | None], closes: Sequence[float | None] | None = None) -> pd.DataFrame:
+    """ORM 행들을 지표 표로. 빈 자리(None)는 값이 없는 행이 된다.
+
+    `closes` — 행마다 그날 종가(없으면 None). 매도 조건 "MA50 위"가 종가를 쓰는데 지표 표에는 종가가 없다 (0.45.0 C).
+    """
     records = [
         {name: (getattr(row, name, None) if row is not None else None) for name in _INDICATOR_FIELDS}
         for row in rows_oldest_first
     ]
-    return pd.DataFrame(records, columns=list(_INDICATOR_FIELDS), dtype="float64")
+    frame = pd.DataFrame(records, columns=list(_INDICATOR_FIELDS), dtype="float64")
+    if closes is not None:
+        frame["close"] = pd.Series(list(closes), dtype="float64")
+    return frame
 
 
 def buy_conditions(recent_desc: Sequence[IndicatorDaily], t: Thresholds | None = None) -> dict[str, bool | None]:
@@ -56,36 +62,64 @@ def buy_conditions(recent_desc: Sequence[IndicatorDaily], t: Thresholds | None =
     return signal_rules.latest_conditions(buy, _frame(rows))
 
 
-def buy_conditions_many(
+def _conditions_many(
+    rule: signal_rules.Rule,
     recent_by_ticker: dict[str, Sequence[IndicatorDaily]],
-    t: Thresholds | None = None,
+    t: Thresholds,
+    close_by_ticker: dict[str, float | None] | None = None,
 ) -> dict[str, dict[str, bool | None]]:
-    """여러 종목의 오늘 매수 조건을 **한 번에** — `buy_conditions` 를 종목마다 부른 것과 같은 답.
+    """여러 종목의 오늘 조건을 **한 번에** — 종목마다 작은 표를 만든 것과 같은 답.
 
     작은 표를 종목마다 만들면 종목 하나에 5ms 쯤 든다(대시보드 20종목이면 0.1초). 그래서 종목마다
     N+1 행(모자라면 앞을 빈 행으로 채운다)을 이어 붙인 표 하나로 평가하고, 각 묶음의 마지막 행만 읽는다.
     묶음의 마지막 행에서 "N거래일 전"은 늘 같은 묶음의 첫 행이다. 다른 묶음으로 새는 것은 읽지 않는
     앞쪽 행들뿐이다 — 대시보드가 읽는 것이 원래 N+1 행이라 조건도 그 이상을 볼 수 없다.
+    종가는 묶음의 마지막 행(= 가장 새 지표 날짜)에만 둔다 — 종가를 쓰는 조건("MA50 위")은 그날 값만 본다.
     """
-    t = t or signal_rules.DEFAULT
-    buy, _ = signal_rules.build_rules(t)
     size = t.lookback_days + 1
     out: dict[str, dict[str, bool | None]] = {}
     blocks: list[IndicatorDaily | None] = []
+    closes: list[float | None] = []
     order: list[str] = []
     for ticker, recent_desc in recent_by_ticker.items():
         if not recent_desc or recent_desc[0] is None:
-            out[ticker] = {c.key: None for c in buy.conditions}
+            out[ticker] = {c.key: None for c in rule.conditions}
             continue
         rows = list(reversed(recent_desc[:size]))
         blocks += [None] * (size - len(rows)) + rows
+        closes += [None] * (size - 1) + [(close_by_ticker or {}).get(ticker)]
         order.append(ticker)
     if order:
-        table = signal_rules.evaluate_conditions(buy, _frame(blocks))
+        table = signal_rules.evaluate_conditions(rule, _frame(blocks, closes if close_by_ticker is not None else None))
         for i, ticker in enumerate(order):
             last = table.iloc[(i + 1) * size - 1]
             out[ticker] = {key: (None if pd.isna(value) else bool(value)) for key, value in last.items()}
     return out
+
+
+def buy_conditions_many(
+    recent_by_ticker: dict[str, Sequence[IndicatorDaily]],
+    t: Thresholds | None = None,
+) -> dict[str, dict[str, bool | None]]:
+    """여러 종목의 오늘 매수 조건을 한 번에 — `buy_conditions` 를 종목마다 부른 것과 같은 답."""
+    t = t or signal_rules.DEFAULT
+    buy, _ = signal_rules.build_rules(t)
+    return _conditions_many(buy, recent_by_ticker, t)
+
+
+def sell_conditions_many(
+    recent_by_ticker: dict[str, Sequence[IndicatorDaily]],
+    close_by_ticker: dict[str, float | None],
+    t: Thresholds | None = None,
+) -> dict[str, dict[str, bool | None]]:
+    """여러 종목의 오늘 **어깨매도(참고) 조건** (0.45.0 C — 차트 팝업의 "매도 조건 (참고)").
+
+    `close_by_ticker` 는 가장 새 지표 날짜의 종가 — 날짜가 맞는 것만 넣는다(다른 날 종가로 "MA50 위"를 재면
+    저장된 판정과 갈라진다). 없으면 그 조건은 판정 불가(None). 배지(`shoulder_sell_ref`)와 **같은 규칙·같은 평가 함수**다.
+    """
+    t = t or signal_rules.DEFAULT
+    _, sell = signal_rules.build_rules(t)
+    return _conditions_many(sell, recent_by_ticker, t, close_by_ticker)
 
 
 def knee_conditions_from(met: dict[str, bool | None]) -> KneeConditions:

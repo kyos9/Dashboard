@@ -5,6 +5,7 @@ import { ConfirmDialog } from './ConfirmDialog'
 import { ErrorNotice } from './ErrorNotice'
 import { whenLabel } from '../lib/display'
 import type { AdminUser, AppSettings, UserStatus } from '../types'
+import { lockBodyScroll } from '../lib/scrollLock'
 
 /**
  * 관리자 — 사용자 목록과 가입 승인 (ROADMAP 4-4b).
@@ -58,11 +59,10 @@ export function UsersModal({ onClose, onChanged }: { onClose: () => void; onChan
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !confirmBlock && onClose()
     document.addEventListener('keydown', onKey)
-    const previous = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    const release = lockBodyScroll()
     return () => {
       document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = previous
+      release()
     }
   }, [onClose, confirmBlock])
 

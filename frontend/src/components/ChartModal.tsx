@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
 import { useBackToClose } from '../lib/backToClose'
 import type { DashboardCard, FundamentalsResponse, HistoryResponse } from '../types'
-import { BuyConditions } from './BuyConditions'
+import { BuyConditions, SellConditions } from './BuyConditions'
 import { useAuth } from './AuthGate'
 import { ChartLegend, coverageText, PriceChart } from './PriceChart'
 import { ErrorNotice } from './ErrorNotice'
@@ -10,6 +10,7 @@ import { FundamentalsPanel } from './FundamentalsPanel'
 import { AiPanel } from './AiPanel'
 import { pushAccount } from '../lib/push'
 import { hasFundamentalsTab, type ChartTab } from '../lib/fundamentals'
+import { lockBodyScroll } from '../lib/scrollLock'
 
 export const RANGE_OPTIONS = [
   { value: '6mo', label: '6개월', days: 182 },
@@ -192,11 +193,10 @@ export function ChartModal({ ticker, name, card, initialTab = 'chart', onClose }
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
     document.addEventListener('keydown', onKey)
-    const previous = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    const release = lockBodyScroll()
     return () => {
       document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = previous
+      release()
     }
   }, [onClose])
 
@@ -266,6 +266,7 @@ export function ChartModal({ ticker, name, card, initialTab = 'chart', onClose }
             {card && (
               <div className="signal-rows chart-conditions">
                 <BuyConditions card={card} />
+                <SellConditions card={card} />
               </div>
             )}
             <PriceChart history={history} height={380} />

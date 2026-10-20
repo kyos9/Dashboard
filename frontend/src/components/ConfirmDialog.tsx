@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useBackToClose } from '../lib/backToClose'
+import { lockBodyScroll } from '../lib/scrollLock'
 
 interface Props {
   title: string
@@ -47,11 +48,10 @@ export function ConfirmDialog({
       if (e.key === 'Escape' && !busy) onCancel()
     }
     document.addEventListener('keydown', onKey)
-    const previous = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    const release = lockBodyScroll()
     return () => {
       document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = previous
+      release()
     }
   }, [busy, onCancel])
 

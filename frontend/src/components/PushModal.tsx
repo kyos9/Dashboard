@@ -5,6 +5,7 @@ import { disablePush, enablePush, pushState, type PushState } from '../lib/push'
 import { KIND_TEXT, STATE_TEXT } from '../lib/pushText'
 import type { PushKind, PushSettings } from '../types'
 import { ErrorNotice } from './ErrorNotice'
+import { lockBodyScroll } from '../lib/scrollLock'
 
 /**
  * 알림 설정 — 이 기기에서 켜고 끄기, 받을 종류, 시험 알림 (ROADMAP 6단계).
@@ -58,11 +59,10 @@ export function PushModal({ account, onClose }: { account: string; onClose: () =
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
     document.addEventListener('keydown', onKey)
-    const previous = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    const release = lockBodyScroll()
     return () => {
       document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = previous
+      release()
     }
   }, [onClose])
 

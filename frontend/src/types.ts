@@ -227,6 +227,8 @@ export interface DashboardCard {
   /** 이 판정을 낸 정의의 판. 받아 둔 규칙과 다르면 다시 받는다 */
   signal_rules_version?: string | null
   shoulder_sell_ref: boolean
+  /** 어깨매도(참고) 조건별 오늘 판정 (0.45.0) — 판정 날짜와 지표 날짜가 다르면 null. 옛 서버는 없다 */
+  sell_conditions?: Record<string, boolean | null> | null
   /** 무릎매수(v2)가 마지막으로 뜬 날. 한 번도 없으면 null */
   last_buy_signal_date: string | null
   /** 등록 직후 시세를 뒤에서 받는 중이거나 받다가 실패 */

@@ -8,6 +8,7 @@ import type { Stock } from '../types'
 import { ConfirmDialog } from './ConfirmDialog'
 import { ErrorNotice } from './ErrorNotice'
 import { NumberInput } from './NumberInput'
+import { lockBodyScroll } from '../lib/scrollLock'
 
 interface Props {
   /** 고칠 종목들 — 보이는 순서 그대로 */
@@ -107,10 +108,9 @@ export function StockEditModal({ stocks, holdings, cashTargetPct = 0, focus, onC
     return () => document.removeEventListener('keydown', onKey)
   })
   useEffect(() => {
-    const previous = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    const release = lockBodyScroll()
     return () => {
-      document.body.style.overflow = previous
+      release()
     }
   }, [])
 

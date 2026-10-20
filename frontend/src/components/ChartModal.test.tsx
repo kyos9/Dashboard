@@ -71,6 +71,37 @@ describe('차트 팝업', () => {
     expect(screen.queryByText('매수 조건')).toBeNull()
   })
 
+  it('매도 조건 (참고) 은 매도(참고) 신호가 켜진 날만 — 회색 칩, 명령하는 말 없음 (0.45.0 C)', async () => {
+    vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
+    const base = {
+      ticker: '005930.KS',
+      knee_conditions: { di_bearish: false, disparity_negative: false, volatility_or_volume: true, adx_trending: true },
+    }
+    const on = { ...base, shoulder_sell_ref: true, sell_conditions: { above_ma50: true, adx_rising: true, volume_strong: true } }
+    const { container, unmount } = render(<ChartModal ticker="005930.KS" name="삼성전자" card={on as never} onClose={() => {}} />)
+    const row = container.querySelector('.sell-conditions') as HTMLElement
+    expect(row.querySelector('.signal-row-label')!.textContent).toBe('매도 조건 (참고) 3/3')
+    expect(screen.getByLabelText('MA50 위 충족')).toBeInTheDocument()
+    expect(screen.getByLabelText('ADX 상승 충족')).toBeInTheDocument()
+    expect(screen.getByLabelText('거래량 받침 충족')).toBeInTheDocument()
+    // 충족도 초록(met)이 아니다 — 팔라로 읽히는 색을 쓰지 않는다
+    expect(row.querySelectorAll('.cond.met')).toHaveLength(0)
+    expect(row.textContent).not.toMatch(/팔|매도하세요|줄이|리뷰 마감일/)
+    unmount()
+
+    // 꺼진 날·옛 서버(칸 없음)·날짜가 달라 서버가 null 을 보낸 날은 그 줄이 없다
+    for (const card of [
+      { ...base, shoulder_sell_ref: false, sell_conditions: { above_ma50: true, adx_rising: true, volume_strong: false } },
+      { ...base, shoulder_sell_ref: true },
+      { ...base, shoulder_sell_ref: true, sell_conditions: null },
+    ]) {
+      const view = render(<ChartModal ticker="005930.KS" name="삼성전자" card={card as never} onClose={() => {}} />)
+      expect(screen.getByText('매수 조건')).toBeInTheDocument()
+      expect(view.container.querySelector('.sell-conditions')).toBeNull()
+      view.unmount()
+    }
+  })
+
   it('종목 이름과 차트를 띄운다', async () => {
     vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
     render(<ChartModal ticker="005930.KS" name="삼성전자" onClose={() => {}} />)

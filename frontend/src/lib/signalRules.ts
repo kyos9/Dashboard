@@ -82,6 +82,10 @@ export function buyRule(rules: SignalRules): SignalRule {
   return rules.rules.find((r) => r.key === 'buy') ?? LEGACY_SIGNAL_RULES.rules[0]
 }
 
+export function sellRule(rules: SignalRules): SignalRule {
+  return rules.rules.find((r) => r.key === 'sell') ?? LEGACY_SIGNAL_RULES.rules[1]
+}
+
 /** 지표 칸 → 그 칸에 붙는 매수 조건 */
 export function conditionByMetric(rules: SignalRules): Record<string, SignalRuleCondition> {
   return Object.fromEntries(buyRule(rules).conditions.map((c) => [c.metric, c]))
