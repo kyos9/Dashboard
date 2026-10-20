@@ -503,6 +503,8 @@ export interface BackupStatus {
   last_at: string | null
   last_size: number | null
   last_failure: { at: string; reason: string } | null
+  /** 업그레이드 직전 백업 — "마지막"(매일 백업)과 따로 센다. 옛 0.44 개발판은 보내지 않을 수 있다 */
+  premigrate?: { count: number; last_at: string | null }
 }
 
 /** 리밸런싱 기록에 얼려둔 종목 한 줄 */

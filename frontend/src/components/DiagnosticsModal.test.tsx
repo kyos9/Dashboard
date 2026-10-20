@@ -317,4 +317,38 @@ describe('진단의 백업 줄 (0.44.0 D0)', () => {
     render(<RecordsLine status={{ value_record: { enabled: true, last_date: null, users: 0, rows: 0 }, backup: backup() }} now={0} />)
     expect(screen.getByText(/^백업: 마지막/)).toBeTruthy()
   })
+
+  it('업그레이드 직전 백업은 따로 한 줄 — 매일 백업의 "마지막"·멈춤 경고를 가리지 않는다', () => {
+    render(
+      <BackupLines
+        backup={backup({ last_at: '2026-10-13T23:30:00+00:00', count: 2, premigrate: { count: 1, last_at: '2026-10-16T00:30:00+00:00' } })}
+        now={NOW}
+      />,
+    )
+    expect(screen.getByRole('note').textContent).toBe('하루 넘게 새 백업이 없습니다 — 서버 로그를 보세요.')
+    expect(screen.getByText(/^업그레이드 직전 백업 1벌 · 마지막 .+ \(위 벌 수에 들어 있습니다\)$/)).toBeTruthy()
+  })
+
+  it('멈춤과 실패가 같이면 두 줄 다', () => {
+    render(
+      <BackupLines
+        backup={backup({ last_at: '2026-10-13T23:30:00+00:00', last_failure: { at: '2026-10-16T08:30:00+00:00', reason: '디스크가 찼습니다' } })}
+        now={NOW}
+      />,
+    )
+    const notes = screen.getAllByRole('note').map((n) => n.textContent)
+    expect(notes).toHaveLength(2)
+    expect(notes[0]).toBe('하루 넘게 새 백업이 없습니다 — 서버 로그를 보세요.')
+    expect(notes[1]).toMatch(/— 디스크가 찼습니다$/)
+  })
+
+  it('시각은 보는 사람의 시간대로 — 한국이면 UTC 23:30 이 다음 날 08:30 (D0 검토: 테스트가 UTC 라 못 잡았다)', () => {
+    vi.stubEnv('TZ', 'Asia/Seoul')
+    try {
+      render(<BackupLines backup={backup({ last_at: '2026-10-15T23:30:00+00:00' })} now={NOW} />)
+      expect(screen.getByText(/^백업: 마지막/).textContent).toMatch(/^백업: 마지막 10월 16일 08:30 ·/)
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
 })

@@ -143,6 +143,7 @@ const BACKUP_STALE_HOURS = 36
  * 서버 밖으로 꺼내는 것은 아직 손으로 한다(DEPLOY 10) — 여기서는 "서버 안에 있나"만 말한다.
  */
 export function BackupLines({ backup, now }: { backup: BackupStatus; now: number }) {
+  // "마지막"·멈춤 경고는 매일 백업만 — 업그레이드 직전 백업이 멈춘 것을 가리지 않게 (D0 검토)
   const stale = backup.last_at !== null && now - new Date(backup.last_at).getTime() > BACKUP_STALE_HOURS * 3600_000
   return (
     <>
@@ -151,6 +152,11 @@ export function BackupLines({ backup, now }: { backup: BackupStatus; now: number
           ? `백업: 마지막 ${when(backup.last_at)}${backup.last_size !== null ? ` · ${bytes(backup.last_size)}` : ''} · ${backup.count}벌 보관(최대 ${backup.keep})`
           : '백업: 아직 없습니다 — 매일 한 벌씩 서버 안에 뜹니다.'}
       </p>
+      {backup.premigrate && backup.premigrate.count > 0 && backup.premigrate.last_at && (
+        <p className="hint">
+          업그레이드 직전 백업 {backup.premigrate.count}벌 · 마지막 {when(backup.premigrate.last_at)} (위 벌 수에 들어 있습니다)
+        </p>
+      )}
       {stale && (
         <p className="hint diag-warn" role="note">
           하루 넘게 새 백업이 없습니다 — 서버 로그를 보세요.

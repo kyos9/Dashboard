@@ -242,7 +242,6 @@ def test_missing_pg_dump_says_what_to_install(tmp_path, monkeypatch):
 
 
 def test_status_tells_when_how_big_and_how_many_without_names(tmp_path, monkeypatch):
-    monkeypatch.setattr(backup, "_last_failure", None)
     made = _fake_backups(tmp_path / "b", 3)
     made[-1].write_bytes(b"x" * 1234)
 
@@ -260,15 +259,14 @@ def test_status_tells_when_how_big_and_how_many_without_names(tmp_path, monkeypa
 
 
 def test_status_with_no_backups(tmp_path, monkeypatch):
-    monkeypatch.setattr(backup, "_last_failure", None)
     assert backup.status(backup_dir=tmp_path / "없음") == {
         "count": 0, "keep": backup.KEEP, "last_at": None, "last_size": None, "last_failure": None,
+        "premigrate": {"count": 0, "last_at": None},
     }
 
 
 def test_a_failure_is_remembered_as_a_kind_and_cleared_by_the_next_success(live_db, tmp_path, monkeypatch):
     """사유는 갈래 이름만 — 예외 글에 든 DB 경로가 화면으로 나가지 않는다."""
-    monkeypatch.setattr(backup, "_last_failure", None)
     monkeypatch.setattr(backup, "BACKUP_DIR", tmp_path / "b")
     missing = tmp_path / "아무도모르는경로" / "없음.db"
     monkeypatch.setattr(backup, "database_url", lambda: f"sqlite:///{missing}")
@@ -297,3 +295,61 @@ def test_a_failure_is_remembered_as_a_kind_and_cleared_by_the_next_success(live_
 )
 def test_failure_kinds_never_carry_the_message(exc, kind):
     assert backup._failure_kind(exc) == kind
+
+
+def test_an_upgrade_backup_does_not_hide_a_stalled_daily_backup(tmp_path):
+    """업그레이드 직전 백업은 따로 센다 — 섞으면 0014 업그레이드 한 번이 매일 백업이 멈춘 것을 가린다 (D0 검토)."""
+    directory = tmp_path / "b"
+    _fake_backups(directory, 1, start=dt.datetime(2026, 10, 16, 3, 0, 0))
+    upgrade = directory / f"{backup.PREFIX}20261019-093000-premigrate.db"
+    upgrade.write_bytes(b"y" * 5000)
+
+    status = backup.status(backup_dir=directory)
+
+    assert status["last_at"] == dt.datetime(2026, 10, 16, 3, 0, 0).astimezone(dt.timezone.utc).isoformat()
+    assert status["last_size"] == 1
+    assert status["count"] == 2
+    assert status["premigrate"] == {
+        "count": 1, "last_at": dt.datetime(2026, 10, 19, 9, 30, 0).astimezone(dt.timezone.utc).isoformat(),
+    }
+
+
+def test_the_last_failure_lives_in_the_backup_folder(live_db, tmp_path, monkeypatch):
+    """다시 켜도, 다른 워커가 읽어도 같다 — 프로세스 메모리가 아니라 백업 폴더의 작은 파일 (D0 검토)."""
+    directory = tmp_path / "b"
+    monkeypatch.setattr(backup, "BACKUP_DIR", directory)
+    monkeypatch.setattr(backup, "database_url", lambda: f"sqlite:///{tmp_path / '없음.db'}")
+    assert backup.run_backup() is None
+
+    import json
+
+    saved = json.loads((directory / backup.STATUS_FILE).read_text(encoding="utf-8"))
+    assert saved["last_failure"]["reason"] == "DB 파일을 찾지 못했습니다"
+    # 메모리에 두지 않는다 — 파일을 지우면 실패도 사라진다(다시 켠 프로세스·다른 워커는 파일만 본다)
+    assert backup.status(backup_dir=directory)["last_failure"]["reason"] == "DB 파일을 찾지 못했습니다"
+    assert backup.status(backup_dir=directory)["count"] == 0  # 상태 파일은 백업으로 세지 않는다
+    (directory / backup.STATUS_FILE).unlink()
+    assert backup.status(backup_dir=directory)["last_failure"] is None
+
+
+def test_a_broken_status_file_reads_as_no_failure(tmp_path):
+    directory = tmp_path / "b"
+    directory.mkdir()
+    (directory / backup.STATUS_FILE).write_text("{망가짐", encoding="utf-8")
+    assert backup.status(backup_dir=directory)["last_failure"] is None
+    (directory / backup.STATUS_FILE).write_text('{"last_failure": {"at": 1}}', encoding="utf-8")
+    assert backup.status(backup_dir=directory)["last_failure"] is None
+
+
+def test_times_are_converted_from_the_server_clock_not_relabelled(tmp_path, monkeypatch):
+    """집 PC 는 한국 시간으로 돈다 — 이름의 시각에 UTC 꼬리표만 붙이면 9시간 어긋난다 (D0 검토: 테스트 환경이 UTC 라 못 잡았다)."""
+    import time
+
+    monkeypatch.setenv("TZ", "Asia/Seoul")
+    time.tzset()
+    try:
+        _fake_backups(tmp_path / "b", 1, start=dt.datetime(2026, 10, 16, 9, 0, 0))
+        assert backup.status(backup_dir=tmp_path / "b")["last_at"] == "2026-10-16T00:00:00+00:00"
+    finally:
+        monkeypatch.delenv("TZ")
+        time.tzset()
