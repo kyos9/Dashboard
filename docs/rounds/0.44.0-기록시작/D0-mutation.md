@@ -38,3 +38,24 @@
 
 **9/9 잡힘** (검토자의 셋 포함). 백엔드 1411 passed, 프런트 910 passed, lint 22, tsc 통과.
 (검토자 메모: 처음 표의 "옛 서버에서 넘어짐" 줄은 Date.now 를 옮긴 뒤 글이 코드와 맞지 않는다 — 검토자가 손으로 돌려 잡힘.)
+
+## 두 번째(좁은) 검토 뒤 (`D0-review2.md` 조건부 — 테스트 넷 · 폴더에 못 쓰는 날)
+
+- 조건 5(새 발견): 백업 폴더에 못 쓰는 날이 바로 백업이 실패하는 날인데, 그날은 상태 파일도 못 써 실패가 화면에 안 보였다 →
+  상태 파일을 못 쓰면 이 프로세스에 남기고(`_unsaved`), 읽을 때 그것을 먼저 본다. 파일을 다시 쓰게 되면 버린다.
+- 조건 1~4: 객체 아닌 JSON(`[]`·`null`…) · 상태 파일 자리에 폴더(쓰기 실패에도 백업 성공·정리) · 업그레이드 백업 둘 이상 · 업그레이드 줄 시각을 정확한 글로.
+  참고 N4·N5(두 칸만 내보내기)와 시간대 테스트의 TZ 되돌리기도.
+
+| 뮤테이션 | 파일 | 결과 |
+| --- | --- | --- |
+| N1 객체 아닌 JSON 에 넘어짐 | `backend/app/services/backup.py` | 잡힘 |
+| N2 상태 파일 쓰기 실패를 던짐 | `backend/app/services/backup.py` | 잡힘 |
+| N3 업그레이드 백업 가장 오래된 것 | `backend/app/services/backup.py` | 잡힘 |
+| N4 파일의 dict 그대로 | `backend/app/services/backup.py` | 잡힘 |
+| N5 reason 타입 검사 뺌 | `backend/app/services/backup.py` | 잡힘 |
+| F1 업그레이드 줄에 매일 백업 시각 | `frontend/src/components/DiagnosticsModal.tsx` | 잡힘 |
+| 메모리 대체 안 남김 | `backend/app/services/backup.py` | 잡힘 |
+| 메모리를 먼저 안 봄 | `backend/app/services/backup.py` | 잡힘 |
+| 파일을 쓰면 메모리 안 버림 | `backend/app/services/backup.py` | 잡힘 |
+
+**9/9 잡힘** (검토자의 N1~N5·F1 포함). 백엔드 1419 passed, 프런트 910, lint 22, tsc 통과.

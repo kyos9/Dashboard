@@ -326,7 +326,9 @@ describe('진단의 백업 줄 (0.44.0 D0)', () => {
       />,
     )
     expect(screen.getByRole('note').textContent).toBe('하루 넘게 새 백업이 없습니다 — 서버 로그를 보세요.')
-    expect(screen.getByText(/^업그레이드 직전 백업 1벌 · 마지막 .+ \(위 벌 수에 들어 있습니다\)$/)).toBeTruthy()
+    // 그 시각은 업그레이드 백업의 것 — 매일 백업 시각이 들어가면 틀린다 (D0 두 번째 검토 F1)
+    const upgradeAt = new Date('2026-10-16T00:30:00Z').toLocaleString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })
+    expect(screen.getByText(/^업그레이드 직전 백업/).textContent).toBe(`업그레이드 직전 백업 1벌 · 마지막 ${upgradeAt} (위 벌 수에 들어 있습니다)`)
   })
 
   it('멈춤과 실패가 같이면 두 줄 다', () => {

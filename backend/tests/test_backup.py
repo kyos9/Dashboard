@@ -343,13 +343,82 @@ def test_a_broken_status_file_reads_as_no_failure(tmp_path):
 
 def test_times_are_converted_from_the_server_clock_not_relabelled(tmp_path, monkeypatch):
     """집 PC 는 한국 시간으로 돈다 — 이름의 시각에 UTC 꼬리표만 붙이면 9시간 어긋난다 (D0 검토: 테스트 환경이 UTC 라 못 잡았다)."""
+    import os
     import time
 
-    monkeypatch.setenv("TZ", "Asia/Seoul")
+    before = os.environ.get("TZ")
+    os.environ["TZ"] = "Asia/Seoul"
     time.tzset()
     try:
         _fake_backups(tmp_path / "b", 1, start=dt.datetime(2026, 10, 16, 9, 0, 0))
         assert backup.status(backup_dir=tmp_path / "b")["last_at"] == "2026-10-16T00:00:00+00:00"
     finally:
-        monkeypatch.delenv("TZ")
+        # 원래 시간대로 — 있었으면 그것으로, 없었으면 지우고. 다음 테스트가 서울 시간으로 돌지 않게
+        if before is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = before
         time.tzset()
+
+
+@pytest.mark.parametrize("text", ["[]", "null", '"x"', "3"])
+def test_a_status_file_that_is_json_but_not_an_object_reads_as_no_failure(tmp_path, text):
+    """빠지면 status() 가 예외를 던져 진단이 500 이 된다 (D0 두 번째 검토 N1)."""
+    directory = tmp_path / "b"
+    directory.mkdir()
+    (directory / backup.STATUS_FILE).write_text(text, encoding="utf-8")
+    assert backup.status(backup_dir=directory)["last_failure"] is None
+
+
+def test_only_the_two_fields_leave_the_status_file(tmp_path):
+    """남는 키·잘못된 타입은 내보내지 않는다 (N4·N5)."""
+    import json
+
+    directory = tmp_path / "b"
+    directory.mkdir()
+    path = directory / backup.STATUS_FILE
+    path.write_text(json.dumps({"last_failure": {"at": "2026-10-16T00:00:00+00:00", "reason": "디스크가 찼습니다", "path": "/srv/x"}}), encoding="utf-8")
+    assert backup.status(backup_dir=directory)["last_failure"] == {"at": "2026-10-16T00:00:00+00:00", "reason": "디스크가 찼습니다"}
+    path.write_text(json.dumps({"last_failure": {"at": "2026-10-16T00:00:00+00:00", "reason": 28}}), encoding="utf-8")
+    assert backup.status(backup_dir=directory)["last_failure"] is None
+
+
+def test_the_newest_upgrade_backup_is_the_last_one(tmp_path):
+    """업그레이드 직전 백업이 둘 이상이면 "마지막"은 가장 최근 것 (N3)."""
+    directory = tmp_path / "b"
+    directory.mkdir()
+    (directory / f"{backup.PREFIX}20261001-090000-premigrate.db").write_bytes(b"a")
+    (directory / f"{backup.PREFIX}20261019-093000-premigrate.db").write_bytes(b"b")
+    assert backup.status(backup_dir=directory)["premigrate"] == {
+        "count": 2, "last_at": dt.datetime(2026, 10, 19, 9, 30, 0).astimezone(dt.timezone.utc).isoformat(),
+    }
+
+
+def test_a_status_file_that_cannot_be_written_does_not_break_the_backup(live_db, tmp_path, monkeypatch):
+    """상태 파일을 못 써도 백업은 성공으로 끝나고 오래된 것도 치운다 (N2)."""
+    directory = tmp_path / "b"
+    (directory / backup.STATUS_FILE).mkdir(parents=True)  # 그 자리에 폴더 — 파일로 바꿀 수 없다
+    monkeypatch.setattr(backup, "BACKUP_DIR", directory)
+    monkeypatch.setattr(backup, "database_url", lambda: f"sqlite:///{live_db[0]}")
+    monkeypatch.setattr(backup, "_unsaved", {})
+    _fake_backups(directory, backup.KEEP + 2)
+
+    assert backup.run_backup() is not None
+    assert len(backup.existing_backups(directory)) == backup.KEEP
+
+
+def test_a_failure_on_a_day_the_folder_cannot_be_written_still_shows(tmp_path, monkeypatch):
+    """폴더에 못 쓰는 날이 바로 백업이 실패하는 날이다 — 상태 파일 대신 이 프로세스에라도 남는다 (D0 두 번째 검토 조건 5)."""
+    directory = tmp_path / "b"
+    (directory / backup.STATUS_FILE).mkdir(parents=True)
+    monkeypatch.setattr(backup, "BACKUP_DIR", directory)
+    monkeypatch.setattr(backup, "database_url", lambda: f"sqlite:///{tmp_path / '없음.db'}")
+    monkeypatch.setattr(backup, "_unsaved", {})
+
+    assert backup.run_backup() is None
+    assert backup.status(backup_dir=directory)["last_failure"]["reason"] == "DB 파일을 찾지 못했습니다"
+
+    # 폴더가 되살아나 상태 파일을 쓰게 되면 메모리의 것은 버리고 파일을 본다
+    (directory / backup.STATUS_FILE).rmdir()
+    backup._write_failure(None, backup_dir=directory)
+    assert backup.status(backup_dir=directory)["last_failure"] is None

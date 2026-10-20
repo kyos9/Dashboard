@@ -43,6 +43,10 @@ STAMP = "%Y%m%d-%H%M%S"
 # 사유는 갈래 이름만 — 예외 글에는 DB 파일 경로·pg_dump 의 접속 주소가 들 수 있다(원문은 서버 로그에만).
 STATUS_FILE = "backup-status.json"
 
+# 상태 파일을 못 쓴 날(백업 폴더에 쓸 수 없다·디스크가 찼다 — 바로 백업이 실패하는 날이다)의 마지막 상태.
+# 이 프로세스 안에만 남지만 없는 것보다 낫다 — 파일보다 새것이므로 읽을 때 먼저 본다 (D0 두 번째 검토).
+_unsaved: dict[str, dict | None] = {}
+
 
 def _status_path(backup_dir: Path | None = None) -> Path:
     return Path(backup_dir or BACKUP_DIR) / STATUS_FILE
@@ -56,13 +60,19 @@ def _write_failure(failure: dict | None, backup_dir: Path | None = None) -> None
         temp.write_text(json.dumps({"last_failure": failure}, ensure_ascii=False), encoding="utf-8")
         temp.replace(path)
     except OSError as exc:
-        # 디스크가 찬 날이면 이것도 못 쓴다 — 로그에는 이미 남았다
+        # 디스크가 찬 날이면 이것도 못 쓴다 — 로그에는 이미 남았다. 이 프로세스에라도 남긴다
         logger.warning("백업 상태 파일을 쓰지 못했습니다: %s", exc)
+        _unsaved[str(path)] = failure
+        return
+    _unsaved.pop(str(path), None)
 
 
 def _read_failure(backup_dir: Path | None = None) -> dict | None:
+    path = _status_path(backup_dir)
+    if str(path) in _unsaved:
+        return _unsaved[str(path)]
     try:
-        failure = json.loads(_status_path(backup_dir).read_text(encoding="utf-8")).get("last_failure")
+        failure = json.loads(path.read_text(encoding="utf-8")).get("last_failure")
     except (OSError, ValueError, AttributeError):
         return None
     if isinstance(failure, dict) and isinstance(failure.get("at"), str) and isinstance(failure.get("reason"), str):
