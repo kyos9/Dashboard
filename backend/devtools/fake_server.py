@@ -737,16 +737,23 @@ def recompute_signals(demo_rule_change: bool = False) -> dict | None:
         db.close()
 
 
-# 주인 계정에 넣는 "내 기준" (--demo-custom-thresholds). 오늘 매수 수가 기본과 **실제로 달라지는** ADX 기준을 고른다.
-# 처음엔 15 로 못 박았는데(TSLA 가 4개 → 5개) TSLA 는 모양을 정하지 않은 종목이라 날짜가 바뀌면 마지막 날이 달라져
-# 어떤 날(2026-10-19)엔 15 에서도 같았다. 이 후보를 차례로 보고 처음으로 달라지는 값을 쓴다. 지인 계정의 네 종목은
-# 어느 기준에서도 오늘 매수 수가 그대로라 데모가 되지 않는다.
+# 주인 계정에 넣는 "내 기준" (--demo-custom-thresholds). 오늘 매수 수가 기본과 **실제로 달라지는** 기준을 고른다.
+# 처음엔 ADX 15 로 못 박았는데(TSLA 가 4개 → 5개) TSLA 는 모양을 정하지 않은 종목이라 날짜가 바뀌면 마지막 날이 달라져
+# 어떤 날(2026-10-19)엔 15 에서도 같았다. ADX 후보만으로는 1년에 27일쯤 어느 값도 달라지지 않아(0.44.0 C 재검토)
+# 다른 세 기준(N거래일·이격도·거래량비)까지 후보로 둔다. 차례로 보고 처음으로 달라지는 한 벌을 쓴다.
+# 지인 계정의 네 종목은 어느 기준에서도 오늘 매수 수가 그대로라 데모가 되지 않는다.
 DEMO_ADX_CANDIDATES = (15.0, 12.0, 17.5, 10.0, 25.0, 30.0, 35.0, 40.0)
-DEMO_THRESHOLDS = {"adx_trend": DEMO_ADX_CANDIDATES[0]}
+DEMO_CANDIDATES: tuple[dict, ...] = (
+    *({"adx_trend": a} for a in DEMO_ADX_CANDIDATES),
+    *({"lookback_days": n} for n in (1, 3, 10, 20)),
+    *({"disparity_below": v} for v in (-2.0, -5.0, -10.0, -20.0)),
+    *({"vol_ratio_expand": v} for v in (0.5, 1.0, 2.0, 3.0)),
+)
+DEMO_THRESHOLDS = dict(DEMO_CANDIDATES[0])
 
 
 def demo_thresholds(db, user_id: int) -> dict:
-    """그 사람의 오늘 매수 수가 기본과 달라지는 첫 ADX 기준. 하나도 없으면 첫 후보."""
+    """그 사람의 오늘 매수 수가 기본과 달라지는 첫 후보 기준. 하나도 없으면 첫 후보."""
     from app.services import my_signals
     from app.services.signal_rules import DEFAULT, Thresholds
     from app.services.users import ordered_user_stocks
@@ -758,9 +765,9 @@ def demo_thresholds(db, user_id: int) -> dict:
         return sum(1 for j in judged.values() if (last := j.last()) and last.knee_buy_v2)
 
     default = today_buys(DEFAULT)
-    for adx in DEMO_ADX_CANDIDATES:
-        if today_buys(Thresholds(adx_trend=adx)) != default:
-            return {"adx_trend": adx}
+    for candidate in DEMO_CANDIDATES:
+        if today_buys(Thresholds(**candidate)) != default:
+            return dict(candidate)
     return dict(DEMO_THRESHOLDS)
 
 

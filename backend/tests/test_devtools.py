@@ -259,13 +259,44 @@ def test_demo_rule_change_shows_the_notice_and_recomputes(server):
         assert by_ticker["NVDA"]["knee_buy_v2"]
 
 
+@pytest.mark.parametrize("day", ["2026-09-29", "2026-11-04", "2027-03-31"])
+def test_demo_candidates_change_buy_count_on_hard_days(monkeypatch, day):
+    """ADX 후보만으로는 어느 값도 오늘 매수 수를 바꾸지 못하던 날들 (0.44.0 C 재검토) — 넓힌 후보에는 바꾸는 것이 있다.
+
+    날짜를 못 박아 데모 시세를 그날 것으로 만든다. 오늘 날짜에만 기대면 이런 날이 와야 시험이 넘어진다.
+    """
+    from app.services.indicators import compute_indicators
+    from app.services.signal_rules import DEFAULT, Thresholds
+    from app.services.signals import compute_signals
+
+    fixed = dt.date.fromisoformat(day)
+
+    class FixedDate(dt.date):
+        @classmethod
+        def today(cls):
+            return fixed
+
+    monkeypatch.setattr(fake_server, "dt", type("dt", (), {"date": FixedDate, "datetime": dt.datetime, "timedelta": dt.timedelta}))
+    columns = ["open", "high", "low", "close", "volume"]
+    frames = [compute_indicators(fake_server.fake_history(t)[columns].astype("float64")) for t, *_ in fake_server.OWNER_STOCKS]
+
+    def buys(t) -> int:
+        return sum(bool(compute_signals(f, t)["knee_buy_v2"].iloc[-1]) for f in frames)
+
+    default = buys(DEFAULT)
+    assert not any(buys(Thresholds(adx_trend=a)) != default for a in fake_server.DEMO_ADX_CANDIDATES)
+    assert any(buys(Thresholds(**c)) != default for c in fake_server.DEMO_CANDIDATES)
+
+
 def test_demo_custom_thresholds_shows_my_thresholds(server):
     """`--demo-custom-thresholds` — 주인 계정이 시그널 기준을 바꾼 것처럼 (0.42.0). 오늘 매수 수가 실제로 달라진다."""
     with _serve(DATA_DIRS["main"], "--demo-custom-thresholds") as demo:
         owner = login(demo, fake_server.OWNER)
         rules = owner.get(demo + "/api/signal-rules").json()
         # 기준은 그날의 데모 시세에서 오늘 매수 수가 달라지는 값 — 날짜가 바뀌어도 데모가 된다
-        assert rules["custom"] is True and rules["thresholds"]["adx_trend"] in fake_server.DEMO_ADX_CANDIDATES
+        assert rules["custom"] is True
+        changed = {k: v for k, v in rules["thresholds"].items() if v != rules["defaults"][k]}
+        assert changed in fake_server.DEMO_CANDIDATES
         cards = owner.get(demo + "/api/dashboard").json()
         mine = sum(c["knee_buy_v2"] for c in cards)
         default = sum(bool(c["knee_buy_v2_default"]) for c in cards)

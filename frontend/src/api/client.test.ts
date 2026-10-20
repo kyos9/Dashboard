@@ -95,12 +95,35 @@ describe('오류 응답 해석', () => {
       [{ type: 'float_parsing', loc: ['body', 'avg_cost'] }, '평단가는 숫자여야 합니다'],
       [{ type: 'greater_than', loc: ['body', 'avg_fx'], ctx: { gt: 0 } }, '산 환율은 0보다 커야 합니다'],
       [{ type: 'value_error', loc: ['body', 'mystery'] }, '입력값은 올바르지 않습니다'],
+      [{ type: 'less_than', loc: ['body', 'quantity'], ctx: { lt: 10 } }, '수량은 10보다 작아야 합니다'],
     ]
     for (const [item, line] of cases) {
       mockFetch({ status: 422, text: JSON.stringify({ detail: [item] }) })
       const error = await api.getDashboard().catch((e) => e)
       expect(error.message).toBe(`입력값을 확인해 주세요 — ${line}`)
     }
+  })
+
+  it('422 의 msg 가 없는 칸은 기술적 원인에서 빠진다 — 빈 칸이 "; ;" 로 남지 않는다', async () => {
+    mockFetch({
+      status: 422,
+      text: JSON.stringify({
+        detail: [
+          { type: 'missing', loc: ['body', 'quantity'] },
+          { type: 'greater_than', loc: ['body', 'avg_fx'], msg: 'Input should be greater than 0', ctx: { gt: 0 } },
+        ],
+      }),
+    })
+    const error = await api.getDashboard().catch((e) => e)
+    expect(error.detail).toBe('Input should be greater than 0')
+  })
+
+  it('422 의 detail 이 빈 목록이면 한국어 한 줄을 만들지 않는다 — 칸 없는 "입력값을 확인해 주세요 — " 가 뜨지 않는다', async () => {
+    const body = JSON.stringify({ detail: [] })
+    mockFetch({ status: 422, statusText: 'Unprocessable Entity', text: body })
+    const error = await api.getDashboard().catch((e) => e)
+    expect(error.message).not.toMatch(/입력값을 확인해 주세요/)
+    expect(error.detail).toBe(body)
   })
 
   it('JSON이 아니면 본문을 그대로 보여준다', async () => {
