@@ -67,7 +67,8 @@ def test_downgrading_past_0014_requires_a_backup(at_0004, snapshots):
     assert "portfolio_value_daily" not in inspect(engine).get_table_names()
 
 
-def test_downgrade_stops_when_the_backup_fails(at_0004, monkeypatch):
+def test_downgrade_stops_when_the_backup_fails(at_0004, snapshots, monkeypatch):
+    # 올리기에서는 진짜 pg_dump 를 부르지 않는다(snapshots) — CI 의 pg_dump 와 서버 버전이 달라 여기서 넘어졌다
     import pytest
 
     from app.services import backup
