@@ -51,6 +51,12 @@ function NotFound() {
   )
 }
 
+/** `/chart?ticker=VOO` 도 그 종목으로 — 주소 뒤의 고른 종목을 버리지 않는다 (0.45.0 D 사용자 확인) */
+function ToHistory() {
+  const { search } = useLocation()
+  return <Navigate to={`/history${search}`} replace />
+}
+
 /** 첫 화면이 그려진 뒤 한가할 때 다른 탭 코드를 받아 둔다 */
 function PreloadTabs() {
   useEffect(() => preloadPages(), [])
@@ -126,7 +132,7 @@ function App() {
                   </RequireLogin>
                 }
               />
-              <Route path="/chart" element={<Navigate to="/history" replace />} />
+              <Route path="/chart" element={<ToHistory />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </main>

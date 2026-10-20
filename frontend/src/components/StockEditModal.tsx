@@ -33,7 +33,7 @@ interface Props {
  * - 바뀐 종목의 바뀐 쪽만 보낸다. 한 종목이 실패해도 나머지는 저장되고, 실패한 종목만 남는다.
  * - 산 환율은 **고쳤을 때만** 보낸다 — 엔은 100엔 단위로 받아 되돌리므로 안 고친 값도 끝자리가
  *   흔들린다(리밸런싱 탭과 같은 규칙).
- * - 고치던 중에는 바깥을 눌러도 닫히지 않는다. 폰의 뒤로가기·취소·✕ 는 **저장 안 한 것이 있으면 묻는다**
+ * - 폰의 뒤로가기·취소·✕·Esc·바깥 누르기는 **저장 안 한 것이 있으면 묻는다**
  *   (0.45.0 — 전에는 그대로 닫아, 저장에 실패한 종목이 남은 채 뒤로가기를 누르면 말없이 사라졌다).
  * - 저장에 실패하면 첫 실패 줄로 옮긴다 — 폰에서는 아래 칸에 쌓인 오류가 그 줄을 가렸다(0.45.0).
  */
@@ -97,10 +97,11 @@ export function StockEditModal({ stocks, holdings, cashTargetPct = 0, focus, onC
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // ESC로 닫기(고치던 중이 아니면) + 뒤 화면이 같이 스크롤되지 않게
+  // ESC — 고친 것이 없으면 닫고, 있으면 묻는다(✕·뒤로가기와 같게, 0.45.0 D 사용자 확인) + 뒤 화면이 같이 스크롤되지 않게
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && dirty.length === 0) close()
+      // 확인 창이 떠 있으면 그 창이 Esc 를 받는다(계속 고치기)
+      if (e.key === 'Escape' && !asking) requestClose()
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
@@ -175,7 +176,8 @@ export function StockEditModal({ stocks, holdings, cashTargetPct = 0, focus, onC
   const categories = [...new Set([...stocks.map((s) => s.category ?? '').filter(Boolean), ...CATEGORY_SUGGESTIONS])]
 
   return (
-    <div className="modal-backdrop" onClick={() => dirty.length === 0 && close()}>
+    // 바로 이 어두운 곳을 눌렀을 때만 — 안에 뜬 확인 창의 바깥을 누른 것이 올라와 다시 묻지 않게
+    <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && requestClose()}>
       <div
         className="modal stock-edit-modal"
         role="dialog"

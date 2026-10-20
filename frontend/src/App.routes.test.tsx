@@ -39,6 +39,13 @@ describe('없는 주소', () => {
     expect(screen.queryByRole('heading', { name: '없는 화면입니다' })).not.toBeInTheDocument()
   })
 
+  it('/chart?ticker=VOO 는 고른 종목을 버리지 않는다', async () => {
+    window.history.replaceState(null, '', '/chart?ticker=VOO')
+    render(<App />)
+    await screen.findByText('로그인하면 담은 종목의 차트를 볼 수 있습니다')
+    expect(window.location.pathname + window.location.search).toBe('/history?ticker=VOO')
+  })
+
   it('있는 화면은 가로채지 않는다 — 로그인 전에 여는 방침 화면', async () => {
     window.history.replaceState(null, '', POLICY_PATH)
     render(<App />)
