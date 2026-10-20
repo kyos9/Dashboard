@@ -238,6 +238,9 @@ def test_demo_has_daily_value_records(server):
     backup = owner.get(server + "/api/admin/records").json()["backup"]
     assert backup["count"] == 1 and backup["last_size"] > 0 and backup["last_at"] and backup["last_failure"] is None
     assert "signalboard-" not in str(backup)
+    # 사흘 전에 밖에 꺼낸 것처럼 (0.45.0 A) — 점은 없다
+    assert backup["offsite"]["last_at"]
+    assert owner.get(server + "/api/auth/status").json()["backup_attention"] is False
     newcomer = login(server, fake_server.NEWCOMER)
     assert newcomer.get(server + "/api/rebalance/current").json()["value_record"]["days"] == 0
     assert newcomer.get(server + "/api/admin/records").status_code == 403

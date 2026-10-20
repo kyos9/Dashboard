@@ -137,10 +137,12 @@ function when(iso: string): string {
 
 /** 하루 한 벌이 도는데 이보다 오래면 멈춘 것 */
 const BACKUP_STALE_HOURS = 36
+/** 서버 밖으로 꺼낸 지 이보다 오래면 — 서버의 `backup.OFFSITE_STALE_DAYS` 와 같다(헤더 ⋯ 의 점) */
+const OFFSITE_STALE_DAYS = 30
 
 /**
  * 백업 상태 한두 줄 (0.44.0 D0) — 마지막 백업 시각·크기·벌 수, 실패했으면 그 갈래. 파일 이름·경로는 서버가 보내지 않는다.
- * 서버 밖으로 꺼내는 것은 아직 손으로 한다(DEPLOY 10) — 여기서는 "서버 안에 있나"만 말한다.
+ * 서버 밖으로 꺼낸 것은 꺼낸 쪽(`server-backup-pull.bat`)이 적은 시각만 안다(0.45.0) — 밖에 지금 무엇이 있는지는 모른다.
  */
 export function BackupLines({ backup, now }: { backup: BackupStatus; now: number }) {
   // "마지막"·멈춤 경고는 매일 백업만 — 업그레이드 직전 백업이 멈춘 것을 가리지 않게 (D0 검토)
@@ -167,6 +169,24 @@ export function BackupLines({ backup, now }: { backup: BackupStatus; now: number
           마지막 실패: {when(backup.last_failure.at)} — {backup.last_failure.reason}
         </p>
       )}
+      {backup.offsite && <OffsiteLine lastAt={backup.offsite.last_at} now={now} />}
+    </>
+  )
+}
+
+function OffsiteLine({ lastAt, now }: { lastAt: string | null; now: number }) {
+  if (!lastAt) {
+    return <p className="hint">밖에 꺼낸 기록이 없습니다 — 서버가 사라지면 이 백업도 같이 사라집니다. 내 PC 로 가져오는 법은 DEPLOY.md 10.</p>
+  }
+  const days = Math.floor((now - new Date(lastAt).getTime()) / 86400_000)
+  return (
+    <>
+      <p className="hint">밖에 꺼낸 것: 마지막 {when(lastAt)} (관리자 PC)</p>
+      {days > OFFSITE_STALE_DAYS && (
+        <p className="hint diag-warn" role="note">
+          {days}일 동안 밖에 꺼내지 않았습니다 — PC 에서 server-backup-pull.bat 을 실행하세요.
+        </p>
+      )}
     </>
   )
 }
@@ -182,7 +202,8 @@ export function RecordsLine({ status, now }: { status: RecordsStatus; now: numbe
         {!value.enabled
           ? '평가금액 기록: 꺼져 있습니다(SIGNAL_DASHBOARD_VALUE_RECORD).'
           : value.last_date
-            ? `평가금액 기록: 마지막 ${value.last_date} · 그날 ${value.users}명 · 모두 ${value.rows}줄`
+            ? // 사람 수·줄 수의 뜻을 같이 — "그날 2명"이 승인된 사람 수와 왜 다른지, "줄"이 무엇인지 (0.44.0 A 사용자 확인)
+              `평가금액 기록: 마지막 ${value.last_date} · 그날 ${value.users}명(보유·현금이 있는 사람만) · 지금까지 ${value.rows}줄(사람마다 하루 한 줄)`
             : '평가금액 기록: 아직 없습니다 — 매일 아침 미국 시세를 받은 뒤 남깁니다.'}
       </p>
       {status.backup && <BackupLines backup={status.backup} now={now} />}

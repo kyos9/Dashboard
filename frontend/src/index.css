@@ -384,6 +384,16 @@ button.menu-btn {
   text-align: center;
 }
 
+/* 숫자 없이 봐야 할 것이 있다 — 가입 신청 숫자와 같은 자리·색의 작은 점 (0.45.0: 백업) */
+.menu-badge.menu-dot {
+  min-width: 10px;
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  top: -2px;
+  right: -2px;
+}
+
 .menu-panel {
   position: absolute;
   z-index: 45;

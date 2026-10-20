@@ -120,6 +120,29 @@ describe('폰 헤더는 한 줄', () => {
     expect(within(screen.getByRole('button', { name: /사용자/ })).getByLabelText('가입 신청 2건')).toBeInTheDocument()
   })
 
+  it('관리자: 백업을 봐야 하면 메뉴에 점, 진단 항목에 표시 — 신청 수가 있으면 숫자가 먼저 (0.45.0)', async () => {
+    renderAs({ ...OWNER, pending_count: 0, backup_attention: true })
+    const menuButton = await screen.findByRole('button', { name: '메뉴 — 백업을 확인하세요' })
+    expect(menuButton.querySelector('.menu-dot')).not.toBeNull()
+    await userEvent.click(menuButton)
+    const diag = screen.getByRole('button', { name: /진단/ })
+    expect(within(diag).getByLabelText('백업을 확인하세요')).toBeInTheDocument()
+    expect(diag).toHaveAttribute('title', '백업을 확인하세요 — 진단의 백업 칸')
+  })
+
+  it('관리자: 신청도 있고 백업도 봐야 하면 숫자 하나, 읽기 이름에 둘 다', async () => {
+    renderAs({ ...OWNER, backup_attention: true })
+    const menuButton = await screen.findByRole('button', { name: '메뉴 — 가입 신청 2건 — 백업을 확인하세요' })
+    expect(menuButton).toHaveTextContent('2')
+    expect(menuButton.querySelector('.menu-dot')).toBeNull()
+  })
+
+  it('관리자: 옛 서버(칸 없음)·문제 없음이면 점이 없다', async () => {
+    renderAs({ ...OWNER, pending_count: 0 })
+    const menuButton = await screen.findByRole('button', { name: '메뉴' })
+    expect(menuButton.querySelector('.menu-dot')).toBeNull()
+  })
+
   it('손님: 로그인 · 메뉴(화면 설정만) — 나가기·관리자 도구는 없다', async () => {
     renderAs(GUEST)
     await screen.findByRole('button', { name: '로그인' })

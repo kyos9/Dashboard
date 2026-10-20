@@ -706,6 +706,8 @@ def seed() -> None:
     from app.services import backup
 
     backup.run_backup()
+    # 사흘 전에 관리자 PC 로 꺼낸 것처럼 (0.45.0 A) — 진단의 "밖에 꺼낸 것" 줄이 보이게
+    backup.mark_pulled(now=dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=3))
 
 
 # ---------------------------------------------------------------------------
