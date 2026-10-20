@@ -18,12 +18,12 @@
 | --- | --- |
 | 버전 | 0.44.0 |
 | Alembic 머리 | 0014 |
-| 백엔드 pytest | (재는 중) |
-| 프런트 vitest | (재는 중) |
-| lint 경고 | (재는 중) |
-| tsc | (재는 중) |
+| 백엔드 pytest | 1425 passed, 3 skipped |
+| 프런트 vitest | 912 passed |
+| lint 경고 | 22 |
+| tsc | 통과 |
 | 첫 화면 JS (gzip) | 111.19 kB |
-| 대시보드 응답·쿼리(20종목) | (재는 중) |
+| 대시보드 응답·쿼리(20종목) | 가운데 50.4 ms · 쿼리 12 |
 
 기준 두 가지(저장소 밖): `scratchpad/r045/baseline/` — `openapi.json`, `snap/`(2026-10-20, 주인·친구 × 5 경로), `ai_consts.json`.
 
