@@ -418,3 +418,14 @@ def test_the_scheduler_does_not_sweep(monkeypatch):
     scheduler._daily_refresh_job()
     scheduler._startup_refresh_job()
     assert calls == [1, 1]
+
+
+@pytest.mark.parametrize("value, expected", [(None, True), ("0", False), ("off", False)])
+def test_rebalance_screen_is_told_whether_recording_is_on(api, monkeypatch, value, expected):
+    """끈 서버(`SIGNAL_DASHBOARD_VALUE_RECORD=0`)가 리밸런싱 화면에 "매일 아침 자동으로 남깁니다"를 띄우지 않게 — 응답의 `enabled`."""
+    if value is None:
+        monkeypatch.delenv(value_record.ENV_SWITCH, raising=False)
+    else:
+        monkeypatch.setenv(value_record.ENV_SWITCH, value)
+    client, _ = api
+    assert client.get("/api/rebalance/current").json()["value_record"]["enabled"] is expected
