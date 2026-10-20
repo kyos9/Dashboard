@@ -37,3 +37,6 @@ vapid.pem
 # 커버리지 측정 산출물
 .coverage
 htmlcov/
+
+# server-backup-pull.bat 의 서버 주소·키 경로 (0.45.0)
+backup-pull.local.txt

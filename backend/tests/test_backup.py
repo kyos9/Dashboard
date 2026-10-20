@@ -262,6 +262,7 @@ def test_status_with_no_backups(tmp_path, monkeypatch):
     assert backup.status(backup_dir=tmp_path / "없음") == {
         "count": 0, "keep": backup.KEEP, "last_at": None, "last_size": None, "last_failure": None,
         "premigrate": {"count": 0, "last_at": None},
+        "offsite": {"last_at": None},
     }
 
 
@@ -422,3 +423,71 @@ def test_a_failure_on_a_day_the_folder_cannot_be_written_still_shows(tmp_path, m
     (directory / backup.STATUS_FILE).rmdir()
     backup._write_failure(None, backup_dir=directory)
     assert backup.status(backup_dir=directory)["last_failure"] is None
+
+
+# ---------------------------------------------------------------------------
+#  서버 밖으로 꺼낸 때 (0.45.0 A)
+# ---------------------------------------------------------------------------
+
+NOW = dt.datetime(2026, 10, 20, 12, 0, tzinfo=dt.timezone.utc)
+
+
+def test_marking_pulled_keeps_the_last_failure_and_back(tmp_path):
+    """상태 파일은 키마다 합쳐 쓴다 — 예전에는 실패 기록을 쓸 때 통째로 덮어써, 매일 백업이 성공할 때마다 꺼낸 시각이 지워졌다."""
+    directory = tmp_path / "backups"
+    backup._write_failure({"at": "2026-10-19T14:30:00+00:00", "reason": "디스크가 찼습니다"}, backup_dir=directory)
+    assert backup.mark_pulled(now=NOW, backup_dir=directory) is True
+    state = backup.status(backup_dir=directory)
+    assert state["offsite"] == {"last_at": "2026-10-20T12:00:00+00:00"}
+    assert state["last_failure"]["reason"] == "디스크가 찼습니다"
+    # 다음 매일 백업이 성공해 실패 기록을 지워도 꺼낸 시각은 남는다
+    backup._write_failure(None, backup_dir=directory)
+    state = backup.status(backup_dir=directory)
+    assert state["last_failure"] is None
+    assert state["offsite"] == {"last_at": "2026-10-20T12:00:00+00:00"}
+    # 남는 임시 파일이 없다
+    assert sorted(p.name for p in directory.iterdir() if not p.name.endswith(".lock")) == [backup.STATUS_FILE]
+
+
+def test_marking_pulled_says_false_when_it_cannot_write(tmp_path):
+    directory = tmp_path / "backups"
+    (directory / backup.STATUS_FILE).mkdir(parents=True)  # 그 자리에 폴더 — 파일로 바꿀 수 없다
+    assert backup.mark_pulled(now=NOW, backup_dir=directory) is False
+    assert backup.status(backup_dir=directory)["offsite"] == {"last_at": None}
+
+
+@pytest.mark.parametrize("saved", ['{"pulled_at": 5}', '{"pulled_at": "어제"}', "[1, 2]", "{망가짐"])
+def test_a_broken_pulled_mark_reads_as_none(tmp_path, saved):
+    directory = tmp_path / "backups"
+    directory.mkdir()
+    (directory / backup.STATUS_FILE).write_text(saved, encoding="utf-8")
+    assert backup.status(backup_dir=directory)["offsite"] == {"last_at": None}
+
+
+def _daily(directory, when: dt.datetime) -> None:
+    directory.mkdir(parents=True, exist_ok=True)
+    local = when.astimezone().replace(tzinfo=None)
+    (directory / f"{backup.PREFIX}{local.strftime(backup.STAMP)}.db").write_bytes(b"x")
+
+
+@pytest.mark.parametrize(
+    "daily_hours_ago, pulled_days_ago, failed, expected",
+    [
+        (2, None, False, False),  # 꺼낸 적이 없으면 점은 없다
+        (2, 3, False, False),
+        (2, 31, False, True),  # 꺼낸 지 30일 넘음
+        (40, 3, False, True),  # 매일 백업이 36시간 넘게 없음
+        (2, 3, True, True),  # 마지막 매일 백업이 실패
+        (None, None, False, False),  # 아직 한 벌도 없다(막 켠 서버) — 매일 백업 경고와 같게
+    ],
+)
+def test_attention(tmp_path, daily_hours_ago, pulled_days_ago, failed, expected):
+    directory = tmp_path / "backups"
+    directory.mkdir()
+    if daily_hours_ago is not None:
+        _daily(directory, NOW - dt.timedelta(hours=daily_hours_ago))
+    if pulled_days_ago is not None:
+        backup.mark_pulled(now=NOW - dt.timedelta(days=pulled_days_ago), backup_dir=directory)
+    if failed:
+        backup._write_failure({"at": "2026-10-20T00:00:00+00:00", "reason": "디스크가 찼습니다"}, backup_dir=directory)
+    assert backup.attention(now=NOW, backup_dir=directory) is expected

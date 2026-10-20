@@ -94,3 +94,14 @@ def test_no_contact_means_no_field_and_never_the_owner_email(api, google_on):
 def test_contact_is_cut_to_a_line(monkeypatch):
     monkeypatch.setenv(google.OPERATOR_CONTACT_ENV, "x" * 500)
     assert google.operator_contact() == "x" * 200
+
+
+def test_the_pc_copies_are_kept_as_the_policy_says():
+    """서버 밖(관리자 PC)의 사본 수 — `server-backup-pull.bat` 이 지우는 수와 방침 5절이 같다 (0.45.0 A)."""
+    import re
+
+    bat = (FRONTEND.parents[1] / "server-backup-pull.bat").read_text(encoding="utf-8")
+    keep = re.search(r"Select-Object -Skip (\d+)", bat)
+    assert keep is not None
+    assert f"최근 {keep.group(1)}벌만 남깁니다" in bat
+    assert f"관리자 PC)으로 꺼낸 백업 사본도 최근 {keep.group(1)}벌만 두고" in _flat(POLICY)

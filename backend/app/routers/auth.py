@@ -29,7 +29,7 @@ from app.models import (
     UserSettings,
     UserStock,
 )
-from app.services import app_settings, auth, pipeline
+from app.services import app_settings, auth, backup, pipeline
 from app.services import google_login as google
 from app.services.users import LOCAL_USER_ID, STATUS_ACTIVE, STATUS_PENDING, current_user_id
 
@@ -195,6 +195,8 @@ def status(request: Request, db: Session = Depends(get_db)) -> dict:
         # 관리자에게는 기다리는 신청이 몇 건인지 — 헤더의 사용자 버튼에 숫자로 뜬다
         if user is not None and user.is_owner and authenticated:
             body["pending_count"] = db.query(User).filter(User.status == STATUS_PENDING).count()
+            # 백업을 봐야 하나 — 헤더 ⋯ 의 점 (0.45.0 A). 진단은 매일 여는 곳이 아니라서. 혼자 쓰는 PC 모드에는 없다
+            body["backup_attention"] = backup.attention()
         # 설정이 덜 됐으면 로그인 버튼을 누르기 **전에** 알려준다 — 누르고 나서야 안 되는
         # 것을 알면 구글 쪽 문제로 보인다.
         body["config_problem"] = google.config_problem()
