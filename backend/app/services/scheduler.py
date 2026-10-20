@@ -69,8 +69,28 @@ def _send_alerts() -> None:
         db.close()
 
 
+def _record_values() -> None:
+    """날마다의 평가금액 (0.44.0, services/value_record.py). 넘어져도 앱·갱신은 그대로다.
+
+    주인 없는 줄 치우기는 여기가 아니라 `db.init_db` 에서 한다 — 요청을 받기 전에.
+    """
+    from app.services import value_record
+
+    db = SessionLocal()
+    try:
+        value_record.record_day(db)
+    except Exception:
+        logger.warning("평가금액을 기록하지 못했습니다", exc_info=True)
+    finally:
+        db.close()
+
+
 def _daily_refresh_job() -> None:
-    _refresh(None, "daily")
+    # 평가금액은 미국 갱신 뒤에 남긴다 — 갱신이 넘어진 날도 남긴다(어제 종가로라도, 종가 날짜와 함께)
+    try:
+        _refresh(None, "daily")
+    finally:
+        _record_values()
 
 
 def _korea_refresh_job() -> None:
@@ -106,6 +126,8 @@ def _startup_refresh_job() -> None:
     # 받아온 게 있을 때만. 서버를 다시 띄울 때마다 알림을 판정할 이유는 없다
     if results:
         _send_alerts()
+    # 평가금액은 받은 게 없어도 — 꺼져 있던 아침의 줄을 채운다(같은 날 줄이 있으면 고쳐 쓴다)
+    _record_values()
 
 
 def _recompute_if_rules_changed() -> None:

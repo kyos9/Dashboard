@@ -46,6 +46,10 @@ INITIAL_REVISION = "0001"
 # 0006은 매수 기록과 적립 설정을 지운다 — 내려도 모양만 돌아오고 내용은 비어 있다.
 IRREVERSIBLE = frozenset({"0005", "0006"})
 
+# 내리면 다시 만들 수 없는 기록이 사라지는 리비전. 이걸 건너는 **내리기**는 백업에 성공해야만 한다.
+# 0014는 날마다의 평가금액 표다 — 내리면 쌓인 날들이 없어진다.
+DATA_ON_DOWNGRADE = frozenset({"0014"})
+
 
 def _config(connection) -> Config:
     """마이그레이션을 돌릴 설정. **ini 파일을 읽지 않는다.**
@@ -119,8 +123,9 @@ def downgrade_to(revision: str, bind=None) -> str | None:
     crossing = [r for r in crossing if r != revision]
     if IRREVERSIBLE & set(crossing):
         raise ValueError(f"{', '.join(sorted(IRREVERSIBLE & set(crossing)))} 은 되돌릴 수 없습니다 — 백업에서 되돌리세요")
-    # 내리기 직전에도 한 벌 — 못 떠도 진행한다(더하기만 한 칸을 지우는 것이라 잃는 것이 작다)
-    backup.snapshot_before_migration(bind, required=False)
+    # 내리기 직전에도 한 벌. 더하기만 한 칸을 지우는 것이면 못 떠도 진행한다(잃는 것이 작다).
+    # 다시 못 만드는 기록이 든 표를 지우면(DATA_ON_DOWNGRADE) 백업에 성공해야만 내린다.
+    backup.snapshot_before_migration(bind, required=bool(DATA_ON_DOWNGRADE & set(crossing)))
     with bind.begin() as conn:
         command.downgrade(_config(conn), revision)
     return current_revision(bind)

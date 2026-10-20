@@ -303,6 +303,38 @@ class RebalanceSnapshot(Base):
     data: Mapped[dict] = mapped_column(JSON, nullable=False)
 
 
+class PortfolioValueDaily(Base):
+    """날마다의 평가금액 (0.44.0). **사용자별이고, 다시 만들 수 없다.**
+
+    보유는 덮어쓰기라 지난 평가금액을 되살릴 길이 없다 — 리밸런싱 기록은 사람이 누를 때만 남는다.
+    그래서 서버가 하루 한 줄을 스스로 남긴다(`services/value_record.py`). 성과·낙폭은 이것이 쌓인 뒤의 일이다.
+
+    `date` 는 기록한 순간의 **한국 날짜**이고, 그날 마지막으로 쓴 값이 남는다(같은 날 다시 돌면 덮어쓴다).
+    종가는 그때 저장돼 있던 마지막 것이라 종목마다 날짜가 다를 수 있다 — `positions` 에 종가 날짜를 같이 둔다.
+    """
+
+    __tablename__ = "portfolio_value_daily"
+    __table_args__ = (UniqueConstraint("user_id", "date", name="uq_portfolio_value_daily_user_date"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    # CASCADE — 0.43 으로 이미지만 되돌린 동안의 탈퇴(그 코드는 이 표를 모른다)가 Postgres 에서 넘어지지 않게 (A 검토)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    date: Mapped[dt.date] = mapped_column(Date, nullable=False)
+    base_currency: Mapped[str] = mapped_column(String, nullable=False)
+    total_value_base: Mapped[float] = mapped_column(Float, nullable=False)
+    stock_value_base: Mapped[float] = mapped_column(Float, nullable=False)
+    cash_value_base: Mapped[float] = mapped_column(Float, nullable=False)
+    # 통화별 현금 (`{"KRW": 3000000}`) — 기준통화 합계만 두면 환율 몫과 현금 변화를 가를 수 없다
+    cash: Mapped[dict] = mapped_column(JSON, nullable=False)
+    # 쓴 환율과 출처 (`fx.FxRates.to_dict()` 그대로)
+    fx: Mapped[dict] = mapped_column(JSON, nullable=False)
+    # 들고 있던 종목마다 수량·평단가·종가·종가 날짜·통화·기준통화 금액
+    positions: Mapped[list] = mapped_column(JSON, nullable=False)
+    recorded_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow, nullable=False)
+
+
 class PushSubscription(Base):
     """알림을 받을 기기 하나 — 브라우저가 준 푸시 주소와 열쇠 (services/push.py).
 

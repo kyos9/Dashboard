@@ -473,6 +473,38 @@ export interface RebalanceCurrent {
   target_sum_pct: number
   review: ReviewStatus
   rows: RebalanceRow[]
+  /** 내 평가금액 기록 (0.44.0). 옛 서버는 보내지 않는다 */
+  value_record?: ValueRecord | null
+}
+
+/** 서버가 날마다 남기는 평가금액 기록이 며칠 쌓였나 (0.44.0) */
+export interface ValueRecord {
+  enabled: boolean
+  days: number
+  since: string | null
+}
+
+/** 진단 — 기록이 살아 있나 (0.44.0, 주인). 평가금액은 합계만 */
+export interface RecordsStatus {
+  value_record: {
+    enabled: boolean
+    last_date: string | null
+    users: number
+    rows: number
+  }
+  /** 0.44.0 D0 — 옛 서버는 보내지 않는다. 파일 이름·경로는 없다 */
+  backup?: BackupStatus
+}
+
+export interface BackupStatus {
+  count: number
+  keep: number
+  /** 마지막 백업 시각(UTC ISO) */
+  last_at: string | null
+  last_size: number | null
+  last_failure: { at: string; reason: string } | null
+  /** 업그레이드 직전 백업 — "마지막"(매일 백업)과 따로 센다. 옛 0.44 개발판은 보내지 않을 수 있다 */
+  premigrate?: { count: number; last_at: string | null }
 }
 
 /** 리밸런싱 기록에 얼려둔 종목 한 줄 */

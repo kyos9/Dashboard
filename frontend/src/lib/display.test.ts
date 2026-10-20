@@ -168,8 +168,8 @@ describe('종합 신호등', () => {
 
 describe('신호 칸의 짧은 이름 (8-4)', () => {
   it('서버의 사유 글을 할 일로 줄인다 — 모르는 사유는 그대로', () => {
-    expect(reasonBadge('밴드 미달(매수 검토)')).toEqual({ label: '매수 검토', desc: expect.stringMatching(/^밴드 미달/), rebalance: true })
-    expect(reasonBadge('밴드 초과(매도 검토)')).toEqual({ label: '매도 검토', desc: expect.stringMatching(/^밴드 초과/), rebalance: true })
+    expect(reasonBadge('밴드 미달(매수 검토)')).toEqual({ label: '비중 미달', desc: expect.stringMatching(/^밴드 미달/), rebalance: true })
+    expect(reasonBadge('밴드 초과(매도 검토)')).toEqual({ label: '비중 초과', desc: expect.stringMatching(/^밴드 초과/), rebalance: true })
     expect(reasonBadge('정기 리뷰 도래')).toEqual({ label: '정기 리뷰', desc: expect.stringMatching(/^정기 리뷰 도래/), rebalance: false })
     expect(reasonBadge('새 사유')).toEqual({ label: '새 사유', desc: '새 사유', rebalance: false })
   })

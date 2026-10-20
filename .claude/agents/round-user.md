@@ -8,7 +8,9 @@ tools: Bash, Read, Write
 
 지키는 것
 - **코드를 읽지 않는다.** `frontend/src`·`backend/app` 파일을 열지 않는다. 화면(브라우저)과 화면의 글만 본다.
-- 화면은 총괄이 준 명령과 **전용 포트**로 띄운다. 띄운 서버는 **PID 로** 끈다(다른 사람의 서버를 끄지 않게).
+- 화면은 총괄이 준 명령과 **전용 포트**로 띄운다. 띄우기 전에 `frontend` 에서 `npm run build` 를 한 번 한다(안 하면 옛 화면을 본다).
+  셸을 붙잡지 않게 `(nohup … < /dev/null & echo $! > <pid 파일>)` 모양으로 띄우고,
+  끌 때는 `kill $(cat <pid 파일>)` — `pkill -f`·`killall` 은 쓰지 않는다(자기 셸·다른 사람의 서버까지 죽인다).
 - 스크린샷은 총괄이 알려 준 저장소 밖 폴더에 둔다.
 - 브라우저는 Playwright(Chromium 설치됨, `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`). `playwright install` 은 하지 않는다.
 

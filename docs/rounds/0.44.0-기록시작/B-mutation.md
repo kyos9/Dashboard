@@ -1,0 +1,42 @@
+# B 뮤테이션 — 종합 신호등 정리
+
+명령: `npx vitest run src/pages/Dashboard.test.tsx src/pages/Dashboard.portfolio.test.tsx src/lib/display.test.ts src/pages/RebalancePanel.test.tsx` (frontend). 한 줄씩 바꾸고 돌린 뒤 되돌림.
+
+| 뮤테이션 | 파일 | 결과 |
+| --- | --- | --- |
+| 관망을 다시 글자로 | `frontend/src/pages/Dashboard.tsx` | 잡힘 |
+| 관망 풀이 지우기 | `frontend/src/pages/Dashboard.tsx` | 잡힘 |
+| 관망 표시를 빈칸으로 | `frontend/src/pages/Dashboard.tsx` | 잡힘 |
+| 시그널 이름표 지우기 | `frontend/src/pages/Dashboard.tsx` | 잡힘 |
+| 비중 이름표 지우기 | `frontend/src/pages/Dashboard.tsx` | 잡힘 |
+| 비활성 비중도 보이기 | `frontend/src/pages/Dashboard.tsx` | 살아남음 → 테스트 더한 뒤 잡힘 |
+| 둘 다 뜰 때 매도 꼬리표 빼기 | `frontend/src/pages/Dashboard.tsx` | 잡힘 |
+| 요약 배지 옛 말 | `frontend/src/pages/Dashboard.tsx` | 잡힘 |
+| 요약 미달 옛 말 | `frontend/src/pages/Dashboard.tsx` | 잡힘 |
+| 배지 초과 옛 말 | `frontend/src/lib/display.ts` | 잡힘 |
+| 배지 미달 옛 말 | `frontend/src/lib/display.ts` | 잡힘 |
+| 비중 줄에 정기 리뷰도 세우기 | `frontend/src/pages/Dashboard.tsx` | 잡힘 (계획 B "비중 칸에는 과중·미달만"을 빠뜨렸던 것을 고친 뒤 더함) |
+| 리밸런싱 묶음 옛 말 | `frontend/src/lib/portfolio.ts` | 잡힘 |
+
+"비활성 비중도 보이기"가 처음엔 살아남았다 — 사유가 와도 `active=false` 면 비중 줄을 그리지 않는다는 테스트가 없었다. Dashboard.test.tsx 에 GOOG(active=false) 줄을 더한 뒤 다시 돌려 잡힘. **13/13 잡힘.**
+
+## 두 번째 검토 뒤 (조건부 — 테스트 둘)
+
+| 뮤테이션 | 파일 | 결과 |
+| --- | --- | --- |
+| M3 범례를 과중으로 (검토자) | `frontend/src/components/PortfolioView.tsx` | 살아남았음 → 범례 테스트(Dashboard.portfolio.test.tsx) 더한 뒤 잡힘 |
+| M4 폰에서만 풀이 숨기기 (검토자) | `frontend/src/pages/Dashboard.tsx` | 살아남았음 → 폰 배치(matchMedia) 테스트 더한 뒤 잡힘 |
+
+## 세 번째 검토 뒤 (조건부 — 테스트 한 줄)
+
+| 뮤테이션 | 파일 | 결과 |
+| --- | --- | --- |
+| N3 풀이 줄 비중 말을 과중으로 (검토자) | `frontend/src/pages/Dashboard.tsx` | 살아남았음 → 폰 테스트가 비중 말·"과중" 없음까지 본 뒤 잡힘 |
+| M4 다시 — 실패가 다른 테스트로 번지지 않는지 | `frontend/src/pages/Dashboard.tsx` | 정확히 1 failed (폰 배치를 `pretendPhone`/`forgetPhone` + finally 로) |
+
+## 네 번째 검토 뒤 (조건부 — 요약 배지 수)
+
+| 뮤테이션 | 파일 | 결과 |
+| --- | --- | --- |
+| O4 초과 배지에 미달 수 (검토자) | `frontend/src/pages/Dashboard.tsx` | 살아남았음(라운드 시작부터 — 테스트 데이터가 1·1) → 초과 2·미달 1 로 바꾼 뒤 잡힘 |
+| 미달 배지에 초과 수 | `frontend/src/pages/Dashboard.tsx` | 잡힘 |

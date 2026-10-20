@@ -226,6 +226,23 @@ def test_signal_rules_are_recomputed_once_on_start(server):
     assert friend.get(server + "/api/admin/signal-rules").status_code == 403
 
 
+def test_demo_has_daily_value_records(server):
+    """평가금액 기록 (0.44.0) — 스케줄러가 꺼진 가짜 서버도 닷새치를 깔아 진단·리밸런싱 안내가 보인다."""
+    owner = login(server, fake_server.OWNER)
+    records = owner.get(server + "/api/admin/records").json()["value_record"]
+    assert records["enabled"] is True and records["last_date"] is not None
+    # 주인·지인 두 사람(처음 온 사람은 아무것도 없어 빠진다) × 닷새
+    assert (records["users"], records["rows"]) == (2, 10)
+    assert owner.get(server + "/api/rebalance/current").json()["value_record"]["days"] == 5
+    # 백업 한 벌 (D0) — 시각·크기·벌 수, 이름·경로는 없다
+    backup = owner.get(server + "/api/admin/records").json()["backup"]
+    assert backup["count"] == 1 and backup["last_size"] > 0 and backup["last_at"] and backup["last_failure"] is None
+    assert "signalboard-" not in str(backup)
+    newcomer = login(server, fake_server.NEWCOMER)
+    assert newcomer.get(server + "/api/rebalance/current").json()["value_record"]["days"] == 0
+    assert newcomer.get(server + "/api/admin/records").status_code == 403
+
+
 def test_demo_rule_change_shows_the_notice_and_recomputes(server):
     """`--demo-rule-change` — 정의를 오늘 바꾼 것처럼. 같은 데이터로 하나 더 띄운다(데모 데이터를 다시 만들지 않는다)."""
     with _serve(DATA_DIRS["main"], "--demo-rule-change") as demo:
@@ -242,12 +259,44 @@ def test_demo_rule_change_shows_the_notice_and_recomputes(server):
         assert by_ticker["NVDA"]["knee_buy_v2"]
 
 
+@pytest.mark.parametrize("day", ["2026-09-29", "2026-11-04", "2027-03-31"])
+def test_demo_candidates_change_buy_count_on_hard_days(monkeypatch, day):
+    """ADX 후보만으로는 어느 값도 오늘 매수 수를 바꾸지 못하던 날들 (0.44.0 C 재검토) — 넓힌 후보에는 바꾸는 것이 있다.
+
+    날짜를 못 박아 데모 시세를 그날 것으로 만든다. 오늘 날짜에만 기대면 이런 날이 와야 시험이 넘어진다.
+    """
+    from app.services.indicators import compute_indicators
+    from app.services.signal_rules import DEFAULT, Thresholds
+    from app.services.signals import compute_signals
+
+    fixed = dt.date.fromisoformat(day)
+
+    class FixedDate(dt.date):
+        @classmethod
+        def today(cls):
+            return fixed
+
+    monkeypatch.setattr(fake_server, "dt", type("dt", (), {"date": FixedDate, "datetime": dt.datetime, "timedelta": dt.timedelta}))
+    columns = ["open", "high", "low", "close", "volume"]
+    frames = [compute_indicators(fake_server.fake_history(t)[columns].astype("float64")) for t, *_ in fake_server.OWNER_STOCKS]
+
+    def buys(t) -> int:
+        return sum(bool(compute_signals(f, t)["knee_buy_v2"].iloc[-1]) for f in frames)
+
+    default = buys(DEFAULT)
+    assert not any(buys(Thresholds(adx_trend=a)) != default for a in fake_server.DEMO_ADX_CANDIDATES)
+    assert any(buys(Thresholds(**c)) != default for c in fake_server.DEMO_CANDIDATES)
+
+
 def test_demo_custom_thresholds_shows_my_thresholds(server):
     """`--demo-custom-thresholds` — 주인 계정이 시그널 기준을 바꾼 것처럼 (0.42.0). 오늘 매수 수가 실제로 달라진다."""
     with _serve(DATA_DIRS["main"], "--demo-custom-thresholds") as demo:
         owner = login(demo, fake_server.OWNER)
         rules = owner.get(demo + "/api/signal-rules").json()
-        assert (rules["custom"], rules["thresholds"]["adx_trend"]) == (True, 15.0)
+        # 기준은 그날의 데모 시세에서 오늘 매수 수가 달라지는 값 — 날짜가 바뀌어도 데모가 된다
+        assert rules["custom"] is True
+        changed = {k: v for k, v in rules["thresholds"].items() if v != rules["defaults"][k]}
+        assert changed in fake_server.DEMO_CANDIDATES
         cards = owner.get(demo + "/api/dashboard").json()
         mine = sum(c["knee_buy_v2"] for c in cards)
         default = sum(bool(c["knee_buy_v2_default"]) for c in cards)
@@ -257,3 +306,4 @@ def test_demo_custom_thresholds_shows_my_thresholds(server):
         assert friend.get(demo + "/api/signal-rules").json()["custom"] is False
         # 기본값으로 되돌리면 처음과 같다 (다음 시험이 같은 데이터를 쓴다)
         assert owner.delete(demo + "/api/signal-thresholds").json()["custom"] is False
+

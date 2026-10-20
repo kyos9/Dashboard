@@ -666,10 +666,14 @@ def seed() -> None:
         owner = ensure_local_owner(db)
         # 구글 계정은 붙이지 않는다 — 처음 로그인할 때 앱이 주인 주소를 보고 1번에 붙인다(진짜와 같은 길)
         owner.email, owner.name, owner.status, owner.last_login_at = OWNER, "owner", "active", now
+        # 가입은 기록보다 앞 — 평가금액 기록을 지난 아침들로 채우므로, 가입일이 오늘이면 켤 때 치우기
+        # (value_record.sweep_orphans: 가입하기 전의 줄)가 그 줄들을 남의 것으로 본다
+        joined = now - dt.timedelta(days=30)
+        owner.created_at = joined
         users = {}
         for email, status in ((FRIEND, "active"), (NEWCOMER, "active"), (PENDING, "pending")):
             user = User(google_sub="dev-" + email, email=email, name=email.split("@")[0], status=status,
-                        is_owner=False, created_at=now, last_login_at=now)
+                        is_owner=False, created_at=joined, last_login_at=now)
             db.add(user)
             users[email] = user
         db.flush()
@@ -690,6 +694,18 @@ def seed() -> None:
             macro.upsert_values(db, series.code, fake_macro_points(series.code, daily), source="dev")
             macro.mark_checked(db, series)
         db.commit()
+
+        # 날마다의 평가금액 (0.44.0) — 가짜 서버는 스케줄러를 끄므로 지난 닷새 아침에 남긴 것처럼 직접 쓴다.
+        # 진단의 "평가금액 기록 · 백업" 칸과 리밸런싱의 "○일째"가 보인다(값은 오늘 보유·종가 그대로)
+        from app.services import value_record
+
+        for back in range(4, -1, -1):
+            value_record.record_day(db, now=now - dt.timedelta(days=back))
+
+    # 백업 한 벌 (0.44.0 D0) — 진단의 백업 줄(시각·크기·벌 수)이 보이게. 데이터 폴더 안 backups/ 에 뜬다
+    from app.services import backup
+
+    backup.run_backup()
 
 
 # ---------------------------------------------------------------------------
@@ -721,9 +737,38 @@ def recompute_signals(demo_rule_change: bool = False) -> dict | None:
         db.close()
 
 
-# 주인 계정에 넣는 "내 기준" (--demo-custom-thresholds). 데모 시세에서 오늘 매수가 4개 → 5개(TSLA)로 실제로 달라지는
-# 값이다. 지인 계정의 네 종목은 어느 기준에서도 오늘 매수 수가 그대로라 데모가 되지 않는다.
-DEMO_THRESHOLDS = {"adx_trend": 15.0}
+# 주인 계정에 넣는 "내 기준" (--demo-custom-thresholds). 오늘 매수 수가 기본과 **실제로 달라지는** 기준을 고른다.
+# 처음엔 ADX 15 로 못 박았는데(TSLA 가 4개 → 5개) TSLA 는 모양을 정하지 않은 종목이라 날짜가 바뀌면 마지막 날이 달라져
+# 어떤 날(2026-10-19)엔 15 에서도 같았다. ADX 후보만으로는 1년에 27일쯤 어느 값도 달라지지 않아(0.44.0 C 재검토)
+# 다른 세 기준(N거래일·이격도·거래량비)까지 후보로 둔다. 차례로 보고 처음으로 달라지는 한 벌을 쓴다.
+# 지인 계정의 네 종목은 어느 기준에서도 오늘 매수 수가 그대로라 데모가 되지 않는다.
+DEMO_ADX_CANDIDATES = (15.0, 12.0, 17.5, 10.0, 25.0, 30.0, 35.0, 40.0)
+DEMO_CANDIDATES: tuple[dict, ...] = (
+    *({"adx_trend": a} for a in DEMO_ADX_CANDIDATES),
+    *({"lookback_days": n} for n in (1, 3, 10, 20)),
+    *({"disparity_below": v} for v in (-2.0, -5.0, -10.0, -20.0)),
+    *({"vol_ratio_expand": v} for v in (0.5, 1.0, 2.0, 3.0)),
+)
+DEMO_THRESHOLDS = dict(DEMO_CANDIDATES[0])
+
+
+def demo_thresholds(db, user_id: int) -> dict:
+    """그 사람의 오늘 매수 수가 기본과 달라지는 첫 후보 기준. 하나도 없으면 첫 후보."""
+    from app.services import my_signals
+    from app.services.signal_rules import DEFAULT, Thresholds
+    from app.services.users import ordered_user_stocks
+
+    tickers = [s.ticker for s in ordered_user_stocks(db, user_id, active_only=True)]
+
+    def today_buys(t) -> int:
+        judged = my_signals.judge(db, tickers, t)
+        return sum(1 for j in judged.values() if (last := j.last()) and last.knee_buy_v2)
+
+    default = today_buys(DEFAULT)
+    for candidate in DEMO_CANDIDATES:
+        if today_buys(Thresholds(**candidate)) != default:
+            return dict(candidate)
+    return dict(DEMO_THRESHOLDS)
 
 
 def set_demo_thresholds() -> None:
@@ -735,7 +780,7 @@ def set_demo_thresholds() -> None:
     db = SessionLocal()
     try:
         owner = db.query(User).filter(User.email == OWNER).one()
-        get_settings(db, owner.id).signal_thresholds = dict(DEMO_THRESHOLDS)
+        get_settings(db, owner.id).signal_thresholds = demo_thresholds(db, owner.id)
         db.commit()
     finally:
         db.close()

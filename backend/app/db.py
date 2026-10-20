@@ -242,6 +242,24 @@ def init_db(bind=None) -> None:
     bind = bind or engine
     upgrade_to_head(bind)
     _seed_macro_series(bind)
+    _sweep_value_records(bind)
+
+
+def _sweep_value_records(bind) -> None:
+    """옛 버전에서의 탈퇴가 남긴 평가금액 줄을 치운다 (0.44.0, `value_record.sweep_orphans`).
+
+    요청을 받기 **전에** — 스케줄러(켠 뒤 30초)에서 하면 그 사이 같은 번호를 받은 사람에게 앞사람의 날 수가
+    보인다(A 두 번째 검토). 넘어져도 앱은 뜬다.
+    """
+    from sqlalchemy.orm import Session
+
+    from app.services import value_record
+
+    try:
+        with Session(bind) as session:
+            value_record.sweep_orphans(session)
+    except Exception:
+        logger.exception("주인 없는 평가금액 기록을 치우지 못했습니다 (앱은 계속 뜹니다)")
 
 
 def _seed_macro_series(bind) -> None:

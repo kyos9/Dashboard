@@ -21,6 +21,7 @@ from app.schemas import (
 from app.services import fx as fx_service
 from app.services import rebalance as rebalance_service
 from app.services import settings as settings_service
+from app.services import value_record
 from app.services.users import (
     current_user_id,
     find_user_stock,
@@ -244,7 +245,9 @@ def refresh_fx(db: Session = Depends(get_db), user_id: int = Depends(current_use
 
 @router.get("/current", response_model=RebalanceCurrentOut)
 def get_current(db: Session = Depends(get_db), user_id: int = Depends(current_user_id)):
-    return RebalanceCurrentOut(**rebalance_service.compute_rebalance_current(db, user_id))
+    current = rebalance_service.compute_rebalance_current(db, user_id)
+    record = value_record.my_days(db, user_id)
+    return RebalanceCurrentOut(**current, value_record={"enabled": value_record.enabled(), **record})
 
 
 # ---------------------------------------------------------------------------

@@ -7,7 +7,7 @@ import { api } from '../api/client'
 import type { RebalanceCurrent, RebalanceRow, RebalanceSnapshot, Settings, Stock } from '../types'
 import { forgetPhone, pretendPhone } from '../test/phone'
 import { HIDE_AMOUNTS_KEY, resetPrefs } from '../lib/prefs'
-import { RebalancePanel } from './RebalancePanel'
+import { RebalancePanel, ValueRecordLine } from './RebalancePanel'
 
 function row(overrides: Partial<RebalanceRow> & { ticker: string }): RebalanceRow {
   return {
@@ -823,7 +823,7 @@ describe('리밸런싱 · 주문과 신호를 다른 말로 (디자인 2차)', (
     expect(voo).toHaveTextContent('팔기')
     expect(voo).not.toHaveTextContent('SELL')
     const groups = Array.from(voo.querySelectorAll('.badge-group')).map((g) => g.textContent)
-    expect(groups).toEqual(['비중매도 검토', '참고기간 내 매도'])
+    expect(groups).toEqual(['비중비중 초과', '참고기간 내 매도'])
     const samsung = await orderRow('005930.KS')
     expect(samsung).toHaveTextContent('사기')
     expect(samsung).toHaveTextContent('비중조절 신호 없음')
@@ -903,5 +903,31 @@ describe('리밸런싱 · 주문 옆 거래 입력 (디자인 2차, 주인 결�
     const tables = await screen.findAllByRole('table')
     expect(tables[0]).toHaveClass('sticky-first')
     expect(tables.some((t, i) => i > 0 && t.classList.contains('sticky-first'))).toBe(true)
+  })
+})
+
+describe('날마다의 평가금액 안내 (0.44.0)', () => {
+  it('리뷰 · 기록 안에, 리뷰 기록과 따로라는 말과 며칠째인지', async () => {
+    mockApi({ ...CURRENT, value_record: { enabled: true, days: 12, since: '2026-10-05' } })
+    renderPanel()
+    const section = (await screen.findByRole('heading', { name: /리뷰 · 기록/ })).closest('section') as HTMLElement
+    const line = section.querySelector('.value-record-line') as HTMLElement
+    expect(line.textContent).toBe('리뷰 기록과 따로, 평가금액은 매일 아침 자동으로 남깁니다 — 2026-10-05부터 12일째.')
+    // 날짜는 줄 끝에서 갈라지지 않는다
+    expect(within(line).getByText('2026-10-05부터').classList.contains('nowrap')).toBe(true)
+    // 리뷰 기록이 하나도 없다는 말과 같이 보여도 서로 어긋나지 않는다 — "따로"
+    expect(within(section).getByText(/아직 남긴 기록이 없습니다/)).toBeTruthy()
+  })
+
+  it('아직 쌓이지 않았으면 언제부터인지', () => {
+    render(<ValueRecordLine record={{ enabled: true, days: 0, since: null }} />)
+    expect(screen.getByText(/다음 아침부터 쌓입니다/)).toBeTruthy()
+  })
+
+  it('옛 서버(칸 없음)·꺼 둔 서버면 그리지 않는다', () => {
+    const { container, rerender } = render(<ValueRecordLine record={undefined} />)
+    expect(container.textContent).toBe('')
+    rerender(<ValueRecordLine record={{ enabled: false, days: 3, since: '2026-10-05' }} />)
+    expect(container.textContent).toBe('')
   })
 })

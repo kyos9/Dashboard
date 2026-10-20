@@ -62,6 +62,70 @@ describe('오류 응답 해석', () => {
     expect(error.detail).toBe('VOO already exists')
   })
 
+  it('422 의 detail 목록은 칸 이름 + 범위의 한국어 한 줄 — 영어 JSON 원문을 보이지 않는다 (0.44.0 C2)', async () => {
+    mockFetch({
+      status: 422,
+      statusText: 'Unprocessable Entity',
+      text: JSON.stringify({
+        detail: [
+          { type: 'less_than_equal', loc: ['body', 'items', 0, 'rebalance_band_pct'], msg: 'Input should be less than or equal to 100', input: 201, ctx: { le: 100 } },
+          { type: 'greater_than_equal', loc: ['body', 'items', 1, 'quantity'], msg: 'Input should be greater than or equal to 0', input: -1, ctx: { ge: 0 } },
+          { type: 'less_than_equal', loc: ['body', 'items', 2, 'rebalance_band_pct'], msg: 'Input should be less than or equal to 100', input: 300, ctx: { le: 100 } },
+        ],
+      }),
+    })
+
+    const error = await api.getDashboard().catch((e) => e)
+    expect(error).toBeInstanceOf(ApiError)
+    expect(error.status).toBe(422)
+    // 같은 칸의 같은 말은 한 번만
+    expect(error.message).toBe('입력값을 확인해 주세요 — 밴드는 100 이하여야 합니다 · 수량은 0 이상이어야 합니다')
+    expect(error.message).not.toMatch(/Input should|\{/)
+    // 기술적 원인은 영어 msg 만 이어 붙인 것 — JSON 원문(본문 전체)이 아니다
+    expect(error.detail).toBe(
+      'Input should be less than or equal to 100; Input should be greater than or equal to 0; Input should be less than or equal to 100',
+    )
+  })
+
+  it('422 범위 말 — 양쪽 범위·글자 수·빠진 값·숫자 아님·모르는 칸', async () => {
+    const cases: [object, string][] = [
+      [{ type: 'less_than_equal', loc: ['body', 'target_weight_pct'], ctx: { ge: 0, le: 100 } }, '목표 비중은 0~100 사이여야 합니다'],
+      [{ type: 'string_too_long', loc: ['body', 'note'], ctx: { max_length: 200 } }, '메모는 200자 이하여야 합니다'],
+      [{ type: 'missing', loc: ['body', 'quantity'] }, '수량은 필요합니다'],
+      [{ type: 'float_parsing', loc: ['body', 'avg_cost'] }, '평단가는 숫자여야 합니다'],
+      [{ type: 'greater_than', loc: ['body', 'avg_fx'], ctx: { gt: 0 } }, '산 환율은 0보다 커야 합니다'],
+      [{ type: 'value_error', loc: ['body', 'mystery'] }, '입력값은 올바르지 않습니다'],
+      [{ type: 'less_than', loc: ['body', 'quantity'], ctx: { lt: 10 } }, '수량은 10보다 작아야 합니다'],
+    ]
+    for (const [item, line] of cases) {
+      mockFetch({ status: 422, text: JSON.stringify({ detail: [item] }) })
+      const error = await api.getDashboard().catch((e) => e)
+      expect(error.message).toBe(`입력값을 확인해 주세요 — ${line}`)
+    }
+  })
+
+  it('422 의 msg 가 없는 칸은 기술적 원인에서 빠진다 — 빈 칸이 "; ;" 로 남지 않는다', async () => {
+    mockFetch({
+      status: 422,
+      text: JSON.stringify({
+        detail: [
+          { type: 'missing', loc: ['body', 'quantity'] },
+          { type: 'greater_than', loc: ['body', 'avg_fx'], msg: 'Input should be greater than 0', ctx: { gt: 0 } },
+        ],
+      }),
+    })
+    const error = await api.getDashboard().catch((e) => e)
+    expect(error.detail).toBe('Input should be greater than 0')
+  })
+
+  it('422 의 detail 이 빈 목록이면 한국어 한 줄을 만들지 않는다 — 칸 없는 "입력값을 확인해 주세요 — " 가 뜨지 않는다', async () => {
+    const body = JSON.stringify({ detail: [] })
+    mockFetch({ status: 422, statusText: 'Unprocessable Entity', text: body })
+    const error = await api.getDashboard().catch((e) => e)
+    expect(error.message).not.toMatch(/입력값을 확인해 주세요/)
+    expect(error.detail).toBe(body)
+  })
+
   it('JSON이 아니면 본문을 그대로 보여준다', async () => {
     mockFetch({ ok: false, status: 500, statusText: 'Internal Server Error', text: '<html>500</html>' })
 

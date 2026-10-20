@@ -412,6 +412,14 @@ class ReviewOut(BaseModel):
     last_snapshot_at: Optional[dt.datetime] = None
 
 
+class ValueRecordOut(BaseModel):
+    """내 평가금액 기록이 며칠 쌓였나 (0.44.0) — 리밸런싱 "리뷰 · 기록"의 안내 줄."""
+
+    enabled: bool = True
+    days: int = 0
+    since: Optional[dt.date] = None
+
+
 class RebalanceCurrentOut(BaseModel):
     """리밸런싱 현황 전체.
 
@@ -439,6 +447,8 @@ class RebalanceCurrentOut(BaseModel):
     target_sum_pct: float = 0.0
     review: ReviewOut
     rows: list[RebalanceRow]
+    # 0.44.0 — 옛 화면은 모르는 칸이라 쓰지 않는다
+    value_record: Optional[ValueRecordOut] = None
 
 
 class SnapshotCreate(BaseModel):

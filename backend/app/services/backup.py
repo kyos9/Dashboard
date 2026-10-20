@@ -14,6 +14,7 @@
 """
 
 import datetime as dt
+import json
 import logging
 import os
 import shutil
@@ -35,6 +36,67 @@ KEEP = int(os.environ.get("SIGNAL_DASHBOARD_BACKUP_KEEP", "7"))
 
 PREFIX = "signalboard-"
 STAMP = "%Y%m%d-%H%M%S"
+
+
+# 마지막으로 실패한 때와 그 갈래 — 진단 화면이 본다 (0.44.0 D0). 백업 폴더의 작은 파일에 둔다: 다시 켜도 남고,
+# 스케줄러를 맡지 않은 워커가 요청을 받아도 같은 것을 읽는다(같은 볼륨). 성공하면 비운다.
+# 사유는 갈래 이름만 — 예외 글에는 DB 파일 경로·pg_dump 의 접속 주소가 들 수 있다(원문은 서버 로그에만).
+STATUS_FILE = "backup-status.json"
+
+# 상태 파일을 못 쓴 날(백업 폴더에 쓸 수 없다·디스크가 찼다 — 바로 백업이 실패하는 날이다)의 마지막 상태.
+# 이 프로세스 안에만 남지만 없는 것보다 낫다 — 파일보다 새것이므로 읽을 때 먼저 본다 (D0 두 번째 검토).
+_unsaved: dict[str, dict | None] = {}
+
+
+def _status_path(backup_dir: Path | None = None) -> Path:
+    return Path(backup_dir or BACKUP_DIR) / STATUS_FILE
+
+
+def _write_failure(failure: dict | None, backup_dir: Path | None = None) -> None:
+    path = _status_path(backup_dir)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temp = path.with_name(path.name + ".tmp")
+        temp.write_text(json.dumps({"last_failure": failure}, ensure_ascii=False), encoding="utf-8")
+        temp.replace(path)
+    except OSError as exc:
+        # 디스크가 찬 날이면 이것도 못 쓴다 — 로그에는 이미 남았다. 이 프로세스에라도 남긴다
+        logger.warning("백업 상태 파일을 쓰지 못했습니다: %s", exc)
+        _unsaved[str(path)] = failure
+        return
+    _unsaved.pop(str(path), None)
+
+
+def _read_failure(backup_dir: Path | None = None) -> dict | None:
+    path = _status_path(backup_dir)
+    if str(path) in _unsaved:
+        return _unsaved[str(path)]
+    try:
+        failure = json.loads(path.read_text(encoding="utf-8")).get("last_failure")
+    except (OSError, ValueError, AttributeError):
+        return None
+    if isinstance(failure, dict) and isinstance(failure.get("at"), str) and isinstance(failure.get("reason"), str):
+        return {"at": failure["at"], "reason": failure["reason"]}
+    return None
+
+
+def _failure_kind(exc: BaseException) -> str:
+    import errno
+
+    text = str(exc)
+    if "pg_dump 를 찾을 수 없습니다" in text:
+        return "pg_dump 가 없습니다"
+    if text.startswith("pg_dump 실패"):
+        return "pg_dump 가 실패했습니다"
+    if isinstance(exc, FileNotFoundError):
+        return "DB 파일을 찾지 못했습니다"
+    if isinstance(exc, PermissionError):
+        return "백업 폴더에 쓸 수 없습니다"
+    if isinstance(exc, OSError) and exc.errno == errno.ENOSPC:
+        return "디스크가 찼습니다"
+    if isinstance(exc, OSError):
+        return "파일을 쓰지 못했습니다"
+    return "알 수 없는 오류 — 서버 로그를 보세요"
 
 
 def _stamp() -> str:
@@ -143,7 +205,12 @@ def run_backup() -> Path | None:
     except Exception as exc:
         # 조용히 넘어가면 안 된다 — 백업이 없는 걸 모르는 게 백업이 없는 것보다 나쁘다.
         logger.error("백업에 실패했습니다: %s", exc)
+        _write_failure({
+            "at": dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat(),
+            "reason": _failure_kind(exc),
+        })
         return None
+    _write_failure(None)
     try:
         prune()
     except OSError as exc:
@@ -161,6 +228,47 @@ def latest_age(backup_dir: Path | None = None) -> dt.timedelta | None:
     except ValueError:
         return None
     return dt.datetime.now() - stamp
+
+
+def _label(path: Path) -> str:
+    """이름에서 시각 뒤의 꼬리표 — 매일 백업은 "", 업그레이드 직전은 "premigrate"."""
+    rest = path.name[len(PREFIX) + len(_stamp()) :]
+    stem = rest.rsplit(".", 1)[0]
+    return stem[1:] if stem.startswith("-") else stem
+
+
+def _taken_at(path: Path) -> str | None:
+    """이름에 찍힌 서버 시각을 UTC 로 — 화면이 보는 사람의 시간대로 바꾼다."""
+    try:
+        stamp = dt.datetime.strptime(path.name[len(PREFIX) :][: len(_stamp())], STAMP)
+    except ValueError:
+        return None
+    return stamp.astimezone(dt.timezone.utc).isoformat()
+
+
+def status(backup_dir: Path | None = None) -> dict:
+    """진단(주인)에 보일 백업 상태 (0.44.0 D0) — 마지막 백업 시각·크기·벌 수·마지막 실패.
+
+    "마지막"은 **매일 백업**만 본다. 업그레이드 직전 백업(`premigrate`)까지 섞으면 업그레이드 한 번이 매일 백업이 멈춘
+    것을 가린다(D0 검토) — 그것은 따로 센다. **파일 이름·경로는 담지 않는다.**
+    """
+    found = existing_backups(backup_dir)
+    daily = [p for p in found if _label(p) == ""]
+    before = [p for p in found if _label(p) == "premigrate"]
+    last_size = None
+    if daily:
+        try:
+            last_size = daily[0].stat().st_size
+        except OSError:
+            last_size = None
+    return {
+        "count": len(found),
+        "keep": KEEP,
+        "last_at": _taken_at(daily[0]) if daily else None,
+        "last_size": last_size,
+        "last_failure": _read_failure(backup_dir),
+        "premigrate": {"count": len(before), "last_at": _taken_at(before[0]) if before else None},
+    }
 
 
 def run_backup_if_stale(max_age_hours: float = 12, backup_dir: Path | None = None) -> Path | None:

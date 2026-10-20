@@ -3,10 +3,12 @@ import {
   createChart,
   createSeriesMarkers,
   LineSeries,
+  MismatchDirection,
   PriceScaleMode,
   type IChartApi,
   type ISeriesApi,
   type ISeriesMarkersPluginApi,
+  type MouseEventParams,
   type SeriesMarker,
   type Time,
 } from 'lightweight-charts'
@@ -72,6 +74,8 @@ interface Props {
 export function PriceChart({ history, height = 440 }: Props) {
   const [container, setContainer] = useState<HTMLDivElement | null>(null)
   const [handles, setHandles] = useState<ChartHandles | null>(null)
+  // 차트 위 한 줄에 보일 날 — 없으면 마지막 날 (0.44.0 C1)
+  const [pointed, setPointed] = useState<{ date: string; close: number } | null>(null)
   const light = useThemeIsLight()
 
   useEffect(() => {
@@ -137,8 +141,55 @@ export function PriceChart({ history, height = 440 }: Props) {
     handles.chart.timeScale().fitContent()
   }, [handles, history])
 
+  /* 짧은 탭 (0.44.0 C1). 폰에서 짧게 탭하면 십자선이 그 자리로 오지 않고 앞서 있던 곳(예: 고점)에 남아, 축의 날짜
+     이름표가 엉뚱한 날에 섰다 — 길게 끌어야 맞는 날이 나왔다. 탭(클릭)한 자리로 십자선을 직접 옮기고, 차트 위 한
+     줄이 그 날을 말한다. 십자선이 움직이면(마우스·끌기) 그 날, 차트를 떠나면 마지막 날로 돌아간다. */
+  useEffect(() => {
+    if (!handles) return
+    const { chart, series } = handles
+    const read = (param: MouseEventParams<Time>) => {
+      const point = param.time !== undefined ? param.seriesData.get(series) : undefined
+      const value = (point as { value?: unknown } | undefined)?.value
+      return typeof value === 'number' ? { time: param.time as Time, close: value } : null
+    }
+    const onMove = (param: MouseEventParams<Time>) => {
+      const hit = read(param)
+      setPointed(hit ? { date: chartDate(hit.time), close: hit.close } : null)
+    }
+    const onClick = (param: MouseEventParams<Time>) => {
+      let hit = read(param)
+      // 오른쪽 빈 칸(오늘 ▲ 자리로 비워 둔 rightOffset)을 누르면 그 자리에 날이 없다 — 왼쪽으로 가장 가까운 날(= 마지막 날).
+      // 맨 끝을 눌러 오늘로 돌아가려 해도 아무 일이 없었다(C 사용자 확인)
+      if (!hit && param.logical !== undefined) {
+        const near = series.dataByIndex(param.logical, MismatchDirection.NearestLeft) as { time?: Time; value?: unknown } | null
+        if (near?.time !== undefined && typeof near.value === 'number') hit = { time: near.time, close: near.value }
+      }
+      if (!hit) return
+      chart.setCrosshairPosition(hit.close, hit.time, series)
+      setPointed({ date: chartDate(hit.time), close: hit.close })
+    }
+    chart.subscribeCrosshairMove(onMove)
+    chart.subscribeClick(onClick)
+    return () => {
+      chart.unsubscribeCrosshairMove(onMove)
+      chart.unsubscribeClick(onClick)
+    }
+  }, [handles])
+
+  const last = history?.prices[history.prices.length - 1]
+  // 종목·기간을 바꾸면 가리켰던 날은 그 데이터에 없을 수 있다 — 그 날·그 값이 지금 데이터에 있을 때만 쓴다
+  const current = pointed && history?.prices.some((p) => p.date === pointed.date && p.close === pointed.close) ? pointed : null
+  const shown = current ?? (last ? { date: last.date, close: last.close } : null)
+
   return (
     <div className="chart-shell">
+      {shown && history && (
+        <p className="chart-readout" aria-live="polite">
+          <span className="mono">{shown.date}</span> · 종가{' '}
+          <span className="mono">{chartPrice(shown.close, currencyOfTicker(history.ticker))}</span>
+          {!current && <span className="hint"> (마지막 날 — 차트를 누르면 그 날)</span>}
+        </p>
+      )}
       <div ref={setContainer} style={{ width: '100%' }} />
     </div>
   )

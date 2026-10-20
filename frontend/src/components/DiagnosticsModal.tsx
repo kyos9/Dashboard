@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { useBackToClose } from '../lib/backToClose'
 import { ErrorNotice } from './ErrorNotice'
-import type { LogsResponse, SignalRulesStatus, SlowRequestsResponse } from '../types'
+import type { BackupStatus, LogsResponse, RecordsStatus, SignalRulesStatus, SlowRequestsResponse } from '../types'
 
 /**
  * 진단 — 서버가 남긴 기록 중 **잘못된 것만** 본다.
@@ -120,6 +120,76 @@ function SignalRulesLine({ status }: { status: SignalRulesStatus }) {
   )
 }
 
+/**
+ * 기록이 살아 있나 (0.44.0) — 날마다의 평가금액. 다시 만들 수 없는 기록이라 멈추면 그날치가 영영 없다.
+ * 누구의 금액도 보이지 않는다(합계만). 못 받으면(옛 서버) 그리지 않는다.
+ */
+function bytes(n: number): string {
+  if (n < 1024) return `${n}B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)}KB`
+  return `${(n / 1024 / 1024).toFixed(1)}MB`
+}
+
+/** 보는 사람의 시간대로 "10월 16일 08:30" */
+function when(iso: string): string {
+  return new Date(iso).toLocaleString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })
+}
+
+/** 하루 한 벌이 도는데 이보다 오래면 멈춘 것 */
+const BACKUP_STALE_HOURS = 36
+
+/**
+ * 백업 상태 한두 줄 (0.44.0 D0) — 마지막 백업 시각·크기·벌 수, 실패했으면 그 갈래. 파일 이름·경로는 서버가 보내지 않는다.
+ * 서버 밖으로 꺼내는 것은 아직 손으로 한다(DEPLOY 10) — 여기서는 "서버 안에 있나"만 말한다.
+ */
+export function BackupLines({ backup, now }: { backup: BackupStatus; now: number }) {
+  // "마지막"·멈춤 경고는 매일 백업만 — 업그레이드 직전 백업이 멈춘 것을 가리지 않게 (D0 검토)
+  const stale = backup.last_at !== null && now - new Date(backup.last_at).getTime() > BACKUP_STALE_HOURS * 3600_000
+  return (
+    <>
+      <p className="hint">
+        {backup.last_at
+          ? `백업: 마지막 ${when(backup.last_at)}${backup.last_size !== null ? ` · ${bytes(backup.last_size)}` : ''} · ${backup.count}벌 보관(최대 ${backup.keep})`
+          : '백업: 아직 없습니다 — 매일 한 벌씩 서버 안에 뜹니다.'}
+      </p>
+      {backup.premigrate && backup.premigrate.count > 0 && backup.premigrate.last_at && (
+        <p className="hint">
+          업그레이드 직전 백업 {backup.premigrate.count}벌 · 마지막 {when(backup.premigrate.last_at)} (위 벌 수에 들어 있습니다)
+        </p>
+      )}
+      {stale && (
+        <p className="hint diag-warn" role="note">
+          하루 넘게 새 백업이 없습니다 — 서버 로그를 보세요.
+        </p>
+      )}
+      {backup.last_failure && (
+        <p className="hint diag-warn" role="note">
+          마지막 실패: {when(backup.last_failure.at)} — {backup.last_failure.reason}
+        </p>
+      )}
+    </>
+  )
+}
+
+/** `now` — 응답을 받은 때(멈춤 경고의 기준) */
+export function RecordsLine({ status, now }: { status: RecordsStatus; now: number }) {
+  const value = status.value_record
+  return (
+    <section className="diag-slow" aria-labelledby="diag-records-title">
+      {/* "기록"만으로는 아래 서버 로그와 헷갈렸다(A 사용자 확인) */}
+      <h4 id="diag-records-title">평가금액 기록 · 백업</h4>
+      <p className="hint">
+        {!value.enabled
+          ? '평가금액 기록: 꺼져 있습니다(SIGNAL_DASHBOARD_VALUE_RECORD).'
+          : value.last_date
+            ? `평가금액 기록: 마지막 ${value.last_date} · 그날 ${value.users}명 · 모두 ${value.rows}줄`
+            : '평가금액 기록: 아직 없습니다 — 매일 아침 미국 시세를 받은 뒤 남깁니다.'}
+      </p>
+      {status.backup && <BackupLines backup={status.backup} now={now} />}
+    </section>
+  )
+}
+
 export function DiagnosticsModal({ onClose }: { onClose: () => void }) {
   const [level, setLevel] = useState<'warning' | 'all'>('warning')
   const [logs, setLogs] = useState<LogsResponse | null>(null)
@@ -127,6 +197,14 @@ export function DiagnosticsModal({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(true)
   const [slow, setSlow] = useState<SlowRequestsResponse | null>(null)
   const [rules, setRules] = useState<SignalRulesStatus | null>(null)
+  const [records, setRecords] = useState<{ status: RecordsStatus; at: number } | null>(null)
+
+  useEffect(() => {
+    api
+      .getRecordsStatus()
+      .then((status) => setRecords({ status, at: Date.now() }))
+      .catch(() => setRecords(null))
+  }, [])
 
   useEffect(() => {
     api
@@ -202,6 +280,7 @@ export function DiagnosticsModal({ onClose }: { onClose: () => void }) {
 
         <div className="diag-body">
           {rules && <SignalRulesLine status={rules} />}
+          {records && <RecordsLine status={records.status} now={records.at} />}
           {slow && <SlowRequests slow={slow} />}
           {loading && <p className="hint">불러오는 중…</p>}
           {!loading && logs?.available === false && (

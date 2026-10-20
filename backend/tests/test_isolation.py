@@ -33,8 +33,10 @@ import pytest
 from fastapi.routing import APIRoute
 
 import app.main as main_module
+from app.db import Base
 from app.models import (
     Holding,
+    PortfolioValueDaily,
     PriceDaily,
     PushState,
     PushSubscription,
@@ -138,6 +140,8 @@ ENDPOINTS: dict[tuple[str, str], tuple[str, str]] = {
     ("PUT", "/api/admin/settings"): (SHARED, OWNER),
     # 시그널 정의의 판·마지막 재계산 (0.41.0) — 실패한 종목 이름(남의 종목일 수 있다)이 들어 있다
     ("GET", "/api/admin/signal-rules"): (SHARED, OWNER),
+    # 기록이 살아 있나 (0.44.0) — 평가금액 기록은 합계만이지만 모든 사람의 수다
+    ("GET", "/api/admin/records"): (SHARED, OWNER),
     # 푸시 알림 — 서버 공개키만 공용이고, 기기·받을 종류·시험은 그 사람 것이다
     ("GET", "/api/push/key"): (SHARED, USER),
     ("GET", "/api/push/settings"): (MINE, USER),
@@ -192,11 +196,11 @@ def test_the_table_has_no_api_that_is_gone():
 
 
 def test_owner_only_list_matches_the_plan():
-    """주인 전용은 14개다 (ROADMAP 6-1의 8개 + 4-4b 사용자 목록·승인 + 8-5 느린 요청
-    + 9-15 앱 설정 둘 + 0.41.0 시그널 재계산 상태). 늘거나 줄면 계획과 같이 고친다. 9-7·9-8 AI 진단·분석 4개는
+    """주인 전용은 15개다 (ROADMAP 6-1의 8개 + 4-4b 사용자 목록·승인 + 8-5 느린 요청
+    + 9-15 앱 설정 둘 + 0.41.0 시그널 재계산 상태 + 0.44.0 기록 상태). 늘거나 줄면 계획과 같이 고친다. 9-7·9-8 AI 진단·분석 4개는
     9-15 에서 `열면`으로 갔다."""
     owner_only = sorted(key for key, (_, who) in ENDPOINTS.items() if who == OWNER)
-    assert len(owner_only) == 14, owner_only
+    assert len(owner_only) == 15, owner_only
     # 주인 전용은 전부 공용 자원을 건드리는 것이다 — 사용자별 자원을 주인만 쓰게 하는 것은 이제 없다
     assert [key for key in owner_only if ENDPOINTS[key][0] != SHARED] == []
     advice = sorted(key for key, (_, who) in ENDPOINTS.items() if who == ADVICE)
@@ -259,6 +263,16 @@ def _snapshot(db, user_id: int, note: str) -> int:
     return row.id
 
 
+def _value_days(db, user_id: int, days: int, total: float) -> None:
+    """날마다의 평가금액 (0.44.0) — 그 사람 것처럼 보이게 며칠치."""
+    for i in range(days):
+        db.add(PortfolioValueDaily(
+            user_id=user_id, date=DAY - dt.timedelta(days=i), base_currency="KRW", total_value_base=total,
+            stock_value_base=total, cash_value_base=0.0, cash={}, fx={}, positions=[],
+        ))
+    db.commit()
+
+
 @pytest.fixture()
 def world(api, monkeypatch) -> World:
     client, Session = api
@@ -288,6 +302,8 @@ def world(api, monkeypatch) -> World:
                       pinned_macro=["DGS10"], cash={"USD": 50})
 
         snapshots = {A: _snapshot(db, A, "A의 기록"), B: _snapshot(db, B, "B의 기록")}
+        _value_days(db, A, 3, 123.0)
+        _value_days(db, B, 2, 45.0)
 
         devices = {A: new_device("a"), B: new_device("b")}
         make_push_subscription(db, devices[A], user_id=A)
@@ -331,6 +347,8 @@ def _a_is_untouched(w: World) -> None:
         ]
         assert db.get(PushSubscription, 1).p256dh == w.devices[A].p256dh
         assert db.get(PushState, (A, "buy:QQQ")).value == "2026-09-21"
+        # 날마다의 평가금액 (0.44.0)
+        assert [r.total_value_base for r in db.query(PortfolioValueDaily).filter_by(user_id=A)] == [123.0] * 3
 
 
 # ---------------------------------------------------------------------------
@@ -688,6 +706,8 @@ def check_current(w: World):
     assert (got["include_fx_effect"], rows["QQQ"]["shown_currency"]) == (False, "USD")
     assert got["cash"]["amounts"] == {"USD": 50.0}
     assert got["review"]["period"] == "quarterly"
+    # 내 평가금액 기록 일수 — A 의 사흘이 섞이지 않는다
+    assert (got["value_record"]["days"], got["value_record"]["since"]) == (2, (DAY - dt.timedelta(days=1)).isoformat())
     theirs = w.as_user(A).get("/api/rebalance/current").json()
     assert theirs["base_currency"] == "KRW"
     assert {r["ticker"]: r["quantity"] for r in theirs["rows"]} == {"VOO": 10.0, "QQQ": 10.0}
@@ -761,6 +781,13 @@ def check_withdraw(w: World):
         db.commit()
         cookie = auth_service.issue_user_token(B, b.session_epoch, b.google_sub)
 
+    # 지울 표는 손 목록이 아니라 `user_id` 칸이 있는 모든 표다 — 새 표를 탈퇴에서 빠뜨리면 여기서 걸린다.
+    # 그 표마다 B 의 줄이 먼저 있어야 "지웠다"가 뜻이 있다(처음부터 비어 있으면 그냥 통과한다)
+    mine = [t for t in Base.metadata.sorted_tables if "user_id" in t.c]
+    with w.Session() as db:
+        for table in mine:
+            assert db.execute(table.select().where(table.c.user_id == B)).first() is not None, table.name
+
     client = w.client
     client.cookies.set(auth_service.COOKIE_NAME, cookie)
     assert client.get("/api/stocks").status_code == 200  # 쪽지가 통한다
@@ -768,8 +795,8 @@ def check_withdraw(w: World):
 
     with w.Session() as db:
         assert db.get(User, B) is None
-        for model in (UserStock, Holding, RebalanceSnapshot, UserSettings, PushSubscription, PushState):
-            assert db.query(model).filter_by(user_id=B).count() == 0
+        for table in mine:
+            assert db.execute(table.select().where(table.c.user_id == B)).first() is None, table.name
         # 공용 시세는 남는다 — B만 담았던 삼성전자도
         assert db.query(PriceDaily).filter_by(ticker=SAMSUNG).count() == 2
     # 탈퇴한 사람의 쪽지는 더 이상 통하지 않는다
@@ -992,6 +1019,7 @@ OWNER_CALLS = {
     ("GET", "/api/admin/settings"): {},
     ("PUT", "/api/admin/settings"): {"json": {"ai_advice_for_users": False}},
     ("GET", "/api/admin/signal-rules"): {},
+    ("GET", "/api/admin/records"): {},
 }
 
 

@@ -248,6 +248,7 @@ def compute_positions(
         currency = currency_of_stock(stock)
         prices = recent.get(stock.ticker, [])
         close = prices[0].close if prices else None
+        close_date = prices[0].date if prices else None
         prev_close = prices[1].close if len(prices) > 1 else None
         holding = holdings.get(stock.ticker)
         qty = holding.quantity if holding else 0.0
@@ -287,6 +288,7 @@ def compute_positions(
             "avg_cost": avg_cost,
             "avg_fx": avg_fx,
             "last_close": close,
+            "last_close_date": close_date,
             "prev_close": prev_close,
             "change_pct": change_pct,
             "currency": currency,
@@ -348,13 +350,44 @@ def compute_rebalance_signal(excess_pct: float, band_pct: float, review_due: boo
     return (len(reasons) > 0, reasons)
 
 
-def compute_rebalance_current(db: Session, user_id: int, today: dt.date | None = None) -> dict:
-    """그 사람의 리밸런싱 현황 전체. 기준통화·환율·현금·리뷰 일정과 종목별 행을 함께 돌려준다."""
+def portfolio_valuation(db: Session, user_id: int) -> dict:
+    """그 사람의 평가금액 — 리밸런싱 현황과 날마다의 기록(`value_record`)이 **같이 쓴다.**
+
+    둘이 따로 더하면 언젠가 갈라진다(화면 총액과 기록이 다른 날). 종목은 화면처럼 활성 종목만,
+    현금은 통화별 금액을 기준통화로 바꿔 더한다. 시그널·리뷰 같은 것은 여기서 계산하지 않는다.
+    """
     stocks = ordered_user_stocks(db, user_id, active_only=True)
     settings = settings_service.get_settings(db, user_id)
 
     rate = fx.get_rates(db, user_id)
     base = fx.base_currency(db, user_id)
+    include_fx = fx_effect_on(settings, base)
+    positions = compute_positions(db, user_id, stocks, rate=rate, base=base, include_fx=include_fx)
+
+    cash = cash_amounts(settings)
+    cash_base = sum(fx.convert(amount, currency, base, rate) for currency, amount in cash.items())
+    holdings_base = sum(pos["value_base"] for pos in positions.values())
+    return {
+        "stocks": stocks,
+        "settings": settings,
+        "rate": rate,
+        "base": base,
+        "include_fx": include_fx,
+        "positions": positions,
+        "cash": cash,
+        "cash_base": cash_base,
+        "holdings_base": holdings_base,
+        "total_base": holdings_base + cash_base,
+    }
+
+
+def compute_rebalance_current(db: Session, user_id: int, today: dt.date | None = None) -> dict:
+    """그 사람의 리밸런싱 현황 전체. 기준통화·환율·현금·리뷰 일정과 종목별 행을 함께 돌려준다."""
+    valuation = portfolio_valuation(db, user_id)
+    stocks = valuation["stocks"]
+    settings = valuation["settings"]
+    rate = valuation["rate"]
+    base = valuation["base"]
     default_band = settings.default_rebalance_band_pct
     period = review_period_of(settings)
     review = review_status(db, user_id, today=today)
@@ -364,14 +397,14 @@ def compute_rebalance_current(db: Session, user_id: int, today: dt.date | None =
         stock.ticker: today or market_today(market_of_stock(stock)) for stock in stocks
     }
 
-    include_fx = fx_effect_on(settings, base)
-    positions = compute_positions(db, user_id, stocks, rate=rate, base=base, include_fx=include_fx)
+    include_fx = valuation["include_fx"]
+    positions = valuation["positions"]
     shoulder_flags = _shoulder_flags(db, stocks, today_by_ticker, period)
 
-    cash = cash_amounts(settings)
-    cash_base = sum(fx.convert(amount, currency, base, rate) for currency, amount in cash.items())
-    holdings_base = sum(pos["value_base"] for pos in positions.values())
-    total_base = holdings_base + cash_base
+    cash = valuation["cash"]
+    cash_base = valuation["cash_base"]
+    holdings_base = valuation["holdings_base"]
+    total_base = valuation["total_base"]
 
     def weight(value: float) -> float:
         return (value / total_base * 100) if total_base > 0 else 0.0

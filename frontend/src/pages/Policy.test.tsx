@@ -49,6 +49,17 @@ describe('방침 화면', () => {
     expect(within(page).getAllByText('help@example.org').length).toBeGreaterThan(0)
   })
 
+  it('서버가 날마다 남기는 평가금액 기록을 적고, 탈퇴하면 같이 지운다고 적는다 (0.44.0)', async () => {
+    mock(guest())
+    window.history.replaceState(null, '', '/privacy')
+    render(<App />)
+
+    const page = await screen.findByRole('article')
+    expect(within(page).getByText('서버가 날마다 만드는 기록')).toBeInTheDocument()
+    expect(page.textContent).toContain('서버가 날마다 남긴 평가금액 기록을 바로 지웁니다')
+    expect(page.textContent).toContain('시행일 2026-10-16')
+  })
+
   it('모든 화면 아래에 방침 링크가 있다', async () => {
     mock(guest())
     vi.spyOn(api, 'getMacroPinned').mockResolvedValue({ codes: [], series: [], badges: [] })

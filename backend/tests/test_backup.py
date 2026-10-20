@@ -236,3 +236,189 @@ def test_missing_pg_dump_says_what_to_install(tmp_path, monkeypatch):
     monkeypatch.setattr(backup.shutil, "which", lambda name: None)
     with pytest.raises(RuntimeError, match="postgresql-client"):
         backup.create_backup(url="postgresql+psycopg://u:p@h/d", backup_dir=tmp_path / "b")
+
+
+# --- 진단의 백업 상태 (0.44.0 D0) ---------------------------------------------
+
+
+def test_status_tells_when_how_big_and_how_many_without_names(tmp_path, monkeypatch):
+    made = _fake_backups(tmp_path / "b", 3)
+    made[-1].write_bytes(b"x" * 1234)
+
+    status = backup.status(backup_dir=tmp_path / "b")
+
+    assert status["count"] == 3 and status["keep"] == backup.KEEP
+    assert status["last_size"] == 1234
+    # 이름에 찍힌 서버 시각(가장 최근)을 UTC 로
+    newest = dt.datetime(2026, 9, 12, 3, 0, 0).astimezone(dt.timezone.utc)
+    assert status["last_at"] == newest.isoformat()
+    assert status["last_failure"] is None
+    # 파일 이름·경로는 담지 않는다
+    text = repr(status)
+    assert backup.PREFIX not in text and str(tmp_path) not in text
+
+
+def test_status_with_no_backups(tmp_path, monkeypatch):
+    assert backup.status(backup_dir=tmp_path / "없음") == {
+        "count": 0, "keep": backup.KEEP, "last_at": None, "last_size": None, "last_failure": None,
+        "premigrate": {"count": 0, "last_at": None},
+    }
+
+
+def test_a_failure_is_remembered_as_a_kind_and_cleared_by_the_next_success(live_db, tmp_path, monkeypatch):
+    """사유는 갈래 이름만 — 예외 글에 든 DB 경로가 화면으로 나가지 않는다."""
+    monkeypatch.setattr(backup, "BACKUP_DIR", tmp_path / "b")
+    missing = tmp_path / "아무도모르는경로" / "없음.db"
+    monkeypatch.setattr(backup, "database_url", lambda: f"sqlite:///{missing}")
+
+    assert backup.run_backup() is None
+    failure = backup.status()["last_failure"]
+    assert failure["reason"] == "DB 파일을 찾지 못했습니다"
+    assert dt.datetime.fromisoformat(failure["at"]).tzinfo is not None
+    assert "아무도모르는경로" not in repr(backup.status())
+
+    monkeypatch.setattr(backup, "database_url", lambda: f"sqlite:///{live_db[0]}")
+    assert backup.run_backup() is not None
+    assert backup.status()["last_failure"] is None
+
+
+@pytest.mark.parametrize(
+    "exc, kind",
+    [
+        (RuntimeError("pg_dump 를 찾을 수 없습니다. postgresql-client 를 설치해야 백업할 수 있습니다."), "pg_dump 가 없습니다"),
+        (RuntimeError("pg_dump 실패 (코드 1): connection to postgresql://u:secret@db/x failed"), "pg_dump 가 실패했습니다"),
+        (PermissionError(13, "Permission denied", "/srv/backups/x.db"), "백업 폴더에 쓸 수 없습니다"),
+        (OSError(28, "No space left on device"), "디스크가 찼습니다"),
+        (OSError(5, "I/O error"), "파일을 쓰지 못했습니다"),
+        (ValueError("뭔가"), "알 수 없는 오류 — 서버 로그를 보세요"),
+    ],
+)
+def test_failure_kinds_never_carry_the_message(exc, kind):
+    assert backup._failure_kind(exc) == kind
+
+
+def test_an_upgrade_backup_does_not_hide_a_stalled_daily_backup(tmp_path):
+    """업그레이드 직전 백업은 따로 센다 — 섞으면 0014 업그레이드 한 번이 매일 백업이 멈춘 것을 가린다 (D0 검토)."""
+    directory = tmp_path / "b"
+    _fake_backups(directory, 1, start=dt.datetime(2026, 10, 16, 3, 0, 0))
+    upgrade = directory / f"{backup.PREFIX}20261019-093000-premigrate.db"
+    upgrade.write_bytes(b"y" * 5000)
+
+    status = backup.status(backup_dir=directory)
+
+    assert status["last_at"] == dt.datetime(2026, 10, 16, 3, 0, 0).astimezone(dt.timezone.utc).isoformat()
+    assert status["last_size"] == 1
+    assert status["count"] == 2
+    assert status["premigrate"] == {
+        "count": 1, "last_at": dt.datetime(2026, 10, 19, 9, 30, 0).astimezone(dt.timezone.utc).isoformat(),
+    }
+
+
+def test_the_last_failure_lives_in_the_backup_folder(live_db, tmp_path, monkeypatch):
+    """다시 켜도, 다른 워커가 읽어도 같다 — 프로세스 메모리가 아니라 백업 폴더의 작은 파일 (D0 검토)."""
+    directory = tmp_path / "b"
+    monkeypatch.setattr(backup, "BACKUP_DIR", directory)
+    monkeypatch.setattr(backup, "database_url", lambda: f"sqlite:///{tmp_path / '없음.db'}")
+    assert backup.run_backup() is None
+
+    import json
+
+    saved = json.loads((directory / backup.STATUS_FILE).read_text(encoding="utf-8"))
+    assert saved["last_failure"]["reason"] == "DB 파일을 찾지 못했습니다"
+    # 메모리에 두지 않는다 — 파일을 지우면 실패도 사라진다(다시 켠 프로세스·다른 워커는 파일만 본다)
+    assert backup.status(backup_dir=directory)["last_failure"]["reason"] == "DB 파일을 찾지 못했습니다"
+    assert backup.status(backup_dir=directory)["count"] == 0  # 상태 파일은 백업으로 세지 않는다
+    (directory / backup.STATUS_FILE).unlink()
+    assert backup.status(backup_dir=directory)["last_failure"] is None
+
+
+def test_a_broken_status_file_reads_as_no_failure(tmp_path):
+    directory = tmp_path / "b"
+    directory.mkdir()
+    (directory / backup.STATUS_FILE).write_text("{망가짐", encoding="utf-8")
+    assert backup.status(backup_dir=directory)["last_failure"] is None
+    (directory / backup.STATUS_FILE).write_text('{"last_failure": {"at": 1}}', encoding="utf-8")
+    assert backup.status(backup_dir=directory)["last_failure"] is None
+
+
+def test_times_are_converted_from_the_server_clock_not_relabelled(tmp_path, monkeypatch):
+    """집 PC 는 한국 시간으로 돈다 — 이름의 시각에 UTC 꼬리표만 붙이면 9시간 어긋난다 (D0 검토: 테스트 환경이 UTC 라 못 잡았다)."""
+    import os
+    import time
+
+    before = os.environ.get("TZ")
+    os.environ["TZ"] = "Asia/Seoul"
+    time.tzset()
+    try:
+        _fake_backups(tmp_path / "b", 1, start=dt.datetime(2026, 10, 16, 9, 0, 0))
+        assert backup.status(backup_dir=tmp_path / "b")["last_at"] == "2026-10-16T00:00:00+00:00"
+    finally:
+        # 원래 시간대로 — 있었으면 그것으로, 없었으면 지우고. 다음 테스트가 서울 시간으로 돌지 않게
+        if before is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = before
+        time.tzset()
+
+
+@pytest.mark.parametrize("text", ["[]", "null", '"x"', "3"])
+def test_a_status_file_that_is_json_but_not_an_object_reads_as_no_failure(tmp_path, text):
+    """빠지면 status() 가 예외를 던져 진단이 500 이 된다 (D0 두 번째 검토 N1)."""
+    directory = tmp_path / "b"
+    directory.mkdir()
+    (directory / backup.STATUS_FILE).write_text(text, encoding="utf-8")
+    assert backup.status(backup_dir=directory)["last_failure"] is None
+
+
+def test_only_the_two_fields_leave_the_status_file(tmp_path):
+    """남는 키·잘못된 타입은 내보내지 않는다 (N4·N5)."""
+    import json
+
+    directory = tmp_path / "b"
+    directory.mkdir()
+    path = directory / backup.STATUS_FILE
+    path.write_text(json.dumps({"last_failure": {"at": "2026-10-16T00:00:00+00:00", "reason": "디스크가 찼습니다", "path": "/srv/x"}}), encoding="utf-8")
+    assert backup.status(backup_dir=directory)["last_failure"] == {"at": "2026-10-16T00:00:00+00:00", "reason": "디스크가 찼습니다"}
+    path.write_text(json.dumps({"last_failure": {"at": "2026-10-16T00:00:00+00:00", "reason": 28}}), encoding="utf-8")
+    assert backup.status(backup_dir=directory)["last_failure"] is None
+
+
+def test_the_newest_upgrade_backup_is_the_last_one(tmp_path):
+    """업그레이드 직전 백업이 둘 이상이면 "마지막"은 가장 최근 것 (N3)."""
+    directory = tmp_path / "b"
+    directory.mkdir()
+    (directory / f"{backup.PREFIX}20261001-090000-premigrate.db").write_bytes(b"a")
+    (directory / f"{backup.PREFIX}20261019-093000-premigrate.db").write_bytes(b"b")
+    assert backup.status(backup_dir=directory)["premigrate"] == {
+        "count": 2, "last_at": dt.datetime(2026, 10, 19, 9, 30, 0).astimezone(dt.timezone.utc).isoformat(),
+    }
+
+
+def test_a_status_file_that_cannot_be_written_does_not_break_the_backup(live_db, tmp_path, monkeypatch):
+    """상태 파일을 못 써도 백업은 성공으로 끝나고 오래된 것도 치운다 (N2)."""
+    directory = tmp_path / "b"
+    (directory / backup.STATUS_FILE).mkdir(parents=True)  # 그 자리에 폴더 — 파일로 바꿀 수 없다
+    monkeypatch.setattr(backup, "BACKUP_DIR", directory)
+    monkeypatch.setattr(backup, "database_url", lambda: f"sqlite:///{live_db[0]}")
+    monkeypatch.setattr(backup, "_unsaved", {})
+    _fake_backups(directory, backup.KEEP + 2)
+
+    assert backup.run_backup() is not None
+    assert len(backup.existing_backups(directory)) == backup.KEEP
+
+
+def test_a_failure_on_a_day_the_folder_cannot_be_written_still_shows(tmp_path, monkeypatch):
+    """폴더에 못 쓰는 날이 바로 백업이 실패하는 날이다 — 상태 파일 대신 이 프로세스에라도 남는다 (D0 두 번째 검토 조건 5)."""
+    directory = tmp_path / "b"
+    (directory / backup.STATUS_FILE).mkdir(parents=True)
+    monkeypatch.setattr(backup, "BACKUP_DIR", directory)
+    monkeypatch.setattr(backup, "database_url", lambda: f"sqlite:///{tmp_path / '없음.db'}")
+    monkeypatch.setattr(backup, "_unsaved", {})
+
+    assert backup.run_backup() is None
+    assert backup.status(backup_dir=directory)["last_failure"]["reason"] == "DB 파일을 찾지 못했습니다"
+
+    # 폴더가 되살아나 상태 파일을 쓰게 되면 메모리의 것은 버리고 파일을 본다
+    (directory / backup.STATUS_FILE).rmdir()
+    backup._write_failure(None, backup_dir=directory)
+    assert backup.status(backup_dir=directory)["last_failure"] is None

@@ -13,6 +13,11 @@ const chart = {
   addSeries: vi.fn(() => series),
   applyOptions: vi.fn(),
   remove: vi.fn(),
+  subscribeCrosshairMove: vi.fn(),
+  unsubscribeCrosshairMove: vi.fn(),
+  subscribeClick: vi.fn(),
+  unsubscribeClick: vi.fn(),
+  setCrosshairPosition: vi.fn(),
   timeScale: () => ({ fitContent: vi.fn() }),
 }
 const createChart = vi.fn(() => chart)
