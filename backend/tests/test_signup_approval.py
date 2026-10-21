@@ -250,3 +250,17 @@ def test_offsite_line_only_on_a_server_with_google_login(api, people, monkeypatc
     monkeypatch.setattr(auth_service, "mode", lambda: auth_service.MODE_OPEN)
     client, _ = api
     assert "offsite" not in client.get("/api/admin/records").json()["backup"]
+
+
+def test_a_backup_folder_that_cannot_be_read_does_not_break_the_admin_status(api, people, monkeypatch):
+    """백업 폴더를 못 읽어도(권한·디스크) 관리자의 상태 응답은 그대로 — 점만 빠진다 (라운드 끝 검토 참고)."""
+    from app.services import backup
+
+    def broken():
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr(backup, "attention", broken)
+    res = people.be("sub-owner").get("/api/auth/status")
+    assert res.status_code == 200
+    assert res.json()["user"]["is_owner"] is True
+    assert "backup_attention" not in res.json()

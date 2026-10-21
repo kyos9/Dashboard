@@ -1,6 +1,6 @@
 # 0.45.0 — 고도화 · 정교화 (키우기 4라운드, 규칙 v6 첫 라운드)
 
-**상태: 진행 중** — 라운드 끝: B 검토 · A·C·D 좁은 재검토 · Postgres 를 기다림
+**상태: 끝** — 2026-10-21. PR 을 열고 주인이 Merge 한다
 
 - 작업 브랜치: `claude/new-session-fftcg1` — 0.44.0 PR(kyos9/Dashboard#2)이 합쳐져 `main` 끝(812eb5e)에서 다시 시작
 - 시작 커밋(비교 기준): `812eb5e` (2026-10-20, "Merge pull request #2")
@@ -83,8 +83,23 @@
 - [x] version.py 0.45.0 · README 화면 구성 · ROADMAP 11-4 · 0-1 후보·주인 할 일 (da98747)
 - [x] Postgres 마이그레이션 0013→0015→0014→0013→0015(실제 모양 데이터, 행·값 보존, 0015 내리기는 백업 조건 없음) — `scratchpad/r045/pgmig/out.txt`
 - [x] Postgres 전체 pytest — 1485 passed, 1 skipped(SQLite 1483+3 과 합 같음)
-- [ ] 전체 회귀·호환 검토 · 상태 끝 · PR
+- [x] 전체 회귀·호환 검토(`final-review.md`) — **합격**(조건 없음). 응답 사진 차이 0(같은 날 812eb5e), API 빠짐 0, AI 지시문 변화 0, 쿼리 12→12
+- [x] 그 검토의 참고 1(백업 폴더를 못 읽으면 관리자 상태가 500) — 고치고 시험(점만 빠진다). 참고 2·3 은 ROADMAP 0-1 로
+- [x] 상태 끝 · PR
+
+## 끝 수치
+
+| | 시작(812eb5e) | 끝 |
+| --- | --- | --- |
+| 백엔드 pytest (SQLite) | 1425 passed, 3 skipped | 1484 passed, 3 skipped |
+| 백엔드 pytest (Postgres) | — | 1485 passed, 1 skipped (마지막 시험 하나 전) |
+| vitest | 912 | 944 |
+| lint 경고 | 22 | 22 |
+| 첫 화면 JS (gzip) | 111.19 kB | 111.71 kB |
+| 대시보드 20종목 | 쿼리 12 | 쿼리 12 (가운데 +4ms 쯤 — 매도 조건 평가) |
+| API | — | 빠짐 0 · 더함 3(`sell_conditions`·`slots`·`muted`) · 요청 `kinds` 필수→선택 |
+| 마이그레이션 | 0014 | 0015 (`user_settings.push_prefs`, 내려도 설정만 잃음) |
 
 ## 다음 할 일
 
-- B 검토·좁은 재검토 판정을 커밋 → 라운드 끝 전체 회귀·호환 검토 → 상태 끝 → PR(주인이 Merge)
+- 주인: PR Merge → 배포(DEPLOY 10-0-1 백업 → 9) → 다음 날 확인 → `server-backup-pull.bat` 처음 설정(DEPLOY 10-0)

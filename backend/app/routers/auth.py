@@ -196,7 +196,11 @@ def status(request: Request, db: Session = Depends(get_db)) -> dict:
         if user is not None and user.is_owner and authenticated:
             body["pending_count"] = db.query(User).filter(User.status == STATUS_PENDING).count()
             # 백업을 봐야 하나 — 헤더 ⋯ 의 점 (0.45.0 A). 진단은 매일 여는 곳이 아니라서. 혼자 쓰는 PC 모드에는 없다
-            body["backup_attention"] = backup.attention()
+            # 백업 폴더를 못 읽는 날(권한·디스크)에 이 응답까지 넘어지면 관리자가 로그인 안 된 것처럼 보인다 — 점만 포기한다
+            try:
+                body["backup_attention"] = backup.attention()
+            except OSError:
+                logger.warning("백업 상태를 읽지 못했습니다 — 메뉴의 점을 건너뜁니다", exc_info=True)
         # 설정이 덜 됐으면 로그인 버튼을 누르기 **전에** 알려준다 — 누르고 나서야 안 되는
         # 것을 알면 구글 쪽 문제로 보인다.
         body["config_problem"] = google.config_problem()
