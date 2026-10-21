@@ -35,6 +35,7 @@ import type {
   MacroSeriesInfo,
   PushKind,
   PushSettings,
+  PushSlot,
   PushSubscriptionInput,
   Stock,
   StockCreateInput,
@@ -440,6 +441,9 @@ export const api = {
   getPushSettings: () => request<PushSettings>('/push/settings'),
   setPushKinds: (kinds: PushKind[]) =>
     request<PushSettings>('/push/settings', { method: 'PUT', body: JSON.stringify({ kinds }) }),
+  /** 받을 때·끈 종목 (0.45.0) — 보낸 칸만 바뀐다 */
+  setPushPrefs: (prefs: { slots?: PushSlot[]; muted?: string[] }) =>
+    request<PushSettings>('/push/settings', { method: 'PUT', body: JSON.stringify(prefs) }),
   addPushSubscription: (subscription: PushSubscriptionInput) =>
     request<{ ok: boolean }>('/push/subscriptions', {
       method: 'POST',

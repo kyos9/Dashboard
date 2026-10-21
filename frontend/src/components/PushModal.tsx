@@ -3,7 +3,8 @@ import { ApiError, api } from '../api/client'
 import { useBackToClose } from '../lib/backToClose'
 import { disablePush, enablePush, pushState, type PushState } from '../lib/push'
 import { KIND_TEXT, STATE_TEXT } from '../lib/pushText'
-import type { PushKind, PushSettings } from '../types'
+import { stockLabel } from '../lib/display'
+import type { PushKind, PushSettings, PushSlot, Stock } from '../types'
 import { ErrorNotice } from './ErrorNotice'
 import { lockBodyScroll } from '../lib/scrollLock'
 
@@ -12,7 +13,17 @@ import { lockBodyScroll } from '../lib/scrollLock'
  *
  * **켜는 건 기기마다, 받을 종류는 사람마다다.** 폰에서 켜고 PC에서 안 켜면 폰에만 온다.
  * 종류는 어느 기기에서 고르든 같다.
+ *
+ * 0.45.0 — **받을 때**(아침·오후)와 **종목별 알림**. 알림이 실제로 가는 때는 둘뿐이라(미국 장 뒤 아침 7:30쯤, 일본·한국 장 뒤
+ * 오후 4시쯤) 시각을 고르게 하지 않고 둘 중에서 고른다(주인 결정). 받지 않는 때 켜진 신호는 다음에 받는 때, 그때도 켜져
+ * 있으면 온다. 옛 서버(칸 없음)면 두 칸을 그리지 않는다.
  */
+
+const SLOT_TEXT: Record<PushSlot, { label: string; hint: string }> = {
+  morning: { label: '아침 (7:30쯤)', hint: '미국 종목 — 밤사이 미국 장 마감 뒤' },
+  afternoon: { label: '오후 (4시쯤)', hint: '일본·한국 종목 — 장 마감 뒤' },
+}
+const SLOTS: PushSlot[] = ['morning', 'afternoon']
 
 /** 브라우저가 던진 오류는 "Error: …" 가 붙지 않게 문장만 보여준다. 서버 오류는 안내·원인을 그대로. */
 function shown(e: unknown): unknown {
@@ -32,6 +43,7 @@ export function PushModal({ account, onClose }: { account: string; onClose: () =
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [stocks, setStocks] = useState<Stock[] | null>(null)
 
   const reload = useCallback(async () => {
     const [nextState, nextSettings] = await load(account)
@@ -52,6 +64,18 @@ export function PushModal({ account, onClose }: { account: string; onClose: () =
       cancelled = true
     }
   }, [account])
+
+  // 종목별 알림의 목록 — 숨긴(비활성) 종목은 원래 알림이 없다
+  useEffect(() => {
+    let cancelled = false
+    api
+      .listStocks()
+      .then((list) => !cancelled && setStocks(list.filter((s) => s.active)))
+      .catch(() => !cancelled && setStocks([]))
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // 폰의 뒤로가기로도 닫힌다
   useBackToClose(onClose)
@@ -90,6 +114,20 @@ export function PushModal({ account, onClose }: { account: string; onClose: () =
     setError(null)
     try {
       setSettings(await api.setPushKinds(kinds))
+    } catch (e) {
+      setSettings(before)
+      setError(shown(e))
+    }
+  }
+
+  /** 받을 때·끈 종목 — 종류와 같게, 누르는 즉시 바꾸고 실패하면 되돌린다 */
+  async function savePrefs(prefs: { slots?: PushSlot[]; muted?: string[] }) {
+    if (!settings) return
+    const before = settings
+    setSettings({ ...settings, ...prefs })
+    setError(null)
+    try {
+      setSettings(await api.setPushPrefs(prefs))
     } catch (e) {
       setSettings(before)
       setError(shown(e))
@@ -185,6 +223,67 @@ export function PushModal({ account, onClose }: { account: string; onClose: () =
               </label>
             ))}
           </section>
+        )}
+
+        {settings?.slots && (
+          <section className="push-kinds push-slots">
+            <h4>받을 때</h4>
+            {SLOTS.map((slot) => {
+              const on = settings.slots!.includes(slot)
+              // 둘 다 끄는 것은 알림을 끄는 것 — 마지막 하나는 끌 수 없다(위의 "이 기기 알림 끄기")
+              const last = on && settings.slots!.length === 1
+              return (
+                <label key={slot} className="push-kind">
+                  <input
+                    type="checkbox"
+                    checked={on}
+                    disabled={last}
+                    onChange={(e) =>
+                      void savePrefs({
+                        slots: e.target.checked ? [...settings.slots!, slot] : settings.slots!.filter((s) => s !== slot),
+                      })
+                    }
+                  />
+                  <span>
+                    <b>{SLOT_TEXT[slot].label}</b>
+                    <span className="hint"> — {SLOT_TEXT[slot].hint}</span>
+                  </span>
+                </label>
+              )
+            })}
+            <p className="hint">
+              받지 않는 때 생긴 신호는 다음에 받는 때 알려 드립니다 — 그때도 켜져 있는 것만. 가입 신청 알림은 바로 갑니다.
+            </p>
+          </section>
+        )}
+
+        {settings?.muted && stocks && stocks.length > 0 && (
+          <details className="push-kinds push-stocks">
+            <summary>
+              <b>종목별 알림</b>
+              <span className="hint">
+                {' '}
+                — {settings.muted.length > 0 ? `${settings.muted.length}종목 끔` : '모두 받음'}
+              </span>
+            </summary>
+            {stocks.map((stock) => (
+              <label key={stock.ticker} className="push-kind">
+                <input
+                  type="checkbox"
+                  checked={!settings.muted!.includes(stock.ticker)}
+                  onChange={(e) =>
+                    void savePrefs({
+                      muted: e.target.checked
+                        ? settings.muted!.filter((t) => t !== stock.ticker)
+                        : [...settings.muted!, stock.ticker],
+                    })
+                  }
+                />
+                <span>{stockLabel(stock)}</span>
+              </label>
+            ))}
+            <p className="hint">끈 종목은 매수 시그널·비중 알림이 오지 않습니다. 리뷰 알림은 종목과 상관없이 옵니다.</p>
+          </details>
         )}
 
         <p className="hint push-foot">

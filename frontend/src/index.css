@@ -2695,6 +2695,24 @@ table.data-table tr.dirty:hover td {
   margin-top: 2px;
 }
 
+.push-kind input:disabled {
+  cursor: not-allowed;
+}
+
+/* 종목별 알림 — 접힌 칸. 종목이 많아도 팝업이 길어지지 않게 (0.45.0) */
+.push-stocks summary {
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0 4px;
+}
+
+.push-stocks[open] summary {
+  margin-bottom: 8px;
+}
+
 .push-foot {
   margin: 12px 0 0;
   line-height: 1.55;

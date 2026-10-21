@@ -803,7 +803,13 @@ export interface PushSettings {
   available: PushKind[]
   /** 알림을 켜 둔 내 기기 수 */
   devices: number
+  /** 받을 때 — 아침(7:30쯤)·오후(4시쯤) 중 (0.45.0). 옛 서버는 없다 */
+  slots?: PushSlot[]
+  /** 알림을 끈 종목 (0.45.0). 옛 서버는 없다 */
+  muted?: string[]
 }
+
+export type PushSlot = 'morning' | 'afternoon'
 
 /** 브라우저의 `PushSubscription.toJSON()` 모양 */
 export interface PushSubscriptionInput {
