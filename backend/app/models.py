@@ -278,6 +278,9 @@ class UserSettings(Base):
     # 시그널 기준 내 설정 (0.42.0). 바꾼 키만 (`{"adx_trend": 25}`), **`None` 은 기본 기준** — 공용 판정과 같다.
     # 읽을 때 계산하는 데만 쓰고 공용 `signal_daily` 는 바꾸지 않는다 (`services/my_signals.py`).
     signal_thresholds: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # 알림을 받을 때와 종목별로 끈 알림 (0.45.0) — `{"slots": [...], "muted": [...]}`. **`None` 은 아침·오후 둘 다 받고 끈
+    # 종목이 없다** — 지금과 같다. 뜻은 `services.alerts` 가 정한다.
+    push_prefs: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
 
 class RebalanceSnapshot(Base):

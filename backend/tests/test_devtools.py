@@ -241,6 +241,9 @@ def test_demo_has_daily_value_records(server):
     # 사흘 전에 밖에 꺼낸 것처럼 (0.45.0 A) — 점은 없다
     assert backup["offsite"]["last_at"]
     assert owner.get(server + "/api/auth/status").json()["backup_attention"] is False
+    # 알림 설정 (0.45.0 B) — 오후만, SCHD 끔
+    push = owner.get(server + "/api/push/settings").json()
+    assert (push["slots"], push["muted"]) == (["afternoon"], ["SCHD"])
     newcomer = login(server, fake_server.NEWCOMER)
     assert newcomer.get(server + "/api/rebalance/current").json()["value_record"]["days"] == 0
     assert newcomer.get(server + "/api/admin/records").status_code == 403
