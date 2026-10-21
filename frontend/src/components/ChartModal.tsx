@@ -3,6 +3,7 @@ import { api } from '../api/client'
 import { useBackToClose } from '../lib/backToClose'
 import type { DashboardCard, FundamentalsResponse, HistoryResponse } from '../types'
 import { useNarrow } from '../lib/narrow'
+import { showsSellConditions } from '../lib/signalRules'
 import { BuyConditions, SellConditions } from './BuyConditions'
 import { useAuth } from './AuthGate'
 import { ChartLegend, coverageText, PriceChart } from './PriceChart'
@@ -107,9 +108,10 @@ interface Props {
  * 다시 찾아야 한다. 차트는 "잠깐 확인하는" 것이므로 지금 화면 위에 얹는다.
  */
 export function ChartModal({ ticker, name, card, initialTab = 'chart', onClose }: Props) {
-  // 매도 조건 (참고) 줄이 더해지는 날, 폰(360×640)에서 차트의 날짜 축이 첫 화면 밖으로 나갔다 — 그만큼 줄인다 (0.45.0 C)
+  // 매도 조건 (참고) 줄이 더해지는 날, 폰(360×640)에서 차트의 날짜 축이 첫 화면 밖으로 나갔다 — 그만큼 줄인다 (0.45.0 C).
+  // 이름 옆에 코드가 붙는 한국·일본 종목은 머리가 한 줄 더 내려와 330 으로는 모자랐다(C 검토: 663/640)
   const narrow = useNarrow()
-  const chartHeight = narrow && card?.shoulder_sell_ref && card.sell_conditions ? 330 : 380
+  const chartHeight = narrow && card && showsSellConditions(card) ? 300 : 380
   const [tab, setTab] = useState<ChartTab>(initialTab)
   const [fundamentals, setFundamentals] = useState<FundamentalsResponse | null>(null)
   const [range, setRange] = useState<Range>('1y')

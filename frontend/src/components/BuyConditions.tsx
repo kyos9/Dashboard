@@ -1,5 +1,5 @@
 import { conditionMark } from '../lib/display'
-import { buyRule, cardConditions, METRIC_ORDER, sellRule, useSignalRules } from '../lib/signalRules'
+import { buyRule, cardConditions, METRIC_ORDER, sellRule, showsSellConditions, useSignalRules } from '../lib/signalRules'
 import type { DashboardCard, SignalRuleCondition } from '../types'
 
 /**
@@ -61,11 +61,12 @@ export function BuyConditions({ card }: { card: DashboardCard }) {
  * 읽힌다(계획 검토). 그래서 신호가 있는 날 그 근거만 보인다. 칩은 **회색 그대로**(충족도 초록·빨강이 아니다) —
  * 팔라로 읽히는 색을 쓰지 않는다(규제 3절). 조건 이름·풀이는 서버 규칙 그대로, 명령하는 말은 넣지 않는다.
  * 판정 날짜와 지표 날짜가 다르면 서버가 null 을 보낸다 — 배지와 다른 날의 근거는 그리지 않는다. 옛 서버도 그리지 않는다.
+ * 판정 불가가 섞인 날도 그리지 않는다(`showsSellConditions`).
  */
 export function SellConditions({ card }: { card: DashboardCard }) {
   const rule = sellRule(useSignalRules())
-  const states = card.sell_conditions
-  if (!card.shoulder_sell_ref || !states) return null
+  if (!showsSellConditions(card)) return null
+  const states = card.sell_conditions!
   const met = rule.conditions.filter((c) => states[c.key] === true).length
   return (
     <div className="signal-row sell-conditions">

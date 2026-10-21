@@ -86,6 +86,16 @@ export function sellRule(rules: SignalRules): SignalRule {
   return rules.rules.find((r) => r.key === 'sell') ?? LEGACY_SIGNAL_RULES.rules[1]
 }
 
+/**
+ * 차트 팝업의 "매도 조건 (참고)" 줄을 그리나 (0.45.0 C) — 매도(참고) 신호가 켜진 날, 조건이 **모두 충족**으로 온 때만.
+ * 판정 불가가 섞이면(그날 종가를 못 찾았다 — 지표 계산이 며칠 밀린 날) 배지는 켜졌는데 "2/3 · ? MA50 위"가 되어 서로 다른 말을
+ * 한다(C 검토). 서버가 null 을 보내면(판정·지표 날짜가 다름, 옛 서버) 그리지 않는다.
+ */
+export function showsSellConditions(card: DashboardCard): boolean {
+  const states = card.sell_conditions
+  return card.shoulder_sell_ref && !!states && Object.keys(states).length > 0 && Object.values(states).every((v) => v === true)
+}
+
 /** 지표 칸 → 그 칸에 붙는 매수 조건 */
 export function conditionByMetric(rules: SignalRules): Record<string, SignalRuleCondition> {
   return Object.fromEntries(buyRule(rules).conditions.map((c) => [c.metric, c]))

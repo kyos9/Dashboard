@@ -29,7 +29,7 @@ case "$1" in
       python) echo "밖에 꺼낸 시각을 남겼습니다." ;;
       *) exit 8 ;;
     esac ;;
-  cp) cp "$FAKE_BACKUPS/$(basename "$2")" "$3" ;;
+  cp) if [ -n "${SHORT_COPY:-}" ]; then head -c 3 "$FAKE_BACKUPS/$(basename "$2")" > "$3"; else cp "$FAKE_BACKUPS/$(basename "$2")" "$3"; fi ;;
   *) exit 7 ;;
 esac
 """
@@ -149,3 +149,13 @@ def test_the_tool_exits_1_when_it_cannot_write(capsys):
     (backup.BACKUP_DIR / backup.STATUS_FILE).mkdir(parents=True)
     assert backup_pulled.main([]) == 1
     assert "남기지 못했습니다" in capsys.readouterr().err
+
+
+def test_export_refuses_a_copy_of_the_wrong_size(server):
+    """꺼낸 파일이 서버의 것과 크기가 다르면(복사가 끊겼다) 이름을 내지 않고 꺼낼 폴더도 지운다 — bat 이 그것을 받아 "꺼냈다"고 적지 않게."""
+    (server.backups / "signalboard-20261019-233000.sql").write_text("twelve bytes")
+    res = server("export", SHORT_COPY="1")
+    assert res.returncode == 1
+    assert "꺼낸 파일의 크기가 다릅니다 (3 / 12)" in res.stderr
+    assert res.stdout == ""
+    assert not server.export.exists()

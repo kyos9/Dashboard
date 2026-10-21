@@ -240,3 +240,13 @@ def test_backup_attention_follows_the_backup_folder(api, people, monkeypatch):
 
     monkeypatch.setattr(backup, "attention", lambda: True)
     assert people.be("sub-owner").get("/api/auth/status").json()["backup_attention"] is True
+
+
+def test_offsite_line_only_on_a_server_with_google_login(api, people, monkeypatch):
+    """혼자 쓰는 PC 앱에는 "밖에 꺼낸 것" 줄이 없다 — ⋯ 의 점과 같은 기준 (A 검토)."""
+    from app.services import auth as auth_service
+
+    assert "offsite" in people.be("sub-owner").get("/api/admin/records").json()["backup"]
+    monkeypatch.setattr(auth_service, "mode", lambda: auth_service.MODE_OPEN)
+    client, _ = api
+    assert "offsite" not in client.get("/api/admin/records").json()["backup"]

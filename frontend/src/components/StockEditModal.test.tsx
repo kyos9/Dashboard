@@ -31,9 +31,19 @@ const HOLDINGS = new Map([
   ['QQQ', { quantity: 2, avg_cost: null }],
 ])
 
+/**
+ * 뒤로가기 한 번 — popstate 가 온 뒤, 닫힌 팝업의 칸을 치우는 다음 박자까지 기다린다. 고정 30ms 만 기다리면 부하가 걸린
+ * 날(테스트를 여럿 같이 돌릴 때) 그 박자와 겹쳐 가끔 넘어졌다(D 두 번째 검토).
+ */
 async function back() {
   await act(async () => {
-    window.history.back()
+    await new Promise<void>((resolve) => {
+      window.addEventListener('popstate', () => resolve(), { once: true })
+      window.history.back()
+    })
+    await new Promise((r) => setTimeout(r, 30))
+  })
+  await act(async () => {
     await new Promise((r) => setTimeout(r, 30))
   })
 }

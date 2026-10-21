@@ -179,11 +179,13 @@ function OffsiteLine({ lastAt, now }: { lastAt: string | null; now: number }) {
   if (!lastAt) {
     return <p className="hint">밖에 꺼낸 기록이 없습니다 — 서버가 사라지면 이 백업도 같이 사라집니다. 내 PC 로 가져오는 법은 DEPLOY.md 10.</p>
   }
-  const days = Math.floor((now - new Date(lastAt).getTime()) / 86400_000)
+  const age = now - new Date(lastAt).getTime()
+  const days = Math.floor(age / 86400_000)
   return (
     <>
       <p className="hint">밖에 꺼낸 것: 마지막 {when(lastAt)} (관리자 PC)</p>
-      {days > OFFSITE_STALE_DAYS && (
+      {/* 서버(`attention`)와 같은 경계 — 30일이 **지난 순간**부터. 날 수로 자르면 30~31일 사이 하루는 ⋯ 점만 뜨고 까닭이 없었다 */}
+      {age > OFFSITE_STALE_DAYS * 86400_000 && (
         <p className="hint diag-warn" role="note">
           {days}일 동안 밖에 꺼내지 않았습니다 — PC 에서 server-backup-pull.bat 을 실행하세요.
         </p>

@@ -20,8 +20,9 @@ import { lockBodyScroll } from '../lib/scrollLock'
  */
 
 const SLOT_TEXT: Record<PushSlot, { label: string; hint: string }> = {
-  morning: { label: '아침 (7:30쯤)', hint: '미국 종목 — 밤사이 미국 장 마감 뒤' },
-  afternoon: { label: '오후 (4시쯤)', hint: '일본·한국 종목 — 장 마감 뒤' },
+  // 두 번 모두 **모든 종목**을 본다 — "미국 종목"이라 쓰면 아침을 끄면 미국 종목 알림이 끊기는 것으로 읽혔다(B 사용자 확인)
+  morning: { label: '아침 (7:30쯤)', hint: '밤사이 미국 장 시세를 받은 뒤' },
+  afternoon: { label: '오후 (4시쯤)', hint: '일본·한국 장 시세를 받은 뒤' },
 }
 const SLOTS: PushSlot[] = ['morning', 'afternoon']
 
@@ -247,12 +248,14 @@ export function PushModal({ account, onClose }: { account: string; onClose: () =
                   <span>
                     <b>{SLOT_TEXT[slot].label}</b>
                     <span className="hint"> — {SLOT_TEXT[slot].hint}</span>
+                    {/* 눌리지 않는 까닭 — 없으면 고장으로 보였다(B 사용자 확인) */}
+                    {last && <span className="hint"> (하나는 받아야 합니다)</span>}
                   </span>
                 </label>
               )
             })}
             <p className="hint">
-              받지 않는 때 생긴 신호는 다음에 받는 때 알려 드립니다 — 그때도 켜져 있는 것만.
+              끈 때 생긴 신호는 버리지 않고 다음에 받는 때 알려 드립니다(그때까지 켜져 있으면).
               {settings.available.includes('signup') && ' 가입 신청 알림은 바로 갑니다.'}
             </p>
           </section>

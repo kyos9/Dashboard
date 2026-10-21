@@ -377,10 +377,13 @@ describe('진단의 백업 줄 — 밖에 꺼낸 것 (0.45.0 A)', () => {
     expect(screen.queryByRole('note')).toBeNull()
     unmount()
 
-    // 30일은 경고하지 않고, 31일이면
-    const { unmount: u2 } = render(<BackupLines backup={backup({ last_at: '2026-09-20T11:00:00+00:00' })} now={NOW} />)
+    // 30일이 지나기 전에는 경고하지 않고, 지난 순간부터 — 서버의 ⋯ 점과 같은 경계 (A 검토: 30.5일)
+    const { unmount: u2 } = render(<BackupLines backup={backup({ last_at: '2026-09-20T13:00:00+00:00' })} now={NOW} />)
     expect(screen.queryByRole('note')).toBeNull()
     u2()
+    const { unmount: u3 } = render(<BackupLines backup={backup({ last_at: '2026-09-20T00:00:00+00:00' })} now={NOW} />)
+    expect(screen.getByRole('note').textContent).toBe('30일 동안 밖에 꺼내지 않았습니다 — PC 에서 server-backup-pull.bat 을 실행하세요.')
+    u3()
     render(<BackupLines backup={backup({ last_at: '2026-09-19T11:00:00+00:00' })} now={NOW} />)
     expect(screen.getByRole('note').textContent).toBe('31일 동안 밖에 꺼내지 않았습니다 — PC 에서 server-backup-pull.bat 을 실행하세요.')
   })

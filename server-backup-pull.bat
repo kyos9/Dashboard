@@ -29,7 +29,7 @@ if not exist "%CONF%" (
     echo [처음 한 번] backup-pull.local.txt 를 만들었습니다.
     echo 메모장으로 열어 SERVER 와 KEY 를 고친 뒤 이 파일을 다시 실행하세요.
     start "" notepad "%CONF%"
-    pause
+    if /i not "%~1"=="/quiet" pause
     exit /b 1
 )
 
@@ -43,7 +43,7 @@ if "%KEY%"=="" goto :badconf
 if not exist "%KEY%" (
     echo [오류] 키 파일이 없습니다: %KEY%
     echo backup-pull.local.txt 의 KEY 를 고쳐 주세요.
-    pause
+    if /i not "%~1"=="/quiet" pause
     exit /b 1
 )
 
@@ -100,7 +100,7 @@ exit /b 0
 
 :badconf
 echo [오류] backup-pull.local.txt 에 SERVER 와 KEY 가 있어야 합니다.
-pause
+if /i not "%~1"=="/quiet" pause
 exit /b 1
 
 :clean_fail

@@ -2713,6 +2713,21 @@ table.data-table tr.dirty:hover td {
   margin-bottom: 8px;
 }
 
+/* 펼치는 줄이라는 표시 — summary 를 flex 로 바꾸면 브라우저의 삼각형이 사라져 제목처럼 보였다(B 사용자 확인) */
+.push-stocks summary::-webkit-details-marker {
+  display: none;
+}
+
+.push-stocks summary::before {
+  content: '▸';
+  color: var(--text-dim);
+  margin-right: 6px;
+}
+
+.push-stocks[open] summary::before {
+  content: '▾';
+}
+
 .push-foot {
   margin: 12px 0 0;
   line-height: 1.55;

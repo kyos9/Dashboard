@@ -937,7 +937,9 @@ def test_get_shows_only_muted_stocks_still_in_my_list(api):
     """저장에 내 목록 밖의 티커가 남아 있어도(옛 데이터·다른 길로 지운 종목) 화면에는 보이지 않는다."""
     client, Session = api
     client.post("/api/stocks", json={"ticker": "VOO"})
+    from app.services.settings import get_settings
+
     with Session() as db:
-        db.get(UserSettings, LOCAL_USER_ID).push_prefs = {"slots": ["morning", "afternoon"], "muted": ["VOO", "GONE"]}
+        get_settings(db, LOCAL_USER_ID).push_prefs = {"slots": ["morning", "afternoon"], "muted": ["VOO", "GONE"]}
         db.commit()
     assert client.get("/api/push/settings").json()["muted"] == ["VOO"]

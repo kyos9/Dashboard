@@ -254,7 +254,7 @@ describe('받을 때 · 종목별 알림 (0.45.0)', () => {
     const morning = await screen.findByRole('checkbox', { name: /아침 \(7:30쯤\)/ })
     const afternoon = screen.getByRole('checkbox', { name: /오후 \(4시쯤\)/ })
     expect(morning).toBeChecked()
-    const note = screen.getByText(/받지 않는 때 생긴 신호는 다음에 받는 때 알려 드립니다 — 그때도 켜져 있는 것만/)
+    const note = screen.getByText(/끈 때 생긴 신호는 버리지 않고 다음에 받는 때 알려 드립니다\(그때까지 켜져 있으면\)/)
     // 가입 신청 알림은 관리자만 받는다 — 사용자에게는 그 말이 없다
     expect(note.textContent).not.toMatch(/가입 신청/)
 
@@ -262,6 +262,9 @@ describe('받을 때 · 종목별 알림 (0.45.0)', () => {
     expect(save).toHaveBeenCalledWith({ slots: ['afternoon'] })
     await waitFor(() => expect(morning).not.toBeChecked())
     expect(afternoon).toBeDisabled()
+    // 왜 못 끄는지 말한다
+    expect(afternoon.closest('label')).toHaveTextContent('(하나는 받아야 합니다)')
+    expect(morning.closest('label')).not.toHaveTextContent('하나는 받아야')
   })
 
   it('관리자에게는 가입 신청 알림이 바로 간다는 말', async () => {

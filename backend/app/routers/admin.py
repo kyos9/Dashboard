@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models import User, UserStock
-from app.services import app_settings, backup, pipeline, signal_recompute, signal_rules, value_record
+from app.services import app_settings, auth, backup, pipeline, signal_recompute, signal_rules, value_record
 from app.services.users import (
     STATUS_ACTIVE,
     STATUS_BLOCKED,
@@ -144,4 +144,9 @@ def signal_rules_status(db: Session = Depends(get_db)) -> dict:
 def records_status(db: Session = Depends(get_db)) -> dict:
     """기록이 살아 있나 (0.44.0) — 진단 화면. 날마다의 평가금액은 합계만(누구의 금액도 담지 않는다),
     백업은 시각·크기·벌 수·마지막 실패 갈래만(파일 이름·경로는 담지 않는다, D0)."""
-    return {"value_record": value_record.status(db), "backup": backup.status()}
+    state = backup.status()
+    # "밖에 꺼낸 것"은 서버 배포(구글 로그인)에서만 — 혼자 쓰는 PC 앱에 "밖에 꺼낸 기록이 없습니다"가 늘 뜨지 않게.
+    # ⋯ 의 점(`backup_attention`)과 같은 기준 (A 검토)
+    if auth.mode() != auth.MODE_GOOGLE:
+        state.pop("offsite", None)
+    return {"value_record": value_record.status(db), "backup": state}

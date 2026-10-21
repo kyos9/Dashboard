@@ -492,3 +492,39 @@ def test_attention(tmp_path, daily_hours_ago, pulled_days_ago, failed, expected)
     if failed:
         backup._write_failure({"at": "2026-10-20T00:00:00+00:00", "reason": "디스크가 찼습니다"}, backup_dir=directory)
     assert backup.attention(now=NOW, backup_dir=directory) is expected
+
+
+def test_a_pulled_mark_without_a_time_zone_is_read_as_utc(tmp_path):
+    """손으로 고친 파일 — 시간대 없는 시각이 관리자 상태(`attention`)를 넘어뜨리지 않는다 (A 검토)."""
+    directory = tmp_path / "backups"
+    directory.mkdir()
+    (directory / backup.STATUS_FILE).write_text('{"pulled_at": "2026-09-01T00:00:00"}', encoding="utf-8")
+    assert backup.status(backup_dir=directory)["offsite"] == {"last_at": "2026-09-01T00:00:00+00:00"}
+    assert backup.attention(now=NOW, backup_dir=directory) is True  # 49일
+
+
+def test_writes_from_two_processes_at_once_are_not_lost(tmp_path):
+    """앱(실패 기록)과 `docker compose exec` 도구(꺼낸 시각)가 같은 파일을 같이 쓴다 — 읽고 합쳐 쓰는 사이에 잠금이 없으면
+    한쪽이 쓴 것을 다른 쪽이 덮어 잃는다(A 검토: 잠금을 빼면 20번 중 20번). 두 프로세스가 저마다 다른 키를 수백 번 쓰고,
+    하나도 잃지 않았는지 본다.
+    """
+    import multiprocessing as mp
+
+    directory = tmp_path / "backups"
+    ctx = mp.get_context("fork")
+    procs = [ctx.Process(target=_hammer, args=(str(directory), who)) for who in ("app", "tool")]
+    for p in procs:
+        p.start()
+    for p in procs:
+        p.join(120)
+        assert p.exitcode == 0
+    saved = backup._read_status_file(directory / backup.STATUS_FILE)
+    assert {f"{who}{i}" for who in ("app", "tool") for i in range(200)} <= set(saved)
+
+
+def _hammer(directory: str, who: str) -> None:
+    from pathlib import Path as _Path
+
+    where = _Path(directory)
+    for i in range(200):
+        assert backup._update_status({f"{who}{i}": i}, backup_dir=where)

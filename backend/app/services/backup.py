@@ -122,9 +122,12 @@ def _read_pulled(backup_dir: Path | None = None) -> str | None:
     if not isinstance(at, str):
         return None
     try:
-        dt.datetime.fromisoformat(at)
+        parsed = dt.datetime.fromisoformat(at)
     except ValueError:
         return None
+    # 시간대가 없으면(손으로 고친 파일) UTC 로 본다 — 그대로 두면 시간대 있는 시각과 빼다가 관리자 상태가 넘어졌다(A 검토)
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=dt.timezone.utc).isoformat()
     return at
 
 

@@ -98,6 +98,9 @@ describe('차트 팝업', () => {
       { ...base, shoulder_sell_ref: false, sell_conditions: { above_ma50: true, adx_rising: true, volume_strong: false } },
       { ...base, shoulder_sell_ref: true },
       { ...base, shoulder_sell_ref: true, sell_conditions: null },
+      // 판정 불가가 섞이면(그날 종가를 못 찾았다) 배지와 다른 말("2/3")을 하지 않게 숨긴다 (C 검토)
+      { ...base, shoulder_sell_ref: true, sell_conditions: { above_ma50: null, adx_rising: true, volume_strong: true } },
+      { ...base, shoulder_sell_ref: true, sell_conditions: {} },
     ]) {
       const view = render(<ChartModal ticker="005930.KS" name="삼성전자" card={card as never} onClose={() => {}} />)
       expect(screen.getByText('매수 조건')).toBeInTheDocument()
@@ -118,9 +121,12 @@ describe('차트 팝업', () => {
       view.unmount()
       return h
     }
-    expect(await heights(on, true)).toBe(330)
+    expect(await heights(on, true)).toBe(300)
     expect(await heights(on, false)).toBe(380)
     expect(await heights({ ...on, shoulder_sell_ref: false }, true)).toBe(380)
+    // 배지만 켜지고 줄이 없는 날(옛 서버·날짜가 다름)은 줄일 까닭이 없다
+    expect(await heights({ ...on, sell_conditions: null }, true)).toBe(380)
+    expect(await heights({ ...on, sell_conditions: { above_ma50: null, adx_rising: true, volume_strong: true } }, true)).toBe(380)
   })
 
   it('종목 이름과 차트를 띄운다', async () => {
