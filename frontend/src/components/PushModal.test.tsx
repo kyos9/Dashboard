@@ -279,7 +279,7 @@ describe('받을 때 · 종목별 알림 (0.45.0)', () => {
     renderModal()
     const summary = await screen.findByText('종목별 알림')
     expect(summary.closest('summary')).toHaveTextContent('종목별 알림 — 1종목 끔')
-    const box = summary.closest('details') as HTMLElement
+    const box = summary.closest('details') as HTMLDetailsElement
     expect(box.open).toBe(false)
     await userEvent.click(summary)
     expect(within(box).getByRole('checkbox', { name: 'SCHD' })).not.toBeChecked()
