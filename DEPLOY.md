@@ -395,7 +395,11 @@ v0.44.0 부터 관리자 ⋯ → 진단 → **평가금액 기록 · 백업** �
 저장소 맨 위의 **`server-backup-pull.bat`** 을 윈도우 PC 에서 실행하면, 서버의 **가장 새 매일 백업 한 벌**을 받아 옵니다.
 
 1. 처음 한 번 실행하면 같은 폴더에 `backup-pull.local.txt` 를 만들고 메모장으로 엽니다. `SERVER`(예: `ubuntu@1.2.3.4`)와
-   `KEY`(서버에 접속하는 개인키 파일 — 3번에서 쓴 것)를 고치고 저장합니다. 이 파일은 저장소에 올라가지 않습니다.
+   `KEY` 를 고치고 저장합니다. 이 파일은 저장소에 올라가지 않습니다.
+   - `KEY` 는 **1번에서 공개키를 붙여넣은 그 키의 짝, 개인키 파일**입니다 — 서버에 `ssh -i <그 파일> ubuntu@<서버IP>` 로
+     들어갈 때 쓰는 파일. 오라클 콘솔의 "SSH 키 쌍 생성"으로 받았다면 그때 내려받은 `ssh-key-날짜.key` 파일(보통
+     다운로드 폴더)입니다. 찾았으면 `C:\Users\<나>\.ssh\` 같은 곳으로 옮겨 두고 그 경로를 적습니다.
+   - `SERVER` 는 `ubuntu@` 뒤에 서버 IP(또는 4번의 도메인)입니다.
 2. 다시 실행합니다. `%USERPROFILE%\dashboard-backups` 에 `signalboard-….sql` 이 생깁니다. **이 PC 에는 최근 4벌만** 남기고
    오래된 것은 지웁니다 — 개인정보처리방침 5절(탈퇴한 사람의 데이터는 백업에도 오래 남지 않는다)과 맞추려는 것입니다.
 3. 받은 크기가 서버의 것과 같으면 서버에 "밖에 꺼냈다"고 적습니다. 진단의 백업 칸에 **"밖에 꺼낸 것: 마지막 …"** 이 보입니다.
@@ -447,7 +451,11 @@ docker compose exec app python -m app.services.backup     # 지금 한 벌 (매�
 
 ```bash
 cd ~/Dashboard
-ls ~/dashboard-backups/backups/            # 되돌릴 파일 고르기 (10번으로 꺼내둔 것)
+# 0) 되돌릴 파일을 서버의 ~/restore 로 — 서버 안 7벌에서 꺼내거나, PC 에 받아 둔 것(10-0)을 올린다
+mkdir -p ~/restore
+docker compose cp app:/data/backups ~/restore/               # 서버 안 7벌 -> ~/restore/backups/
+#   또는 PC 에서: scp -i <키파일> signalboard-20260923-143502-premigrate.sql ubuntu@<서버IP>:restore/
+ls ~/restore ~/restore/backups                               # 되돌릴 파일 고르기
 #   signalboard-20260923-143502-premigrate.sql  ← 업데이트 직전에 앱이 뜬 것
 
 # 1) 앱을 멈춘다 (DB는 켜둔다)
@@ -460,10 +468,13 @@ echo 'IMAGE_TAG=sha-1234abc' >> .env
 # 3) DB를 비우고 백업을 붓는다
 docker compose exec db psql -U signal -d signal -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
 docker compose exec -T db psql -U signal -d signal -v ON_ERROR_STOP=1 \
-  < ~/dashboard-backups/backups/signalboard-20260923-143502-premigrate.sql
+  < ~/restore/backups/signalboard-20260923-143502-premigrate.sql
 
 # 4) 다시 켠다
 docker compose --profile https up -d
+
+# 5) 다 됐으면 꺼낸 사본을 지운다 (개인정보처리방침 5절 — 탈퇴한 사람의 데이터가 오래 남지 않게)
+rm -rf ~/restore
 ```
 
 `ON_ERROR_STOP=1`을 빼지 마세요 — 없으면 중간에 한 줄이 실패해도 끝까지 가서 "끝났다"고

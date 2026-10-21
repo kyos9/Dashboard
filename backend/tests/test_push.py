@@ -931,3 +931,13 @@ def test_purging_a_stock_unmutes_it(api):
     # 다시 담아도 끈 채로 되살아나지 않는다
     client.post("/api/stocks", json={"ticker": "VOO"})
     assert client.get("/api/push/settings").json()["muted"] == ["QQQ"]
+
+
+def test_get_shows_only_muted_stocks_still_in_my_list(api):
+    """저장에 내 목록 밖의 티커가 남아 있어도(옛 데이터·다른 길로 지운 종목) 화면에는 보이지 않는다."""
+    client, Session = api
+    client.post("/api/stocks", json={"ticker": "VOO"})
+    with Session() as db:
+        db.get(UserSettings, LOCAL_USER_ID).push_prefs = {"slots": ["morning", "afternoon"], "muted": ["VOO", "GONE"]}
+        db.commit()
+    assert client.get("/api/push/settings").json()["muted"] == ["VOO"]
