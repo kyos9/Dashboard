@@ -267,7 +267,11 @@ export function PushModal({ account, onClose }: { account: string; onClose: () =
               <b>종목별 알림</b>
               <span className="hint">
                 {' '}
-                — {settings.muted.length > 0 ? `${settings.muted.length}종목 끔` : '모두 받음'}
+                {/* 보이는 목록의 것만 센다 — 숨긴 종목을 끈 채로 두면 "1종목 끔"인데 목록에 꺼진 줄이 없었다(B 검토) */}
+                — {(() => {
+                  const off = stocks.filter((s) => settings.muted!.includes(s.ticker)).length
+                  return off > 0 ? `${off}종목 끔` : '모두 받음'
+                })()}
               </span>
             </summary>
             {stocks.map((stock) => (

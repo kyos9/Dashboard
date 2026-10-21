@@ -23,3 +23,8 @@
 | 화면: 실패해도 안 되돌림 | `frontend/src/components/PushModal.tsx` | 잡힘 |
 | 화면: 숨긴 종목도 목록에 | `frontend/src/components/PushModal.tsx` | 잡힘 |
 | 화면: 옛 서버에도 받을 때 | `frontend/src/components/PushModal.tsx` | 잡힘 |
+
+## 다시 돌림 (B 검토 불합격 뒤)
+
+검토가 짚은 대로, 처음의 "GET 이 내 목록 밖도 보임 — 시험 더한 뒤 잡힘"은 그 시험이 설정 행 없이 **늘 넘어져서** 잡힌 것이었다(a8dce22 에서
+시험을 고침). 고친 시험으로, 그리고 `test_api_slots_and_muted` 를 빼고도 다시 돌려 **잡힘**(`scratchpad/r045/B/mut3.md`·`mut4.md`).
