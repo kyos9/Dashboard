@@ -373,6 +373,23 @@ def test_dashboard_sell_conditions_follow_my_thresholds(api):
         assert all(v is True for v in card["sell_conditions"].values()) == card["shoulder_sell_ref"], ticker
 
 
+def test_dashboard_sell_conditions_use_the_close_of_the_indicator_day(api):
+    """종가가 지표보다 하루 앞서 들어와 있어도(지표 계산 전) "MA50 위"는 **지표 날짜의 종가**로 잰다 — 배지와 같은 날."""
+    from app.models import PriceDaily
+
+    client, Session = api
+    with Session() as db:
+        frames = _seed_many(db)
+        above = [t for t, ind in frames.items() if ind["close"].iloc[-1] > ind["ma50"].iloc[-1]]
+        assert above
+        ticker = above[0]
+        last_day = frames[ticker].index[-1]
+        db.add(PriceDaily(ticker=ticker, date=last_day + dt.timedelta(days=1), open=1, high=1, low=0.01, close=0.01, volume=1))
+        db.commit()
+    card = next(c for c in client.get("/api/dashboard").json() if c["ticker"] == ticker)
+    assert card["sell_conditions"]["above_ma50"] is True
+
+
 def test_dashboard_hides_sell_conditions_when_the_signal_is_from_another_day(api):
     """판정 날짜와 지표 날짜가 다르면(판정이 하루 늦었다) 근거를 보내지 않는다 — 배지와 다른 날의 말을 하지 않게."""
     from app.models import SignalDaily

@@ -22,6 +22,9 @@ const chart = {
 }
 const createChart = vi.fn(() => chart)
 
+const narrow = vi.hoisted(() => ({ value: false }))
+vi.mock('../lib/narrow', () => ({ useNarrow: () => narrow.value }))
+
 vi.mock('lightweight-charts', () => ({
   createChart: (...args: unknown[]) => createChart(...(args as [])),
   createSeriesMarkers: () => ({ setMarkers: vi.fn() }),
@@ -41,6 +44,7 @@ const HISTORY: HistoryResponse = {
 
 beforeEach(() => {
   vi.restoreAllMocks()
+  narrow.value = false
   createChart.mockClear()
   series.setData.mockClear()
 })
@@ -100,6 +104,23 @@ describe('차트 팝업', () => {
       expect(view.container.querySelector('.sell-conditions')).toBeNull()
       view.unmount()
     }
+  })
+
+  it('폰에서 매도 조건 줄이 있는 날은 차트를 그만큼 낮게 — 날짜 축이 첫 화면 안에 (0.45.0 C, 360×640)', async () => {
+    vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
+    const on = { ticker: '005930.KS', knee_conditions: {}, shoulder_sell_ref: true, sell_conditions: { above_ma50: true, adx_rising: true, volume_strong: true } }
+    const heights = async (card: unknown, isNarrow: boolean) => {
+      narrow.value = isNarrow
+      createChart.mockClear()
+      const view = render(<ChartModal ticker="005930.KS" name="삼성전자" card={card as never} onClose={() => {}} />)
+      await waitFor(() => expect(createChart).toHaveBeenCalled())
+      const h = (createChart.mock.calls[0] as unknown as [unknown, { height: number }])[1].height
+      view.unmount()
+      return h
+    }
+    expect(await heights(on, true)).toBe(330)
+    expect(await heights(on, false)).toBe(380)
+    expect(await heights({ ...on, shoulder_sell_ref: false }, true)).toBe(380)
   })
 
   it('종목 이름과 차트를 띄운다', async () => {

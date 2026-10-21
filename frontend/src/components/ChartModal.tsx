@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
 import { useBackToClose } from '../lib/backToClose'
 import type { DashboardCard, FundamentalsResponse, HistoryResponse } from '../types'
+import { useNarrow } from '../lib/narrow'
 import { BuyConditions, SellConditions } from './BuyConditions'
 import { useAuth } from './AuthGate'
 import { ChartLegend, coverageText, PriceChart } from './PriceChart'
@@ -106,6 +107,9 @@ interface Props {
  * 다시 찾아야 한다. 차트는 "잠깐 확인하는" 것이므로 지금 화면 위에 얹는다.
  */
 export function ChartModal({ ticker, name, card, initialTab = 'chart', onClose }: Props) {
+  // 매도 조건 (참고) 줄이 더해지는 날, 폰(360×640)에서 차트의 날짜 축이 첫 화면 밖으로 나갔다 — 그만큼 줄인다 (0.45.0 C)
+  const narrow = useNarrow()
+  const chartHeight = narrow && card?.shoulder_sell_ref && card.sell_conditions ? 330 : 380
   const [tab, setTab] = useState<ChartTab>(initialTab)
   const [fundamentals, setFundamentals] = useState<FundamentalsResponse | null>(null)
   const [range, setRange] = useState<Range>('1y')
@@ -269,7 +273,7 @@ export function ChartModal({ ticker, name, card, initialTab = 'chart', onClose }
                 <SellConditions card={card} />
               </div>
             )}
-            <PriceChart history={history} height={380} />
+            <PriceChart history={history} height={chartHeight} />
             <ChartLegend history={history} loading={loading} />
             <ChartCoverage
               ticker={ticker}
