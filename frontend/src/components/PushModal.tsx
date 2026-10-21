@@ -252,7 +252,8 @@ export function PushModal({ account, onClose }: { account: string; onClose: () =
               )
             })}
             <p className="hint">
-              받지 않는 때 생긴 신호는 다음에 받는 때 알려 드립니다 — 그때도 켜져 있는 것만. 가입 신청 알림은 바로 갑니다.
+              받지 않는 때 생긴 신호는 다음에 받는 때 알려 드립니다 — 그때도 켜져 있는 것만.
+              {settings.available.includes('signup') && ' 가입 신청 알림은 바로 갑니다.'}
             </p>
           </section>
         )}

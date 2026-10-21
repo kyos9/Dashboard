@@ -254,12 +254,20 @@ describe('받을 때 · 종목별 알림 (0.45.0)', () => {
     const morning = await screen.findByRole('checkbox', { name: /아침 \(7:30쯤\)/ })
     const afternoon = screen.getByRole('checkbox', { name: /오후 \(4시쯤\)/ })
     expect(morning).toBeChecked()
-    expect(screen.getByText(/받지 않는 때 생긴 신호는 다음에 받는 때 알려 드립니다 — 그때도 켜져 있는 것만/)).toBeInTheDocument()
+    const note = screen.getByText(/받지 않는 때 생긴 신호는 다음에 받는 때 알려 드립니다 — 그때도 켜져 있는 것만/)
+    // 가입 신청 알림은 관리자만 받는다 — 사용자에게는 그 말이 없다
+    expect(note.textContent).not.toMatch(/가입 신청/)
 
     await userEvent.click(morning)
     expect(save).toHaveBeenCalledWith({ slots: ['afternoon'] })
     await waitFor(() => expect(morning).not.toBeChecked())
     expect(afternoon).toBeDisabled()
+  })
+
+  it('관리자에게는 가입 신청 알림이 바로 간다는 말', async () => {
+    vi.spyOn(api, 'getPushSettings').mockResolvedValue({ ...NEW, available: ['buy', 'band', 'review', 'signup'] })
+    renderModal()
+    expect(await screen.findByText(/가입 신청 알림은 바로 갑니다/)).toBeInTheDocument()
   })
 
   it('저장에 실패하면 되돌리고 까닭을 보인다', async () => {
