@@ -295,7 +295,7 @@ export function PushModal({ account, onClose }: { account: string; onClose: () =
         )}
 
         <p className="hint push-foot">
-          장 마감 뒤 시세를 받은 다음에 옵니다 — 미국 종목은 한국 아침, 한국 종목은 오후. 같은
+          장 마감 뒤 시세를 받은 다음에 옵니다 — 아침은 밤사이 미국 장, 오후는 일본·한국 장을 받은 뒤(두 번 모두 모든 종목을 봅니다). 같은
           신호로 매일 울리지 않고, 새로 생겼을 때 한 번만 옵니다. 나가기를 누르면 이 기기의 알림도
           꺼집니다.
         </p>

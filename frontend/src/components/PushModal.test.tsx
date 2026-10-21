@@ -301,6 +301,13 @@ describe('받을 때 · 종목별 알림 (0.45.0)', () => {
     expect(save).toHaveBeenCalledWith({ muted: ['SCHD', 'OLD', 'VOO'] })
   })
 
+  it('끈 종목이 없으면 "모두 받음"', async () => {
+    vi.spyOn(api, 'getPushSettings').mockResolvedValue(NEW)
+    vi.spyOn(api, 'listStocks').mockResolvedValue([stock('VOO')])
+    renderModal()
+    expect((await screen.findByText('종목별 알림')).closest('summary')).toHaveTextContent('종목별 알림 — 모두 받음')
+  })
+
   it('옛 서버(칸 없음)면 두 칸이 없다', async () => {
     vi.spyOn(api, 'listStocks').mockResolvedValue([stock('VOO')])
     renderModal()
