@@ -11,6 +11,9 @@ describe('진단 시각', () => {
     expect(parseInstant('2026-10-22T00:30:15Z')).toBe(at)
     expect(parseInstant('2026-10-22T00:30:15.123456Z')).toBe(at)
     expect(parseInstant('2026-10-21T19:30:15-0500')).toBe(at)
+    // 분이 있는 오프셋(인도 +05:30) — 분을 버리면 30분 어긋난다 (B 검토)
+    expect(parseInstant('2026-10-22T06:00:15+05:30')).toBe(at)
+    expect(parseInstant('2026-10-21T21:00:15-03:30')).toBe(at)
   })
 
   it('시간대가 없으면 부르는 쪽이 정한다 — UTC 로 읽거나(다시 계산), 모른다(옛 서버)', () => {

@@ -60,3 +60,9 @@
 | C3 세로 밀기도 전체 보기 | `frontend/src/components/PriceChart.tsx` | 잡힘 |
 
 **결과: 41/41 잡힘.**
+
+## 검토자 B 의 조건부 (B-review.md)
+
+| 뮤테이션 | 파일 | 결과 |
+| --- | --- | --- |
+| B5 오프셋 분 버림 | `frontend/src/lib/diagTime.ts` | 잡힘 |
