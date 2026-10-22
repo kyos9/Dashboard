@@ -24,7 +24,10 @@ export function HistoryChart() {
   const stocks = (all ?? []).filter((s) => s.active)
   // 주소의 티커가 담은 종목 어디에도 없다 — 서버의 영어 404("stock not found")와 빈 범례("매수 0일") 대신 한 줄로 말한다(0.45 D 사용자 확인).
   // 비활성 종목·소문자 주소는 지금처럼 연다(서버가 대문자로 바꿔 돌려준다)
-  const unknown = all !== null && ticker !== '' && !all.some((s) => s.ticker.toUpperCase() === ticker.toUpperCase())
+  const match = ticker ? all?.find((s) => s.ticker.toUpperCase() === ticker.toUpperCase() || s.name === ticker) : undefined
+  const unknown = all !== null && ticker !== '' && !match
+  // 시세는 담은 종목의 티커로 — 주소를 바꾸기 전에 한 번 소문자로 부르지 않게
+  const shownTicker = match?.ticker ?? ticker
 
   useEffect(() => {
     api
@@ -32,9 +35,15 @@ export function HistoryChart() {
       .then((list) => {
         const active = list.filter((s) => s.active)
         setAll(list)
-        if (!searchParams.get('ticker') && active[0]) {
+        const asked = searchParams.get('ticker')
+        if (!asked && active[0]) {
           setSearchParams({ ticker: active[0].ticker }, { replace: true })
+          return
         }
+        // 소문자 주소(`voo`)·이름 주소(`삼성전자`)는 담은 종목의 티커로 바꿔 둔다 — 그대로 두면 소문자는 차트는 뜨는데 이름 줄·눌린 칩이
+        // 없어 어느 종목인지 몰랐고, 이름은 "담은 종목에 없습니다"라면서 바로 위 칩에 있었다(0.45.1 BCD 사용자 확인)
+        const same = asked && list.find((s) => s.ticker.toUpperCase() === asked.toUpperCase() || s.name === asked)
+        if (same && same.ticker !== asked) setSearchParams({ ticker: same.ticker }, { replace: true })
       })
       .catch(setError)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -43,15 +52,15 @@ export function HistoryChart() {
   // 목록을 받은 뒤에 부른다 — 먼저 부르면 없는 티커 주소가 404 를 한 번 내고 콘솔 오류로 남았다(0.45.1 B2 브라우저 확인)
   const listed = all !== null
   useEffect(() => {
-    if (!ticker || !listed || unknown) return
+    if (!shownTicker || !listed || unknown) return
     setError(null)
     setLoading(true)
     api
-      .getHistory(ticker, range)
+      .getHistory(shownTicker, range)
       .then(setHistory)
       .catch(setError)
       .finally(() => setLoading(false))
-  }, [ticker, range, refreshKey, reloadKey, listed, unknown])
+  }, [shownTicker, range, refreshKey, reloadKey, listed, unknown])
 
   if (all !== null && stocks.length === 0 && !error) {
     return (
@@ -59,7 +68,7 @@ export function HistoryChart() {
     )
   }
 
-  const current = stocks.find((s) => s.ticker === ticker)
+  const current = stocks.find((s) => s.ticker === shownTicker)
 
   return (
     <div>
@@ -78,7 +87,7 @@ export function HistoryChart() {
           {stocks.map((s) => (
             <button
               key={s.ticker}
-              className={`chip${ticker === s.ticker ? ' active' : ''}`}
+              className={`chip${shownTicker === s.ticker ? ' active' : ''}`}
               onClick={() => setSearchParams({ ticker: s.ticker }, { replace: true })}
             >
               {stockLabel(s)}
@@ -115,7 +124,7 @@ export function HistoryChart() {
       <ChartLegend history={history} loading={loading} />
       {ticker && (
         <ChartCoverage
-          ticker={ticker}
+          ticker={shownTicker}
           history={history}
           range={range}
           onReloaded={() => setReloadKey((k) => k + 1)}

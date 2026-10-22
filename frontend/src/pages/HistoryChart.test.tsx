@@ -139,16 +139,25 @@ describe('주소의 종목 (0.45.1 B2)', () => {
     expect(history).not.toHaveBeenCalled()
   })
 
-  it('소문자 주소·비활성 종목은 지금처럼 차트를 연다', async () => {
+  it('소문자·이름 주소는 담은 종목의 티커로, 비활성 종목은 지금처럼 차트를 연다', async () => {
     const hidden = { ...stock('TSLA', '테슬라'), active: false }
     vi.spyOn(api, 'listStocks').mockResolvedValue([stock('005930.KS', '삼성전자'), hidden])
     const history = vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
 
     const { unmount } = renderChart('/history?ticker=005930.ks')
-    await waitFor(() => expect(history).toHaveBeenCalledWith('005930.ks', '1y'))
+    // 담은 종목의 티커로 바꿔 부른다 — 이름 줄·눌린 칩이 그 종목을 말한다
+    await waitFor(() => expect(history).toHaveBeenCalledWith('005930.KS', '1y'))
     await waitFor(() => expect(series.setData).toHaveBeenCalled())
     expect(screen.queryByText(/담은 종목에 없습니다/)).toBeNull()
+    expect(screen.getByText('삼성전자 · 005930.KS')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '삼성전자' })).toHaveClass('active')
+    expect(history).not.toHaveBeenCalledWith('005930.ks', '1y')
     unmount()
+
+    const byName = renderChart('/history?ticker=삼성전자')
+    await waitFor(() => expect(history).toHaveBeenCalledWith('005930.KS', '1y'))
+    expect(screen.queryByText(/담은 종목에 없습니다/)).toBeNull()
+    byName.unmount()
 
     renderChart('/history?ticker=TSLA')
     await waitFor(() => expect(history).toHaveBeenCalledWith('TSLA', '1y'))
