@@ -74,3 +74,12 @@
 | A1 visualViewport 아래 끝을 offsetTop 없이 | `frontend/src/components/NumberInput.tsx` | 잡힘 |
 | A3 대시보드 다시 열 때 안 지움 | `frontend/src/components/PortfolioView.tsx` | 잡힘 |
 | A3 저장한 이름 대신 목록 이름 | `frontend/src/components/StockEditModal.tsx` | 잡힘 |
+
+## 검토자 C 의 조건부 (C-review.md)
+
+| 뮤테이션 | 파일 | 결과 |
+| --- | --- | --- |
+| C2 ◀ 가 가리키는 날에서 | `frontend/src/components/PriceChart.tsx` | 잡힘 |
+| C3 마우스에도 240ms | `frontend/src/components/PriceChart.tsx` | 잡힘 |
+| C1 창에서 놓은 것 안 받음 | `frontend/src/components/PriceChart.tsx` | 잡힘 |
+| C3 전체 보기 뒤 포커스 안 옮김 | `frontend/src/components/PriceChart.tsx` | 잡힘 |

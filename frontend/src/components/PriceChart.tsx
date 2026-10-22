@@ -195,8 +195,11 @@ export function PriceChart({ history, height = 440 }: Props) {
     const move = (e: PointerEvent) => {
       if (!press || e.pointerId !== press.id) return
       if (Math.hypot(e.clientX - press.x, e.clientY - press.y) > 10) {
-        // 길게 누른 뒤 밀면(라이브러리의 날짜 따라가기, 240ms) 구간은 그대로다 — 그 전에 밀면 차트가 밀린다
-        if (press.tap && e.timeStamp - press.at < 240 && (e.pointerType === 'mouse' || Math.abs(e.clientX - press.x) > Math.abs(e.clientY - press.y))) setMovedOn(history)
+        // 손가락: 길게 누른 뒤 밀면(라이브러리의 날짜 따라가기, 240ms) 구간은 그대로다 — 그 전에 가로로 밀면 차트가 밀린다.
+        // 마우스에는 길게 누르기가 없다 — 천천히 끌어도 밀린다(C 검토)
+        const pans =
+          e.pointerType === 'mouse' || (e.timeStamp - press.at < 240 && Math.abs(e.clientX - press.x) > Math.abs(e.clientY - press.y))
+        if (press.tap && pans) setMovedOn(history)
         press.tap = false
       }
     }
@@ -220,13 +223,19 @@ export function PriceChart({ history, height = 440 }: Props) {
     const cancel = (e: PointerEvent) => {
       if (press && e.pointerId === press.id) press = null
     }
+    // 마우스로 끌다 차트 밖에서 놓으면 차트 칸은 pointerup 을 못 받는다 — 누름이 남아 다음 클릭을 두 번째 손가락으로 봤다(C 검토).
+    // 창에서 받아 버린다(차트 안에서 놓았으면 위 up 이 먼저 비웠다)
     const wheel = () => setMovedOn(history)
     container.addEventListener('pointerdown', down)
     container.addEventListener('pointermove', move)
     container.addEventListener('pointerup', up)
     container.addEventListener('pointercancel', cancel)
     container.addEventListener('wheel', wheel, { passive: true })
+    window.addEventListener('pointerup', cancel)
+    window.addEventListener('pointercancel', cancel)
     return () => {
+      window.removeEventListener('pointerup', cancel)
+      window.removeEventListener('pointercancel', cancel)
       container.removeEventListener('pointerdown', down)
       container.removeEventListener('pointermove', move)
       container.removeEventListener('pointerup', up)
@@ -287,9 +296,11 @@ export function PriceChart({ history, height = 440 }: Props) {
               style={moved ? undefined : { visibility: 'hidden' }}
               aria-hidden={!moved}
               tabIndex={moved ? undefined : -1}
-              onClick={() => {
+              onClick={(e) => {
                 handles?.chart.timeScale().fitContent()
                 setMovedOn(null)
+                // 눌러서 숨는 단추에 남은 포커스가 화면 맨 위로 빠졌다 — 옆 ◀ 로 (C 검토)
+                e.currentTarget.parentElement?.querySelector<HTMLButtonElement>('.chart-step')?.focus()
               }}
             >
               전체 보기

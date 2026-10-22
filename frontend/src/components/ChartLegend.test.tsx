@@ -38,3 +38,15 @@ describe('차트 범례 · 말 (디자인 2차)', () => {
     expect(screen.queryByText(/구간/)).toBeNull()
   })
 })
+
+describe('차트 범례 · 길게 누르기 풀이 (0.45.2 C3)', () => {
+  const history = { ticker: 'VOO', prices: [{ date: '2026-09-14', close: 1 }], markers: [], coverage: null } as never
+
+  it('손가락 기기용 풀이가 붙는다(마우스 기기는 CSS 로 숨긴다) — 불러오는 중에는 없다', () => {
+    const { container, rerender } = render(<ChartLegend history={history} loading={false} />)
+    const hint = container.querySelector('.touch-only')
+    expect(hint).toHaveTextContent('길게 누른 채 밀면 날짜가 따라옵니다')
+    rerender(<ChartLegend history={history} loading />)
+    expect(container.querySelector('.touch-only')).toBeNull()
+  })
+})
