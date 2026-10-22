@@ -73,7 +73,7 @@ describe('진단', () => {
     render(<DiagnosticsModal onClose={() => {}} />)
 
     expect(await screen.findByText(/서버를 켜고 잠시 쓰면/)).toBeInTheDocument()
-    expect(screen.getByText(/아직 기록된 로그가 없습니다/)).toBeInTheDocument()
+    expect(screen.getByText('서버 로그: 아직 없음')).toBeInTheDocument()
   })
 
   it('경고가 하나도 없으면 없다고 말해준다', async () => {
@@ -106,18 +106,24 @@ describe('진단', () => {
 
 describe('요약 문구', () => {
   it('건수를 세어 한 줄로 알려준다', () => {
-    expect(summarize(logs())).toBe('최근 기록에 오류 1건 · 경고 1건')
+    expect(summarize(logs())).toBe('서버 로그: 오류 1건 · 경고 1건')
   })
 
   it('세는 것은 화면에 보이는 목록이 아니라 읽어들인 구간 전체다', () => {
     // entries는 limit에 걸려 잘릴 수 있다. counts가 실제 건수다.
     expect(summarize(logs({ entries: [], counts: { WARNING: 5, ERROR: 2 } }))).toBe(
-      '최근 기록에 오류 2건 · 경고 5건',
+      '서버 로그: 오류 2건 · 경고 5건',
     )
   })
 
   it('깨끗하면 깨끗하다고 한다', () => {
-    expect(summarize(logs({ counts: { INFO: 9 } }))).toBe('최근 기록에 경고·오류가 없습니다')
+    expect(summarize(logs({ counts: { INFO: 9 } }))).toBe('서버 로그: 최근 경고·오류 없음')
+  })
+
+  it('백업 칸에 경고가 있으면 끝에 붙인다 — 로그가 깨끗해도 (0.45.1 C1)', () => {
+    expect(summarize(logs({ counts: { INFO: 9 } }), true)).toBe('서버 로그: 최근 경고·오류 없음 · 백업 확인 필요')
+    expect(summarize(null, true)).toBe('백업 확인 필요')
+    expect(summarize(null)).toBe('')
   })
 })
 
@@ -269,6 +275,47 @@ describe('진단 — 기록 (0.44.0)', () => {
     render(<DiagnosticsModal onClose={() => {}} />)
     await screen.findByText(/005930.KS 갱신 실패/)
     expect(screen.queryByRole('heading', { name: '평가금액 기록 · 백업' })).toBeNull()
+  })
+})
+
+describe('맨 위 요약과 백업 경고 (0.45.1 C1)', () => {
+  const clean = () => logs({ entries: [], counts: { INFO: 3 } })
+  const records = (backup: BackupStatus): RecordsStatus => ({
+    value_record: { enabled: true, last_date: null, users: 0, rows: 0 },
+    backup,
+  })
+  const ok: BackupStatus = { count: 3, keep: 7, last_at: new Date().toISOString(), last_size: 10, last_failure: null }
+
+  it('로그는 깨끗한데 백업 칸에 경고가 있으면 요약이 그렇게 말한다', async () => {
+    vi.spyOn(api, 'getLogs').mockResolvedValue(clean())
+    vi.spyOn(api, 'getRecordsStatus').mockResolvedValue(records({ ...ok, last_failure: { at: new Date().toISOString(), reason: '디스크' } }))
+    render(<DiagnosticsModal onClose={() => {}} />)
+
+    expect(await screen.findByText('서버 로그: 최근 경고·오류 없음 · 백업 확인 필요')).toBeInTheDocument()
+  })
+
+  it('밖에 꺼낸 지 30일이 지나도 — 경고 줄과 같은 판정', async () => {
+    const old = new Date(Date.now() - 31 * 86400_000).toISOString()
+    vi.spyOn(api, 'getLogs').mockResolvedValue(clean())
+    vi.spyOn(api, 'getRecordsStatus').mockResolvedValue(records({ ...ok, offsite: { last_at: old } }))
+    render(<DiagnosticsModal onClose={() => {}} />)
+
+    expect(await screen.findByText('서버 로그: 최근 경고·오류 없음 · 백업 확인 필요')).toBeInTheDocument()
+    expect(screen.getByText(/31일 동안 밖에 꺼내지 않았습니다/)).toBeInTheDocument()
+  })
+
+  it('백업이 정상이거나 옛 서버(백업 칸 없음)면 붙지 않는다', async () => {
+    vi.spyOn(api, 'getLogs').mockResolvedValue(clean())
+    const spy = vi.spyOn(api, 'getRecordsStatus').mockResolvedValue(records({ ...ok, offsite: { last_at: null } }))
+    const { unmount } = render(<DiagnosticsModal onClose={() => {}} />)
+    await screen.findByRole('heading', { name: '평가금액 기록 · 백업' })
+    expect(screen.getByText('서버 로그: 최근 경고·오류 없음')).toBeInTheDocument()
+    unmount()
+
+    spy.mockResolvedValue({ value_record: { enabled: true, last_date: null, users: 0, rows: 0 } })
+    render(<DiagnosticsModal onClose={() => {}} />)
+    await screen.findByRole('heading', { name: '평가금액 기록 · 백업' })
+    expect(screen.getByText('서버 로그: 최근 경고·오류 없음')).toBeInTheDocument()
   })
 })
 

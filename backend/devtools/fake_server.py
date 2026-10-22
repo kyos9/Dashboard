@@ -809,6 +809,10 @@ def main(argv: list[str] | None = None) -> None:
         "--demo-custom-thresholds", action="store_true",
         help="주인 계정이 시그널 기준을 바꾼 것처럼 (ADX 15) — '내 기준' 화면을 본다",
     )
+    parser.add_argument(
+        "--demo-backup-warning", action="store_true",
+        help="관리자 PC 로 꺼낸 지 40일 된 것처럼 — 진단의 백업 경고와 맨 위 '백업 확인 필요', ⋯ 의 점을 본다",
+    )
     args = parser.parse_args(argv)
 
     data_dir = prepare_data_dir(args.data_dir, args.reset)
@@ -826,6 +830,10 @@ def main(argv: list[str] | None = None) -> None:
     recompute_signals(demo_rule_change=args.demo_rule_change)
     if args.demo_custom_thresholds:
         set_demo_thresholds()
+    if args.demo_backup_warning:
+        from app.services import backup
+
+        backup.mark_pulled(now=dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=40))
 
     import uvicorn
 

@@ -436,6 +436,7 @@ python -m devtools.fake_server            # http://127.0.0.1:8150  (데이터: b
 python -m devtools.fake_server --reset    # 데모 데이터부터 다시
 python -m devtools.fake_server --demo-rule-change   # 시그널 정의를 오늘 바꾼 것처럼 (v0.41.0)
 python -m devtools.fake_server --demo-custom-thresholds   # 주인 계정이 시그널 기준을 바꾼 것처럼 — 그날 오늘 매수 수가 달라지는 값으로 (v0.42.0)
+python -m devtools.fake_server --demo-backup-warning   # 관리자 PC 로 백업을 꺼낸 지 40일 된 것처럼 — 진단의 백업 경고·⋯ 점 (v0.45.1)
 ```
 
 `--demo-rule-change` 는 정의 자체는 그대로 두고 "오늘 바꿨다"는 이력만 더합니다 — 신호 요약에 "시그널 계산 방식이

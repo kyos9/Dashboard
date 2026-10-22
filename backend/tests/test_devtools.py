@@ -313,3 +313,13 @@ def test_demo_custom_thresholds_shows_my_thresholds(server):
         # 기본값으로 되돌리면 처음과 같다 (다음 시험이 같은 데이터를 쓴다)
         assert owner.delete(demo + "/api/signal-thresholds").json()["custom"] is False
 
+
+
+def test_demo_backup_warning_shows_the_warning(server):
+    """`--demo-backup-warning` — 관리자 PC 로 꺼낸 지 40일 (0.45.1 C1). 진단의 경고·맨 위 요약·⋯ 점을 데모로 본다."""
+    with _serve(DATA_DIRS["main"], "--demo-backup-warning") as demo:
+        owner = login(demo, fake_server.OWNER)
+        pulled = owner.get(demo + "/api/admin/records").json()["backup"]["offsite"]["last_at"]
+        age = dt.datetime.now(dt.timezone.utc) - dt.datetime.fromisoformat(pulled)
+        assert dt.timedelta(days=39) < age < dt.timedelta(days=41)
+        assert owner.get(demo + "/api/auth/status").json()["backup_attention"] is True
