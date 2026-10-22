@@ -1,4 +1,6 @@
-import { useRef, type InputHTMLAttributes } from 'react'
+import { useEffect, useRef, useState, type InputHTMLAttributes } from 'react'
+import { createPortal } from 'react-dom'
+import { droppedKinds, droppedText, type Dropped } from '../lib/numberDropped'
 
 /**
  * 숫자 입력칸.
@@ -35,6 +37,8 @@ export function formatNumeric(raw: string): string {
  * 거절이 아니라 **다른 숫자**가 되는 것이라 화면만 보고는 알아채기 어렵다.
  */
 export function parseNumeric(input: string, allowDecimal: boolean, allowNegative = false): string {
+  // 붙여넣은 글에는 빼기가 `−`(U+2212)로 오기도 한다 — 음수 칸에서 그걸 버리면 −0.2 가 0.2 로 저장됐다 (0.45.1 A)
+  if (allowNegative) input = input.replace(/\u2212/g, '-')
   const negative = allowNegative && input.trimStart().startsWith('-')
   const body = negative ? parseNumeric(input.replace('-', ''), allowDecimal) : null
   if (body !== null) return `-${body}`
@@ -95,6 +99,10 @@ export function NumberInput({
   ...rest
 }: Props) {
   const ref = useRef<HTMLInputElement>(null)
+  // 이 칸에서 버린 것 — 칸을 떠날 때까지 남긴다. 다음 글자에 지우면 "7"→"."→"5" 의 마지막에 75 가 말없이 남았다(계획 검토 막음)
+  const [dropped, setDropped] = useState<Dropped[]>([])
+  // 줄에 붙일 칸 이름 — aria-label, 없으면 <label for>. 그리는 중에 ref 를 읽지 않게 칠 때 잡아 둔다
+  const [name, setName] = useState<string | undefined>(undefined)
 
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const input = event.target
@@ -102,6 +110,11 @@ export function NumberInput({
     const digits = digitsBefore(input.value, caret)
 
     const parsed = parseNumeric(input.value, allowDecimal, allowNegative)
+    const now = droppedKinds(input.value, allowDecimal, allowNegative)
+    if (now.some((k) => !dropped.includes(k))) {
+      setDropped([...new Set([...dropped, ...now])])
+      setName(rest['aria-label'] ?? input.labels?.[0]?.textContent ?? undefined)
+    }
     onChange(parsed)
 
     // 콤마가 새로 끼거나 빠지면 커서가 밀린다. 같은 숫자 뒤로 되돌려놓는다.
@@ -115,6 +128,7 @@ export function NumberInput({
   }
 
   return (
+    <>
     <input
       {...rest}
       ref={ref}
@@ -125,6 +139,38 @@ export function NumberInput({
       autoComplete="off"
       value={formatNumeric(value)}
       onChange={handleChange}
+      onBlur={(event) => {
+        setDropped([])
+        rest.onBlur?.(event)
+      }}
     />
+    {dropped.length > 0 && <NumberNotice text={droppedText(name, dropped, formatNumeric(value))} />}
+    </>
+  )
+}
+
+/**
+ * 버린 것을 알리는 줄 — 화면 위쪽에 하나(0.45.1 A). 칸 아래에 두면 표·일괄 수정에서 옆 칸·단추를 가리고 팝업·가로 스크롤 안에서
+ * 잘렸다(계획 검토). 폰 키보드가 올라오면 보이는 부분(visualViewport)의 위에 붙인다 — 아이폰은 그때 화면 위쪽이 밀려 올라간다.
+ */
+function NumberNotice({ text }: { text: string }) {
+  const [top, setTop] = useState(0)
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    const place = () => setTop(vv.offsetTop)
+    place()
+    vv.addEventListener('resize', place)
+    vv.addEventListener('scroll', place)
+    return () => {
+      vv.removeEventListener('resize', place)
+      vv.removeEventListener('scroll', place)
+    }
+  }, [])
+  return createPortal(
+    <p className="num-notice" role="status" style={{ top: top + 8 }}>
+      {text}
+    </p>,
+    document.body,
   )
 }

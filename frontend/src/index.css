@@ -1878,6 +1878,29 @@ select {
   text-align: right;
 }
 
+/* 숫자칸이 버린 것을 알리는 줄 (0.45.1 A) — 화면 위쪽 가운데 하나. 칸 옆에 두면 표·팝업 안에서 가리거나 잘렸다.
+   팝업(.modal-backdrop 50)·확인 창 위에 뜬다. 누르는 것이 없어 밑의 칸을 막지 않는다 */
+.num-notice {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 70;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--amber);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-size: var(--fs-body);
+  line-height: 1.45;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+}
+
 input:focus,
 select:focus,
 button:focus-visible {
