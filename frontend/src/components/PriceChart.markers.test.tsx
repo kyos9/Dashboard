@@ -250,6 +250,18 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
     expect(line()).toHaveTextContent('2026-09-14 · 종가 100.00')
   })
 
+  it('길게 누른 뒤 떼면 라이브러리가 touchend 에서 십자선을 지운다 — 그 뒤에 놓는다', async () => {
+    const { act } = await import('@testing-library/react')
+    const { canvas, line } = shown()
+    pointer(canvas, 'pointerdown', { x: 0, y: 100, t: 0 })
+    pointer(canvas, 'pointerup', { x: 0, y: 100, t: 80 })
+    // 같은 박자(touchend)에는 아직 놓지 않는다
+    expect(chart.setCrosshairPosition).not.toHaveBeenCalled()
+    await act(() => new Promise((r) => setTimeout(r, 0)))
+    expect(chart.setCrosshairPosition).toHaveBeenLastCalledWith(100, '2026-09-14', series)
+    expect(line()).toHaveTextContent('2026-09-14 · 종가 100.00')
+  })
+
   it('마우스 왼쪽 클릭도 같은 길', async () => {
     const { canvas, line } = shown()
     await tap(canvas, 100, 100, 0, { kind: 'mouse' })
@@ -326,13 +338,18 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
     expect(fit()).toHaveAttribute('aria-hidden', 'true')
 
     // 길게 누른 뒤 밀기(날짜 따라가기)는 구간을 바꾸지 않는다
-    pointer(canvas, 'pointerdown', { x: 0, y: 100, t: 0 })
-    pointer(canvas, 'pointermove', { x: 60, y: 100, t: 400 })
-    pointer(canvas, 'pointerup', { x: 60, y: 100, t: 500 })
+    act(() => {
+      pointer(canvas, 'pointerdown', { x: 0, y: 100, t: 0 })
+      pointer(canvas, 'pointermove', { x: 60, y: 100, t: 400 })
+      pointer(canvas, 'pointerup', { x: 60, y: 100, t: 500 })
+    })
+    expect(fit().style.visibility).toBe('hidden')
     // 세로로 밀기(화면 스크롤)도
-    pointer(canvas, 'pointerdown', { x: 0, y: 100, t: 1000 })
-    pointer(canvas, 'pointermove', { x: 5, y: 160, t: 1050 })
-    pointer(canvas, 'pointercancel', { x: 5, y: 160, t: 1060 })
+    act(() => {
+      pointer(canvas, 'pointerdown', { x: 0, y: 100, t: 1000 })
+      pointer(canvas, 'pointermove', { x: 5, y: 160, t: 1050 })
+      pointer(canvas, 'pointercancel', { x: 5, y: 160, t: 1060 })
+    })
     expect(fit().style.visibility).toBe('hidden')
 
     // 가로로 바로 밀기
