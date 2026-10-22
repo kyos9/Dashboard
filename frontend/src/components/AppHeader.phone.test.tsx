@@ -130,9 +130,16 @@ describe('폰 헤더는 한 줄', () => {
     expect(diag).toHaveAttribute('title', '백업을 확인하세요 — 진단의 백업 칸')
   })
 
-  it('관리자: 신청도 있고 백업도 봐야 하면 숫자 하나, 읽기 이름에 둘 다', async () => {
+  it('관리자: 신청도 있고 백업도 봐야 하면 숫자와 점을 같이, 읽기 이름에 둘 다 (0.45.2 B4 — 전에는 숫자가 점을 가렸다)', async () => {
     renderAs({ ...OWNER, backup_attention: true })
     const menuButton = await screen.findByRole('button', { name: '메뉴 — 가입 신청 2건 — 백업을 확인하세요' })
+    expect(menuButton).toHaveTextContent('2')
+    expect(menuButton.querySelector('.menu-dot.menu-dot-aside')).not.toBeNull()
+  })
+
+  it('관리자: 신청만 있으면 숫자만 — 점 없음', async () => {
+    renderAs({ ...OWNER })
+    const menuButton = await screen.findByRole('button', { name: '메뉴 — 가입 신청 2건' })
     expect(menuButton).toHaveTextContent('2')
     expect(menuButton.querySelector('.menu-dot')).toBeNull()
   })

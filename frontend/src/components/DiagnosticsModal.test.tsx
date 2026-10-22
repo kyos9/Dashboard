@@ -121,8 +121,8 @@ describe('요약 문구', () => {
   })
 
   it('백업 칸에 경고가 있으면 끝에 붙인다 — 로그가 깨끗해도 (0.45.1 C1)', () => {
-    expect(summarize(logs({ counts: { INFO: 9 } }), true)).toBe('서버 로그: 최근 경고·오류 없음 · 백업 확인 필요')
-    expect(summarize(null, true)).toBe('백업 확인 필요')
+    expect(summarize(logs({ counts: { INFO: 9 } }), true)).toBe('서버 로그: 최근 경고·오류 없음 · 백업 확인 필요 — 아래 백업 칸')
+    expect(summarize(null, true)).toBe('백업 확인 필요 — 아래 백업 칸')
     expect(summarize(null)).toBe('')
   })
 })
@@ -291,17 +291,23 @@ describe('맨 위 요약과 백업 경고 (0.45.1 C1)', () => {
     vi.spyOn(api, 'getRecordsStatus').mockResolvedValue(records({ ...ok, last_failure: { at: new Date().toISOString(), reason: '디스크' } }))
     render(<DiagnosticsModal onClose={() => {}} />)
 
-    expect(await screen.findByText('서버 로그: 최근 경고·오류 없음 · 백업 확인 필요')).toBeInTheDocument()
+    // 꼬리만 경고 모양 — 같은 작은 회색 글이라 눈에 띄지 않았다 (0.45.2 B1)
+    const tail = await screen.findByText('백업 확인 필요 — 아래 백업 칸')
+    expect(tail).toHaveClass('diag-warn')
+    expect(tail.closest('.diag-summary')?.textContent).toBe('서버 로그: 최근 경고·오류 없음 · 백업 확인 필요 — 아래 백업 칸')
   })
 
-  it('밖에 꺼낸 지 30일이 지나도 — 경고 줄과 같은 판정', async () => {
-    const old = new Date(Date.now() - 31 * 86400_000).toISOString()
+  it('밖에 꺼낸 지 10일이 지나도 — 경고 줄과 같은 판정', async () => {
+    const old = new Date(Date.now() - 11 * 86400_000).toISOString()
     vi.spyOn(api, 'getLogs').mockResolvedValue(clean())
     vi.spyOn(api, 'getRecordsStatus').mockResolvedValue(records({ ...ok, offsite: { last_at: old } }))
     render(<DiagnosticsModal onClose={() => {}} />)
 
-    expect(await screen.findByText('서버 로그: 최근 경고·오류 없음 · 백업 확인 필요')).toBeInTheDocument()
-    expect(screen.getByText(/31일 동안 밖에 꺼내지 않았습니다/)).toBeInTheDocument()
+    // 꼬리만 경고 모양 — 같은 작은 회색 글이라 눈에 띄지 않았다 (0.45.2 B1)
+    const tail = await screen.findByText('백업 확인 필요 — 아래 백업 칸')
+    expect(tail).toHaveClass('diag-warn')
+    expect(tail.closest('.diag-summary')?.textContent).toBe('서버 로그: 최근 경고·오류 없음 · 백업 확인 필요 — 아래 백업 칸')
+    expect(screen.getByText(/11일 동안 밖에 꺼내지 않았습니다/)).toBeInTheDocument()
   })
 
   it('백업이 정상이거나 옛 서버(백업 칸 없음)면 붙지 않는다', async () => {
@@ -325,17 +331,17 @@ describe('진단의 백업 줄 (0.44.0 D0)', () => {
     count: 3, keep: 7, last_at: '2026-10-15T23:30:00+00:00', last_size: 2_621_440, last_failure: null, ...overrides,
   })
 
-  it('마지막 시각(보는 사람의 시간대)·크기·벌 수 — 파일 이름은 없다', () => {
+  it('마지막 시각(보는 사람의 시간대)·크기·개수 — 파일 이름은 없다', () => {
     render(<BackupLines backup={backup()} now={NOW} />)
     const line = screen.getByText(/^백업: 마지막/)
     const local = new Date('2026-10-15T23:30:00Z').toLocaleString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })
-    expect(line.textContent).toBe(`백업: 마지막 ${local} · 2.5MB · 3벌 보관(최대 7)`)
+    expect(line.textContent).toBe(`백업: 마지막 ${local} · 2.5MB · 3개 보관(최대 7개)`)
     expect(screen.queryByRole('note')).toBeNull()
   })
 
   it('하나도 없으면 그렇다고, 하루 넘게 새 것이 없으면 경고, 실패했으면 그 갈래', () => {
     const { unmount } = render(<BackupLines backup={backup({ count: 0, last_at: null, last_size: null })} now={NOW} />)
-    expect(screen.getByText('백업: 아직 없습니다 — 매일 한 벌씩 서버 안에 뜹니다.')).toBeTruthy()
+    expect(screen.getByText('백업: 아직 없습니다 — 매일 하나씩 서버 안에 뜹니다.')).toBeTruthy()
     unmount()
 
     const { unmount: u2 } = render(<BackupLines backup={backup({ last_at: '2026-10-14T23:00:00+00:00' })} now={NOW} />)
@@ -375,7 +381,7 @@ describe('진단의 백업 줄 (0.44.0 D0)', () => {
     expect(screen.getByRole('note').textContent).toBe('하루 넘게 새 백업이 없습니다 — 서버 로그를 보세요.')
     // 그 시각은 업그레이드 백업의 것 — 매일 백업 시각이 들어가면 틀린다 (D0 두 번째 검토 F1)
     const upgradeAt = new Date('2026-10-16T00:30:00Z').toLocaleString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })
-    expect(screen.getByText(/^업그레이드 직전 백업/).textContent).toBe(`업그레이드 직전 백업 1벌 · 마지막 ${upgradeAt} (위 벌 수에 들어 있습니다)`)
+    expect(screen.getByText(/^업그레이드 직전 백업/).textContent).toBe(`업그레이드 직전 백업 1개 · 마지막 ${upgradeAt} (위 개수에 들어 있습니다)`)
   })
 
   it('멈춤과 실패가 같이면 두 줄 다', () => {
@@ -413,26 +419,26 @@ describe('진단의 백업 줄 — 밖에 꺼낸 것 (0.45.0 A)', () => {
   it('꺼낸 적이 없으면 그렇다고 — 경고는 아니다', () => {
     render(<BackupLines backup={backup({ last_at: null })} now={NOW} />)
     expect(screen.getByText(/^밖에 꺼낸 기록이 없습니다/).textContent).toBe(
-      '밖에 꺼낸 기록이 없습니다 — 서버가 사라지면 이 백업도 같이 사라집니다. 내 PC 로 가져오는 법은 DEPLOY.md 10.',
+      '밖에 꺼낸 기록이 없습니다 — 서버가 사라지면 이 백업도 같이 사라집니다. 내 PC 로 가져오는 법은 PC 의 Dashboard 폴더 DEPLOY.md 10-0.',
     )
     expect(screen.queryByRole('note')).toBeNull()
   })
 
-  it('꺼냈으면 그 시각(관리자 PC), 30일 넘으면 경고', () => {
+  it('꺼냈으면 그 시각(관리자 PC), 10일 넘으면 경고', () => {
     const { unmount } = render(<BackupLines backup={backup({ last_at: '2026-10-13T09:00:00+00:00' })} now={NOW} />)
     expect(screen.getByText(/^밖에 꺼낸 것/).textContent).toBe(`밖에 꺼낸 것: 마지막 ${local('2026-10-13T09:00:00+00:00')} (관리자 PC)`)
     expect(screen.queryByRole('note')).toBeNull()
     unmount()
 
-    // 30일이 지나기 전에는 경고하지 않고, 지난 순간부터 — 서버의 ⋯ 점과 같은 경계 (A 검토: 30.5일)
-    const { unmount: u2 } = render(<BackupLines backup={backup({ last_at: '2026-09-20T13:00:00+00:00' })} now={NOW} />)
+    // 10일이 지나기 전에는 경고하지 않고, 지난 순간부터 — 서버의 ⋯ 점과 같은 경계 (A 검토: 10.5일, 0.45.2 B3 전에는 30일)
+    const { unmount: u2 } = render(<BackupLines backup={backup({ last_at: '2026-10-10T13:00:00+00:00' })} now={NOW} />)
     expect(screen.queryByRole('note')).toBeNull()
     u2()
-    const { unmount: u3 } = render(<BackupLines backup={backup({ last_at: '2026-09-20T00:00:00+00:00' })} now={NOW} />)
-    expect(screen.getByRole('note').textContent).toBe('30일 동안 밖에 꺼내지 않았습니다 — PC 에서 server-backup-pull.bat 을 실행하세요.')
+    const { unmount: u3 } = render(<BackupLines backup={backup({ last_at: '2026-10-10T00:00:00+00:00' })} now={NOW} />)
+    expect(screen.getByRole('note').textContent).toBe('10일 동안 밖에 꺼내지 않았습니다 — PC 에서 server-backup-pull.bat 을 실행하세요.')
     u3()
-    render(<BackupLines backup={backup({ last_at: '2026-09-19T11:00:00+00:00' })} now={NOW} />)
-    expect(screen.getByRole('note').textContent).toBe('31일 동안 밖에 꺼내지 않았습니다 — PC 에서 server-backup-pull.bat 을 실행하세요.')
+    render(<BackupLines backup={backup({ last_at: '2026-10-09T11:00:00+00:00' })} now={NOW} />)
+    expect(screen.getByRole('note').textContent).toBe('11일 동안 밖에 꺼내지 않았습니다 — PC 에서 server-backup-pull.bat 을 실행하세요.')
   })
 
   it('옛 서버(칸 없음)면 그 줄이 없다', () => {

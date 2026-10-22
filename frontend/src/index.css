@@ -394,6 +394,12 @@ button.menu-btn {
   right: -2px;
 }
 
+/* 숫자 배지와 같이 뜰 때 — 숫자(오른쪽 위)에 붙으면 숫자의 일부로 읽혀 왼쪽 위로 비킨다 (0.45.2 B4) */
+.menu-badge.menu-dot.menu-dot-aside {
+  right: auto;
+  left: -2px;
+}
+
 .menu-panel {
   position: absolute;
   z-index: 45;
@@ -5565,4 +5571,9 @@ section.signal-line {
 /* 진단의 경고 한 줄 — 백업이 멈췄거나 실패했을 때 (0.44.0 D0) */
 .diag-warn {
   color: var(--amber);
+}
+
+/* 진단 맨 위 요약의 백업 꼬리 — 회색 글 사이에서 눈에 띄게 굵게 (0.45.2 B1). 색은 경고 노랑 그대로 */
+.diag-summary .diag-warn {
+  font-weight: 700;
 }

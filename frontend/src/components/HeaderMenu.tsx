@@ -55,13 +55,13 @@ export function HeaderMenu({ items, head, foot, badge = 0, dot }: Props) {
           <circle cx="12" cy="12" r="1.9" fill="currentColor" />
           <circle cx="19" cy="12" r="1.9" fill="currentColor" />
         </svg>
-        {badge > 0 ? (
+        {badge > 0 && (
           <span className="menu-badge" aria-hidden="true">
             {badge}
           </span>
-        ) : (
-          dot && <span className="menu-badge menu-dot" aria-hidden="true" />
         )}
+        {/* 숫자가 있어도 점은 따로 — 숫자에 가려 백업 경고가 안 보였다(0.45.2 B4). 숫자가 있으면 왼쪽 위로 비켜 선다 */}
+        {dot && <span className={`menu-badge menu-dot${badge > 0 ? ' menu-dot-aside' : ''}`} aria-hidden="true" />}
       </button>
       {open && (
         <MenuPanel

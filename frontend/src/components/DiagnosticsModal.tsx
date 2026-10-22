@@ -34,8 +34,16 @@ function sizeText(bytes: number): string {
  * 로그만 세면서 "경고·오류가 없습니다"라고 하면 바로 아래 백업 경고와 어긋났다(0.45.1 C1).
  */
 export function summarize(logs: LogsResponse | null, backupWarn = false): string {
-  const tail = backupWarn ? '백업 확인 필요' : ''
-  if (!logs) return tail
+  const { head, tail } = summaryParts(logs, backupWarn)
+  return [head, tail].filter(Boolean).join(' · ')
+}
+
+/** 꼬리(백업)만 경고 모양으로 그리려고 둘로 나눈다 — 같은 작은 회색 글이라 눈에 띄지 않았다(0.45.2 B1) */
+const BACKUP_TAIL = '백업 확인 필요 — 아래 백업 칸'
+
+function summaryParts(logs: LogsResponse | null, backupWarn: boolean): { head: string; tail: string } {
+  const tail = backupWarn ? BACKUP_TAIL : ''
+  if (!logs) return { head: '', tail }
   const bad = (logs.counts.ERROR ?? 0) + (logs.counts.CRITICAL ?? 0)
   const warn = logs.counts.WARNING ?? 0
   const head = !logs.available
@@ -43,7 +51,18 @@ export function summarize(logs: LogsResponse | null, backupWarn = false): string
     : bad === 0 && warn === 0
       ? '서버 로그: 최근 경고·오류 없음'
       : `서버 로그: 오류 ${bad}건 · 경고 ${warn}건`
-  return tail ? `${head} · ${tail}` : head
+  return { head, tail }
+}
+
+function SummaryLine({ logs, backupWarn }: { logs: LogsResponse | null; backupWarn: boolean }) {
+  const { head, tail } = summaryParts(logs, backupWarn)
+  return (
+    <span className="hint diag-summary">
+      {head}
+      {head && tail && ' · '}
+      {tail && <b className="diag-warn">{tail}</b>}
+    </span>
+  )
 }
 
 /** 1234ms → "1.2초" */
@@ -146,7 +165,7 @@ function when(iso: string): string {
 }
 
 /**
- * 백업 상태 한두 줄 (0.44.0 D0) — 마지막 백업 시각·크기·벌 수, 실패했으면 그 갈래. 파일 이름·경로는 서버가 보내지 않는다.
+ * 백업 상태 한두 줄 (0.44.0 D0) — 마지막 백업 시각·크기·개수(화면 말은 0.45.2 부터 '벌' 대신 '개'), 실패했으면 그 갈래. 파일 이름·경로는 서버가 보내지 않는다.
  * 서버 밖으로 꺼낸 것은 꺼낸 쪽(`server-backup-pull.bat`)이 적은 시각만 안다(0.45.0) — 밖에 지금 무엇이 있는지는 모른다.
  */
 export function BackupLines({ backup, now }: { backup: BackupStatus; now: number }) {
@@ -155,12 +174,12 @@ export function BackupLines({ backup, now }: { backup: BackupStatus; now: number
     <>
       <p className="hint">
         {backup.last_at
-          ? `백업: 마지막 ${when(backup.last_at)}${backup.last_size !== null ? ` · ${bytes(backup.last_size)}` : ''} · ${backup.count}벌 보관(최대 ${backup.keep})`
-          : '백업: 아직 없습니다 — 매일 한 벌씩 서버 안에 뜹니다.'}
+          ? `백업: 마지막 ${when(backup.last_at)}${backup.last_size !== null ? ` · ${bytes(backup.last_size)}` : ''} · ${backup.count}개 보관(최대 ${backup.keep}개)`
+          : '백업: 아직 없습니다 — 매일 하나씩 서버 안에 뜹니다.'}
       </p>
       {backup.premigrate && backup.premigrate.count > 0 && backup.premigrate.last_at && (
         <p className="hint">
-          업그레이드 직전 백업 {backup.premigrate.count}벌 · 마지막 {when(backup.premigrate.last_at)} (위 벌 수에 들어 있습니다)
+          업그레이드 직전 백업 {backup.premigrate.count}개 · 마지막 {when(backup.premigrate.last_at)} (위 개수에 들어 있습니다)
         </p>
       )}
       {stale && (
@@ -180,7 +199,7 @@ export function BackupLines({ backup, now }: { backup: BackupStatus; now: number
 
 function OffsiteLine({ lastAt, staleDays }: { lastAt: string | null; staleDays: number | null }) {
   if (!lastAt) {
-    return <p className="hint">밖에 꺼낸 기록이 없습니다 — 서버가 사라지면 이 백업도 같이 사라집니다. 내 PC 로 가져오는 법은 DEPLOY.md 10.</p>
+    return <p className="hint">밖에 꺼낸 기록이 없습니다 — 서버가 사라지면 이 백업도 같이 사라집니다. 내 PC 로 가져오는 법은 PC 의 Dashboard 폴더 DEPLOY.md 10-0.</p>
   }
   return (
     <>
@@ -278,9 +297,7 @@ export function DiagnosticsModal({ onClose }: { onClose: () => void }) {
         <div className="modal-head">
           <div className="modal-title">
             <h3>진단</h3>
-            <span className="hint">
-              {summarize(logs, records?.status.backup ? backupWarnings(records.status.backup, records.at).any : false)}
-            </span>
+            <SummaryLine logs={logs} backupWarn={records?.status.backup ? backupWarnings(records.status.backup, records.at).any : false} />
           </div>
           <div className="chip-row">
             <button
