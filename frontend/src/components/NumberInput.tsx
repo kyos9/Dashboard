@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, type InputHTMLAttributes } from 'react'
+import { useEffect, useRef, useState, type InputHTMLAttributes, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
-import { droppedKinds, droppedText, type Dropped } from '../lib/numberDropped'
+import { droppedKinds, droppedText, noticeTop, type Dropped } from '../lib/numberDropped'
 
 /**
  * 숫자 입력칸.
@@ -155,17 +155,20 @@ export function NumberInput({
         rest.onBlur?.(event)
       }}
     />
-    {dropped.length > 0 && <NumberNotice text={droppedText(name, dropped, formatNumeric(value), minusHint)} />}
+    {dropped.length > 0 && <NumberNotice text={droppedText(name, dropped, formatNumeric(value), minusHint)} anchor={ref} />}
     </>
   )
 }
 
 /**
- * 버린 것을 알리는 줄 — 화면 위쪽에 하나(0.45.1 A). 칸 아래에 두면 표·일괄 수정에서 옆 칸·단추를 가리고 팝업·가로 스크롤 안에서
- * 잘렸다(계획 검토). 폰 키보드가 올라오면 보이는 부분(visualViewport)의 위에 붙인다 — 아이폰은 그때 화면 위쪽이 밀려 올라간다.
+ * 버린 것을 알리는 줄 — 칸 옆이 아닌 정해진 자리에 하나(0.45.1 A). 칸 아래에 두면 표·일괄 수정에서 옆 칸·단추를 가리고 팝업·가로 스크롤 안에서
+ * 잘렸다(계획 검토). 자리는 `noticeTop` — 팝업 안이면 머리 아래, 치는 칸과 겹치면 보이는 화면 아래 끝(0.45.2 A1: 화면 맨 위에 두면 폰에서
+ * 팝업 제목·✕ 를 덮었다). 폰 키보드가 올라오면 보이는 부분(visualViewport)으로 잰다 — 아이폰은 그때 화면 위쪽이 밀려 올라간다.
+ * 칸·팝업이 스크롤로 움직이는 길이 여럿이라(팝업 본문·표의 가로 스크롤·키보드) 떠 있는 동안만 매 그림마다 다시 잰다.
  */
-function NumberNotice({ text }: { text: string }) {
-  const [top, setTop] = useState(0)
+function NumberNotice({ text, anchor }: { text: string; anchor: RefObject<HTMLInputElement | null> }) {
+  const [top, setTop] = useState<number | null>(null)
+  const self = useRef<HTMLParagraphElement>(null)
   // 화면 읽기에는 늘 붙어 있는 자리에 글만 넣는다. 보이는 줄은 aria-hidden — 두 번 읽지 않게
   useEffect(() => {
     const live = liveRegion()
@@ -175,19 +178,33 @@ function NumberNotice({ text }: { text: string }) {
     }
   }, [text])
   useEffect(() => {
-    const vv = window.visualViewport
-    if (!vv) return
-    const place = () => setTop(vv.offsetTop)
-    place()
-    vv.addEventListener('resize', place)
-    vv.addEventListener('scroll', place)
-    return () => {
-      vv.removeEventListener('resize', place)
-      vv.removeEventListener('scroll', place)
+    let frame = 0
+    const place = () => {
+      const vv = window.visualViewport
+      const view = vv ? { top: vv.offsetTop, bottom: vv.offsetTop + vv.height } : { top: 0, bottom: window.innerHeight }
+      const span = (el: Element | null | undefined) => {
+        if (!el) return null
+        const r = el.getBoundingClientRect()
+        return { top: r.top, bottom: r.bottom }
+      }
+      const input = anchor.current
+      const dialog = input?.closest('[role="dialog"]') ?? null
+      const field = span(input) ?? { top: view.top, bottom: view.top }
+      const next = noticeTop({
+        view,
+        head: span(dialog?.querySelector('.modal-head')),
+        dialog: span(dialog),
+        field,
+        height: self.current?.offsetHeight ?? 0,
+      })
+      setTop((prev) => (prev !== null && Math.abs(prev - next) < 0.5 ? prev : next))
+      frame = requestAnimationFrame(place)
     }
-  }, [])
+    place()
+    return () => cancelAnimationFrame(frame)
+  }, [anchor])
   return createPortal(
-    <p className="num-notice" aria-hidden="true" style={{ top: top + 8 }}>
+    <p className="num-notice" aria-hidden="true" ref={self} style={{ top: top ?? 8, visibility: top === null ? 'hidden' : undefined }}>
       {text}
     </p>,
     document.body,

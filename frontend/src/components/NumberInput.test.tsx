@@ -3,7 +3,7 @@ import { useState } from 'react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { formatNumeric, NumberInput, parseNumeric } from './NumberInput'
-import { droppedKinds, droppedText, HOLDING_MINUS_HINT } from '../lib/numberDropped'
+import { droppedKinds, droppedText, HOLDING_MINUS_HINT, noticeTop } from '../lib/numberDropped'
 
 describe('천 단위 표기', () => {
   it('세 자리마다 콤마를 넣는다', () => {
@@ -368,5 +368,57 @@ describe('버린 것을 말하기 (0.45.1 A)', () => {
     await user.click(screen.getByLabelText('금액'))
     await user.click(screen.getByRole('button'))
     expect(onBlur).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('줄의 자리 (0.45.2 A1 — 폰에서 화면 위 줄이 팝업 제목·✕ 를 덮었다)', () => {
+  const view = { top: 0, bottom: 800 }
+
+  it('팝업 밖: 보이는 화면 위 · 치는 칸과 겹치면 아래 끝', () => {
+    expect(noticeTop({ view, field: { top: 300, bottom: 344 }, height: 40 })).toBe(8)
+    expect(noticeTop({ view, field: { top: 10, bottom: 54 }, height: 40 })).toBe(800 - 40 - 8)
+  })
+
+  it('팝업 안: 머리 아래 — 머리가 스크롤로 사라졌으면 팝업의 보이는 위', () => {
+    const dialog = { top: 20, bottom: 780 }
+    expect(noticeTop({ view, dialog, head: { top: 20, bottom: 76 }, field: { top: 400, bottom: 444 }, height: 40 })).toBe(84)
+    expect(noticeTop({ view, dialog, head: { top: -300, bottom: -244 }, field: { top: 400, bottom: 444 }, height: 40 })).toBe(28)
+    // 첫 줄 칸이 머리 바로 아래면 겹친다 → 아래 끝
+    expect(noticeTop({ view, dialog, head: { top: 20, bottom: 76 }, field: { top: 90, bottom: 134 }, height: 40 })).toBe(752)
+  })
+
+  it('폰 키보드가 올라오면 보이는 부분 안에서 — 위가 밀려 올라간 아이폰(offsetTop 200)', () => {
+    const shifted = { top: 200, bottom: 600 }
+    // 팝업 머리는 보이는 부분 위로 밀려났다 — 보이는 부분 위에 붙는다
+    expect(noticeTop({ view: shifted, dialog: { top: 0, bottom: 800 }, head: { top: 0, bottom: 56 }, field: { top: 400, bottom: 444 }, height: 40 })).toBe(208)
+    // 칸이 보이는 부분 위쪽에 있으면 키보드 바로 위
+    expect(noticeTop({ view: shifted, field: { top: 205, bottom: 249 }, height: 40 })).toBe(552)
+  })
+
+  it('보이는 부분이 줄보다 낮으면 위에 붙인다(화면 밖으로 나가지 않는다)', () => {
+    expect(noticeTop({ view: { top: 100, bottom: 130 }, field: { top: 0, bottom: 0 }, height: 60 })).toBe(108)
+  })
+
+  it('그린 줄이 그 자리에 선다 — 팝업 안 칸', async () => {
+    const user = userEvent.setup()
+    const rect = (top: number, bottom: number) => ({ top, bottom, left: 0, right: 300, width: 300, height: bottom - top, x: 0, y: top, toJSON: () => ({}) }) as DOMRect
+    render(
+      <div role="dialog" aria-label="수정">
+        <div className="modal-head">
+          <h3>수정</h3>
+        </div>
+        <NumberInput value="" onChange={() => {}} aria-label="보유수량" />
+      </div>,
+    )
+    const dialog = screen.getByRole('dialog')
+    dialog.getBoundingClientRect = () => rect(20, 780)
+    dialog.querySelector('.modal-head')!.getBoundingClientRect = () => rect(20, 76)
+    const input = screen.getByLabelText('보유수량')
+    input.getBoundingClientRect = () => rect(400, 444)
+    await user.type(input, '-')
+    await act(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())))
+    const notice = document.querySelector<HTMLElement>('.num-notice')!
+    expect(notice.style.top).toBe('84px')
+    expect(notice.style.visibility).toBe('')
   })
 })
