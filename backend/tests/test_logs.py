@@ -160,3 +160,49 @@ def test_unwritable_log_dir_does_not_stop_the_app(tmp_path, monkeypatch, fresh_l
     monkeypatch.setattr(logging_setup, "LOG_FILE", blocked / "logs" / "app.log")
 
     assert logging_setup.setup_logging() is None
+
+
+@pytest.fixture()
+def server_zone(monkeypatch):
+    """서버 시간대를 바꾼다 — `astimezone()` 은 프로세스의 TZ 를 따른다(리눅스)."""
+    import time
+
+    def use(zone: str) -> None:
+        monkeypatch.setenv("TZ", zone)
+        time.tzset()
+
+    yield use
+    monkeypatch.delenv("TZ", raising=False)
+    time.tzset()
+
+
+@pytest.mark.parametrize(
+    "zone, expected",
+    [
+        ("UTC", "2026-09-17T03:00:04+00:00"),  # 도커 기본
+        ("Asia/Seoul", "2026-09-17T03:00:04+09:00"),  # PC
+    ],
+)
+def test_each_line_carries_the_server_zone(client, server_zone, zone, expected):
+    """로그 글자는 서버 현지 시각이라 시간대가 없다 — 화면이 다른 줄(보는 사람의 시간대)과 맞추게 줄마다 붙인다 (0.45.2 B5).
+
+    글자(`time`)는 그대로 둔다 — 옛 화면이 그것을 보인다."""
+    server_zone(zone)
+    entry = client.get("/api/logs?level=all").json()["entries"][0]
+    assert entry["time"] == "2026-09-17 03:00:04"
+    assert entry["at"] == expected
+
+
+def test_each_line_uses_its_own_days_rule(client, server_zone, tmp_path, monkeypatch):
+    """서머타임이 있는 시간대에서 응답 하나에 오프셋 하나면 옛 줄이 한 시간 어긋난다 — 줄마다 그날의 규칙 (계획 검토)."""
+    server_zone("Europe/Berlin")
+    log_file = tmp_path / "dst.log"
+    log_file.write_text(
+        "2026-01-10 08:00:00 WARNING app.x: 겨울\n2026-07-10 08:00:00 WARNING app.x: 여름\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(logs, "LOG_FILE", log_file)
+    entries = client.get("/api/logs").json()["entries"]
+    assert {e["message"]: e["at"] for e in entries} == {
+        "겨울": "2026-01-10T08:00:00+01:00",
+        "여름": "2026-07-10T08:00:00+02:00",
+    }

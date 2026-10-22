@@ -626,6 +626,8 @@ export interface LogEntry {
   level: string
   logger: string
   message: string
+  /** 같은 시각에 서버 시간대를 붙인 ISO (0.45.2) — 옛 서버는 없다 */
+  at?: string | null
 }
 
 export interface LogsResponse {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { backupWarnings } from '../lib/backupWarnings'
+import { parseInstant, whenText } from '../lib/diagTime'
 import { useBackToClose } from '../lib/backToClose'
 import { ErrorNotice } from './ErrorNotice'
 import type { BackupStatus, LogsResponse, RecordsStatus, SignalRulesStatus, SlowRequestsResponse } from '../types'
@@ -70,9 +71,15 @@ function secondsText(ms: number): string {
   return `${(ms / 1000).toFixed(1)}초`
 }
 
-/** "2026-09-28T10:12:03" → "09-28 10:12" — 날짜와 분까지면 된다 */
-function shortTime(iso: string | null): string {
+/**
+ * 시간대가 붙은 시각은 보는 사람의 시간대로 다른 줄과 같은 꼴("10월 22일 09:30", 0.45.2 B5).
+ * 붙지 않았으면(옛 서버의 느린 요청 — 서버 현지) 어느 시간대인지 몰라 지금처럼 숫자만 "09-28 10:12".
+ * `naive` — 시간대가 없을 때 무엇으로 읽나(다시 계산은 UTC 로 남긴다)
+ */
+function shortTime(iso: string | null, naive: 'utc' | null = null): string {
   if (!iso) return ''
+  const ms = parseInstant(iso, naive)
+  if (ms !== null) return whenText(ms)
   const m = iso.match(/^\d{4}-(\d{2}-\d{2})T(\d{2}:\d{2})/)
   return m ? `${m[1]} ${m[2]}` : iso
 }
@@ -138,7 +145,7 @@ function SignalRulesLine({ status }: { status: SignalRulesStatus }) {
       {!status.up_to_date && <p className="hint">지난 판정을 아직 새 기준으로 다시 계산하지 않았습니다 — 다음에 켤 때 합니다.</p>}
       {last ? (
         <p className="hint">
-          마지막 다시 계산 {shortTime(last.at)} ({RECOMPUTE_REASON[last.reason] ?? last.reason}) — {last.tickers}종목 중{' '}
+          마지막 다시 계산 {shortTime(last.at, 'utc')} ({RECOMPUTE_REASON[last.reason] ?? last.reason}) — {last.tickers}종목 중{' '}
           {last.changed_tickers}종목, 판정이 바뀐 날 {last.changed_rows}개 · {last.seconds}초
           {last.failed.length > 0 && ` · 실패: ${last.failed.join(', ')}`}
         </p>
@@ -159,9 +166,10 @@ function bytes(n: number): string {
   return `${(n / 1024 / 1024).toFixed(1)}MB`
 }
 
-/** 보는 사람의 시간대로 "10월 16일 08:30" */
+/** 보는 사람의 시간대로 "10월 16일 08:30" — 백업 시각은 서버가 시간대를 붙여 보낸다 */
 function when(iso: string): string {
-  return new Date(iso).toLocaleString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })
+  const ms = parseInstant(iso, 'utc')
+  return ms === null ? iso : whenText(ms)
 }
 
 /**
@@ -340,7 +348,10 @@ export function DiagnosticsModal({ onClose }: { onClose: () => void }) {
               <span className={`badge ${LEVEL_CLASS[entry.level] ?? 'badge-grey'}`}>
                 {entry.level}
               </span>
-              <span className="mono hint diag-time">{entry.time}</span>
+              {/* 서버가 시간대를 붙여 주면 다른 줄과 같은 꼴·같은 시간대로, 옛 서버면 글자 그대로 (0.45.2 B5) */}
+              <span className="mono hint diag-time" title={entry.time}>
+                {entry.at && parseInstant(entry.at) !== null ? whenText(parseInstant(entry.at)!, { seconds: true }) : entry.time}
+              </span>
               <div className="diag-text">
                 <span className="hint">{entry.logger}</span>
                 <pre>{entry.message}</pre>

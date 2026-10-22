@@ -65,7 +65,9 @@ class SlowStat:
 
 _lock = threading.Lock()
 _stats: dict[tuple[str, str], SlowStat] = {}
-_started_at = dt.datetime.now()
+# 서버 시간대를 붙여 둔다 — 붙이지 않으면 화면이 보는 사람의 시간대로 읽어 도커(UTC)에서 9시간 어긋났다(0.45.2 B5).
+# 옛 화면은 앞의 숫자만 읽어 지금과 같게 보인다
+_started_at = dt.datetime.now().astimezone()
 
 
 def record(method: str, route: str, status: int, elapsed_ms: int) -> None:
@@ -76,7 +78,7 @@ def record(method: str, route: str, status: int, elapsed_ms: int) -> None:
         stat.max_ms = max(stat.max_ms, elapsed_ms)
         stat.last_ms = elapsed_ms
         stat.last_status = status
-        stat.last_at = dt.datetime.now()
+        stat.last_at = dt.datetime.now().astimezone()
 
 
 def snapshot() -> tuple[dt.datetime, list[SlowStat]]:

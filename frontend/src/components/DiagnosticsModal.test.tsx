@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../api/client'
 import type { BackupStatus, LogsResponse, RecordsStatus, SignalRulesStatus, SlowRequestsResponse } from '../types'
 import { BackupLines, DiagnosticsModal, RecordsLine, summarize } from './DiagnosticsModal'
+import { whenText } from '../lib/diagTime'
 
 /**
  * 이 화면은 "문제가 났을 때 여는 곳"이다. 그래서 확인할 것은 예쁘냐가 아니라
@@ -221,6 +222,8 @@ describe('진단 · 시그널 기준 (0.41.0)', () => {
     const section = (await screen.findByRole('heading', { name: /시그널 기준/ })).closest('section')!
     expect(section).toHaveTextContent('2026-10-14에 바뀜')
     expect(section).toHaveTextContent('(정의가 바뀌어서) — 12종목 중 3종목, 판정이 바뀐 날 41개 · 1.4초')
+    // 다시 계산 시각은 시간대 없는 UTC — 보는 사람의 시간대로 (0.45.2 B5, 전에는 UTC 숫자를 그대로 보여 9시간 어긋났다)
+    expect(section).toHaveTextContent(`마지막 다시 계산 ${whenText(Date.UTC(2026, 9, 14, 3, 0))} (`)
   })
 
   it('아직 못 맞췄거나 실패한 종목이 있으면 그렇다고', async () => {
@@ -444,5 +447,38 @@ describe('진단의 백업 줄 — 밖에 꺼낸 것 (0.45.0 A)', () => {
   it('옛 서버(칸 없음)면 그 줄이 없다', () => {
     render(<BackupLines backup={backup(undefined)} now={NOW} />)
     expect(screen.queryByText(/밖에 꺼낸/)).toBeNull()
+  })
+})
+
+describe('한 창 안의 시각 (0.45.2 B5)', () => {
+  it('로그 줄은 서버가 붙인 시간대로 바꿔 다른 줄과 같은 꼴(초까지), 옛 서버면 글자 그대로', async () => {
+    const base = logs()
+    const spy = vi.spyOn(api, 'getLogs').mockResolvedValue({
+      ...base,
+      entries: [{ ...base.entries[0], at: '2026-09-17T03:00:03+00:00' }, base.entries[1]],
+    })
+    const { unmount } = render(<DiagnosticsModal onClose={() => {}} />)
+    await screen.findByText(/시세가 비었습니다/)
+    const times = () => Array.from(document.querySelectorAll('.diag-time')).map((el) => el.textContent)
+    expect(times()).toEqual([whenText(Date.UTC(2026, 8, 17, 3, 0, 3), { seconds: true }), '2026-09-17 03:00:02'])
+    unmount()
+
+    spy.mockResolvedValue(logs())
+    render(<DiagnosticsModal onClose={() => {}} />)
+    await screen.findByText(/시세가 비었습니다/)
+    expect(times()).toEqual(['2026-09-17 03:00:03', '2026-09-17 03:00:02'])
+  })
+
+  it('느린 요청에 시간대가 붙어 오면 보는 사람의 시간대로', async () => {
+    vi.spyOn(api, 'getLogs').mockResolvedValue(logs())
+    vi.spyOn(api, 'getSlowRequests').mockResolvedValue({
+      threshold_ms: 1000,
+      since: '2026-09-28T00:00:00Z',
+      items: [{ method: 'GET', route: '/api/dashboard', count: 1, max_ms: 1450, last_ms: 1450, last_status: 200, last_at: '2026-09-28T09:30:00+09:00' }],
+    })
+    render(<DiagnosticsModal onClose={() => {}} />)
+    const section = await screen.findByRole('region', { name: /느린 요청/ })
+    expect(section).toHaveTextContent(`서버를 켠 ${whenText(Date.UTC(2026, 8, 28, 0, 0))} 뒤로`)
+    expect(section).toHaveTextContent(`(${whenText(Date.UTC(2026, 8, 28, 0, 30))})`)
   })
 })

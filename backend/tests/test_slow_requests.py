@@ -156,3 +156,13 @@ def test_threshold_from_environment(monkeypatch, raw, expected):
     else:
         monkeypatch.setenv("SIGNAL_DASHBOARD_SLOW_MS", raw)
     assert slow_requests.threshold_ms() == expected
+
+
+def test_times_carry_the_server_zone(api, everything_is_slow):
+    """시간대 없이 내면 화면이 보는 사람의 시간대로 읽어 도커(UTC)에서 9시간 어긋났다 (0.45.2 B5).
+    앞의 숫자는 그대로라 옛 화면(앞 16글자만 읽는다)은 지금과 같게 보인다."""
+    client, _ = api
+    client.get("/api/history/VOO", params={"range": "1y"})
+    since, items = slow_requests.snapshot()
+    assert since.tzinfo is not None
+    assert items and items[0].last_at is not None and items[0].last_at.tzinfo is not None
