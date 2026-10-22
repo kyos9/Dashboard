@@ -325,6 +325,8 @@ describe('받을 때 · 종목별 알림 (0.45.0)', () => {
     const box = summary.closest('details') as HTMLDetailsElement
     await userEvent.click(within(box).getByRole('button', { name: '모두 다시 받기' }))
     expect(save).toHaveBeenCalledWith({ muted: [] })
+    // 단추가 사라져도 포커스는 칸 제목에
+    expect(document.activeElement).toBe(summary.closest('summary'))
     await waitFor(() => expect(within(box).getByRole('checkbox', { name: 'SCHD' })).toBeChecked())
     expect(within(box).queryByRole('button', { name: '모두 다시 받기' })).toBeNull()
   })
@@ -348,6 +350,13 @@ describe('받을 때 · 종목별 알림 (0.45.0)', () => {
     cleanup()
 
     list.mockRejectedValue(new Error('network'))
+    renderModal()
+    await screen.findByText('받을 때')
+    expect(screen.queryByText(line)).toBeNull()
+    cleanup()
+
+    // 비활성 종목만 담은 사람에게도 없다
+    list.mockResolvedValue([stock('OLD', null, false)])
     renderModal()
     await screen.findByText('받을 때')
     expect(screen.queryByText(line)).toBeNull()

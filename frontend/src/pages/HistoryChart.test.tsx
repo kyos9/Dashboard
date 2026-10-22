@@ -139,6 +139,18 @@ describe('주소의 종목 (0.45.1 B2)', () => {
     expect(history).not.toHaveBeenCalled()
   })
 
+  it('종목 목록을 못 받아도 주소의 종목 차트는 전처럼 연다 — 오류 줄과 함께', async () => {
+    vi.spyOn(api, 'listStocks').mockRejectedValue(new Error('목록 실패'))
+    const history = vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
+
+    renderChart('/history?ticker=005930.KS')
+    await waitFor(() => expect(history).toHaveBeenCalledWith('005930.KS', '1y'))
+    await waitFor(() => expect(series.setData).toHaveBeenCalled())
+    expect(screen.getByText(/목록 실패/)).toBeInTheDocument()
+    expect(screen.queryByText(/담은 종목에 없습니다/)).toBeNull()
+    expect(screen.queryByText(/차트로 볼 종목이 없습니다/)).toBeNull()
+  })
+
   it('소문자·이름 주소는 담은 종목의 티커로, 비활성 종목은 지금처럼 차트를 연다', async () => {
     const hidden = { ...stock('TSLA', '테슬라'), active: false }
     vi.spyOn(api, 'listStocks').mockResolvedValue([stock('005930.KS', '삼성전자'), hidden])

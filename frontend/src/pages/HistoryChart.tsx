@@ -17,6 +17,8 @@ export function HistoryChart() {
   const [range, setRange] = useState<Range>('1y')
   const [history, setHistory] = useState<HistoryResponse | null>(null)
   const [error, setError] = useState<unknown>(null)
+  const [listError, setListError] = useState<unknown>(null)
+  const [listFailed, setListFailed] = useState(false)
   const [loading, setLoading] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
 
@@ -45,12 +47,17 @@ export function HistoryChart() {
         const same = asked && list.find((s) => s.ticker.toUpperCase() === asked.toUpperCase() || s.name === asked)
         if (same && same.ticker !== asked) setSearchParams({ ticker: same.ticker }, { replace: true })
       })
-      .catch(setError)
+      .catch((e: unknown) => {
+        // 목록을 못 받아도 주소의 종목 차트는 전처럼 연다 — 기다리기만 하면 "매수 0일"·"저장된 시세 없음"이 남았다(BCD 검토)
+        setListError(e)
+        setListFailed(true)
+      })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey])
 
-  // 목록을 받은 뒤에 부른다 — 먼저 부르면 없는 티커 주소가 404 를 한 번 내고 콘솔 오류로 남았다(0.45.1 B2 브라우저 확인)
-  const listed = all !== null
+  // 목록을 받은 뒤에 부른다 — 먼저 부르면 없는 티커 주소가 404 를 한 번 내고 콘솔 오류로 남았다(0.45.1 B2 브라우저 확인).
+  // 목록을 못 받았으면 대조 없이 부른다
+  const listed = all !== null || listFailed
   useEffect(() => {
     if (!shownTicker || !listed || unknown) return
     setError(null)
@@ -62,7 +69,7 @@ export function HistoryChart() {
       .finally(() => setLoading(false))
   }, [shownTicker, range, refreshKey, reloadKey, listed, unknown])
 
-  if (all !== null && stocks.length === 0 && !error) {
+  if (all !== null && stocks.length === 0 && !error && !listError) {
     return (
       <NoStocksYet title="차트로 볼 종목이 없습니다" shows="종목별 차트가" />
     )
@@ -108,11 +115,12 @@ export function HistoryChart() {
       </div>
 
       {unknown ? (
-        <p className="hint chart-caption" role="note">
+        <p className="hint chart-caption history-unknown" role="note">
           ‘{ticker}’ 은 담은 종목에 없습니다 — 위에서 종목을 고르세요.
         </p>
       ) : (
         <>
+      <ErrorNotice error={listError} onDismiss={() => setListError(null)} />
       <ErrorNotice error={error} onDismiss={() => setError(null)} />
 
       {current && (
@@ -121,8 +129,9 @@ export function HistoryChart() {
         </p>
       )}
       <PriceChart history={history} />
-      <ChartLegend history={history} loading={loading} />
-      {ticker && (
+      {/* 목록을 기다리는 동안은 "불러오는 중" — 빈 범례("매수 0일")가 잠깐 보였다 */}
+      <ChartLegend history={history} loading={loading || !listed} />
+      {ticker && listed && (
         <ChartCoverage
           ticker={shownTicker}
           history={history}

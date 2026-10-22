@@ -45,6 +45,7 @@ export function PushModal({ account, onClose }: { account: string; onClose: () =
   const [error, setError] = useState<unknown>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [stocks, setStocks] = useState<Stock[] | null>(null)
+  const [hasAny, setHasAny] = useState(false)
 
   const reload = useCallback(async () => {
     const [nextState, nextSettings] = await load(account)
@@ -71,7 +72,12 @@ export function PushModal({ account, onClose }: { account: string; onClose: () =
     let cancelled = false
     api
       .listStocks()
-      .then((list) => !cancelled && setStocks(list.filter((s) => s.active)))
+      .then((list) => {
+        if (cancelled) return
+        setStocks(list.filter((s) => s.active))
+        // 비활성 종목만 담은 사람도 "종목을 담으면…"의 사람이 아니다(BCD 검토)
+        setHasAny(list.length > 0)
+      })
       // 못 받으면 null 그대로 — 0개로 두면 종목이 있는 사람에게 "종목을 담으면…"이 떴다(계획 검토)
       .catch(() => {})
     return () => {
@@ -277,7 +283,15 @@ export function PushModal({ account, onClose }: { account: string; onClose: () =
             </summary>
             {/* 모두 다시 받기 — 보이는 목록에서 끈 것이 있을 때만. 서버에는 [] 를 보내 숨긴 종목의 것까지 비운다(0.45.1 D1) */}
             {stocks.some((s) => settings.muted!.includes(s.ticker)) && (
-              <button type="button" className="push-unmute-all" onClick={() => void savePrefs({ muted: [] })}>
+              <button
+                type="button"
+                className="push-unmute-all"
+                onClick={(e) => {
+                  // 누르면 단추가 사라진다 — 포커스가 문서 맨 앞으로 빠지지 않게 칸 제목으로
+                  e.currentTarget.closest('details')?.querySelector('summary')?.focus()
+                  void savePrefs({ muted: [] })
+                }}
+              >
                 모두 다시 받기
               </button>
             )}
@@ -301,7 +315,7 @@ export function PushModal({ account, onClose }: { account: string; onClose: () =
           </details>
         )}
         {/* 처음 온 사람(종목 0개)에게도 이 기능이 있다는 것을 — 목록을 받았고 서버가 끈 종목을 아는(0.45 이후) 때만 (0.45.1 D2) */}
-        {settings?.muted && stocks && stocks.length === 0 && (
+        {settings?.muted && stocks && !hasAny && (
           <p className="hint push-stocks-empty">종목을 담으면 여기서 종목마다 알림을 끌 수 있습니다.</p>
         )}
 

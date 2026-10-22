@@ -2665,8 +2665,15 @@ table.data-table tr.dirty:hover td {
 
 /* ---------- 알림 설정 (PushModal) ---------- */
 
+/* 없는 티커 주소 한 줄 — 아주 긴 주소도 가로로 넘치지 않게 (BCD 검토 참고) */
+.history-unknown {
+  overflow-wrap: anywhere;
+}
+
 .push-modal {
   width: min(560px, 100%);
+  /* 키보드로 오가면 포커스 받은 칸이 위에 붙인 제목 줄 밑에 숨지 않게 (BCD 검토) */
+  scroll-padding-top: 72px;
 }
 
 /* 제목·✕ 는 늘 보이게 — 종목별 알림을 펼쳐 끝까지 내리면 ✕ 가 화면 밖이었다(360 은 종목 4개로도, 0.45 B 사용자 확인).
