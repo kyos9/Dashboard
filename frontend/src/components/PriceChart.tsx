@@ -153,6 +153,7 @@ export function PriceChart({ history, height = 440 }: Props) {
   // 차트 위라 ◀ 를 눌러도 엉뚱한 날이 남았다(BC 사용자 확인). 마지막 포인터가 손가락이면 누르고 있는 동안(길게 누른 채 밀기)만 받는다(마우스·펜은 늘)
   const pointing = useRef<{ type: string; down: boolean }>({ type: 'mouse', down: false })
   const hoverRef = useRef<Day | null>(null)
+  const pickedRef = useRef<Day | null>(null)
   // 사람이 밀거나 키워 보이는 구간을 바꿨나 — "전체 보기" (C3). 구간 이벤트는 데이터·창 크기에도 와서 쓰지 않는다(계획 검토)
   // 어느 데이터에서 밀었나 — 데이터가 바뀌면(종목·기간, 처음처럼 전체로 맞춘다) 저절로 내려간다
   const [movedOn, setMovedOn] = useState<HistoryResponse | null>(null)
@@ -172,6 +173,28 @@ export function PriceChart({ history, height = 440 }: Props) {
     }
     chart.subscribeCrosshairMove(onMove)
     return () => chart.unsubscribeCrosshairMove(onMove)
+  }, [handles, history])
+
+  /* 보이는 구간이 바뀌면(밀기·키우기·전체 보기) 라이브러리는 십자선을 화면의 같은 자리에 둔다 — 그 자리는 이제 다른 날이라, 읽기 줄은 고른 날인데
+     십자선·날짜 이름표는 딴 날이었다(C 사용자 다시 보기). 가리키는 중(마우스가 차트 위)이 아니면 고른 날로 다시 놓는다 */
+  useEffect(() => {
+    if (!handles) return
+    const { chart, series } = handles
+    const scale = chart.timeScale()
+    let frame = 0
+    const onRange = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        const day = pickedRef.current
+        if (!day || day.of !== history || hoverRef.current) return
+        chart.setCrosshairPosition(day.close, day.date as Time, series)
+      })
+    }
+    scale.subscribeVisibleLogicalRangeChange?.(onRange)
+    return () => {
+      cancelAnimationFrame(frame)
+      scale.unsubscribeVisibleLogicalRangeChange?.(onRange)
+    }
   }, [handles, history])
 
   // 마지막 포인터의 종류 — 창 전체에서 (◀ 단추를 누른 손가락도)
@@ -203,7 +226,8 @@ export function PriceChart({ history, height = 440 }: Props) {
     const day = prices?.[index]
     if (!handles || !day) return
     handles.chart.setCrosshairPosition(day.close, day.date as Time, handles.series)
-    setPicked({ date: day.date, close: day.close, of: history })
+    pickedRef.current = { date: day.date, close: day.close, of: history }
+    setPicked(pickedRef.current)
     // 누른 것이 가리키는 것보다 앞선다 — 남아 있던 가리킴(손가락 기기의 흉내 마우스 등)이 탭을 덮지 않게
     hoverRef.current = null
     setHover(null)
@@ -311,7 +335,9 @@ export function PriceChart({ history, height = 440 }: Props) {
             <span className="mono">{shown.date}</span> · 종가{' '}
             <span className="mono">{chartPrice(shown.close, currencyOfTicker(history.ticker))}</span>
             {/* 고른 뒤에도 같은 길이의 풀이를 둔다 — 풀이가 빠지면 폰에서 두 줄이 한 줄이 되어 단추·차트가 20px 뛰었다(검토·사용자 확인) */}
-            <span className="hint">{current ? ' (▶ 나 오른쪽 끝을 누르면 마지막 날)' : ' (마지막 날 — 차트를 누르면 그 날)'}</span>
+            <span className="hint">
+              {current && current.date !== last?.date ? ' (▶ 나 오른쪽 끝을 누르면 마지막 날)' : ' (마지막 날 — 차트를 누르면 그 날)'}
+            </span>
           </p>
           {/* 1년 보기에서 1px 이 하루쯤이라 바로 옆 거래일을 손가락으로 짚기 어려웠다 (0.45.2 C2). 끝에서는 꺼 두되 포커스는 남긴다(aria-disabled) */}
           <div className="chart-tools">

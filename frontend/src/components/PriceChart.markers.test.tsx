@@ -27,7 +27,14 @@ const chart = {
   timeScale: () => scale,
 }
 // 그림 칸 폭 300, 날짜 축 높이 30 — x 100px 마다 하루(0 → 첫날)
-const scale = { fitContent: vi.fn(), width: () => 300, height: () => 30, coordinateToLogical: (x: number) => x / 100 }
+const scale = {
+  fitContent: vi.fn(),
+  width: () => 300,
+  height: () => 30,
+  coordinateToLogical: (x: number) => x / 100,
+  subscribeVisibleLogicalRangeChange: vi.fn(),
+  unsubscribeVisibleLogicalRangeChange: vi.fn(),
+}
 
 const created: unknown[] = []
 vi.mock('lightweight-charts', () => ({
@@ -335,6 +342,34 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
     expect(clear).toHaveBeenCalled()
   })
 
+  it('보이는 구간이 바뀌면(밀기·키우기·전체 보기) 십자선을 고른 날에 다시 놓는다 — 화면의 같은 자리에 남아 딴 날을 가리켰다 (C 사용자 다시 보기)', async () => {
+    const { act } = await import('@testing-library/react')
+    const { canvas } = shown()
+    await tap(canvas, 100)
+    const onRange = (scale.subscribeVisibleLogicalRangeChange.mock.lastCall as [() => void])[0]
+    const frame = () => act(() => new Promise<void>((r) => requestAnimationFrame(() => r())))
+    chart.setCrosshairPosition.mockClear()
+    act(() => onRange())
+    await frame()
+    expect(chart.setCrosshairPosition).toHaveBeenLastCalledWith(101, '2026-09-15', series)
+
+    // 마우스가 차트 위에서 가리키는 중이면 라이브러리에 맡긴다
+    act(() => {
+      pointer(canvas, 'pointermove', { x: 0, y: 100, t: 9000, kind: 'mouse' })
+      handler(chart.subscribeCrosshairMove)(at('2026-09-16', 102))
+    })
+    chart.setCrosshairPosition.mockClear()
+    act(() => onRange())
+    await frame()
+    expect(chart.setCrosshairPosition).not.toHaveBeenCalled()
+  })
+
+  it('마지막 날을 고르면 풀이도 "마지막 날"', async () => {
+    const { canvas, line } = shown()
+    await tap(canvas, 290)
+    expect(line()).toHaveTextContent('(마지막 날 — 차트를 누르면 그 날)')
+  })
+
   it('마우스 왼쪽 클릭도 같은 길', async () => {
     const { canvas, line } = shown()
     await tap(canvas, 100, 100, 0, { kind: 'mouse' })
@@ -513,6 +548,7 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
     const second = shown()
     second.unmount()
     expect(onWindow.mock.calls.map(([type]) => type)).toEqual(expect.arrayContaining(['pointerdown', 'pointermove', 'pointerup', 'pointercancel']))
+    expect(scale.unsubscribeVisibleLogicalRangeChange).toHaveBeenCalled()
     // 손가락 종류를 보는 창 듣기(capture)도 다 푼다 — 붙인 만큼
     const added = vi.spyOn(window, 'addEventListener')
     const third = shown()

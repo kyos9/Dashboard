@@ -102,3 +102,11 @@
 | F1 창 pointerdown·move 듣기 안 풂 | `frontend/src/components/PriceChart.tsx` | 잡힘 |
 | F2 마우스 움직임에 돌아가지 않음 | `frontend/src/components/PriceChart.tsx` | 잡힘 |
 | F4 마우스 끌기 뒤에도 가리킨 날 고름 | `frontend/src/components/PriceChart.tsx` | 잡힘 |
+
+## C 사용자 다시 보기 뒤 (전체 보기 뒤 십자선)
+
+| 뮤테이션 | 파일 | 결과 |
+| --- | --- | --- |
+| C 구간 바뀌어도 십자선 안 다시 놓음 | `frontend/src/components/PriceChart.tsx` | 잡힘 |
+| C 가리키는 중에도 다시 놓음 | `frontend/src/components/PriceChart.tsx` | 잡힘 |
+| C 마지막 날 골라도 ▶ 풀이 | `frontend/src/components/PriceChart.tsx` | 잡힘 |
