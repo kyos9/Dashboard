@@ -142,7 +142,8 @@ export function NumberInput({
       className={className ? `num-input ${className}` : 'num-input'}
       type="text"
       // 모바일에서 숫자 키패드가 뜨게 한다 (type=number 없이도)
-      inputMode={allowDecimal ? 'decimal' : 'numeric'}
+      // 음수 칸은 글자 키보드 — 아이폰의 decimal·numeric 키패드에는 빼기 키가 없어 −0.2 를 칠 수 없다(0.45.1 A 사용자 확인)
+      inputMode={allowNegative ? 'text' : allowDecimal ? 'decimal' : 'numeric'}
       autoComplete="off"
       value={formatNumeric(value)}
       onChange={handleChange}

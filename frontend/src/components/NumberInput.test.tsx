@@ -59,6 +59,11 @@ describe('숫자 입력칸', () => {
     expect(input).toHaveAttribute('inputmode', 'decimal')
   })
 
+  it('음수 칸은 빼기를 칠 수 있는 글자 키보드 — 아이폰 숫자 키패드에는 빼기 키가 없다', () => {
+    render(<NumberInput value="" onChange={() => {}} allowNegative inputMode="decimal" aria-label="예상치" />)
+    expect(screen.getByLabelText('예상치')).toHaveAttribute('inputmode', 'text')
+  })
+
   it('정수만 받는 칸은 숫자 키패드를 쓴다', () => {
     render(<Harness allowDecimal={false} />)
     expect(screen.getByLabelText('금액')).toHaveAttribute('inputmode', 'numeric')
