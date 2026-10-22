@@ -14,7 +14,16 @@
 
 ## 지금 상태 (잰 값)
 
-(시작 수치 재는 중)
+| | 값 |
+| --- | --- |
+| 버전 | 0.45.1 |
+| Alembic 머리 | 0015 |
+| 백엔드 pytest | 1487 passed, 3 skipped |
+| 프런트 vitest | 972 passed |
+| lint 경고 | 22 |
+| tsc(`npm run build`) | 통과 |
+| 첫 화면 JS (gzip) | 112.42 kB |
+| 대시보드 응답·쿼리(20종목) | 가운데 40.1 ms · 쿼리 12 |
 
 기준 두 가지(저장소 밖): `scratchpad/r047/baseline/` — `openapi.json`, `snap/`, 테스트 출력.
 
