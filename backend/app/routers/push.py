@@ -112,7 +112,8 @@ def put_settings(
             if strangers:
                 raise HTTPException(
                     status_code=400,
-                    detail={"hint": "내 목록에 없는 종목입니다.", "message": f"not in my list: {strangers[:5]}"},
+                    # 받은 글자는 돌려주지 않는다 — 항목 길이에 한도가 없어 아주 긴 글자가 답에 그대로 실렸다(0.45.0 끝 검토). 몇 개인지만
+                    detail={"hint": "내 목록에 없는 종목입니다.", "message": f"not in my list: {len(strangers)}"},
                 )
             prefs["muted"] = sorted(set(payload.muted))
         # 기본(둘 다 받고 끈 것 없음)이면 비워 둔다 — 지금과 같은 것을 같은 모양(NULL)으로

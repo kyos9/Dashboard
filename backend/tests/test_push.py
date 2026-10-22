@@ -910,6 +910,12 @@ def test_api_slots_and_muted(api):
     ]:
         res = client.put("/api/push/settings", json=body)
         assert res.status_code == 400 and hint in res.json()["detail"]["hint"], body
+    # 내 목록에 없는 종목의 400 답은 받은 글자를 되돌려 주지 않는다 — 몇 개인지만 (0.45.1 D4)
+    long = "Z" * 10_000
+    res = client.put("/api/push/settings", json={"muted": [long, "TSLA"]})
+    assert res.status_code == 400
+    assert long not in res.text and "TSLA" not in res.text
+    assert res.json()["detail"]["message"] == "not in my list: 2"
     assert client.put("/api/push/settings", json={"quiet": {"start": "22:00"}}).status_code == 422
     assert client.put("/api/push/settings", json={"muted": ["X"] * 201}).status_code == 422
 

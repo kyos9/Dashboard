@@ -24,7 +24,7 @@ case "$1" in
     [ "$2" = "-T" ] || { echo "the input device is not a TTY" >&2; exit 1; }
     shift 3
     case "$1" in
-      sh) ls -1 "$FAKE_BACKUPS" ;;
+      sh) [ -z "${APP_DOWN:-}" ] || { echo 'service "app" is not running' >&2; exit 1; }; sh -c "$(printf '%s' "$3" | sed "s#/data/backups#$FAKE_BACKUPS#")" ;;
       stat) f="$FAKE_BACKUPS/$(basename "$4")"; [ -f "$f" ] || exit 1; if [ -n "${GROW:-}" ] && [ -f "$GROW" ]; then rm "$GROW"; echo 1; else wc -c < "$f" | tr -d ' '; fi ;;
       python) echo "밖에 꺼낸 시각을 남겼습니다." ;;
       *) exit 8 ;;
@@ -98,6 +98,30 @@ def test_export_without_a_daily_backup_fails(server):
     assert res.returncode == 1
     assert "매일 백업이 아직 없습니다" in res.stderr
     assert res.stdout == ""
+
+
+def test_export_says_the_app_is_down_instead_of_no_backup(server):
+    """앱 컨테이너가 꺼져 목록을 못 받으면 "매일 백업이 아직 없습니다"가 아니다 (0.45.1 C2)."""
+    (server.backups / "signalboard-20261019-233000.sql").write_text("there is one")
+
+    res = server("export", APP_DOWN="1")
+
+    assert res.returncode == 1
+    assert "서버 앱이 꺼져 있거나 응답하지 않습니다" in res.stderr
+    assert "매일 백업이 아직 없습니다" not in res.stderr
+    assert not server.export.exists() or not any(server.export.iterdir())
+    assert res.stdout == ""  # bat 은 stdout 마지막 줄을 "이름 크기"로 읽는다
+
+
+def test_export_without_the_backup_folder_yet_says_no_backup(server):
+    """앱은 켜졌는데 첫날이라 /data/backups 가 아직 없으면 "꺼짐"이 아니라 "아직 없습니다"."""
+    server.backups.rmdir()
+
+    res = server("export")
+
+    assert res.returncode == 1
+    assert "매일 백업이 아직 없습니다" in res.stderr
+    assert "꺼져 있거나" not in res.stderr
 
 
 def test_export_waits_out_a_backup_being_written(server, tmp_path):

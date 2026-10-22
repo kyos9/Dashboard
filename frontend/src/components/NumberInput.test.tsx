@@ -3,6 +3,7 @@ import { useState } from 'react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { formatNumeric, NumberInput, parseNumeric } from './NumberInput'
+import { droppedKinds, droppedText } from '../lib/numberDropped'
 
 describe('천 단위 표기', () => {
   it('세 자리마다 콤마를 넣는다', () => {
@@ -56,6 +57,11 @@ describe('숫자 입력칸', () => {
     expect(input).toHaveAttribute('type', 'text')
     // 모바일에서는 숫자 키패드가 떠야 한다
     expect(input).toHaveAttribute('inputmode', 'decimal')
+  })
+
+  it('음수 칸은 빼기를 칠 수 있는 글자 키보드 — 아이폰 숫자 키패드에는 빼기 키가 없다', () => {
+    render(<NumberInput value="" onChange={() => {}} allowNegative inputMode="decimal" aria-label="예상치" />)
+    expect(screen.getByLabelText('예상치')).toHaveAttribute('inputmode', 'text')
   })
 
   it('정수만 받는 칸은 숫자 키패드를 쓴다', () => {
@@ -166,5 +172,178 @@ describe('음수', () => {
     // 0이면 커서가 빼기표 **앞**이라는 뜻이고, 그러면 다음 글자가 "0-" 을 만든다.
     // 그건 음수로 안 읽혀 빼기표가 조용히 사라진다 (브라우저에서 −0.2 -> 0.2).
     expect(input.selectionStart).toBe(1)
+  })
+})
+
+/** 화면 읽기 자리(늘 붙어 있다)와 보이는 줄 */
+const live = () => document.querySelector('[data-num-live]')
+const line = () => document.querySelector('.num-notice')
+
+describe('버린 것을 말하기 (0.45.1 A)', () => {
+  it('값이 달라지게 버린 것만 고른다', () => {
+    expect(droppedKinds('', true)).toEqual([])
+    expect(droppedKinds('-3', true)).toEqual(['minus'])
+    expect(droppedKinds('−3', true)).toEqual(['minus'])
+    expect(droppedKinds('7.5', false)).toEqual(['decimal'])
+    expect(droppedKinds('7.5', true)).toEqual([])
+    // 소수 칸의 두 번째 소수점은 오타 — 지금처럼 말없이
+    expect(droppedKinds('1.2.3', true)).toEqual([])
+    // 붙여넣기 대비로 버리는 글자는 말하지 않는다
+    expect(droppedKinds('1,234원', false)).toEqual([])
+    expect(droppedKinds(' 5.5 %', true)).toEqual([])
+    expect(droppedKinds('100만', false)).toEqual(['unit'])
+    expect(droppedKinds('5천', false)).toEqual(['unit'])
+    expect(droppedKinds('1.5억', false)).toEqual(['decimal', 'unit'])
+    expect(droppedKinds('-1,234.5', false)).toEqual(['minus', 'decimal'])
+  })
+
+  it('음수 칸은 맨 앞이 아닌 빼기만 말한다', () => {
+    expect(droppedKinds('-0.2', true, true)).toEqual([])
+    expect(droppedKinds('−0.2', true, true)).toEqual([])
+    expect(droppedKinds('-', true, true)).toEqual([])
+    expect(droppedKinds('0.2-', true, true)).toEqual(['minusMiddle'])
+    // 붙여넣은 − 도 같은 판정
+    expect(droppedKinds('0.2−', true, true)).toEqual(['minusMiddle'])
+    expect(droppedKinds('1-2', true, true)).toEqual(['minusMiddle'])
+  })
+
+  it('음수 칸에서 붙여넣은 −(U+2212)를 빼기로 읽는다 — 버리면 −0.2 가 0.2 로 저장됐다', () => {
+    expect(parseNumeric('−0.2', true, true)).toBe('-0.2')
+    // 음수를 받지 않는 칸은 지금처럼 버린다(그리고 말한다)
+    expect(parseNumeric('−3', true)).toBe('3')
+  })
+
+  it('줄에는 칸 이름·버린 것·지금 값이 있다', () => {
+    expect(droppedText('VOO 밴드 임계값', ['minus'], '3')).toBe('VOO 밴드 임계값 — 빼기(−)는 넣을 수 없습니다 · 지금 값 3')
+    expect(droppedText(undefined, ['decimal'], '75')).toBe('소수점은 넣을 수 없어 숫자만 이어 붙였습니다 · 지금 값 75')
+    expect(droppedText('금액', ['unit'], '1,000,000')).toContain('지금 값 1,000,000')
+    expect(droppedText('금액', ['minus'], '')).toContain('지금 값 없음')
+  })
+
+  function Controlled(props: { allowDecimal?: boolean; allowNegative?: boolean; label?: string; onChange?: (v: string) => void }) {
+    const [value, setValue] = useState('')
+    return (
+      <>
+        <NumberInput
+          value={value}
+          onChange={(v) => {
+            setValue(v)
+            props.onChange?.(v)
+          }}
+          allowDecimal={props.allowDecimal}
+          allowNegative={props.allowNegative}
+          aria-label={props.label ?? '기간'}
+        />
+        <button>다른 곳</button>
+      </>
+    )
+  }
+
+  it('한 글자씩 "7.5" 를 치면 마지막 글자 뒤에도 줄이 남아 지금 값 75 를 말한다', async () => {
+    const onChange = vi.fn()
+    const user = userEvent.setup()
+    render(<Controlled allowDecimal={false} onChange={onChange} />)
+
+    await user.type(screen.getByLabelText('기간'), '7.5')
+
+    // 값은 지금과 같다 — 막지 않고 알린다
+    expect(onChange).toHaveBeenLastCalledWith('75')
+    expect(live()).toHaveTextContent('기간 — 소수점은 넣을 수 없어 숫자만 이어 붙였습니다 · 지금 값 75')
+  })
+
+  it('칸을 떠나면 줄이 사라진다', async () => {
+    const user = userEvent.setup()
+    render(<Controlled label="밴드" />)
+
+    await user.type(screen.getByLabelText('밴드'), '-3')
+    expect(live()).toHaveTextContent('밴드 — 빼기(−)는 넣을 수 없습니다 · 지금 값 3')
+
+    await user.click(screen.getByRole('button', { name: '다른 곳' }))
+    expect(line()).toBeNull()
+    expect(live()?.textContent ?? '').toBe('')
+  })
+
+  it('다시 치면 그때 버린 것으로 바뀌고, 다 지우면 줄이 사라진다', async () => {
+    const user = userEvent.setup()
+    render(<Controlled allowDecimal={false} label="금액" />)
+    const input = screen.getByLabelText('금액')
+
+    await user.type(input, '7.5')
+    await user.clear(input)
+    expect(line()).toBeNull()
+    expect(live()?.textContent ?? '').toBe('')
+
+    await user.type(input, '100만')
+    expect(live()).toHaveTextContent('금액 — ‘만·억·천’ 은 읽지 않습니다. 0 을 모두 쳐 주세요 · 지금 값 100')
+    expect(live()).not.toHaveTextContent('소수점')
+  })
+
+  it('이어 치다 다른 것을 버리면 줄이 그것으로 바뀐다 — 버린 것 없는 글자에는 그대로', async () => {
+    const user = userEvent.setup()
+    render(<Controlled allowDecimal={false} label="금액" />)
+    const input = screen.getByLabelText('금액')
+
+    await user.type(input, '-3')
+    expect(live()).toHaveTextContent('빼기(−)는 넣을 수 없습니다 · 지금 값 3')
+    await user.type(input, '5')
+    expect(live()).toHaveTextContent('빼기(−)는 넣을 수 없습니다 · 지금 값 35')
+    await user.type(input, '.')
+    expect(live()).toHaveTextContent('소수점은 넣을 수 없어 숫자만 이어 붙였습니다 · 지금 값 35')
+  })
+
+  it('음수 칸에 "0.2−" 를 붙여넣으면 맨 앞에만 쓸 수 있다고 말한다', async () => {
+    const user = userEvent.setup()
+    render(<Controlled allowNegative label="예상치" />)
+    await user.click(screen.getByLabelText('예상치'))
+    await user.paste('0.2−')
+    expect(live()).toHaveTextContent('예상치 — 빼기(−)는 맨 앞에만 쓸 수 있습니다 · 지금 값 0.2')
+  })
+
+  it('화면 읽기 자리는 칸이 생길 때부터 비어 있고, 보이는 줄은 두 번 읽히지 않게 숨긴다', async () => {
+    const user = userEvent.setup()
+    live()?.remove() // 앞 시험이 만든 자리를 치우고 — 이 칸이 그리면서 만드는지 본다
+    render(<Controlled label="밴드" />)
+    expect(live()).not.toBeNull()
+    expect(live()!.textContent).toBe('')
+    expect(live()).toHaveAttribute('aria-live', 'polite')
+    await user.type(screen.getByLabelText('밴드'), '-')
+    expect(line()).toHaveAttribute('aria-hidden', 'true')
+    // 화면의 다른 status(리밸런싱의 반영 줄 등)와 섞이지 않는다
+    expect(screen.queryByRole('status')).toBeNull()
+  })
+
+  it('받는 글자만 치면 줄이 없다', async () => {
+    const user = userEvent.setup()
+    render(<Controlled allowNegative label="예상치" />)
+
+    await user.type(screen.getByLabelText('예상치'), '-0.2')
+    expect(line()).toBeNull()
+    expect(live()?.textContent ?? '').toBe('')
+  })
+
+  it('label 로 이름을 단 칸은 그 이름을 쓴다', async () => {
+    const user = userEvent.setup()
+    render(
+      <>
+        <label htmlFor="n">N거래일</label>
+        <NumberInput id="n" value="" onChange={() => {}} allowDecimal={false} />
+      </>,
+    )
+    await user.type(screen.getByLabelText('N거래일'), '.')
+    expect(live()).toHaveTextContent(/^N거래일 — 소수점/)
+  })
+
+  it('부모가 준 onBlur 도 그대로 불린다', async () => {
+    const onBlur = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <>
+        <NumberInput value="" onChange={() => {}} onBlur={onBlur} aria-label="금액" />
+        <button>다른 곳</button>
+      </>,
+    )
+    await user.click(screen.getByLabelText('금액'))
+    await user.click(screen.getByRole('button'))
+    expect(onBlur).toHaveBeenCalledTimes(1)
   })
 })

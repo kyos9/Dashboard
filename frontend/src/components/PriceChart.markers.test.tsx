@@ -21,6 +21,8 @@ const chart = {
   unsubscribeCrosshairMove: vi.fn(),
   subscribeClick: vi.fn(),
   unsubscribeClick: vi.fn(),
+  subscribeDblClick: vi.fn(),
+  unsubscribeDblClick: vi.fn(),
   setCrosshairPosition: vi.fn(),
   timeScale: () => ({ fitContent: vi.fn() }),
 }
@@ -171,6 +173,15 @@ describe('차트 위 한 줄과 짧은 탭 (0.44.0 C1)', () => {
     expect(line).not.toHaveTextContent('마지막 날')
   })
 
+  it('빠르게 두 번째로 탭해도(라이브러리는 dblClick 으로 보낸다) 그 날로 옮긴다 (0.45.1 B1)', async () => {
+    const { container } = render(<PriceChart history={history([])} />)
+    const { act } = await import('@testing-library/react')
+    act(() => handler(chart.subscribeClick)(at('2026-09-14', 100)))
+    act(() => handler(chart.subscribeDblClick)(at('2026-09-15', 101)))
+    expect(chart.setCrosshairPosition).toHaveBeenLastCalledWith(101, '2026-09-15', series)
+    expect(container.querySelector('.chart-readout')).toHaveTextContent('2026-09-15 · 종가 101.00')
+  })
+
   it('십자선이 움직이면 그 날, 차트를 떠나면 마지막 날로 돌아간다. 빈 자리 탭은 아무것도 옮기지 않는다', async () => {
     const { container } = render(<PriceChart history={history([])} />)
     const { act } = await import('@testing-library/react')
@@ -216,6 +227,7 @@ describe('차트 위 한 줄과 짧은 탭 (0.44.0 C1)', () => {
     const { unmount } = render(<PriceChart history={history([])} />)
     unmount()
     expect(chart.unsubscribeClick).toHaveBeenCalled()
+    expect(chart.unsubscribeDblClick).toHaveBeenCalledWith(handler(chart.subscribeDblClick))
     expect(chart.unsubscribeCrosshairMove).toHaveBeenCalled()
   })
 })

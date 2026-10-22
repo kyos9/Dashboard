@@ -170,9 +170,13 @@ export function PriceChart({ history, height = 440 }: Props) {
     }
     chart.subscribeCrosshairMove(onMove)
     chart.subscribeClick(onClick)
+    // 0.5초 안에 30px 안쪽을 다시 누르면 라이브러리는 click 대신 dblClick 하나만 보낸다 — 받지 않으면 두 번째 탭이 무시됐다(0.45.1 B1).
+    // 30px 넘게 떨어진 빠른 두 번째 탭은 라이브러리가 아무것도 보내지 않는다(남는 한계)
+    chart.subscribeDblClick(onClick)
     return () => {
       chart.unsubscribeCrosshairMove(onMove)
       chart.unsubscribeClick(onClick)
+      chart.unsubscribeDblClick(onClick)
     }
   }, [handles])
 
