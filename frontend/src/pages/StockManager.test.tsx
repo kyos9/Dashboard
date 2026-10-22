@@ -367,6 +367,11 @@ describe('등록된 종목 목록', () => {
       rebalance_band_pct: null,
     })
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    // 닫힌 뒤 수정 단추 아래에 저장한 종목 — 팝업이 말없이 닫혔다 (0.45.2 A3)
+    expect(screen.getByRole('status')).toHaveTextContent('✓ 삼성전자·VOO·도요타 3종목을 저장했습니다')
+    // 수정을 다시 열면 사라진다
+    await user.click(screen.getByRole('button', { name: '종목 한 번에 수정' }))
+    expect(screen.queryByText(/종목을 저장했습니다/)).not.toBeInTheDocument()
   })
 
   it('엔 종목의 산 환율을 고치면 100엔 값을 1엔 값으로 보낸다', async () => {

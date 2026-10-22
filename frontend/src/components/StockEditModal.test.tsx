@@ -229,3 +229,60 @@ describe('보유 수량에 빼기 (0.45.2 A2)', () => {
     expect(live()).not.toHaveTextContent('판 수량')
   })
 })
+
+describe('닫힐 때 저장한 종목을 알린다 (0.45.2 A3)', () => {
+  it('한 번에 다 저장하면 그 종목들로 한 번', async () => {
+    vi.spyOn(api, 'updateHolding').mockResolvedValue({} as never)
+    const user = userEvent.setup()
+    const { dialog, onSaved, onClose } = open()
+    await editQuantity(user, dialog, 'VOO', '5')
+    await editQuantity(user, dialog, 'QQQ', '6')
+    await user.click(within(dialog).getByRole('button', { name: '2종목 저장' }))
+    await vi.waitFor(() => expect(onClose).toHaveBeenCalled())
+    expect(onSaved).toHaveBeenCalledTimes(1)
+    expect(onSaved).toHaveBeenCalledWith(['VOO', 'QQQ'])
+  })
+
+  it('일부 실패 뒤 다시 저장하면 앞에 저장한 것까지 합친다', async () => {
+    let qqqDown = true
+    vi.spyOn(api, 'updateHolding').mockImplementation((ticker: string) =>
+      ticker === 'QQQ' && qqqDown ? Promise.reject(new Error('down')) : Promise.resolve({} as never),
+    )
+    const user = userEvent.setup()
+    const { dialog, onSaved, onClose } = open()
+    await editQuantity(user, dialog, 'VOO', '5')
+    await editQuantity(user, dialog, 'QQQ', '6')
+    await user.click(within(dialog).getByRole('button', { name: '2종목 저장' }))
+    await within(dialog).findByText(/저장하지 못한 종목: QQQ/)
+    expect(onSaved).not.toHaveBeenCalled()
+
+    qqqDown = false
+    await user.click(within(dialog).getByRole('button', { name: '1종목 저장' }))
+    await vi.waitFor(() => expect(onClose).toHaveBeenCalled())
+    expect(onSaved).toHaveBeenCalledWith(['VOO', 'QQQ'])
+  })
+
+  it('일부만 저장하고 실패한 것을 버리고 닫아도 저장한 것을 알린다', async () => {
+    vi.spyOn(api, 'updateHolding').mockImplementation((ticker: string) =>
+      ticker === 'QQQ' ? Promise.reject(new Error('down')) : Promise.resolve({} as never),
+    )
+    const user = userEvent.setup()
+    const { dialog, onSaved, onClose } = open()
+    await editQuantity(user, dialog, 'VOO', '5')
+    await editQuantity(user, dialog, 'QQQ', '6')
+    await user.click(within(dialog).getByRole('button', { name: '2종목 저장' }))
+    await within(dialog).findByText(/저장하지 못한 종목: QQQ/)
+    await user.click(within(dialog).getByRole('button', { name: '닫기' }))
+    await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: /버리고 닫기/ }))
+    await vi.waitFor(() => expect(onClose).toHaveBeenCalled())
+    expect(onSaved).toHaveBeenCalledWith(['VOO'])
+  })
+
+  it('아무것도 저장하지 않고 닫으면 부르지 않는다', async () => {
+    const user = userEvent.setup()
+    const { dialog, onSaved, onClose } = open()
+    await user.click(within(dialog).getByRole('button', { name: '닫기' }))
+    expect(onClose).toHaveBeenCalled()
+    expect(onSaved).not.toHaveBeenCalled()
+  })
+})

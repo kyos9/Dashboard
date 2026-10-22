@@ -20,8 +20,8 @@ interface Props {
   /** 처음 커서를 둘 자리. "평단가 입력"으로 열면 그 종목의 평단가 */
   focus?: { ticker: string; field: EditField }
   onClose: () => void
-  /** 하나라도 저장했으면 부른다 — 뒤 화면을 새로 받는다 */
-  onSaved: () => void
+  /** 하나라도 저장했으면 닫힐 때 한 번 부른다 — 뒤 화면을 새로 받는다. `saved` 는 연 동안 저장한 종목의 보일 이름(0.45.2 A3) */
+  onSaved: (saved: string[]) => void
 }
 
 /**
@@ -49,7 +49,8 @@ export function StockEditModal({ stocks, holdings, cashTargetPct = 0, focus, onC
   const [error, setError] = useState<unknown>(null)
   const [failed, setFailed] = useState<string[]>([])
   const [asking, setAsking] = useState(false)
-  const savedAny = useRef(false)
+  // 연 동안 저장에 성공한 종목 — 일부 실패 뒤 다시 저장해도, 일부 저장 뒤 ✕ 로 닫아도 모두 센다(0.45.2 A3 계획 검토)
+  const saved = useRef<string[]>([])
   const bodyRef = useRef<HTMLDivElement>(null)
 
   const dirty = useMemo(
@@ -61,12 +62,19 @@ export function StockEditModal({ stocks, holdings, cashTargetPct = 0, focus, onC
     [stocks, base, drafts],
   )
 
+  /** 보일 이름 — 화면의 종목 순서대로 */
+  const savedLabels = () =>
+    stocks
+      .filter((s) => saved.current.includes(s.ticker))
+      // 이름을 고쳤으면 고친 이름으로 — 비웠으면 공용 이름(목록이 주는 보일 이름)
+      .map((s) => stockLabel({ ...s, shown_name: drafts[s.ticker].name.trim() || (s.shown_name ?? null) }))
+
   const targetSum =
     stocks.filter((s) => s.active).reduce((sum, s) => sum + Number(drafts[s.ticker].target || 0), 0) + cashTargetPct
 
   const close = () => {
     if (busy) return
-    if (savedAny.current) onSaved()
+    if (saved.current.length > 0) onSaved(savedLabels())
     onClose()
   }
 
@@ -158,12 +166,12 @@ export function StockEditModal({ stocks, holdings, cashTargetPct = 0, focus, onC
     const ok = dirty.filter((_, i) => results[i].status === 'fulfilled')
     const bad = dirty.filter((_, i) => results[i].status === 'rejected')
     if (ok.length > 0) {
-      savedAny.current = true
+      saved.current = [...new Set([...saved.current, ...ok.map((s) => s.ticker)])]
       setBase((prev) => ({ ...prev, ...Object.fromEntries(ok.map((s) => [s.ticker, drafts[s.ticker]])) }))
     }
     setBusy(false)
     if (bad.length === 0) {
-      onSaved()
+      onSaved(savedLabels())
       onClose()
       return
     }
