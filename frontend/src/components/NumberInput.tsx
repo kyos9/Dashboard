@@ -111,8 +111,11 @@ export function NumberInput({
 
     const parsed = parseNumeric(input.value, allowDecimal, allowNegative)
     const now = droppedKinds(input.value, allowDecimal, allowNegative)
-    if (now.some((k) => !dropped.includes(k))) {
-      setDropped([...new Set([...dropped, ...now])])
+    // 이번에 버린 것이 있으면 그것으로 바꾸고, 없으면 앞의 것을 둔다 — "7." 뒤 "5" 는 버린 것이 없지만 75 는 그 점 때문이다.
+    // 칸을 다 지우면 처음부터다
+    if (input.value === '') setDropped([])
+    else if (now.length > 0 && now.join() !== dropped.join()) {
+      setDropped(now)
       setName(rest['aria-label'] ?? input.labels?.[0]?.textContent ?? undefined)
     }
     onChange(parsed)

@@ -250,6 +250,20 @@ describe('버린 것을 말하기 (0.45.1 A)', () => {
     expect(screen.queryByRole('status')).toBeNull()
   })
 
+  it('다시 치면 그때 버린 것으로 바뀌고, 다 지우면 줄이 사라진다', async () => {
+    const user = userEvent.setup()
+    render(<Controlled allowDecimal={false} label="금액" />)
+    const input = screen.getByLabelText('금액')
+
+    await user.type(input, '7.5')
+    await user.clear(input)
+    expect(screen.queryByRole('status')).toBeNull()
+
+    await user.type(input, '100만')
+    expect(screen.getByRole('status')).toHaveTextContent('금액 — ‘만·억’ 은 읽지 않습니다. 0 을 모두 쳐 주세요 · 지금 값 100')
+    expect(screen.getByRole('status')).not.toHaveTextContent('소수점')
+  })
+
   it('받는 글자만 치면 줄이 없다', async () => {
     const user = userEvent.setup()
     render(<Controlled allowNegative label="예상치" />)
