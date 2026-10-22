@@ -4,7 +4,7 @@
  * 브라우저 쪽 동작(`lib/push.ts`)은 따로 본다 (`lib/push.test.ts`). 여기서는 그걸 가짜로 두고
  * 화면이 **무엇을 언제 부르는지**만 본다.
  */
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -314,5 +314,49 @@ describe('받을 때 · 종목별 알림 (0.45.0)', () => {
     await screen.findByText('받을 알림')
     expect(screen.queryByText('받을 때')).toBeNull()
     expect(screen.queryByText('종목별 알림')).toBeNull()
+  })
+  it('모두 다시 받기 — 보이는 목록에 끈 것이 있을 때만, 누르면 [] (숨긴 종목의 것까지) (0.45.1 D1)', async () => {
+    vi.spyOn(api, 'getPushSettings').mockResolvedValue({ ...NEW, muted: ['SCHD', 'OLD'] })
+    vi.spyOn(api, 'listStocks').mockResolvedValue([stock('VOO'), stock('SCHD'), stock('OLD', null, false)])
+    const save = vi.spyOn(api, 'setPushPrefs').mockResolvedValue(NEW)
+    renderModal()
+    const summary = await screen.findByText('종목별 알림')
+    await userEvent.click(summary)
+    const box = summary.closest('details') as HTMLDetailsElement
+    await userEvent.click(within(box).getByRole('button', { name: '모두 다시 받기' }))
+    expect(save).toHaveBeenCalledWith({ muted: [] })
+    await waitFor(() => expect(within(box).getByRole('checkbox', { name: 'SCHD' })).toBeChecked())
+    expect(within(box).queryByRole('button', { name: '모두 다시 받기' })).toBeNull()
+  })
+
+  it('숨긴 종목만 꺼져 있으면 "모두 받음"이고 단추도 없다', async () => {
+    vi.spyOn(api, 'getPushSettings').mockResolvedValue({ ...NEW, muted: ['OLD'] })
+    vi.spyOn(api, 'listStocks').mockResolvedValue([stock('VOO'), stock('OLD', null, false)])
+    renderModal()
+    const summary = await screen.findByText('종목별 알림')
+    expect(summary.closest('summary')).toHaveTextContent('종목별 알림 — 모두 받음')
+    expect(screen.queryByRole('button', { name: '모두 다시 받기' })).toBeNull()
+  })
+
+  it('종목 0개면 어디서 끄는지 한 줄 — 목록을 못 받았거나 옛 서버면 없다 (0.45.1 D2)', async () => {
+    const line = '종목을 담으면 여기서 종목마다 알림을 끌 수 있습니다.'
+    vi.spyOn(api, 'getPushSettings').mockResolvedValue(NEW)
+    const list = vi.spyOn(api, 'listStocks').mockResolvedValue([])
+    renderModal()
+    expect(await screen.findByText(line)).toBeInTheDocument()
+    expect(screen.queryByText('종목별 알림')).toBeNull()
+    cleanup()
+
+    list.mockRejectedValue(new Error('network'))
+    renderModal()
+    await screen.findByText('받을 때')
+    expect(screen.queryByText(line)).toBeNull()
+    cleanup()
+
+    vi.spyOn(api, 'getPushSettings').mockResolvedValue(USER_SETTINGS)
+    list.mockResolvedValue([])
+    renderModal()
+    await screen.findByText('받을 알림')
+    expect(screen.queryByText(line)).toBeNull()
   })
 })

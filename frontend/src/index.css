@@ -2669,6 +2669,17 @@ table.data-table tr.dirty:hover td {
   width: min(560px, 100%);
 }
 
+/* 제목·✕ 는 늘 보이게 — 종목별 알림을 펼쳐 끝까지 내리면 ✕ 가 화면 밖이었다(360 은 종목 4개로도, 0.45 B 사용자 확인).
+   창이 스크롤되는 상자라 위 끝(안쪽 여백 16px 위)에 붙인다. 일괄 수정의 아래 붙임(.stock-edit-foot)과 같은 방식 (0.45.1 D3) */
+.push-modal .modal-head {
+  position: sticky;
+  top: -16px;
+  z-index: 1;
+  margin: -16px -16px 16px;
+  padding: 16px 16px 8px;
+  background: var(--panel);
+}
+
 .push-device,
 .push-kinds {
   display: flex;
@@ -2723,6 +2734,12 @@ table.data-table tr.dirty:hover td {
 }
 
 /* 종목별 알림 — 접힌 칸. 종목이 많아도 팝업이 길어지지 않게 (0.45.0) */
+/* 모두 다시 받기 (0.45.1 D1) — 목록 위, 손가락 크기 */
+.push-unmute-all {
+  align-self: flex-start;
+  min-height: 44px;
+}
+
 .push-stocks summary {
   cursor: pointer;
   min-height: 44px;

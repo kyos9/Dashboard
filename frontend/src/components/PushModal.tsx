@@ -72,7 +72,8 @@ export function PushModal({ account, onClose }: { account: string; onClose: () =
     api
       .listStocks()
       .then((list) => !cancelled && setStocks(list.filter((s) => s.active)))
-      .catch(() => !cancelled && setStocks([]))
+      // 못 받으면 null 그대로 — 0개로 두면 종목이 있는 사람에게 "종목을 담으면…"이 떴다(계획 검토)
+      .catch(() => {})
     return () => {
       cancelled = true
     }
@@ -274,6 +275,12 @@ export function PushModal({ account, onClose }: { account: string; onClose: () =
                 })()}
               </span>
             </summary>
+            {/* 모두 다시 받기 — 보이는 목록에서 끈 것이 있을 때만. 서버에는 [] 를 보내 숨긴 종목의 것까지 비운다(0.45.1 D1) */}
+            {stocks.some((s) => settings.muted!.includes(s.ticker)) && (
+              <button type="button" className="push-unmute-all" onClick={() => void savePrefs({ muted: [] })}>
+                모두 다시 받기
+              </button>
+            )}
             {stocks.map((stock) => (
               <label key={stock.ticker} className="push-kind">
                 <input
@@ -292,6 +299,10 @@ export function PushModal({ account, onClose }: { account: string; onClose: () =
             ))}
             <p className="hint">끈 종목은 매수 시그널·비중 알림이 오지 않습니다. 리뷰 알림은 종목과 상관없이 옵니다.</p>
           </details>
+        )}
+        {/* 처음 온 사람(종목 0개)에게도 이 기능이 있다는 것을 — 목록을 받았고 서버가 끈 종목을 아는(0.45 이후) 때만 (0.45.1 D2) */}
+        {settings?.muted && stocks && stocks.length === 0 && (
+          <p className="hint push-stocks-empty">종목을 담으면 여기서 종목마다 알림을 끌 수 있습니다.</p>
         )}
 
         <p className="hint push-foot">
