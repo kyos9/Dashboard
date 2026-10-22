@@ -1896,7 +1896,7 @@ select {
   font-size: var(--fs-body);
   line-height: 1.45;
   word-break: keep-all;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
   pointer-events: none;
 }
@@ -2667,7 +2667,7 @@ table.data-table tr.dirty:hover td {
 
 /* 없는 티커 주소 한 줄 — 아주 긴 주소도 가로로 넘치지 않게 (BCD 검토 참고) */
 .history-unknown {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .push-modal {

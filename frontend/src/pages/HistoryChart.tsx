@@ -37,6 +37,9 @@ export function HistoryChart() {
       .then((list) => {
         const active = list.filter((s) => s.active)
         setAll(list)
+        // 새로고침으로 다시 받으면 앞의 실패 줄은 지운다(끝 검토)
+        setListError(null)
+        setListFailed(false)
         const asked = searchParams.get('ticker')
         if (!asked && active[0]) {
           setSearchParams({ ticker: active[0].ticker }, { replace: true })

@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { AppStateProvider } from '../AppState'
+import { AppStateProvider, useAppState } from '../AppState'
 import { api } from '../api/client'
 import type { HistoryResponse, Stock } from '../types'
 import { HistoryChart } from './HistoryChart'
@@ -60,10 +60,23 @@ const HISTORY: HistoryResponse = {
   coverage: { first_date: '2021-09-16', last_date: '2026-09-16', rows: 1_250 },
 }
 
+/** 지금 주소 — 소문자·이름 주소를 담은 종목의 티커로 바꿨는지 본다 */
+function Where() {
+  return <span data-testid="where">{decodeURIComponent(useLocation().search)}</span>
+}
+
+/** 앱의 새로고침 — 데이터를 바꾼 것처럼 다시 받게 한다 */
+function Refresh() {
+  const { notifyDataChanged } = useAppState()
+  return <button onClick={notifyDataChanged}>다시 받기</button>
+}
+
 function renderChart(path = '/history') {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <AppStateProvider>
+        <Where />
+        <Refresh />
         <HistoryChart />
       </AppStateProvider>
     </MemoryRouter>,
@@ -139,6 +152,22 @@ describe('주소의 종목 (0.45.1 B2)', () => {
     expect(history).not.toHaveBeenCalled()
   })
 
+  it('목록을 기다리는 동안 범례는 "불러오는 중"', async () => {
+    vi.spyOn(api, 'listStocks').mockReturnValue(new Promise(() => {}))
+    renderChart('/history?ticker=005930.KS')
+    expect(await screen.findByText('불러오는 중…')).toBeInTheDocument()
+  })
+
+  it('목록 실패 줄은 다시 받으면 지운다', async () => {
+    const list = vi.spyOn(api, 'listStocks').mockRejectedValueOnce(new Error('boom')).mockResolvedValue([stock('005930.KS', '삼성전자')])
+    vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
+    renderChart('/history?ticker=005930.KS')
+    expect(await screen.findByText(/boom/)).toBeInTheDocument()
+    screen.getByRole('button', { name: '다시 받기' }).click()
+    await waitFor(() => expect(list).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(screen.queryByText(/boom/)).toBeNull())
+  })
+
   it('종목 목록을 못 받아도 주소의 종목 차트는 전처럼 연다 — 오류 줄과 함께', async () => {
     vi.spyOn(api, 'listStocks').mockRejectedValue(new Error('목록 실패'))
     const history = vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
@@ -164,11 +193,13 @@ describe('주소의 종목 (0.45.1 B2)', () => {
     expect(screen.getByText('삼성전자 · 005930.KS')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '삼성전자' })).toHaveClass('active')
     expect(history).not.toHaveBeenCalledWith('005930.ks', '1y')
+    await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent('?ticker=005930.KS'))
     unmount()
 
     const byName = renderChart('/history?ticker=삼성전자')
     await waitFor(() => expect(history).toHaveBeenCalledWith('005930.KS', '1y'))
     expect(screen.queryByText(/담은 종목에 없습니다/)).toBeNull()
+    await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent('?ticker=005930.KS'))
     byName.unmount()
 
     renderChart('/history?ticker=TSLA')
