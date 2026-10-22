@@ -51,6 +51,9 @@ function useThemeIsLight(): boolean {
   return light
 }
 
+/** 차트 위 한 줄에 보일 날 — `of` 는 그 날을 고른·가리킨 데이터 */
+type Day = { date: string; close: number; of?: HistoryResponse | null }
+
 interface ChartHandles {
   chart: IChartApi
   series: ISeriesApi<'Line'>
@@ -136,13 +139,20 @@ export function PriceChart({ history, height = 440 }: Props) {
 
     handles.markers.setMarkers(markers)
     handles.chart.timeScale().fitContent()
+    // 앞 데이터에서 놓은 십자선이 남아 새 데이터의 엉뚱한 날을 가리켰다(사용자 확인)
+    handles.chart.clearCrosshairPosition?.()
   }, [handles, history])
 
   /* 고른 날과 가리키는 날 (0.44.0 C1 → 0.45.2 C2). 폰에서 짧게 탭하면 십자선이 그 자리로 오지 않고 앞서 있던 곳에 남아 탭한 자리로 직접 옮긴다.
      마우스가 차트를 떠나면 라이브러리가 십자선을 지운다 — 가리키는 날만 잊고 **고른 날**(탭·◀ ▶)로 돌아간다. 하나로 두면 PC 에서 차트를 누른 뒤
      ◀ 로 가는 사이 고른 날이 사라져 ◀ 가 늘 마지막 날에서 움직였다(계획 검토). */
-  const [hover, setHover] = useState<{ date: string; close: number } | null>(null)
-  const [picked, setPicked] = useState<{ date: string; close: number } | null>(null)
+  // `of` — 어느 데이터에서 고른·가리킨 날인가. 종목·기간을 바꾸면 버린다(날짜·값이 우연히 같아도 — 사용자 확인: 바꾼 뒤 엉뚱한 날이 남았다)
+  const [hover, setHover] = useState<Day | null>(null)
+  const [picked, setPicked] = useState<Day | null>(null)
+  // 손가락 기기 — 탭 뒤 브라우저가 흉내 마우스를 보내 라이브러리가 그 자리를 "가리킨 날"로 알린다. 화면이 밀리면(읽기 줄이 줄어 20px) 그 자리가
+  // 차트 위라 ◀ 를 눌러도 엉뚱한 날이 남았다(BC 사용자 확인). 마지막 포인터가 손가락이면 누르고 있는 동안(길게 누른 채 밀기)만 받는다
+  const pointing = useRef<{ type: string; down: boolean }>({ type: 'mouse', down: false })
+  const hoverRef = useRef<Day | null>(null)
   // 사람이 밀거나 키워 보이는 구간을 바꿨나 — "전체 보기" (C3). 구간 이벤트는 데이터·창 크기에도 와서 쓰지 않는다(계획 검토)
   // 어느 데이터에서 밀었나 — 데이터가 바뀌면(종목·기간, 처음처럼 전체로 맞춘다) 저절로 내려간다
   const [movedOn, setMovedOn] = useState<HistoryResponse | null>(null)
@@ -155,19 +165,46 @@ export function PriceChart({ history, height = 440 }: Props) {
     const onMove = (param: MouseEventParams<Time>) => {
       const point = param.time !== undefined ? param.seriesData.get(series) : undefined
       const value = (point as { value?: unknown } | undefined)?.value
-      setHover(typeof value === 'number' ? { date: chartDate(param.time as Time), close: value } : null)
+      if (pointing.current.type !== 'mouse' && !pointing.current.down) return
+      const day = typeof value === 'number' ? { date: chartDate(param.time as Time), close: value, of: history } : null
+      hoverRef.current = day
+      setHover(day)
     }
     chart.subscribeCrosshairMove(onMove)
     return () => chart.unsubscribeCrosshairMove(onMove)
-  }, [handles])
+  }, [handles, history])
+
+  // 마지막 포인터의 종류 — 창 전체에서 (◀ 단추를 누른 손가락도)
+  useEffect(() => {
+    const down = (e: PointerEvent) => {
+      pointing.current = { type: e.pointerType, down: e.pointerType !== 'mouse' }
+    }
+    const move = (e: PointerEvent) => {
+      if (e.pointerType === 'mouse') pointing.current = { type: 'mouse', down: false }
+    }
+    const up = (e: PointerEvent) => {
+      pointing.current = { type: e.pointerType, down: false }
+    }
+    window.addEventListener('pointerdown', down, true)
+    window.addEventListener('pointermove', move, true)
+    window.addEventListener('pointerup', up, true)
+    window.addEventListener('pointercancel', up, true)
+    return () => {
+      window.removeEventListener('pointerdown', down, true)
+      window.removeEventListener('pointermove', move, true)
+      window.removeEventListener('pointerup', up, true)
+      window.removeEventListener('pointercancel', up, true)
+    }
+  }, [])
 
   /** 고른 날을 바꾸고 십자선을 그 날로 */
   const pick = (index: number) => {
     const day = prices?.[index]
     if (!handles || !day) return
     handles.chart.setCrosshairPosition(day.close, day.date as Time, handles.series)
-    setPicked({ date: day.date, close: day.close })
+    setPicked({ date: day.date, close: day.close, of: history })
     // 누른 것이 가리키는 것보다 앞선다 — 남아 있던 가리킴(손가락 기기의 흉내 마우스 등)이 탭을 덮지 않게
+    hoverRef.current = null
     setHover(null)
   }
   const pickRef = useRef(pick)
@@ -207,7 +244,13 @@ export function PriceChart({ history, height = 440 }: Props) {
       if (!press || e.pointerId !== press.id) return
       const tap = press.tap && e.timeStamp - press.at < 500
       press = null
-      if (!tap) return
+      if (!tap) {
+        // 손가락으로 길게 누른 채 밀어 간 날은 뗀 뒤에도 그 날 — 처음 누른 날로 돌아가 ◀ 가 엉뚱한 데서 움직였다(BC 사용자 확인)
+        const held = hoverRef.current
+        const index = e.pointerType !== 'mouse' && held ? (prices ?? []).findIndex((p) => p.date === held.date) : -1
+        if (index >= 0) window.setTimeout(() => pickRef.current(index), 0)
+        return
+      }
       const box = container.getBoundingClientRect()
       const x = e.clientX - box.left
       const y = e.clientY - box.top
@@ -246,8 +289,7 @@ export function PriceChart({ history, height = 440 }: Props) {
 
   const last = prices?.[prices.length - 1]
   // 종목·기간을 바꾸면 고른·가리킨 날은 그 데이터에 없을 수 있다 — 그 날·그 값이 지금 데이터에 있을 때만 쓴다
-  const valid = (day: { date: string; close: number } | null) =>
-    day && prices?.some((p) => p.date === day.date && p.close === day.close) ? day : null
+  const valid = (day: Day | null) => (day && day.of === history ? day : null)
   const current = valid(hover) ?? valid(picked)
   const shown = current ?? (last ? { date: last.date, close: last.close } : null)
   // ◀ ▶ 는 고른 날(없으면 마지막 날)에서 — 마우스가 가리키는 날이 아니다(단추를 누르러 가면 차트를 떠난다)
@@ -267,7 +309,8 @@ export function PriceChart({ history, height = 440 }: Props) {
           <p className="chart-readout" aria-live="polite">
             <span className="mono">{shown.date}</span> · 종가{' '}
             <span className="mono">{chartPrice(shown.close, currencyOfTicker(history.ticker))}</span>
-            {!current && <span className="hint"> (마지막 날 — 차트를 누르면 그 날)</span>}
+            {/* 고른 뒤에도 같은 길이의 풀이를 둔다 — 풀이가 빠지면 폰에서 두 줄이 한 줄이 되어 단추·차트가 20px 뛰었다(검토·사용자 확인) */}
+            <span className="hint">{current ? ' (▶ 나 오른쪽 끝을 누르면 마지막 날)' : ' (마지막 날 — 차트를 누르면 그 날)'}</span>
           </p>
           {/* 1년 보기에서 1px 이 하루쯤이라 바로 옆 거래일을 손가락으로 짚기 어려웠다 (0.45.2 C2). 끝에서는 꺼 두되 포커스는 남긴다(aria-disabled) */}
           <div className="chart-tools">

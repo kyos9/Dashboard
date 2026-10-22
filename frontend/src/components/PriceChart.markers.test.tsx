@@ -200,7 +200,9 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
     await tap(canvas, 0)
     expect(chart.setCrosshairPosition).toHaveBeenLastCalledWith(100, '2026-09-14', series)
     expect(line()).toHaveTextContent('2026-09-14 · 종가 100.00')
-    expect(line()).not.toHaveTextContent('마지막 날')
+    expect(line()).not.toHaveTextContent('(마지막 날 —')
+    // 풀이는 같은 길이로 남는다 — 빠지면 폰에서 줄 수가 바뀌어 단추·차트가 뛰었다
+    expect(line()).toHaveTextContent('(▶ 나 오른쪽 끝을 누르면 마지막 날)')
   })
 
   it('라이브러리의 click·dblClick 은 받지 않는다 — 0.5초 안에 30px 넘게 떨어진 두 번째 탭을 보내지 않았다 (0.45.2 C1)', async () => {
@@ -260,6 +262,49 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
     await act(() => new Promise((r) => setTimeout(r, 0)))
     expect(chart.setCrosshairPosition).toHaveBeenLastCalledWith(100, '2026-09-14', series)
     expect(line()).toHaveTextContent('2026-09-14 · 종가 100.00')
+  })
+
+  it('손가락으로 탭한 뒤 오는 흉내 마우스의 가리킴은 받지 않는다 — ◀ 를 눌러도 엉뚱한 날이 남았다 (BC 사용자 확인)', async () => {
+    const { act } = await import('@testing-library/react')
+    const { canvas, line, getByRole } = shown()
+    await tap(canvas, 100)
+    act(() => handler(chart.subscribeCrosshairMove)(at('2026-09-16', 102)))
+    expect(line()).toHaveTextContent('2026-09-15 · 종가 101.00')
+    // ◀ 를 손가락으로 — 화면이 밀려 흉내 마우스가 차트 위에 떨어져도
+    const prev = getByRole('button', { name: '이전 거래일' })
+    pointer(prev, 'pointerdown', { x: 0, y: 0, t: 5000 })
+    pointer(prev, 'pointerup', { x: 0, y: 0, t: 5050 })
+    act(() => prev.click())
+    act(() => handler(chart.subscribeCrosshairMove)(at('2026-09-16', 102)))
+    expect(line()).toHaveTextContent('2026-09-14 · 종가 100.00')
+  })
+
+  it('손가락으로 길게 누른 채 밀어 간 날은 뗀 뒤에도 그 날 — ◀ 가 거기서 (BC 사용자 확인)', async () => {
+    const { act } = await import('@testing-library/react')
+    const { canvas, line } = shown()
+    await tap(canvas, 0)
+    act(() => {
+      pointer(canvas, 'pointerdown', { x: 0, y: 100, t: 1000 })
+      // 누르고 있는 동안의 가리킴(라이브러리의 날짜 따라가기)은 받는다
+      handler(chart.subscribeCrosshairMove)(at('2026-09-15', 101))
+      pointer(canvas, 'pointermove', { x: 100, y: 100, t: 1400 })
+      pointer(canvas, 'pointerup', { x: 100, y: 100, t: 1500 })
+      // 떼면 라이브러리가 십자선을 지운다
+      handler(chart.subscribeCrosshairMove)(at(undefined))
+    })
+    await act(() => new Promise((r) => setTimeout(r, 0)))
+    expect(chart.setCrosshairPosition).toHaveBeenLastCalledWith(101, '2026-09-15', series)
+    expect(line()).toHaveTextContent('2026-09-15 · 종가 101.00')
+  })
+
+  it('종목·기간을 바꾸면 날짜·값이 같아도 고른 날을 버리고 십자선을 지운다 (사용자 확인)', async () => {
+    const { rerender, canvas, line } = shown()
+    await tap(canvas, 0)
+    const clear = vi.fn()
+    ;(chart as unknown as { clearCrosshairPosition: () => void }).clearCrosshairPosition = clear
+    rerender(<PriceChart history={{ ...history([]) }} />)
+    expect(line()).toHaveTextContent('2026-09-16 · 종가 102.00')
+    expect(clear).toHaveBeenCalled()
   })
 
   it('마우스 왼쪽 클릭도 같은 길', async () => {

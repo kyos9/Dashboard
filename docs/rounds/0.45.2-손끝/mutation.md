@@ -83,3 +83,14 @@
 | C3 마우스에도 240ms | `frontend/src/components/PriceChart.tsx` | 잡힘 |
 | C1 창에서 놓은 것 안 받음 | `frontend/src/components/PriceChart.tsx` | 잡힘 |
 | C3 전체 보기 뒤 포커스 안 옮김 | `frontend/src/components/PriceChart.tsx` | 잡힘 |
+
+## BC 사용자 확인 뒤 (흉내 마우스·길게 누른 날·데이터 바뀜·풀이 길이·팝업 높이)
+
+| 뮤테이션 | 파일 | 결과 |
+| --- | --- | --- |
+| C 손가락 뒤 흉내 마우스 받음 | `frontend/src/components/PriceChart.tsx` | 잡힘 |
+| C 길게 누른 날 안 남김 | `frontend/src/components/PriceChart.tsx` | 잡힘 |
+| C 데이터 바뀌어도 고른 날 남음 | `frontend/src/components/PriceChart.tsx` | 잡힘 |
+| C 데이터 바뀔 때 십자선 안 지움 | `frontend/src/components/PriceChart.tsx` | 잡힘 |
+| C 고른 뒤 풀이 뺌 | `frontend/src/components/PriceChart.tsx` | 잡힘 |
+| C 폰 팝업 높이 되돌림 | `frontend/src/components/ChartModal.tsx` | 잡힘 |

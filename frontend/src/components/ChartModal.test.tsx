@@ -123,13 +123,13 @@ describe('차트 팝업', () => {
       view.unmount()
       return h
     }
-    // 폰은 차트 위 ◀ ▶ 줄(0.45.2 C2)만큼 더 낮다 — 324, 매도 조건 줄이 있으면 256. PC 는 380 그대로
+    // 폰은 차트 위 ◀ ▶ 줄(0.45.2 C2)만큼 더 낮다 — 316, 매도 조건 줄이 있으면 256. PC 는 380 그대로
     expect(await heights(on, true)).toBe(256)
     expect(await heights(on, false)).toBe(380)
-    expect(await heights({ ...on, shoulder_sell_ref: false }, true)).toBe(324)
+    expect(await heights({ ...on, shoulder_sell_ref: false }, true)).toBe(316)
     // 배지만 켜지고 줄이 없는 날(옛 서버·날짜가 다름)은 줄일 까닭이 없다
-    expect(await heights({ ...on, sell_conditions: null }, true)).toBe(324)
-    expect(await heights({ ...on, sell_conditions: { above_ma50: null, adx_rising: true, volume_strong: true } }, true)).toBe(324)
+    expect(await heights({ ...on, sell_conditions: null }, true)).toBe(316)
+    expect(await heights({ ...on, sell_conditions: { above_ma50: null, adx_rising: true, volume_strong: true } }, true)).toBe(316)
   })
 
   it('종목 이름과 차트를 띄운다', async () => {

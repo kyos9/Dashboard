@@ -5593,8 +5593,9 @@ section.signal-line {
   touch-action: manipulation;
 }
 
-/* 차트 위 한 줄 — 가리킨 날(없으면 마지막 날)의 날짜·종가 (0.44.0 C1) */
+/* 차트 위 한 줄 — 가리킨 날(없으면 마지막 날)의 날짜·종가 (0.44.0 C1). 폰에서는 두 줄 자리를 늘 잡는다 — 줄 수가 바뀌면 단추·차트가 뛰었다(0.45.2) */
 .chart-readout {
+  min-height: calc(2 * 1.45em);
   margin: 0;
   font-size: var(--fs-sub);
   color: var(--text-dim);
