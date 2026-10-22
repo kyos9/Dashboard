@@ -99,6 +99,10 @@ export function NumberInput({
   ...rest
 }: Props) {
   const ref = useRef<HTMLInputElement>(null)
+  // 화면 읽기용 자리는 칸이 생길 때 미리 비워 둔다 — 글을 가진 채로 새로 붙는 live region 은 첫 말을 놓친다(A 검토)
+  useEffect(() => {
+    liveRegion()
+  }, [])
   // 이 칸에서 버린 것 — 칸을 떠날 때까지 남긴다. 다음 글자에 지우면 "7"→"."→"5" 의 마지막에 75 가 말없이 남았다(계획 검토 막음)
   const [dropped, setDropped] = useState<Dropped[]>([])
   // 줄에 붙일 칸 이름 — aria-label, 없으면 <label for>. 그리는 중에 ref 를 읽지 않게 칠 때 잡아 둔다
@@ -158,6 +162,14 @@ export function NumberInput({
  */
 function NumberNotice({ text }: { text: string }) {
   const [top, setTop] = useState(0)
+  // 화면 읽기에는 늘 붙어 있는 자리에 글만 넣는다. 보이는 줄은 aria-hidden — 두 번 읽지 않게
+  useEffect(() => {
+    const live = liveRegion()
+    live.textContent = text
+    return () => {
+      live.textContent = ''
+    }
+  }, [text])
   useEffect(() => {
     const vv = window.visualViewport
     if (!vv) return
@@ -171,9 +183,22 @@ function NumberNotice({ text }: { text: string }) {
     }
   }, [])
   return createPortal(
-    <p className="num-notice" role="status" style={{ top: top + 8 }}>
+    <p className="num-notice" aria-hidden="true" style={{ top: top + 8 }}>
       {text}
     </p>,
     document.body,
   )
+}
+
+/** 앱에 하나인 화면 읽기 자리 — role="status" 는 쓰지 않는다(화면의 다른 status 들과 섞이지 않게), aria-live 만 */
+let live: HTMLElement | null = null
+function liveRegion(): HTMLElement {
+  if (!live || !live.isConnected) {
+    live = document.createElement('div')
+    live.className = 'sr-only'
+    live.setAttribute('aria-live', 'polite')
+    live.dataset.numLive = ''
+    document.body.appendChild(live)
+  }
+  return live
 }
