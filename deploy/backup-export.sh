@@ -26,7 +26,8 @@ case "${1:-}" in
     mkdir -p "$EXPORT_DIR"
     chmod 700 "$EXPORT_DIR"
     # 목록을 못 받은 것(앱이 꺼짐)과 목록에 매일 백업이 없는 것을 가른다 — 하나로 삼키면 꺼진 서버에 "아직 없습니다"라고 했다(0.45.0 A 검토)
-    if ! listing=$($DOCKER compose exec -T app sh -c 'ls -1 /data/backups'); then
+    # 컨테이너 안의 ls 는 실패해도 0 으로 — 첫날처럼 폴더가 아직 없으면 "아직 없습니다"가 맞다. exec 자체의 실패만 "꺼짐"
+    if ! listing=$($DOCKER compose exec -T app sh -c 'ls -1 /data/backups 2>/dev/null || true'); then
       echo "서버 앱이 꺼져 있거나 응답하지 않습니다 — 서버에서 docker compose ps 로 app 이 떠 있는지 보세요(DEPLOY.md 9)." >&2
       exit 1
     fi
