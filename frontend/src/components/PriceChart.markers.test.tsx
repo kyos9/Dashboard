@@ -279,6 +279,34 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
     expect(line()).toHaveTextContent('2026-09-14 · 종가 100.00')
   })
 
+  it('겸용 기기: 손가락 뒤에 마우스를 움직이면 다시 가리킴을 받는다 (끝 검토)', async () => {
+    const { act } = await import('@testing-library/react')
+    const { canvas, line } = shown()
+    await tap(canvas, 0)
+    act(() => {
+      pointer(canvas, 'pointermove', { x: 150, y: 100, t: 3000, kind: 'mouse' })
+      handler(chart.subscribeCrosshairMove)(at('2026-09-15', 101))
+    })
+    expect(line()).toHaveTextContent('2026-09-15 · 종가 101.00')
+  })
+
+  it('마우스로 끌어 민 뒤 떼면 가리킨 날을 고르지 않는다 — 고른 날은 그대로 (끝 검토)', async () => {
+    const { act } = await import('@testing-library/react')
+    const { canvas, line } = shown()
+    await tap(canvas, 0, 100, 0, { kind: 'mouse' })
+    chart.setCrosshairPosition.mockClear()
+    act(() => {
+      pointer(canvas, 'pointerdown', { x: 0, y: 100, t: 1000, kind: 'mouse' })
+      pointer(canvas, 'pointermove', { x: 100, y: 100, t: 1100, kind: 'mouse' })
+      handler(chart.subscribeCrosshairMove)(at('2026-09-15', 101))
+      pointer(canvas, 'pointerup', { x: 100, y: 100, t: 1200, kind: 'mouse' })
+      handler(chart.subscribeCrosshairMove)(at(undefined))
+    })
+    await act(() => new Promise((r) => setTimeout(r, 0)))
+    expect(chart.setCrosshairPosition).not.toHaveBeenCalled()
+    expect(line()).toHaveTextContent('2026-09-14 · 종가 100.00')
+  })
+
   it('손가락으로 길게 누른 채 밀어 간 날은 뗀 뒤에도 그 날 — ◀ 가 거기서 (BC 사용자 확인)', async () => {
     const { act } = await import('@testing-library/react')
     const { canvas, line } = shown()
@@ -484,6 +512,15 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
     const onWindow = vi.spyOn(window, 'removeEventListener')
     const second = shown()
     second.unmount()
-    expect(onWindow.mock.calls.map(([type]) => type)).toEqual(expect.arrayContaining(['pointerup', 'pointercancel']))
+    expect(onWindow.mock.calls.map(([type]) => type)).toEqual(expect.arrayContaining(['pointerdown', 'pointermove', 'pointerup', 'pointercancel']))
+    // 손가락 종류를 보는 창 듣기(capture)도 다 푼다 — 붙인 만큼
+    const added = vi.spyOn(window, 'addEventListener')
+    const third = shown()
+    const capture = (calls: unknown[][]) => calls.filter(([, , o]) => o === true).map(([type]) => type).sort()
+    const attached = capture(added.mock.calls)
+    onWindow.mockClear()
+    third.unmount()
+    expect(attached).toEqual(['pointercancel', 'pointerdown', 'pointermove', 'pointerup'])
+    expect(capture(onWindow.mock.calls)).toEqual(attached)
   })
 })

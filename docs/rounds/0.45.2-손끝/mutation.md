@@ -94,3 +94,11 @@
 | C 데이터 바뀔 때 십자선 안 지움 | `frontend/src/components/PriceChart.tsx` | 잡힘 |
 | C 고른 뒤 풀이 뺌 | `frontend/src/components/PriceChart.tsx` | 잡힘 |
 | C 폰 팝업 높이 되돌림 | `frontend/src/components/ChartModal.tsx` | 잡힘 |
+
+## 끝 검토의 조건부 (final-review.md)
+
+| 뮤테이션 | 파일 | 결과 |
+| --- | --- | --- |
+| F1 창 pointerdown·move 듣기 안 풂 | `frontend/src/components/PriceChart.tsx` | 잡힘 |
+| F2 마우스 움직임에 돌아가지 않음 | `frontend/src/components/PriceChart.tsx` | 잡힘 |
+| F4 마우스 끌기 뒤에도 가리킨 날 고름 | `frontend/src/components/PriceChart.tsx` | 잡힘 |
