@@ -354,13 +354,12 @@ export function whenLabel(value: string | null): string {
 }
 
 /**
- * 일괄 수정을 닫은 뒤 한 줄 (0.45.2 A3) — "SCHD·삼성전자 2종목을 저장했습니다", 셋 넘으면 "SCHD 외 3종목을 저장했습니다".
+ * 일괄 수정을 닫은 뒤 한 줄 (0.45.2 A3) — "SCHD 1종목을 저장했습니다"("을(를)" 꼴은 둘 이상과 달라 보였다 — A 사용자 확인), "SCHD·삼성전자 2종목을 저장했습니다", 셋 넘으면 "SCHD 외 3종목을 저장했습니다".
  * 팝업이 말없이 닫혀 저장됐는지 몰랐다(0.45.1 사용자 확인). 어느 종목인지도 — 평가금액 순이면 고친 종목이 아래로 내려간다.
  */
 export function savedStocksText(labels: string[]): string {
   const n = labels.length
   if (n === 0) return ''
-  if (n === 1) return `${labels[0]}을(를) 저장했습니다`
   if (n <= 3) return `${labels.join('·')} ${n}종목을 저장했습니다`
   return `${labels[0]} 외 ${n - 1}종목을 저장했습니다`
 }

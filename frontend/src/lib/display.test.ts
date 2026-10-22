@@ -264,7 +264,7 @@ describe('평단가 — 적은 소수를 버리지 않는다 (9-2)', () => {
 describe('일괄 수정 뒤 한 줄 (0.45.2 A3)', () => {
   it('하나·셋까지·넷부터', () => {
     expect(savedStocksText([])).toBe('')
-    expect(savedStocksText(['SCHD'])).toBe('SCHD을(를) 저장했습니다')
+    expect(savedStocksText(['SCHD'])).toBe('SCHD 1종목을 저장했습니다')
     expect(savedStocksText(['SCHD', '삼성전자'])).toBe('SCHD·삼성전자 2종목을 저장했습니다')
     expect(savedStocksText(['A', 'B', 'C'])).toBe('A·B·C 3종목을 저장했습니다')
     expect(savedStocksText(['A', 'B', 'C', 'D'])).toBe('A 외 3종목을 저장했습니다')
