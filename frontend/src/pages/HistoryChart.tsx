@@ -40,8 +40,10 @@ export function HistoryChart() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey])
 
+  // 목록을 받은 뒤에 부른다 — 먼저 부르면 없는 티커 주소가 404 를 한 번 내고 콘솔 오류로 남았다(0.45.1 B2 브라우저 확인)
+  const listed = all !== null
   useEffect(() => {
-    if (!ticker || unknown) return
+    if (!ticker || !listed || unknown) return
     setError(null)
     setLoading(true)
     api
@@ -49,7 +51,7 @@ export function HistoryChart() {
       .then(setHistory)
       .catch(setError)
       .finally(() => setLoading(false))
-  }, [ticker, range, refreshKey, reloadKey, unknown])
+  }, [ticker, range, refreshKey, reloadKey, listed, unknown])
 
   if (all !== null && stocks.length === 0 && !error) {
     return (

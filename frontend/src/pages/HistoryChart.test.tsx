@@ -128,16 +128,15 @@ describe('주소의 종목 (0.45.1 B2)', () => {
     expect(screen.getByRole('button', { name: '삼성전자' })).toBeInTheDocument()
   })
 
-  it('목록을 받은 뒤에는 없는 티커의 시세를 부르지 않는다 (기간을 바꿔도)', async () => {
+  it('없는 티커의 시세는 부르지 않는다 — 목록을 받기 전에도, 기간을 바꿔도', async () => {
     vi.spyOn(api, 'listStocks').mockResolvedValue([stock('005930.KS', '삼성전자')])
     const history = vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
 
     renderChart('/history?ticker=NOPE')
     await screen.findByText(/담은 종목에 없습니다/)
-    const calls = history.mock.calls.length
     screen.getByRole('button', { name: '5년' }).click()
     await waitFor(() => expect(screen.getByText(/담은 종목에 없습니다/)).toBeInTheDocument())
-    expect(history.mock.calls.length).toBe(calls)
+    expect(history).not.toHaveBeenCalled()
   })
 
   it('소문자 주소·비활성 종목은 지금처럼 차트를 연다', async () => {
