@@ -14,7 +14,18 @@
 
 ## 지금 상태 (잰 값)
 
-(재는 중)
+| | 값 |
+| --- | --- |
+| 버전 | 0.45.0 |
+| Alembic 머리 | 0015 |
+| 백엔드 pytest | 1484 passed, 3 skipped |
+| 프런트 vitest | 944 passed |
+| lint 경고 | 22 |
+| tsc(`npm run build`) | 통과 |
+| 첫 화면 JS (gzip) | 111.71 kB |
+| 대시보드 응답·쿼리(20종목) | 가운데 42.8 ms · 쿼리 12 |
+
+기준 두 가지(저장소 밖): `scratchpad/r046/baseline/` — `openapi.json`, `snap/`(2026-10-22, 주인·친구 × 5 경로), 테스트 출력.
 
 ## 주인 할 일 (ROADMAP 0-1 에서 옮김)
 
