@@ -421,4 +421,25 @@ describe('줄의 자리 (0.45.2 A1 — 폰에서 화면 위 줄이 팝업 제목
     expect(notice.style.top).toBe('84px')
     expect(notice.style.visibility).toBe('')
   })
+
+  it('폰 키보드가 올라오면 보이는 부분(visualViewport)으로 잰다 — 위쪽 칸이면 키보드 바로 위 (A 검토)', async () => {
+    const user = userEvent.setup()
+    const rect = (top: number, bottom: number) => ({ top, bottom, left: 0, right: 300, width: 300, height: bottom - top, x: 0, y: top, toJSON: () => ({}) }) as DOMRect
+    const vv = Object.assign(new EventTarget(), { offsetTop: 200, height: 400 })
+    Object.defineProperty(window, 'visualViewport', { value: vv, configurable: true })
+    const height = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight')
+    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', { configurable: true, get: () => 40 })
+    try {
+      render(<NumberInput value="" onChange={() => {}} aria-label="보유수량" />)
+      const input = screen.getByLabelText('보유수량')
+      input.getBoundingClientRect = () => rect(205, 249)
+      await user.type(input, '-')
+      await act(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())))
+      // 보이는 부분 200~600, 칸이 위쪽(205~249)이라 아래 끝: 600 - 40 - 8
+      expect(document.querySelector<HTMLElement>('.num-notice')!.style.top).toBe('552px')
+    } finally {
+      delete (window as { visualViewport?: unknown }).visualViewport
+      if (height) Object.defineProperty(HTMLElement.prototype, 'offsetHeight', height)
+    }
+  })
 })

@@ -286,3 +286,19 @@ describe('닫힐 때 저장한 종목을 알린다 (0.45.2 A3)', () => {
     expect(onSaved).not.toHaveBeenCalled()
   })
 })
+
+describe('저장한 이름으로 알린다 (A 검토)', () => {
+  it('이름을 고쳐 저장하면 고친 이름으로 — 목록의 옛 이름이 아니라', async () => {
+    const jp: Stock = { ...stock('7203.T'), name: 'Toyota', market: 'JP', currency: 'JPY' }
+    const user = userEvent.setup()
+    const onSaved = vi.fn()
+    render(<StockEditModal stocks={[jp]} holdings={new Map()} onClose={() => {}} onSaved={onSaved} />)
+    const dialog = screen.getByRole('dialog', { name: '종목 한 번에 수정' })
+    const name = within(dialog).getByRole('textbox', { name: 'Toyota 표시 이름' })
+    vi.spyOn(api, 'updateStock').mockResolvedValue({} as never)
+    await user.clear(name)
+    await user.type(name, '도요타')
+    await user.click(within(dialog).getByRole('button', { name: '1종목 저장' }))
+    await vi.waitFor(() => expect(onSaved).toHaveBeenCalledWith(['도요타']))
+  })
+})

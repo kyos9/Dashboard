@@ -51,6 +51,8 @@ export function StockEditModal({ stocks, holdings, cashTargetPct = 0, focus, onC
   const [asking, setAsking] = useState(false)
   // 연 동안 저장에 성공한 종목 — 일부 실패 뒤 다시 저장해도, 일부 저장 뒤 ✕ 로 닫아도 모두 센다(0.45.2 A3 계획 검토)
   const saved = useRef<string[]>([])
+  // 저장한 때의 이름 — 저장 뒤 다시 고치다 닫은 이름이 나오지 않게(A 검토). base 는 다음 그림에야 바뀌어 여기 둔다
+  const savedNames = useRef<Record<string, string>>({})
   const bodyRef = useRef<HTMLDivElement>(null)
 
   const dirty = useMemo(
@@ -66,8 +68,8 @@ export function StockEditModal({ stocks, holdings, cashTargetPct = 0, focus, onC
   const savedLabels = () =>
     stocks
       .filter((s) => saved.current.includes(s.ticker))
-      // 이름을 고쳤으면 고친 이름으로 — 비웠으면 공용 이름(목록이 주는 보일 이름)
-      .map((s) => stockLabel({ ...s, shown_name: drafts[s.ticker].name.trim() || (s.shown_name ?? null) }))
+      // 이름을 고쳐 저장했으면 그 이름, 비웠으면 공용 이름(목록이 주는 보일 이름)
+      .map((s) => stockLabel({ ...s, shown_name: (savedNames.current[s.ticker] ?? '').trim() || (s.shown_name ?? null) }))
 
   const targetSum =
     stocks.filter((s) => s.active).reduce((sum, s) => sum + Number(drafts[s.ticker].target || 0), 0) + cashTargetPct
@@ -167,6 +169,7 @@ export function StockEditModal({ stocks, holdings, cashTargetPct = 0, focus, onC
     const bad = dirty.filter((_, i) => results[i].status === 'rejected')
     if (ok.length > 0) {
       saved.current = [...new Set([...saved.current, ...ok.map((s) => s.ticker)])]
+      for (const s of ok) savedNames.current[s.ticker] = drafts[s.ticker].name
       setBase((prev) => ({ ...prev, ...Object.fromEntries(ok.map((s) => [s.ticker, drafts[s.ticker]])) }))
     }
     setBusy(false)

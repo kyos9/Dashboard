@@ -66,3 +66,11 @@
 | 뮤테이션 | 파일 | 결과 |
 | --- | --- | --- |
 | B5 오프셋 분 버림 | `frontend/src/lib/diagTime.ts` | 잡힘 |
+
+## 검토자 A 의 조건부 (A-review.md)
+
+| 뮤테이션 | 파일 | 결과 |
+| --- | --- | --- |
+| A1 visualViewport 아래 끝을 offsetTop 없이 | `frontend/src/components/NumberInput.tsx` | 잡힘 |
+| A3 대시보드 다시 열 때 안 지움 | `frontend/src/components/PortfolioView.tsx` | 잡힘 |
+| A3 저장한 이름 대신 목록 이름 | `frontend/src/components/StockEditModal.tsx` | 잡힘 |
