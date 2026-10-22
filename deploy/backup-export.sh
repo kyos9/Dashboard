@@ -25,7 +25,12 @@ case "${1:-}" in
     rm -rf "$EXPORT_DIR"
     mkdir -p "$EXPORT_DIR"
     chmod 700 "$EXPORT_DIR"
-    newest=$($DOCKER compose exec -T app sh -c 'ls -1 /data/backups' \
+    # 목록을 못 받은 것(앱이 꺼짐)과 목록에 매일 백업이 없는 것을 가른다 — 하나로 삼키면 꺼진 서버에 "아직 없습니다"라고 했다(0.45.0 A 검토)
+    if ! listing=$($DOCKER compose exec -T app sh -c 'ls -1 /data/backups'); then
+      echo "서버 앱이 꺼져 있거나 응답하지 않습니다 — 서버에서 docker compose ps 로 app 이 떠 있는지 보세요(DEPLOY.md 9)." >&2
+      exit 1
+    fi
+    newest=$(printf '%s\n' "$listing" \
       | grep -E '^signalboard-[0-9]{8}-[0-9]{6}\.(db|sql)$' | sort | tail -n 1 || true)
     if [ -z "$newest" ]; then
       echo "매일 백업이 아직 없습니다 — 앱이 켜진 뒤 1분, 또는 밤 11시 반 뒤에 다시 하세요." >&2
