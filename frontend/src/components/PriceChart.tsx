@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   createChart,
   createSeriesMarkers,
   LineSeries,
-  MismatchDirection,
   PriceScaleMode,
   type IChartApi,
   type ISeriesApi,
@@ -74,8 +73,6 @@ interface Props {
 export function PriceChart({ history, height = 440 }: Props) {
   const [container, setContainer] = useState<HTMLDivElement | null>(null)
   const [handles, setHandles] = useState<ChartHandles | null>(null)
-  // 차트 위 한 줄에 보일 날 — 없으면 마지막 날 (0.44.0 C1)
-  const [pointed, setPointed] = useState<{ date: string; close: number } | null>(null)
   const light = useThemeIsLight()
 
   useEffect(() => {
@@ -141,60 +138,165 @@ export function PriceChart({ history, height = 440 }: Props) {
     handles.chart.timeScale().fitContent()
   }, [handles, history])
 
-  /* 짧은 탭 (0.44.0 C1). 폰에서 짧게 탭하면 십자선이 그 자리로 오지 않고 앞서 있던 곳(예: 고점)에 남아, 축의 날짜
-     이름표가 엉뚱한 날에 섰다 — 길게 끌어야 맞는 날이 나왔다. 탭(클릭)한 자리로 십자선을 직접 옮기고, 차트 위 한
-     줄이 그 날을 말한다. 십자선이 움직이면(마우스·끌기) 그 날, 차트를 떠나면 마지막 날로 돌아간다. */
+  /* 고른 날과 가리키는 날 (0.44.0 C1 → 0.45.2 C2). 폰에서 짧게 탭하면 십자선이 그 자리로 오지 않고 앞서 있던 곳에 남아 탭한 자리로 직접 옮긴다.
+     마우스가 차트를 떠나면 라이브러리가 십자선을 지운다 — 가리키는 날만 잊고 **고른 날**(탭·◀ ▶)로 돌아간다. 하나로 두면 PC 에서 차트를 누른 뒤
+     ◀ 로 가는 사이 고른 날이 사라져 ◀ 가 늘 마지막 날에서 움직였다(계획 검토). */
+  const [hover, setHover] = useState<{ date: string; close: number } | null>(null)
+  const [picked, setPicked] = useState<{ date: string; close: number } | null>(null)
+  // 사람이 밀거나 키워 보이는 구간을 바꿨나 — "전체 보기" (C3). 구간 이벤트는 데이터·창 크기에도 와서 쓰지 않는다(계획 검토)
+  // 어느 데이터에서 밀었나 — 데이터가 바뀌면(종목·기간, 처음처럼 전체로 맞춘다) 저절로 내려간다
+  const [movedOn, setMovedOn] = useState<HistoryResponse | null>(null)
+  const moved = movedOn !== null && movedOn === history
+  const prices = history?.prices
+
   useEffect(() => {
     if (!handles) return
     const { chart, series } = handles
-    const read = (param: MouseEventParams<Time>) => {
+    const onMove = (param: MouseEventParams<Time>) => {
       const point = param.time !== undefined ? param.seriesData.get(series) : undefined
       const value = (point as { value?: unknown } | undefined)?.value
-      return typeof value === 'number' ? { time: param.time as Time, close: value } : null
-    }
-    const onMove = (param: MouseEventParams<Time>) => {
-      const hit = read(param)
-      setPointed(hit ? { date: chartDate(hit.time), close: hit.close } : null)
-    }
-    const onClick = (param: MouseEventParams<Time>) => {
-      let hit = read(param)
-      // 오른쪽 빈 칸(오늘 ▲ 자리로 비워 둔 rightOffset)을 누르면 그 자리에 날이 없다 — 왼쪽으로 가장 가까운 날(= 마지막 날).
-      // 맨 끝을 눌러 오늘로 돌아가려 해도 아무 일이 없었다(C 사용자 확인)
-      if (!hit && param.logical !== undefined) {
-        const near = series.dataByIndex(param.logical, MismatchDirection.NearestLeft) as { time?: Time; value?: unknown } | null
-        if (near?.time !== undefined && typeof near.value === 'number') hit = { time: near.time, close: near.value }
-      }
-      if (!hit) return
-      chart.setCrosshairPosition(hit.close, hit.time, series)
-      setPointed({ date: chartDate(hit.time), close: hit.close })
+      setHover(typeof value === 'number' ? { date: chartDate(param.time as Time), close: value } : null)
     }
     chart.subscribeCrosshairMove(onMove)
-    chart.subscribeClick(onClick)
-    // 0.5초 안에 30px 안쪽을 다시 누르면 라이브러리는 click 대신 dblClick 하나만 보낸다 — 받지 않으면 두 번째 탭이 무시됐다(0.45.1 B1).
-    // 30px 넘게 떨어진 빠른 두 번째 탭은 라이브러리가 아무것도 보내지 않는다(남는 한계)
-    chart.subscribeDblClick(onClick)
-    return () => {
-      chart.unsubscribeCrosshairMove(onMove)
-      chart.unsubscribeClick(onClick)
-      chart.unsubscribeDblClick(onClick)
-    }
+    return () => chart.unsubscribeCrosshairMove(onMove)
   }, [handles])
 
-  const last = history?.prices[history.prices.length - 1]
-  // 종목·기간을 바꾸면 가리켰던 날은 그 데이터에 없을 수 있다 — 그 날·그 값이 지금 데이터에 있을 때만 쓴다
-  const current = pointed && history?.prices.some((p) => p.date === pointed.date && p.close === pointed.close) ? pointed : null
+  /** 고른 날을 바꾸고 십자선을 그 날로 */
+  const pick = (index: number) => {
+    const day = prices?.[index]
+    if (!handles || !day) return
+    handles.chart.setCrosshairPosition(day.close, day.date as Time, handles.series)
+    setPicked({ date: day.date, close: day.close })
+  }
+  const pickRef = useRef(pick)
+  useEffect(() => {
+    pickRef.current = pick
+  })
+
+  /* 탭을 직접 받는다 (0.45.2 C1). 라이브러리의 click 은 0.5초 안에 30px 넘게 떨어진 두 번째 탭을 보내지 않았다(click·dblClick 어느 것도).
+     누른 자리에서 10px 안·0.5초 안에 뗀 첫 손가락(마우스는 왼쪽 단추)만 탭 — 밀기·두 손가락(벌리기)·취소(세로 스크롤로 넘어감)는 탭이 아니다.
+     길게 누른 뒤 떼면 라이브러리가 touchend 에서 십자선을 지우므로 그 뒤에 놓는다(setTimeout 0). 가격·날짜 축 위는 버린다. */
+  useEffect(() => {
+    if (!handles || !container) return
+    const { chart } = handles
+    let press: { id: number; x: number; y: number; at: number; tap: boolean } | null = null
+    const down = (e: PointerEvent) => {
+      if (press) {
+        // 두 번째 손가락 — 벌려 키우기
+        press.tap = false
+        setMovedOn(history)
+        return
+      }
+      if (!e.isPrimary || (e.pointerType === 'mouse' && e.button !== 0)) return
+      press = { id: e.pointerId, x: e.clientX, y: e.clientY, at: e.timeStamp, tap: true }
+    }
+    const move = (e: PointerEvent) => {
+      if (!press || e.pointerId !== press.id) return
+      if (Math.hypot(e.clientX - press.x, e.clientY - press.y) > 10) {
+        // 길게 누른 뒤 밀면(라이브러리의 날짜 따라가기, 240ms) 구간은 그대로다 — 그 전에 밀면 차트가 밀린다
+        if (press.tap && e.timeStamp - press.at < 240 && (e.pointerType === 'mouse' || Math.abs(e.clientX - press.x) > Math.abs(e.clientY - press.y))) setMovedOn(history)
+        press.tap = false
+      }
+    }
+    const up = (e: PointerEvent) => {
+      if (!press || e.pointerId !== press.id) return
+      const tap = press.tap && e.timeStamp - press.at < 500
+      press = null
+      if (!tap) return
+      const box = container.getBoundingClientRect()
+      const x = e.clientX - box.left
+      const y = e.clientY - box.top
+      const scale = chart.timeScale()
+      if (x < 0 || x > scale.width() || y < 0 || y > box.height - scale.height()) return
+      const logical = scale.coordinateToLogical(x)
+      if (logical === null) return
+      // 오른쪽 빈 칸(오늘 ▲ 자리로 비워 둔 rightOffset)은 마지막 날 — 오늘로 돌아가는 길(0.44.0 C 사용자 확인)
+      const last = (prices?.length ?? 0) - 1
+      const index = Math.min(Math.max(Math.round(logical), 0), last)
+      window.setTimeout(() => pickRef.current(index), 0)
+    }
+    const cancel = (e: PointerEvent) => {
+      if (press && e.pointerId === press.id) press = null
+    }
+    const wheel = () => setMovedOn(history)
+    container.addEventListener('pointerdown', down)
+    container.addEventListener('pointermove', move)
+    container.addEventListener('pointerup', up)
+    container.addEventListener('pointercancel', cancel)
+    container.addEventListener('wheel', wheel, { passive: true })
+    return () => {
+      container.removeEventListener('pointerdown', down)
+      container.removeEventListener('pointermove', move)
+      container.removeEventListener('pointerup', up)
+      container.removeEventListener('pointercancel', cancel)
+      container.removeEventListener('wheel', wheel)
+    }
+  }, [handles, container, prices, history])
+
+  const last = prices?.[prices.length - 1]
+  // 종목·기간을 바꾸면 고른·가리킨 날은 그 데이터에 없을 수 있다 — 그 날·그 값이 지금 데이터에 있을 때만 쓴다
+  const valid = (day: { date: string; close: number } | null) =>
+    day && prices?.some((p) => p.date === day.date && p.close === day.close) ? day : null
+  const current = valid(hover) ?? valid(picked)
   const shown = current ?? (last ? { date: last.date, close: last.close } : null)
+  const shownIndex = shown && prices ? prices.findIndex((p) => p.date === shown.date) : -1
+  const step = (by: -1 | 1) => {
+    const base = valid(picked) ?? (last ? { date: last.date, close: last.close } : null)
+    const from = base && prices ? prices.findIndex((p) => p.date === base.date) : -1
+    if (from < 0 || !prices?.[from + by]) return
+    setHover(null)
+    pick(from + by)
+  }
+  const atStart = shownIndex <= 0
+  const atEnd = !prices || shownIndex === prices.length - 1
 
   return (
     <div className="chart-shell">
       {shown && history && (
-        <p className="chart-readout" aria-live="polite">
-          <span className="mono">{shown.date}</span> · 종가{' '}
-          <span className="mono">{chartPrice(shown.close, currencyOfTicker(history.ticker))}</span>
-          {!current && <span className="hint"> (마지막 날 — 차트를 누르면 그 날)</span>}
-        </p>
+        <div className="chart-top">
+          <p className="chart-readout" aria-live="polite">
+            <span className="mono">{shown.date}</span> · 종가{' '}
+            <span className="mono">{chartPrice(shown.close, currencyOfTicker(history.ticker))}</span>
+            {!current && <span className="hint"> (마지막 날 — 차트를 누르면 그 날)</span>}
+          </p>
+          {/* 1년 보기에서 1px 이 하루쯤이라 바로 옆 거래일을 손가락으로 짚기 어려웠다 (0.45.2 C2). 끝에서는 꺼 두되 포커스는 남긴다(aria-disabled) */}
+          <div className="chart-tools">
+            <button
+              type="button"
+              className="ghost chart-step"
+              aria-label="이전 거래일"
+              aria-disabled={atStart}
+              onClick={() => !atStart && step(-1)}
+            >
+              ◀
+            </button>
+            <button
+              type="button"
+              className="ghost chart-step"
+              aria-label="다음 거래일"
+              aria-disabled={atEnd}
+              onClick={() => !atEnd && step(1)}
+            >
+              ▶
+            </button>
+            {/* 밀거나 키운 뒤에만 — 자리는 늘 잡아 두어 뜨고 질 때 차트가 밀리지 않는다 (0.45.2 C3) */}
+            <button
+              type="button"
+              className="ghost chart-fit"
+              style={moved ? undefined : { visibility: 'hidden' }}
+              aria-hidden={!moved}
+              tabIndex={moved ? undefined : -1}
+              onClick={() => {
+                handles?.chart.timeScale().fitContent()
+                setMovedOn(null)
+              }}
+            >
+              전체 보기
+            </button>
+          </div>
+        </div>
       )}
-      <div ref={setContainer} style={{ width: '100%' }} />
+      <div ref={setContainer} className="chart-canvas" style={{ width: '100%' }} />
     </div>
   )
 }
@@ -247,6 +349,8 @@ export function ChartLegend({
           : history
             ? `${history.prices.length}거래일 표시 · 세로축 로그 스케일`
             : ''}
+        {/* 손가락으로 밀면 차트가 통째로 밀린다 — 날짜를 따라가게 하는 길 (0.45.2 C3). 마우스는 올리기만 해도 따라와 손가락 기기에만 */}
+        {!loading && history && <span className="touch-only"> · 길게 누른 채 밀면 날짜가 따라옵니다</span>}
       </span>
     </div>
   )
