@@ -18,6 +18,7 @@ import datetime as dt
 import logging
 import threading
 from collections.abc import Callable
+from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
 
@@ -46,6 +47,15 @@ MAX_DEVICES = 10
 OVER = "over"
 UNDER = "under"
 
+# 알림이 가는 때는 하루 둘이다 (0.45.0 B) — **아침**(한국 07:30, 미국 장 마감 뒤 갱신)과 **오후**(16:00·16:30, 일본·한국 장 뒤).
+# 서버를 다시 켤 때 따라잡아 가는 알림은 그 시각이 속한 쪽을 따른다: 한국 시각 5시~12시 전은 아침, 그 밖은 오후.
+SLOT_MORNING = "morning"
+SLOT_AFTERNOON = "afternoon"
+SLOTS = (SLOT_MORNING, SLOT_AFTERNOON)
+KOREA = ZoneInfo("Asia/Seoul")
+# 끈 종목 수 — 종목 한도보다 크게(관리자는 종목 한도가 없다)
+MAX_MUTED = 200
+
 
 # ---------------------------------------------------------------------------
 #  받을 종류
@@ -63,6 +73,21 @@ def kinds_for(user: User, settings: UserSettings | None) -> list[str]:
 
 def available_kinds(user: User) -> tuple[str, ...]:
     return KINDS if user.is_owner else USER_KINDS
+
+
+def slot_of(now: dt.datetime) -> str:
+    """그 순간이 아침 알림인가 오후 알림인가. `now` 는 UTC(시간대 없음이면 UTC 로 본다)."""
+    aware = now if now.tzinfo else now.replace(tzinfo=dt.timezone.utc)
+    hour = aware.astimezone(KOREA).hour
+    return SLOT_MORNING if 5 <= hour < 12 else SLOT_AFTERNOON
+
+
+def prefs_of(settings: UserSettings | None) -> dict:
+    """받을 때와 끈 종목 — 저장된 것이 없거나 이상하면 지금과 같게(둘 다, 끈 것 없음)."""
+    stored = (settings.push_prefs if settings is not None else None) or {}
+    slots = [slot for slot in SLOTS if slot in (stored.get("slots") or SLOTS)]
+    muted = [t for t in stored.get("muted") or [] if isinstance(t, str)]
+    return {"slots": slots or list(SLOTS), "muted": muted}
 
 
 # ---------------------------------------------------------------------------
@@ -246,8 +271,14 @@ def record_buy_state_quietly(db: Session, user_id: int) -> None:
     db.commit()
 
 
-def compose(fired: list[tuple[str, str, str]], kinds: list[str]) -> dict | None:
-    """새로 켜진 것들을 알림 하나로. 받을 종류가 아니면 뺀다. 남는 게 없으면 None."""
+def compose(fired: list[tuple[str, str, str]], kinds: list[str], muted: list[str] | None = None) -> dict | None:
+    """새로 켜진 것들을 알림 하나로. 받을 종류가 아니면 뺀다. 남는 게 없으면 None.
+
+    `muted` — 알림을 끈 종목(0.45.0 B). 그 종목의 매수·비중 알림만 뺀다(리뷰는 종목 단위가 아니다). 상태는 이미
+    적혔다 — 다시 켜도 지난 것이 쏟아지지 않는다(종류 끄기와 같은 약속).
+    """
+    off = {f"{KIND_BUY}:{t}" for t in muted or []} | {f"{KIND_BAND}:{t}" for t in muted or []}
+    fired = [item for item in fired if item[0] not in off]
     buys = [label for subject, _, label in fired if subject.startswith(f"{KIND_BUY}:")]
     over = [label for subject, value, label in fired if subject.startswith(f"{KIND_BAND}:") and value == OVER]
     under = [label for subject, value, label in fired if subject.startswith(f"{KIND_BAND}:") and value == UNDER]
@@ -276,10 +307,13 @@ def compose(fired: list[tuple[str, str, str]], kinds: list[str]) -> dict | None:
     return {"title": title, "body": body, "url": url, "tag": "daily"}
 
 
-def run_daily(db: Session) -> dict:
+def run_daily(db: Session, now: dt.datetime | None = None) -> dict:
     """알림을 켜 둔 사람마다 한 번. 스케줄러가 시세 갱신 뒤에 부른다.
 
     한 사람에게서 넘어져도 다음 사람은 계속한다. `{"users": n, "notified": n}`.
+
+    **이때(아침·오후)를 받지 않는 사람은 건너뛴다 — 상태도 적지 않는다** (0.45.0 B). 그래서 그동안 켜진 신호는 다음에 받는
+    때 모아 간다(그때 아직 켜져 있는 것만). `now` 는 판정하는 실제 시각 — 예정 시각이 아니다(늦게 돈 잡도 그 시각으로).
     """
     user_ids = [
         uid
@@ -289,13 +323,18 @@ def run_daily(db: Session) -> dict:
         .distinct()
     ]
     notified = 0
+    slot = slot_of(now or dt.datetime.now(dt.timezone.utc))
     for user_id in sorted(user_ids):
         try:
+            settings = db.get(UserSettings, user_id)
+            prefs = prefs_of(settings)
+            if slot not in prefs["slots"]:
+                continue
             fired = _changes(db, user_id, current_values(db, user_id))
             if not fired:
                 continue
             user = db.get(User, user_id)
-            message = compose(fired, kinds_for(user, db.get(UserSettings, user_id)))
+            message = compose(fired, kinds_for(user, settings), prefs["muted"])
             if message is None:
                 continue
             if deliver(db, user_id, message)["sent"]:

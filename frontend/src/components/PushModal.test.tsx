@@ -24,7 +24,7 @@ vi.mock('../lib/push', async (importOriginal) => {
 import { AppStateProvider } from '../AppState'
 import { ApiError, api } from '../api/client'
 import { disablePush, enablePush, forgetPushDevice, pushState, syncPush } from '../lib/push'
-import type { AuthUser, PushSettings } from '../types'
+import type { AuthUser, PushSettings, Stock } from '../types'
 import { AppHeader } from './AppHeader'
 import { AuthGate, browser } from './AuthGate'
 import { STATE_TEXT } from '../lib/pushText'
@@ -40,6 +40,7 @@ beforeEach(() => {
   vi.mocked(forgetPushDevice).mockReset().mockResolvedValue(undefined)
   vi.mocked(syncPush).mockReset().mockResolvedValue(undefined)
   vi.spyOn(api, 'getPushSettings').mockResolvedValue(USER_SETTINGS)
+  vi.spyOn(api, 'listStocks').mockResolvedValue([])
 })
 
 function renderModal(onClose = vi.fn()) {
@@ -235,5 +236,83 @@ describe('헤더', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: '탈퇴' }))
     await waitFor(() => expect(forgetPushDevice).toHaveBeenCalled())
     expect(disablePush).not.toHaveBeenCalled()
+  })
+})
+
+
+describe('받을 때 · 종목별 알림 (0.45.0)', () => {
+  const NEW: PushSettings = { ...USER_SETTINGS, slots: ['morning', 'afternoon'], muted: [] }
+  const stock = (ticker: string, name: string | null = null, active = true): Stock => ({
+    ticker, name, category: null, market: ticker.endsWith('.KS') ? 'KR' : 'US', currency: ticker.endsWith('.KS') ? 'KRW' : 'USD', active,
+    added_at: '2026-01-01T00:00:00', target_weight_pct: 0, rebalance_band_pct: null, sort_order: 0,
+  })
+
+  it('아침·오후를 고른다 — 마지막 하나는 끌 수 없다', async () => {
+    vi.spyOn(api, 'getPushSettings').mockResolvedValue(NEW)
+    const save = vi.spyOn(api, 'setPushPrefs').mockResolvedValue({ ...NEW, slots: ['afternoon'] })
+    renderModal()
+    const morning = await screen.findByRole('checkbox', { name: /아침 \(7:30쯤\)/ })
+    const afternoon = screen.getByRole('checkbox', { name: /오후 \(4시쯤\)/ })
+    expect(morning).toBeChecked()
+    const note = screen.getByText(/끈 때 생긴 신호는 버리지 않고 다음에 받는 때 알려 드립니다\(그때까지 켜져 있으면\)/)
+    // 가입 신청 알림은 관리자만 받는다 — 사용자에게는 그 말이 없다
+    expect(note.textContent).not.toMatch(/가입 신청/)
+
+    await userEvent.click(morning)
+    expect(save).toHaveBeenCalledWith({ slots: ['afternoon'] })
+    await waitFor(() => expect(morning).not.toBeChecked())
+    expect(afternoon).toBeDisabled()
+    // 왜 못 끄는지 말한다
+    expect(afternoon.closest('label')).toHaveTextContent('(하나는 받아야 합니다)')
+    expect(morning.closest('label')).not.toHaveTextContent('하나는 받아야')
+  })
+
+  it('관리자에게는 가입 신청 알림이 바로 간다는 말', async () => {
+    vi.spyOn(api, 'getPushSettings').mockResolvedValue({ ...NEW, available: ['buy', 'band', 'review', 'signup'] })
+    renderModal()
+    expect(await screen.findByText(/가입 신청 알림은 바로 갑니다/)).toBeInTheDocument()
+  })
+
+  it('저장에 실패하면 되돌리고 까닭을 보인다', async () => {
+    vi.spyOn(api, 'getPushSettings').mockResolvedValue(NEW)
+    vi.spyOn(api, 'setPushPrefs').mockRejectedValue(new ApiError(400, '아침·오후 중 하나는 받아야 합니다.', 'no slots'))
+    renderModal()
+    const morning = await screen.findByRole('checkbox', { name: /아침/ })
+    await userEvent.click(morning)
+    expect(await screen.findByText(/아침·오후 중 하나는 받아야 합니다/)).toBeInTheDocument()
+    expect(morning).toBeChecked()
+  })
+
+  it('종목별 알림 — 접혀 있고 끈 수만, 펼치면 내 종목(숨긴 것은 빼고)', async () => {
+    // OLD 는 숨긴 종목인데 끈 채로 남아 있다 — 목록에도 수에도 넣지 않는다
+    vi.spyOn(api, 'getPushSettings').mockResolvedValue({ ...NEW, muted: ['SCHD', 'OLD'] })
+    vi.spyOn(api, 'listStocks').mockResolvedValue([stock('VOO'), stock('SCHD'), stock('005930.KS', '삼성전자'), stock('OLD', null, false)])
+    const save = vi.spyOn(api, 'setPushPrefs').mockResolvedValue({ ...NEW, muted: ['SCHD', 'VOO'] })
+    renderModal()
+    const summary = await screen.findByText('종목별 알림')
+    expect(summary.closest('summary')).toHaveTextContent('종목별 알림 — 1종목 끔')
+    const box = summary.closest('details') as HTMLDetailsElement
+    expect(box.open).toBe(false)
+    await userEvent.click(summary)
+    expect(within(box).getByRole('checkbox', { name: 'SCHD' })).not.toBeChecked()
+    expect(within(box).getByRole('checkbox', { name: '삼성전자' })).toBeChecked()
+    expect(within(box).queryByRole('checkbox', { name: 'OLD' })).toBeNull()
+    await userEvent.click(within(box).getByRole('checkbox', { name: 'VOO' }))
+    expect(save).toHaveBeenCalledWith({ muted: ['SCHD', 'OLD', 'VOO'] })
+  })
+
+  it('끈 종목이 없으면 "모두 받음"', async () => {
+    vi.spyOn(api, 'getPushSettings').mockResolvedValue(NEW)
+    vi.spyOn(api, 'listStocks').mockResolvedValue([stock('VOO')])
+    renderModal()
+    expect((await screen.findByText('종목별 알림')).closest('summary')).toHaveTextContent('종목별 알림 — 모두 받음')
+  })
+
+  it('옛 서버(칸 없음)면 두 칸이 없다', async () => {
+    vi.spyOn(api, 'listStocks').mockResolvedValue([stock('VOO')])
+    renderModal()
+    await screen.findByText('받을 알림')
+    expect(screen.queryByText('받을 때')).toBeNull()
+    expect(screen.queryByText('종목별 알림')).toBeNull()
   })
 })

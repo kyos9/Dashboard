@@ -88,6 +88,7 @@ def test_a_stranger_is_signed_in_as_pending(api, people):
     assert status["user"] == {"email": STRANGER, "name": "stranger", "is_owner": False, "status": "pending",
                               "ai_advice": False}
     assert "pending_count" not in status  # 관리자에게만
+    assert "backup_attention" not in status  # 관리자에게만 (0.45.0 A)
     assert _user(Session, "sub-x").status == "pending"
 
 
@@ -109,6 +110,8 @@ def test_the_admin_sees_the_request_first_and_approving_opens_the_same_session(a
 
     admin = people.be("sub-owner")
     assert admin.get("/api/auth/status").json()["pending_count"] == 1
+    # 백업을 봐야 하나 — 헤더 ⋯ 의 점 (0.45.0 A). 백업 폴더가 비어 있으면(막 켠 서버) 아니다
+    assert admin.get("/api/auth/status").json()["backup_attention"] is False
     rows = admin.get("/api/admin/users").json()
     assert rows[0]["email"] == STRANGER and rows[0]["status"] == "pending"
     assert {r["email"] for r in rows} == {OWNER, STRANGER}
@@ -229,3 +232,35 @@ def test_status_alone_is_enough_even_if_the_session_survived(api, people):
     friend = people.be("sub-friend")
     assert friend.get("/api/stocks").status_code == 401
     assert friend.get("/api/auth/status").json()["user"] is None
+
+
+def test_backup_attention_follows_the_backup_folder(api, people, monkeypatch):
+    """점의 뜻은 `backup.attention()` 이 정한다(test_backup.py). 여기서는 관리자의 상태에 그대로 실리는지만."""
+    from app.services import backup
+
+    monkeypatch.setattr(backup, "attention", lambda: True)
+    assert people.be("sub-owner").get("/api/auth/status").json()["backup_attention"] is True
+
+
+def test_offsite_line_only_on_a_server_with_google_login(api, people, monkeypatch):
+    """혼자 쓰는 PC 앱에는 "밖에 꺼낸 것" 줄이 없다 — ⋯ 의 점과 같은 기준 (A 검토)."""
+    from app.services import auth as auth_service
+
+    assert "offsite" in people.be("sub-owner").get("/api/admin/records").json()["backup"]
+    monkeypatch.setattr(auth_service, "mode", lambda: auth_service.MODE_OPEN)
+    client, _ = api
+    assert "offsite" not in client.get("/api/admin/records").json()["backup"]
+
+
+def test_a_backup_folder_that_cannot_be_read_does_not_break_the_admin_status(api, people, monkeypatch):
+    """백업 폴더를 못 읽어도(권한·디스크) 관리자의 상태 응답은 그대로 — 점만 빠진다 (라운드 끝 검토 참고)."""
+    from app.services import backup
+
+    def broken():
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr(backup, "attention", broken)
+    res = people.be("sub-owner").get("/api/auth/status")
+    assert res.status_code == 200
+    assert res.json()["user"]["is_owner"] is True
+    assert "backup_attention" not in res.json()

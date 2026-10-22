@@ -384,6 +384,16 @@ button.menu-btn {
   text-align: center;
 }
 
+/* 숫자 없이 봐야 할 것이 있다 — 가입 신청 숫자와 같은 자리·색의 작은 점 (0.45.0: 백업) */
+.menu-badge.menu-dot {
+  min-width: 10px;
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  top: -2px;
+  right: -2px;
+}
+
 .menu-panel {
   position: absolute;
   z-index: 45;
@@ -2683,6 +2693,39 @@ table.data-table tr.dirty:hover td {
   width: 18px;
   height: 18px;
   margin-top: 2px;
+}
+
+.push-kind input:disabled {
+  cursor: not-allowed;
+}
+
+/* 종목별 알림 — 접힌 칸. 종목이 많아도 팝업이 길어지지 않게 (0.45.0) */
+.push-stocks summary {
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0 4px;
+}
+
+.push-stocks[open] summary {
+  margin-bottom: 8px;
+}
+
+/* 펼치는 줄이라는 표시 — summary 를 flex 로 바꾸면 브라우저의 삼각형이 사라져 제목처럼 보였다(B 사용자 확인) */
+.push-stocks summary::-webkit-details-marker {
+  display: none;
+}
+
+.push-stocks summary::before {
+  content: '▸';
+  color: var(--text-dim);
+  margin-right: 6px;
+}
+
+.push-stocks[open] summary::before {
+  content: '▾';
 }
 
 .push-foot {

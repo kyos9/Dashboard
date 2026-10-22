@@ -50,6 +50,8 @@ interface AuthValue {
   pending: boolean
   /** 관리자에게만 — 기다리는 가입 신청 수. 헤더의 사용자 버튼에 뜬다 */
   pendingCount: number
+  /** 관리자에게만 — 진단의 백업 칸을 봐야 하나(매일 백업 실패·멈춤, 밖에 꺼낸 지 30일). ⋯ 메뉴에 점 (0.45.0) */
+  backupAttention: boolean
   /** 승인·거절한 뒤 신청 수를 다시 센다 */
   recountPending: () => void
   /** 관리자 전용 버튼(전체 새로고침·진단·예상치 입력 등)을 보여줄지. 혼자 쓰는 서버는 늘 관리자다 */
@@ -80,6 +82,7 @@ const Ctx = createContext<AuthValue>({
   guest: false,
   pending: false,
   pendingCount: 0,
+  backupAttention: false,
   recountPending: () => {},
   isAdmin: true,
   canAdvise: true,
@@ -144,6 +147,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [configProblem, setConfigProblem] = useState<string | null>(null)
   const [pendingCount, setPendingCount] = useState(0)
+  const [backupAttention, setBackupAttention] = useState(false)
   const [contact, setContact] = useState<string | null>(null)
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(takeLoginError)
@@ -168,6 +172,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
         setUser(status.user ?? null)
         setConfigProblem(status.config_problem ?? null)
         setPendingCount(status.pending_count ?? 0)
+        // 옛 서버·혼자 쓰는 모드는 보내지 않는다 — 점이 없다
+        setBackupAttention(status.backup_attention === true)
         setContact(status.contact ?? null)
         // 구글 모드는 로그인 전에도 연다 — 손님으로 둘러본다
         setPhase(status.locked && !status.authenticated && current !== 'google' ? 'locked' : 'open')
@@ -257,6 +263,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       guest,
       pending,
       pendingCount,
+      backupAttention,
       recountPending,
       isAdmin,
       canAdvise,
@@ -269,7 +276,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       withdraw,
     }),
     [
-      locked, mode, user, guest, pending, pendingCount, recountPending, isAdmin, canAdvise, contact, login,
+      locked, mode, user, guest, pending, pendingCount, backupAttention, recountPending, isAdmin, canAdvise, contact, login,
       configProblem, error, dismissLoginError, logout, withdraw,
     ],
   )

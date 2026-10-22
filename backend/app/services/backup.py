@@ -13,6 +13,7 @@
    찾아 헤매야 하는 백업은 없는 것과 비슷하다.
 """
 
+import contextlib
 import datetime as dt
 import json
 import logging
@@ -52,29 +53,89 @@ def _status_path(backup_dir: Path | None = None) -> Path:
     return Path(backup_dir or BACKUP_DIR) / STATUS_FILE
 
 
-def _write_failure(failure: dict | None, backup_dir: Path | None = None) -> None:
+@contextlib.contextmanager
+def _status_lock(path: Path):
+    """상태 파일을 읽고 고쳐 쓰는 동안 잠근다 — 앱과 `docker compose exec` 로 띄운 도구가 같은 파일을 쓴다 (0.45.0 A).
+
+    잠금은 옆의 작은 파일로(`….lock`). 윈도우에는 `fcntl` 이 없다 — 거기서는 PC 앱 하나만 쓰므로 잠그지 않는다.
+    """
+    try:
+        import fcntl
+    except ImportError:  # pragma: no cover - 윈도우
+        yield
+        return
+    with open(path.with_name(path.name + ".lock"), "a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock, fcntl.LOCK_UN)
+
+
+def _read_status_file(path: Path) -> dict:
+    try:
+        saved = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return saved if isinstance(saved, dict) else {}
+
+
+def _update_status(changes: dict, backup_dir: Path | None = None) -> bool:
+    """상태 파일의 키 몇 개만 고친다 — **읽고 합쳐 쓴다.** 통째로 덮어쓰면 매일 백업이 성공할 때마다(실패 기록 지우기)
+    밖에 꺼낸 시각까지 지워졌다 (0.45.0 계획 검토). 임시 파일 이름에 pid 를 붙인다 — 두 프로세스가 같은 이름을 쓰지 않게.
+    """
     path = _status_path(backup_dir)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        temp = path.with_name(path.name + ".tmp")
-        temp.write_text(json.dumps({"last_failure": failure}, ensure_ascii=False), encoding="utf-8")
-        temp.replace(path)
+        with _status_lock(path):
+            saved = _read_status_file(path)
+            saved.update(changes)
+            temp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+            temp.write_text(json.dumps(saved, ensure_ascii=False), encoding="utf-8")
+            temp.replace(path)
     except OSError as exc:
-        # 디스크가 찬 날이면 이것도 못 쓴다 — 로그에는 이미 남았다. 이 프로세스에라도 남긴다
+        # 디스크가 찬 날이면 이것도 못 쓴다 — 로그에는 이미 남았다. 실패 기록은 이 프로세스에라도 남긴다
         logger.warning("백업 상태 파일을 쓰지 못했습니다: %s", exc)
-        _unsaved[str(path)] = failure
-        return
-    _unsaved.pop(str(path), None)
+        if "last_failure" in changes:
+            _unsaved[str(path)] = changes["last_failure"]
+        return False
+    if "last_failure" in changes:
+        _unsaved.pop(str(path), None)
+    return True
+
+
+def _write_failure(failure: dict | None, backup_dir: Path | None = None) -> None:
+    _update_status({"last_failure": failure}, backup_dir)
+
+
+def mark_pulled(now: dt.datetime | None = None, backup_dir: Path | None = None) -> bool:
+    """서버 밖(관리자 PC)으로 백업을 꺼냈다고 적는다 (0.45.0 A) — `server-backup-pull.bat` 이 받은 크기를 확인한 뒤 부른다.
+
+    따로 띄운 프로세스라 못 쓰면 메모리에 남겨 봐야 앱이 못 본다 — 그래서 False 를 돌려주고 부른 쪽이 알린다.
+    """
+    at = (now or dt.datetime.now(dt.timezone.utc)).astimezone(dt.timezone.utc).replace(microsecond=0).isoformat()
+    return _update_status({"pulled_at": at}, backup_dir)
+
+
+def _read_pulled(backup_dir: Path | None = None) -> str | None:
+    at = _read_status_file(_status_path(backup_dir)).get("pulled_at")
+    if not isinstance(at, str):
+        return None
+    try:
+        parsed = dt.datetime.fromisoformat(at)
+    except ValueError:
+        return None
+    # 시간대가 없으면(손으로 고친 파일) UTC 로 본다 — 그대로 두면 시간대 있는 시각과 빼다가 관리자 상태가 넘어졌다(A 검토)
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=dt.timezone.utc).isoformat()
+    return at
 
 
 def _read_failure(backup_dir: Path | None = None) -> dict | None:
     path = _status_path(backup_dir)
     if str(path) in _unsaved:
         return _unsaved[str(path)]
-    try:
-        failure = json.loads(path.read_text(encoding="utf-8")).get("last_failure")
-    except (OSError, ValueError, AttributeError):
-        return None
+    failure = _read_status_file(path).get("last_failure")
     if isinstance(failure, dict) and isinstance(failure.get("at"), str) and isinstance(failure.get("reason"), str):
         return {"at": failure["at"], "reason": failure["reason"]}
     return None
@@ -268,7 +329,30 @@ def status(backup_dir: Path | None = None) -> dict:
         "last_size": last_size,
         "last_failure": _read_failure(backup_dir),
         "premigrate": {"count": len(before), "last_at": _taken_at(before[0]) if before else None},
+        # 서버 밖(관리자 PC)으로 마지막으로 꺼낸 때 (0.45.0 A) — 꺼낸 쪽이 적는다. 서버는 밖에 무엇이 있는지 모른다
+        "offsite": {"last_at": _read_pulled(backup_dir)},
     }
+
+
+# 진단의 경고와 같은 기준 (DiagnosticsModal) — 매일 백업이 이만큼 없으면, 밖에 꺼낸 지 이만큼 지나면
+STALE_HOURS = 36
+OFFSITE_STALE_DAYS = 30
+
+
+def attention(now: dt.datetime | None = None, backup_dir: Path | None = None) -> bool:
+    """관리자가 진단을 열어 봐야 하나 — 헤더 ⋯ 메뉴의 점 (0.45.0 A). 진단은 매일 여는 곳이 아니라서.
+
+    매일 백업이 실패했거나 36시간 넘게 없거나, **한 번이라도** 밖에 꺼낸 뒤 30일이 넘었으면. 한 번도 안 꺼냈으면 점은
+    없다(진단에 "밖에 꺼낸 기록이 없습니다"만) — 꺼내는 길을 쓰지 않는 서버에 늘 점이 뜨면 점이 아무 뜻이 없어진다.
+    """
+    now = now or dt.datetime.now(dt.timezone.utc)
+    state = status(backup_dir)
+    if state["last_failure"]:
+        return True
+    if state["last_at"] and now - dt.datetime.fromisoformat(state["last_at"]) > dt.timedelta(hours=STALE_HOURS):
+        return True
+    pulled = state["offsite"]["last_at"]
+    return bool(pulled) and now - dt.datetime.fromisoformat(pulled) > dt.timedelta(days=OFFSITE_STALE_DAYS)
 
 
 def run_backup_if_stale(max_age_hours: float = 12, backup_dir: Path | None = None) -> Path | None:

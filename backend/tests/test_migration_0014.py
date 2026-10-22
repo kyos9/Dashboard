@@ -74,7 +74,7 @@ def test_downgrade_stops_when_the_backup_fails(at_0004, snapshots, monkeypatch):
     from app.services import backup
 
     engine = at_0004
-    migrate.upgrade_to_head(engine)
+    _to(engine, "0014")  # 0015 부터 머리는 0014 가 아니다
     _insert_row(engine)
 
     def no_disk(bind, backup_dir=None, *, required=False):
@@ -100,7 +100,7 @@ def test_downgrading_only_0013_does_not_require_a_backup(at_0004, snapshots):
 def test_the_previous_image_still_opens_a_db_at_0014(at_0004, snapshots, monkeypatch):
     """0.43 이미지는 0014 를 모른다 — 경고만 하고 그대로 뜬다. 이미지만 되돌리면 기록이 산다."""
     engine = at_0004
-    migrate.upgrade_to_head(engine)
+    _to(engine, "0014")  # 0015 부터 머리는 0014 가 아니다
     _insert_row(engine)
     monkeypatch.setattr(migrate, "is_known", lambda revision: revision != "0014")
     assert migrate.upgrade_to_head(engine) == "0014"

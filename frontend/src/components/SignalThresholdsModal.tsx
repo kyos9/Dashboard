@@ -4,6 +4,7 @@ import { useBackToClose } from '../lib/backToClose'
 import { setSignalRules } from '../lib/signalRules'
 import type { SignalRules, SignalThresholdKey, SignalThresholds } from '../types'
 import { NumberInput } from './NumberInput'
+import { lockBodyScroll } from '../lib/scrollLock'
 
 /**
  * 시그널 기준 — 내 기준 (0.42.0, 명세 12장).
@@ -74,11 +75,10 @@ export function SignalThresholdsModal({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
     document.addEventListener('keydown', onKey)
-    const previous = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    const release = lockBodyScroll()
     return () => {
       document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = previous
+      release()
     }
   }, [onClose])
 

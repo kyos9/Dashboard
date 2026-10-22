@@ -60,11 +60,13 @@ function afterSettle() {
 /**
  * @param onClose 뒤로가기로 닫을 때 부른다
  * @param canClose 거짓이면 뒤로가기를 눌러도 닫지 않는다 (지우는 중인 확인 창)
+ * @param onBlocked 닫지 않은 뒤로가기에 부른다 — 칸은 다시 쌓은 뒤라, 여기서 확인 창을 띄우면 그 창이 위에 쌓인다
+ *   (고치던 것이 있는 일괄 편집, 0.45.0)
  */
-export function useBackToClose(onClose: () => void, canClose = true) {
-  const latest = useRef({ onClose, canClose })
+export function useBackToClose(onClose: () => void, canClose = true, onBlocked?: () => void) {
+  const latest = useRef({ onClose, canClose, onBlocked })
   useEffect(() => {
-    latest.current = { onClose, canClose }
+    latest.current = { onClose, canClose, onBlocked }
   })
 
   useEffect(() => {
@@ -81,6 +83,7 @@ export function useBackToClose(onClose: () => void, canClose = true) {
       if (level(window.history.state) >= mine) return // 내 위의 팝업이 닫혔다
       if (!latest.current.canClose) {
         mark(mine) // 지금은 닫을 수 없다 — 빠진 칸을 다시 쌓는다
+        latest.current.onBlocked?.()
         return
       }
       latest.current.onClose()

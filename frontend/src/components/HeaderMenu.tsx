@@ -19,6 +19,8 @@ interface Props {
   foot?: ReactNode
   /** 가입 신청 수. 메뉴를 열지 않아도 보이게 버튼에 붙인다 */
   badge?: number
+  /** 숫자 없이 봐야 할 것이 있다 — 점 하나, 그 까닭은 읽기 이름으로 (0.45.0: 백업) */
+  dot?: string
 }
 
 /**
@@ -30,7 +32,7 @@ interface Props {
  * 항목을 누르면 메뉴를 **먼저 닫고** 그 일을 한다. 항목이 팝업을 열면 메뉴가 쌓아 둔 뒤로가기
  * 칸을 팝업이 그대로 이어 쓴다 — 뒤로가기 한 번에 팝업이 닫히고 보던 화면이 남는다.
  */
-export function HeaderMenu({ items, head, foot, badge = 0 }: Props) {
+export function HeaderMenu({ items, head, foot, badge = 0, dot }: Props) {
   const [open, setOpen] = useState(false)
   const wrap = useRef<HTMLDivElement>(null)
   const toggle = useRef<HTMLButtonElement>(null)
@@ -43,7 +45,7 @@ export function HeaderMenu({ items, head, foot, badge = 0 }: Props) {
         className="ghost menu-btn"
         aria-expanded={open}
         aria-controls={open ? id : undefined}
-        aria-label={badge > 0 ? `메뉴 — 가입 신청 ${badge}건` : '메뉴'}
+        aria-label={['메뉴', badge > 0 && `가입 신청 ${badge}건`, dot].filter(Boolean).join(' — ')}
         title="메뉴"
         onClick={() => setOpen((o) => !o)}
       >
@@ -53,10 +55,12 @@ export function HeaderMenu({ items, head, foot, badge = 0 }: Props) {
           <circle cx="12" cy="12" r="1.9" fill="currentColor" />
           <circle cx="19" cy="12" r="1.9" fill="currentColor" />
         </svg>
-        {badge > 0 && (
+        {badge > 0 ? (
           <span className="menu-badge" aria-hidden="true">
             {badge}
           </span>
+        ) : (
+          dot && <span className="menu-badge menu-dot" aria-hidden="true" />
         )}
       </button>
       {open && (
@@ -82,7 +86,7 @@ function MenuPanel({
   head,
   foot,
   onClose,
-}: Omit<Props, 'badge'> & {
+}: Omit<Props, 'badge' | 'dot'> & {
   id: string
   wrap: RefObject<HTMLDivElement | null>
   toggle: RefObject<HTMLButtonElement | null>

@@ -808,7 +808,8 @@ def check_withdraw(w: World):
 def check_push_settings(w: World):
     got = w.as_user(B).get("/api/push/settings").json()
     # B는 고른 적이 없어 전부 받는다. 가입 신청 알림은 관리자에게만 있다
-    assert got == {"kinds": ["buy", "band", "review"], "available": ["buy", "band", "review"], "devices": 1}
+    assert got == {"kinds": ["buy", "band", "review"], "available": ["buy", "band", "review"], "devices": 1,
+                   "slots": ["morning", "afternoon"], "muted": []}
     theirs = w.as_user(A).get("/api/push/settings").json()
     assert theirs["kinds"] == ["buy", "signup"]
     assert theirs["devices"] == 1
@@ -822,6 +823,10 @@ def check_update_push_settings(w: World):
     assert res.status_code == 200, res.text
     assert res.json()["kinds"] == ["band"]
     assert w.get(UserSettings, B).push_kinds == ["band"]
+    # 알림을 끌 종목은 내 목록의 것만 — A 만 담은 VOO 는 B 가 끌 수 없다 (0.45.0)
+    assert client.put("/api/push/settings", json={"muted": ["VOO"]}).status_code == 400
+    assert client.put("/api/push/settings", json={"muted": [SAMSUNG]}).json()["muted"] == [SAMSUNG]
+    assert w.get(UserSettings, A).push_prefs is None
     _a_is_untouched(w)
 
 

@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.db import get_db
 from app.markets import market_of_stock, normalize_ticker
-from app.models import Holding, PriceDaily, User, UserStock
+from app.models import Holding, PriceDaily, User, UserSettings, UserStock
 from app.schemas import (
     RefreshResult,
     StockCreate,
@@ -348,6 +348,12 @@ def purge_stock(
         Holding.user_id == stock.user_id, Holding.ticker == normalized
     ).delete(synchronize_session=False)
     db.delete(stock)
+    # 알림을 끈 종목이었으면 그 표시도 — 다시 담으면 처음처럼 알림이 온다 (0.45.0 B)
+    settings = db.get(UserSettings, user_id)
+    if settings is not None and settings.push_prefs and normalized in (settings.push_prefs.get("muted") or []):
+        prefs = dict(settings.push_prefs)
+        prefs["muted"] = [t for t in prefs["muted"] if t != normalized]
+        settings.push_prefs = prefs
     db.commit()
 
     # "받는 중·못 받음" 표시는 티커마다 하나라 남이 담고 있으면 그 사람 화면의 표시다

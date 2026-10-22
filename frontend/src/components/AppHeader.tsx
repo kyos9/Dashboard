@@ -34,7 +34,8 @@ export function buildLabel(builtAt?: string | null): string {
 
 export function AppHeader() {
   const { refreshAll, refreshing, lastSync, refreshError } = useAppState()
-  const { locked, mode, user, guest, pending, pendingCount, recountPending, isAdmin, logout, withdraw } = useAuth()
+  const { locked, mode, user, guest, pending, pendingCount, backupAttention, recountPending, isAdmin, logout, withdraw } =
+    useAuth()
   const [showUsers, setShowUsers] = useState(false)
   const [confirmWithdraw, setConfirmWithdraw] = useState(false)
   const [withdrawing, setWithdrawing] = useState(false)
@@ -116,7 +117,18 @@ export function AppHeader() {
   // (혼자 쓰는 서버에는 사용자 목록이 없다).
   const adminItems: MenuItem[] = isAdmin
     ? [
-        { key: 'diag', label: '진단', title: '서버가 남긴 경고·오류 보기', onSelect: () => setShowDiagnostics(true) },
+        {
+          key: 'diag',
+          // 매일 백업이 멈췄거나 밖에 꺼낸 지 오래면 점 — 진단은 매일 여는 곳이 아니다 (0.45.0)
+          label: (
+            <>
+              진단
+              {backupAttention && <span className="badge badge-amber count-badge" aria-label="백업을 확인하세요">!</span>}
+            </>
+          ),
+          title: backupAttention ? '백업을 확인하세요 — 진단의 백업 칸' : '서버가 남긴 경고·오류 보기',
+          onSelect: () => setShowDiagnostics(true),
+        },
         ...(mode === 'google'
           ? [
               {
@@ -216,6 +228,7 @@ export function AppHeader() {
               items={phoneItems}
               head={accountHead}
               badge={isAdmin ? pendingCount : 0}
+              dot={isAdmin && backupAttention ? '백업을 확인하세요' : undefined}
               foot={
                 version && (
                   <span className="mono" title={versionTitle}>
@@ -297,7 +310,9 @@ export function AppHeader() {
               화면
             </button>
             {/* 관리자 도구는 메뉴로 — 헤더 버튼이 아홉 개였다 */}
-            {adminItems.length > 0 && <HeaderMenu items={adminItems} badge={pendingCount} />}
+            {adminItems.length > 0 && (
+              <HeaderMenu items={adminItems} badge={pendingCount} dot={backupAttention ? '백업을 확인하세요' : undefined} />
+            )}
           </div>
         </header>
       )}

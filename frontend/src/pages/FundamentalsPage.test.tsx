@@ -1,3 +1,4 @@
+import { MemoryRouter } from 'react-router-dom'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -95,8 +96,11 @@ describe('재무 화면', () => {
 
   it('담은 종목이 없으면 그렇게 말한다', async () => {
     vi.spyOn(api, 'listFundamentals').mockResolvedValue([])
-    render(<AppStateProvider><FundamentalsPage /></AppStateProvider>)
+    render(<MemoryRouter><AppStateProvider><FundamentalsPage /></AppStateProvider></MemoryRouter>)
     expect(await screen.findByText('담은 종목이 없습니다')).toBeInTheDocument()
+    // 누를 곳 — 리밸런싱·차트와 같은 말·단추 (0.45.0 D5)
+    expect(screen.getByText('종목 관리에서 종목을 담으면 여기에 재무가 보입니다.')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '종목 추가하러 가기' })).toHaveAttribute('href', '/stocks')
   })
 
   it('못 불러오면 오류를 보여준다', async () => {

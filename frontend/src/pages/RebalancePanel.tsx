@@ -1,5 +1,5 @@
+import { NoStocksYet } from '../components/NoStocksYet'
 import { useMemo, useRef, useState, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
 import { useAppState } from '../AppState'
 import { api } from '../api/client'
 import { useAuth } from '../components/AuthGate'
@@ -644,16 +644,19 @@ function RecordPanel({
 /**
  * 날마다의 평가금액 (0.44.0) — 서버가 매일 아침 스스로 남기는 기록이 쌓이고 있다는 한 줄.
  * 위의 리뷰 기록("지금 상태 기록하기")과 다른 것이라 그렇다고 같이 적는다. 옛 서버·꺼 둔 서버면 그리지 않는다.
+ * 무엇을 남기는지는 방침(Policy.tsx "서버가 날마다 만드는 기록")과 같은 말로 (0.45.0 D3). `days` 는 날짜 차이가 아니라
+ * 쌓인 **줄 수**라 "○일째"가 아니라 "○일치". 쌓인 것을 볼 화면은 아직 없다고 적는다 — 볼 곳이 있는 것처럼 읽히지 않게.
  */
 export function ValueRecordLine({ record }: { record: ValueRecord | null | undefined }) {
   if (!record?.enabled) return null
   return (
     <p className="hint value-record-line">
-      리뷰 기록과 따로, 평가금액은 매일 아침 자동으로 남깁니다 —{' '}
+      리뷰 기록과 따로, 서버가 매일 아침 평가금액과 보유 모습(수량·평단가·종가·현금·환율)을 남깁니다 —{' '}
       {record.days > 0 && record.since ? (
         <>
           {/* 날짜가 줄 끝에서 "2026-" / "10-12" 로 갈라지지 않게 */}
-          <span className="nowrap">{record.since}부터</span> <span className="nowrap">{record.days}일째.</span>
+          <span className="nowrap">{record.since}부터</span> <span className="nowrap">{record.days}일치</span> 쌓였습니다(쌓인 기록을 보는 화면은
+          아직 없습니다).
         </>
       ) : (
         '보유나 현금이 있으면 다음 아침부터 쌓입니다.'
@@ -691,7 +694,7 @@ function SnapshotList({
   if (snapshots.length === 0) {
     return (
       <p className="hint">
-        아직 남긴 기록이 없습니다. 리뷰할 때 "지금 상태 기록하기"를 누르면 그날의 수량·가격·비중이 그대로
+        아직 리뷰 기록이 없습니다. 리뷰할 때 "지금 상태 기록하기"를 누르면 그날의 수량·가격·비중이 그대로
         남아, 다음 리뷰 때 지난번과 비교할 수 있습니다.
       </p>
     )
@@ -1170,14 +1173,8 @@ export function RebalancePanel() {
 
   if (rows.length === 0 || !current) {
     return (
-      <div className="empty-state">
-        <h3>리밸런싱할 종목이 없습니다</h3>
-        <p>종목 관리 화면에서 종목을 추가하고 목표 비중을 설정해주세요.</p>
-        {/* 누를 곳이 없었다 — 폰은 종목 관리가 "더보기" 안이다 (디자인 2차, 주인 결정). 대시보드 첫 화면과 같은 단추 */}
-        <Link to="/stocks" className="link-button">
-          종목 추가하러 가기
-        </Link>
-      </div>
+      // 누를 곳이 없었다 — 폰은 종목 관리가 "더보기" 안이다 (디자인 2차, 주인 결정). 차트·재무도 같은 말·단추로 (0.45.0 D5)
+      <NoStocksYet title="리밸런싱할 종목이 없습니다" shows="목표 비중과 지금 비중이" />
     )
   }
 

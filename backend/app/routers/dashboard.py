@@ -10,7 +10,7 @@ from app.schemas import (
 )
 from app.services import backfill, my_signals, queries, rebalance, signal_rules
 # 화면이 조건을 나눠 보여주는 판정 — AI 정리(ai_analysis)도 같은 것을 쓴다
-from app.services.signals import buy_conditions_many, knee_conditions_from
+from app.services.signals import buy_conditions_many, knee_conditions_from, sell_conditions_many
 # 옛 이름 — 조건 분해가 엔진과 같은지 보는 테스트가 이 자리로 부른다
 from app.services.signals import knee_conditions as _knee_conditions  # noqa: F401
 from app.services.trading_calendar import market_today
@@ -47,6 +47,16 @@ def get_dashboard(db: Session = Depends(get_db), user_id: int = Depends(current_
     rules_version = signal_rules.rules_version(t)
     # 오늘 조건은 종목마다가 아니라 한 번에 (signals.buy_conditions_many)
     conditions_by_ticker = buy_conditions_many({tk: indicators_by_ticker.get(tk, []) for tk in tickers}, t)
+    # 매도(참고) 조건도 같은 규칙·같은 평가로 (0.45.0 C). "MA50 위"는 종가가 필요하다 — 이미 읽은 최근 종가 중
+    # **가장 새 지표 날짜와 같은 날**의 것만 쓴다(다른 날 종가로 재면 저장된 판정과 갈라진다). 쿼리는 늘지 않는다
+    close_on_indicator_day = {
+        tk: next((p.close for p in prices_by_ticker.get(tk, []) if p.date == rows[0].date), None)
+        for tk in tickers
+        if (rows := indicators_by_ticker.get(tk))
+    }
+    sell_by_ticker = sell_conditions_many(
+        {tk: indicators_by_ticker.get(tk, []) for tk in tickers}, close_on_indicator_day, t
+    )
 
     cards = []
     # "오늘"은 시장마다 다르다. 서버 시계로 재면 한국 종목은 미국이 아직 어제일 때
@@ -119,6 +129,11 @@ def get_dashboard(db: Session = Depends(get_db), user_id: int = Depends(current_
                 buy_conditions=buy_conditions,
                 signal_rules_version=rules_version,
                 shoulder_sell_ref=bool(signal.shoulder_sell_ref) if signal else False,
+                sell_conditions=(
+                    sell_by_ticker[stock.ticker]
+                    if signal is not None and indicator is not None and signal.date == indicator.date
+                    else None
+                ),
                 last_buy_signal_date=last_buy_signals.get(stock.ticker),
                 rebalance_signal=rebalance_signal,
                 data_status=(backfill.status(stock.ticker) or {}).get("state"),

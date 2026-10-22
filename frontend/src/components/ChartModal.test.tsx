@@ -22,6 +22,9 @@ const chart = {
 }
 const createChart = vi.fn(() => chart)
 
+const narrow = vi.hoisted(() => ({ value: false }))
+vi.mock('../lib/narrow', () => ({ useNarrow: () => narrow.value }))
+
 vi.mock('lightweight-charts', () => ({
   createChart: (...args: unknown[]) => createChart(...(args as [])),
   createSeriesMarkers: () => ({ setMarkers: vi.fn() }),
@@ -41,6 +44,7 @@ const HISTORY: HistoryResponse = {
 
 beforeEach(() => {
   vi.restoreAllMocks()
+  narrow.value = false
   createChart.mockClear()
   series.setData.mockClear()
 })
@@ -69,6 +73,60 @@ describe('차트 팝업', () => {
     unmount()
     render(<ChartModal ticker="005930.KS" name="삼성전자" onClose={() => {}} />)
     expect(screen.queryByText('매수 조건')).toBeNull()
+  })
+
+  it('매도 조건 (참고) 은 매도(참고) 신호가 켜진 날만 — 회색 칩, 명령하는 말 없음 (0.45.0 C)', async () => {
+    vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
+    const base = {
+      ticker: '005930.KS',
+      knee_conditions: { di_bearish: false, disparity_negative: false, volatility_or_volume: true, adx_trending: true },
+    }
+    const on = { ...base, shoulder_sell_ref: true, sell_conditions: { above_ma50: true, adx_rising: true, volume_strong: true } }
+    const { container, unmount } = render(<ChartModal ticker="005930.KS" name="삼성전자" card={on as never} onClose={() => {}} />)
+    const row = container.querySelector('.sell-conditions') as HTMLElement
+    expect(row.querySelector('.signal-row-label')!.textContent).toBe('매도 조건 (참고) 3/3')
+    expect(screen.getByLabelText('MA50 위 충족')).toBeInTheDocument()
+    expect(screen.getByLabelText('ADX 상승 충족')).toBeInTheDocument()
+    expect(screen.getByLabelText('거래량 받침 충족')).toBeInTheDocument()
+    // 충족도 초록(met)이 아니다 — 팔라로 읽히는 색을 쓰지 않는다
+    expect(row.querySelectorAll('.cond.met')).toHaveLength(0)
+    expect(row.textContent).not.toMatch(/팔|매도하세요|줄이|리뷰 마감일/)
+    unmount()
+
+    // 꺼진 날·옛 서버(칸 없음)·날짜가 달라 서버가 null 을 보낸 날은 그 줄이 없다
+    for (const card of [
+      { ...base, shoulder_sell_ref: false, sell_conditions: { above_ma50: true, adx_rising: true, volume_strong: false } },
+      { ...base, shoulder_sell_ref: true },
+      { ...base, shoulder_sell_ref: true, sell_conditions: null },
+      // 판정 불가가 섞이면(그날 종가를 못 찾았다) 배지와 다른 말("2/3")을 하지 않게 숨긴다 (C 검토)
+      { ...base, shoulder_sell_ref: true, sell_conditions: { above_ma50: null, adx_rising: true, volume_strong: true } },
+      { ...base, shoulder_sell_ref: true, sell_conditions: {} },
+    ]) {
+      const view = render(<ChartModal ticker="005930.KS" name="삼성전자" card={card as never} onClose={() => {}} />)
+      expect(screen.getByText('매수 조건')).toBeInTheDocument()
+      expect(view.container.querySelector('.sell-conditions')).toBeNull()
+      view.unmount()
+    }
+  })
+
+  it('폰에서 매도 조건 줄이 있는 날은 차트를 그만큼 낮게 — 날짜 축이 첫 화면 안에 (0.45.0 C, 360×640)', async () => {
+    vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
+    const on = { ticker: '005930.KS', knee_conditions: {}, shoulder_sell_ref: true, sell_conditions: { above_ma50: true, adx_rising: true, volume_strong: true } }
+    const heights = async (card: unknown, isNarrow: boolean) => {
+      narrow.value = isNarrow
+      createChart.mockClear()
+      const view = render(<ChartModal ticker="005930.KS" name="삼성전자" card={card as never} onClose={() => {}} />)
+      await waitFor(() => expect(createChart).toHaveBeenCalled())
+      const h = (createChart.mock.calls[0] as unknown as [unknown, { height: number }])[1].height
+      view.unmount()
+      return h
+    }
+    expect(await heights(on, true)).toBe(300)
+    expect(await heights(on, false)).toBe(380)
+    expect(await heights({ ...on, shoulder_sell_ref: false }, true)).toBe(380)
+    // 배지만 켜지고 줄이 없는 날(옛 서버·날짜가 다름)은 줄일 까닭이 없다
+    expect(await heights({ ...on, sell_conditions: null }, true)).toBe(380)
+    expect(await heights({ ...on, sell_conditions: { above_ma50: null, adx_rising: true, volume_strong: true } }, true)).toBe(380)
   })
 
   it('종목 이름과 차트를 띄운다', async () => {

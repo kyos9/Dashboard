@@ -245,7 +245,7 @@ describe('진단 — 기록 (0.44.0)', () => {
 
   it('마지막 날짜·그날 사람 수·모든 줄 수만 보인다', () => {
     render(<RecordsLine status={status({ last_date: '2026-10-16', users: 3, rows: 41 })} now={0} />)
-    expect(screen.getByText('평가금액 기록: 마지막 2026-10-16 · 그날 3명 · 모두 41줄')).toBeTruthy()
+    expect(screen.getByText('평가금액 기록: 마지막 2026-10-16 · 그날 3명(보유·현금이 있는 사람만) · 지금까지 41줄(사람마다 하루 한 줄)')).toBeTruthy()
   })
 
   it('아직 없으면 언제 쌓이는지, 꺼 두었으면 꺼졌다고', () => {
@@ -352,5 +352,44 @@ describe('진단의 백업 줄 (0.44.0 D0)', () => {
     } finally {
       vi.unstubAllEnvs()
     }
+  })
+})
+
+describe('진단의 백업 줄 — 밖에 꺼낸 것 (0.45.0 A)', () => {
+  const NOW = Date.parse('2026-10-20T12:00:00Z')
+  const backup = (offsite: BackupStatus['offsite']): BackupStatus => ({
+    count: 3, keep: 7, last_at: '2026-10-19T23:30:00+00:00', last_size: 2_621_440, last_failure: null, offsite,
+  })
+  const local = (iso: string) =>
+    new Date(iso).toLocaleString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })
+
+  it('꺼낸 적이 없으면 그렇다고 — 경고는 아니다', () => {
+    render(<BackupLines backup={backup({ last_at: null })} now={NOW} />)
+    expect(screen.getByText(/^밖에 꺼낸 기록이 없습니다/).textContent).toBe(
+      '밖에 꺼낸 기록이 없습니다 — 서버가 사라지면 이 백업도 같이 사라집니다. 내 PC 로 가져오는 법은 DEPLOY.md 10.',
+    )
+    expect(screen.queryByRole('note')).toBeNull()
+  })
+
+  it('꺼냈으면 그 시각(관리자 PC), 30일 넘으면 경고', () => {
+    const { unmount } = render(<BackupLines backup={backup({ last_at: '2026-10-13T09:00:00+00:00' })} now={NOW} />)
+    expect(screen.getByText(/^밖에 꺼낸 것/).textContent).toBe(`밖에 꺼낸 것: 마지막 ${local('2026-10-13T09:00:00+00:00')} (관리자 PC)`)
+    expect(screen.queryByRole('note')).toBeNull()
+    unmount()
+
+    // 30일이 지나기 전에는 경고하지 않고, 지난 순간부터 — 서버의 ⋯ 점과 같은 경계 (A 검토: 30.5일)
+    const { unmount: u2 } = render(<BackupLines backup={backup({ last_at: '2026-09-20T13:00:00+00:00' })} now={NOW} />)
+    expect(screen.queryByRole('note')).toBeNull()
+    u2()
+    const { unmount: u3 } = render(<BackupLines backup={backup({ last_at: '2026-09-20T00:00:00+00:00' })} now={NOW} />)
+    expect(screen.getByRole('note').textContent).toBe('30일 동안 밖에 꺼내지 않았습니다 — PC 에서 server-backup-pull.bat 을 실행하세요.')
+    u3()
+    render(<BackupLines backup={backup({ last_at: '2026-09-19T11:00:00+00:00' })} now={NOW} />)
+    expect(screen.getByRole('note').textContent).toBe('31일 동안 밖에 꺼내지 않았습니다 — PC 에서 server-backup-pull.bat 을 실행하세요.')
+  })
+
+  it('옛 서버(칸 없음)면 그 줄이 없다', () => {
+    render(<BackupLines backup={backup(undefined)} now={NOW} />)
+    expect(screen.queryByText(/밖에 꺼낸/)).toBeNull()
   })
 })

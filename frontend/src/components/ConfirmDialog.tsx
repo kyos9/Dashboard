@@ -1,9 +1,12 @@
 import { useEffect, useRef } from 'react'
 import { useBackToClose } from '../lib/backToClose'
+import { lockBodyScroll } from '../lib/scrollLock'
 
 interface Props {
   title: string
   confirmLabel: string
+  /** 기본 "취소" — 버리는 것을 묻는 창은 "계속 고치기"처럼 머무는 쪽의 말로 */
+  cancelLabel?: string
   busyLabel?: string
   busy?: boolean
   children: React.ReactNode
@@ -23,6 +26,7 @@ interface Props {
 export function ConfirmDialog({
   title,
   confirmLabel,
+  cancelLabel = '취소',
   busyLabel,
   busy = false,
   children,
@@ -44,11 +48,10 @@ export function ConfirmDialog({
       if (e.key === 'Escape' && !busy) onCancel()
     }
     document.addEventListener('keydown', onKey)
-    const previous = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    const release = lockBodyScroll()
     return () => {
       document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = previous
+      release()
     }
   }, [busy, onCancel])
 
@@ -71,7 +74,7 @@ export function ConfirmDialog({
 
         <div className="btn-group confirm-actions">
           <button ref={cancelRef} disabled={busy} onClick={onCancel}>
-            취소
+            {cancelLabel}
           </button>
           <button className="danger" disabled={busy} onClick={onConfirm}>
             {busy ? (busyLabel ?? '처리 중…') : confirmLabel}

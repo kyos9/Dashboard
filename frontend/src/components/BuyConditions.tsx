@@ -1,5 +1,5 @@
 import { conditionMark } from '../lib/display'
-import { buyRule, cardConditions, METRIC_ORDER, useSignalRules } from '../lib/signalRules'
+import { buyRule, cardConditions, METRIC_ORDER, sellRule, showsSellConditions, useSignalRules } from '../lib/signalRules'
 import type { DashboardCard, SignalRuleCondition } from '../types'
 
 /**
@@ -42,6 +42,47 @@ export function BuyConditions({ card }: { card: DashboardCard }) {
             <span
               key={condition.key}
               className={`cond${state === true ? ' met' : ''}`}
+              title={`${condition.detail} — ${mark.word}`}
+              aria-label={`${condition.label} ${mark.word}`}
+            >
+              {mark.sign} {condition.label}
+            </span>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * 매도 조건 (참고) 한 줄 — 차트 팝업에서만, **매도(참고) 신호가 켜진 날만** (0.45.0 C, 주인 결정).
+ *
+ * 꺼진 날 "2/3"을 보이면 "매도까지 하나 남음"으로 읽히고, 매수 4/4 옆의 "매도 1/3"은 초보에게 반대 신호로
+ * 읽힌다(계획 검토). 그래서 신호가 있는 날 그 근거만 보인다. 칩은 **회색 그대로**(충족도 초록·빨강이 아니다) —
+ * 팔라로 읽히는 색을 쓰지 않는다(규제 3절). 조건 이름·풀이는 서버 규칙 그대로, 명령하는 말은 넣지 않는다.
+ * 판정 날짜와 지표 날짜가 다르면 서버가 null 을 보낸다 — 배지와 다른 날의 근거는 그리지 않는다. 옛 서버도 그리지 않는다.
+ * 판정 불가가 섞인 날도 그리지 않는다(`showsSellConditions`).
+ */
+export function SellConditions({ card }: { card: DashboardCard }) {
+  const rule = sellRule(useSignalRules())
+  if (!showsSellConditions(card)) return null
+  const states = card.sell_conditions!
+  const met = rule.conditions.filter((c) => states[c.key] === true).length
+  return (
+    <div className="signal-row sell-conditions">
+      <span className="signal-row-label">
+        매도 조건 (참고){' '}
+        <span className="nowrap mono">
+          {met}/{rule.conditions.length}
+        </span>
+      </span>
+      <div className="signal-row-items">
+        {rule.conditions.map((condition) => {
+          const mark = conditionMark(states[condition.key])
+          return (
+            <span
+              key={condition.key}
+              className="cond"
               title={`${condition.detail} — ${mark.word}`}
               aria-label={`${condition.label} ${mark.word}`}
             >

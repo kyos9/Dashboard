@@ -10,6 +10,7 @@ import { AuthGate, browser } from './AuthGate'
 import { RequireLogin } from './LoginPrompt'
 import { UsersModal } from './UsersModal'
 import { whenLabel } from '../lib/display'
+import { resetScrollLock } from '../lib/scrollLock'
 
 /** 가입 신청 → 관리자 승인 (ROADMAP 4-4b) — 신청한 사람의 화면과 관리자의 사용자 목록. */
 
@@ -161,6 +162,17 @@ describe('사용자 목록', () => {
     render(<UsersModal onClose={onClose} onChanged={onChanged} />)
     return { onChanged, onClose }
   }
+
+  it('닫으면 뒤 화면이 다시 스크롤된다 — 확인 창을 거쳐도 (0.45.0 스크롤 잠금)', async () => {
+    resetScrollLock()
+    document.body.style.overflow = ''
+    vi.spyOn(api, 'listUsers').mockResolvedValue([FRIEND, OWNER])
+    const { unmount } = render(<UsersModal onClose={() => {}} onChanged={() => {}} />)
+    expect(document.body.style.overflow).toBe('hidden')
+    await screen.findByText('friend@example.com')
+    unmount()
+    expect(document.body.style.overflow).toBe('')
+  })
 
   it('반년 넘게 안 들어온 사람은 수집을 쉬고 있다고 표시한다 (차단 버튼은 그대로)', async () => {
     open([FRIEND, person({ id: 8, name: '오래된 친구', dormant: true }), OWNER])

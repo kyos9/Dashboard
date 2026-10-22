@@ -553,7 +553,7 @@ describe('보유 종목 표', () => {
     expect(update).toHaveBeenCalledWith('QQQ', 0, null, undefined)
   })
 
-  it('취소·Esc 는 저장하지 않고 닫는다. 고치던 중엔 바깥을 눌러도, Esc 로도 닫히지 않는다', async () => {
+  it('취소·Esc 는 저장하지 않고 닫는다. 고치던 중엔 Esc·바깥 누르기·취소가 닫지 않고 버릴지 묻는다 (0.45.0)', async () => {
     mockApi()
     const update = vi.spyOn(api, 'updateHolding')
     renderDashboard()
@@ -567,9 +567,19 @@ describe('보유 종목 표', () => {
     const dialog = await openEditor()
     await userEvent.type(within(dialog).getByRole('textbox', { name: 'NVDA 보유수량' }), '2')
     await userEvent.keyboard('{Escape}')
+    expect(screen.getByRole('dialog', { name: '종목 한 번에 수정' })).toBeInTheDocument()
+    // 확인 창의 Esc 는 "계속 고치기" — 다시 뜨지 않는다
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument()
+    await userEvent.keyboard('{Escape}')
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    // 바깥을 눌러도 묻는다. 확인 창의 바깥을 누르면 "계속 고치기" — 아래로 올라가 다시 묻지 않는다
     await userEvent.click(dialog.parentElement as HTMLElement)
+    const ask = screen.getByRole('alertdialog')
+    await userEvent.click(ask.parentElement as HTMLElement)
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
     expect(screen.getByRole('dialog', { name: '종목 한 번에 수정' })).toBeInTheDocument()
     await userEvent.click(within(dialog).getByRole('button', { name: '취소' }))
+    await userEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: '버리고 닫기' }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(update).not.toHaveBeenCalled()
   })

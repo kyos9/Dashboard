@@ -227,6 +227,8 @@ export interface DashboardCard {
   /** 이 판정을 낸 정의의 판. 받아 둔 규칙과 다르면 다시 받는다 */
   signal_rules_version?: string | null
   shoulder_sell_ref: boolean
+  /** 어깨매도(참고) 조건별 오늘 판정 (0.45.0) — 판정 날짜와 지표 날짜가 다르면 null. 옛 서버는 없다 */
+  sell_conditions?: Record<string, boolean | null> | null
   /** 무릎매수(v2)가 마지막으로 뜬 날. 한 번도 없으면 null */
   last_buy_signal_date: string | null
   /** 등록 직후 시세를 뒤에서 받는 중이거나 받다가 실패 */
@@ -505,6 +507,8 @@ export interface BackupStatus {
   last_failure: { at: string; reason: string } | null
   /** 업그레이드 직전 백업 — "마지막"(매일 백업)과 따로 센다. 옛 0.44 개발판은 보내지 않을 수 있다 */
   premigrate?: { count: number; last_at: string | null }
+  /** 서버 밖(관리자 PC)으로 마지막으로 꺼낸 때 (0.45.0) — `server-backup-pull.bat` 이 적는다. 옛 서버는 없다 */
+  offsite?: { last_at: string | null }
 }
 
 /** 리밸런싱 기록에 얼려둔 종목 한 줄 */
@@ -598,6 +602,8 @@ export interface AuthStatus {
   config_problem?: string | null
   /** 관리자에게만 — 기다리는 가입 신청 수 */
   pending_count?: number
+  /** 관리자가 진단의 백업 칸을 봐야 하나 — 헤더 ⋯ 의 점 (0.45.0). 구글 모드의 관리자에게만, 옛 서버는 없다 */
+  backup_attention?: boolean
   /** 관리자에게 연락할 곳 (`.env` 의 OPERATOR_CONTACT). 적지 않았으면 없다 */
   contact?: string
 }
@@ -797,7 +803,13 @@ export interface PushSettings {
   available: PushKind[]
   /** 알림을 켜 둔 내 기기 수 */
   devices: number
+  /** 받을 때 — 아침(7:30쯤)·오후(4시쯤) 중 (0.45.0). 옛 서버는 없다 */
+  slots?: PushSlot[]
+  /** 알림을 끈 종목 (0.45.0). 옛 서버는 없다 */
+  muted?: string[]
 }
+
+export type PushSlot = 'morning' | 'afternoon'
 
 /** 브라우저의 `PushSubscription.toJSON()` 모양 */
 export interface PushSubscriptionInput {

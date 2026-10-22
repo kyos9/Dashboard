@@ -1,5 +1,5 @@
 import { Suspense, useEffect, type ReactNode } from 'react'
-import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom'
+import { BrowserRouter, Link, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AppStateProvider } from './AppState'
 import { AppHeader } from './components/AppHeader'
 import { AuthGate, useAuth } from './components/AuthGate'
@@ -33,6 +33,28 @@ function Tab({ children }: { children: ReactNode }) {
       <Suspense fallback={<PageSkeleton />}>{children}</Suspense>
     </PageBoundary>
   )
+}
+
+/**
+ * 없는 주소 (0.45.0 D2). 예전에는 머리글·바닥글만 있고 본문이 비어 무엇이 잘못됐는지 몰랐다.
+ * `/chart` 는 차트 탭의 주소로 짐작해 여는 사람이 있어 `/history` 로 넘긴다.
+ */
+function NotFound() {
+  return (
+    <div className="empty-state">
+      <h3>없는 화면입니다</h3>
+      <p>주소가 바뀌었거나 잘못 들어왔습니다.</p>
+      <Link to="/" className="link-button">
+        첫 화면으로
+      </Link>
+    </div>
+  )
+}
+
+/** `/chart?ticker=VOO` 도 그 종목으로 — 주소 뒤의 고른 종목을 버리지 않는다 (0.45.0 D 사용자 확인) */
+function ToHistory() {
+  const { search } = useLocation()
+  return <Navigate to={`/history${search}`} replace />
 }
 
 /** 첫 화면이 그려진 뒤 한가할 때 다른 탭 코드를 받아 둔다 */
@@ -110,6 +132,8 @@ function App() {
                   </RequireLogin>
                 }
               />
+              <Route path="/chart" element={<ToHistory />} />
+              <Route path="*" element={<NotFound />} />
             </Routes>
           </main>
           <footer className="site-footer">

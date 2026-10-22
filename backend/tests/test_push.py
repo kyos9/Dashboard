@@ -802,3 +802,144 @@ def test_b64url_helpers_round_trip():
         assert u(push._b64url(data)) == data
         assert "=" not in push._b64url(data)
     assert base64.urlsafe_b64decode(push._b64url(b"ab") + "==") == b"ab"
+
+
+# ---------------------------------------------------------------------------
+#  4. 아침·오후 중 받을 때 · 종목별로 끈 알림 (0.45.0 B)
+# ---------------------------------------------------------------------------
+
+MORNING = dt.datetime(2026, 10, 20, 22, 31)  # UTC — 한국 21일 07:31 (미국 갱신 뒤)
+AFTERNOON = dt.datetime(2026, 10, 21, 7, 1)  # UTC — 한국 21일 16:01 (일본 갱신 뒤)
+
+
+def _run_at(db, server, device, now) -> list[dict]:
+    before = len(server.calls)
+    alerts.run_daily(db, now=now)
+    return [device.open(c["data"]) for c in server.calls[before:] if c["url"] == device.endpoint]
+
+
+@pytest.mark.parametrize(
+    "utc, slot",
+    [
+        (dt.datetime(2026, 10, 20, 22, 30), "morning"),  # 07:30
+        (dt.datetime(2026, 10, 20, 19, 59), "afternoon"),  # 04:59 — 새벽 재시작은 오후 쪽
+        (dt.datetime(2026, 10, 20, 20, 0), "morning"),  # 05:00
+        (dt.datetime(2026, 10, 21, 2, 59), "morning"),  # 11:59
+        (dt.datetime(2026, 10, 21, 3, 0), "afternoon"),  # 12:00
+        (dt.datetime(2026, 10, 21, 7, 30, tzinfo=dt.timezone.utc), "afternoon"),  # 16:30, 시간대 있는 값도
+    ],
+)
+def test_slot_of_is_the_korean_time(utc, slot):
+    assert alerts.slot_of(utc) == slot
+
+
+def test_skipping_mornings_saves_it_for_the_afternoon(db_session, me):
+    """아침을 안 받으면 그 판정은 건너뛴다 — 상태도 적지 않아 오후에 모아 간다(그때 켜져 있는 것)."""
+    device, server = me
+    db_session.get(UserSettings, LOCAL_USER_ID).push_prefs = {"slots": ["afternoon"], "muted": []}
+    db_session.commit()
+    _signal(db_session, "VOO", DAY, buy=True)
+
+    assert _run_at(db_session, server, device, MORNING) == []
+    assert db_session.get(PushState, (LOCAL_USER_ID, "buy:VOO")) is None
+    assert [m["body"] for m in _run_at(db_session, server, device, AFTERNOON)] == ["VOO"]
+    assert _run_at(db_session, server, device, AFTERNOON) == []  # 한 번만
+
+
+def test_skipping_afternoons(db_session, me):
+    device, server = me
+    db_session.get(UserSettings, LOCAL_USER_ID).push_prefs = {"slots": ["morning"], "muted": []}
+    db_session.commit()
+    _signal(db_session, "VOO", DAY, buy=True)
+    assert _run_at(db_session, server, device, AFTERNOON) == []
+    assert [m["body"] for m in _run_at(db_session, server, device, MORNING)] == ["VOO"]
+
+
+def test_nothing_chosen_means_both_as_before(db_session, me):
+    device, server = me
+    _signal(db_session, "VOO", DAY, buy=True)
+    assert [m["body"] for m in _run_at(db_session, server, device, MORNING)] == ["VOO"]
+
+
+def test_a_muted_stock_is_not_told_but_is_remembered(db_session, me):
+    """끈 종목의 매수·비중은 안 간다. 상태는 적는다 — 다시 켰을 때 지난 일이 쏟아지지 않게(종류 끄기와 같게)."""
+    device, server = me
+    db_session.get(UserSettings, LOCAL_USER_ID).push_prefs = {"slots": ["morning", "afternoon"], "muted": ["VOO"]}
+    db_session.commit()
+    _signal(db_session, "VOO", DAY, buy=True)
+    _signal(db_session, "QQQ", DAY, buy=True)
+
+    assert [m["body"] for m in _run_at(db_session, server, device, MORNING)] == ["QQQ"]
+    assert db_session.get(PushState, (LOCAL_USER_ID, "buy:VOO")).value == DAY.isoformat()
+
+    db_session.get(UserSettings, LOCAL_USER_ID).push_prefs = None
+    db_session.commit()
+    assert _run_at(db_session, server, device, MORNING) == []
+
+
+def test_a_muted_stock_s_band_is_not_told(db_session, me):
+    device, server = me
+    db_session.get(UserSettings, LOCAL_USER_ID).push_prefs = {"slots": ["morning", "afternoon"], "muted": ["VOO"]}
+    db_session.commit()
+    db_session.get(Holding, (LOCAL_USER_ID, "VOO")).quantity = 30.0
+    db_session.commit()  # VOO 과중, QQQ 미달
+    got = _run_at(db_session, server, device, MORNING)
+    assert got == [{"title": "비중 미달(매수 검토)", "body": "QQQ", "url": "/rebalance", "tag": "daily"}]
+
+
+def test_api_slots_and_muted(api):
+    client, Session = api
+    client.post("/api/stocks", json={"ticker": "VOO"})
+    client.post("/api/stocks", json={"ticker": "QQQ"})
+    got = client.get("/api/push/settings").json()
+    assert (got["slots"], got["muted"]) == (["morning", "afternoon"], [])
+
+    res = client.put("/api/push/settings", json={"slots": ["afternoon"], "muted": ["QQQ", "VOO", "QQQ"]})
+    assert res.status_code == 200, res.text
+    assert (res.json()["slots"], res.json()["muted"]) == (["afternoon"], ["QQQ", "VOO"])
+
+    # 옛 화면은 kinds 만 보낸다 — 나머지는 그대로
+    res = client.put("/api/push/settings", json={"kinds": ["buy"]})
+    assert (res.json()["kinds"], res.json()["slots"], res.json()["muted"]) == (["buy"], ["afternoon"], ["QQQ", "VOO"])
+
+    # 둘 다 끄기·없는 때·내 목록에 없는 종목은 400, 모르는 칸은 거절
+    for body, hint in [
+        ({"slots": []}, "아침·오후 중 하나는 받아야 합니다"),
+        ({"slots": ["night"]}, "없는 알림 때입니다"),
+        ({"muted": ["TSLA"]}, "내 목록에 없는 종목입니다"),
+    ]:
+        res = client.put("/api/push/settings", json=body)
+        assert res.status_code == 400 and hint in res.json()["detail"]["hint"], body
+    assert client.put("/api/push/settings", json={"quiet": {"start": "22:00"}}).status_code == 422
+    assert client.put("/api/push/settings", json={"muted": ["X"] * 201}).status_code == 422
+
+    # 기본으로 되돌리면 칸을 비운다 — 지금과 같은 것을 같은 모양(NULL)으로
+    client.put("/api/push/settings", json={"slots": ["morning", "afternoon"], "muted": []})
+    with Session() as db:
+        assert db.get(UserSettings, LOCAL_USER_ID).push_prefs is None
+
+
+def test_purging_a_stock_unmutes_it(api):
+    client, Session = api
+    client.post("/api/stocks", json={"ticker": "VOO"})
+    client.post("/api/stocks", json={"ticker": "QQQ"})
+    client.put("/api/push/settings", json={"muted": ["VOO", "QQQ"]})
+    assert client.delete("/api/stocks/VOO/purge").status_code == 204
+    assert client.get("/api/push/settings").json()["muted"] == ["QQQ"]
+    with Session() as db:
+        assert db.get(UserSettings, LOCAL_USER_ID).push_prefs["muted"] == ["QQQ"]
+    # 다시 담아도 끈 채로 되살아나지 않는다
+    client.post("/api/stocks", json={"ticker": "VOO"})
+    assert client.get("/api/push/settings").json()["muted"] == ["QQQ"]
+
+
+def test_get_shows_only_muted_stocks_still_in_my_list(api):
+    """저장에 내 목록 밖의 티커가 남아 있어도(옛 데이터·다른 길로 지운 종목) 화면에는 보이지 않는다."""
+    client, Session = api
+    client.post("/api/stocks", json={"ticker": "VOO"})
+    from app.services.settings import get_settings
+
+    with Session() as db:
+        get_settings(db, LOCAL_USER_ID).push_prefs = {"slots": ["morning", "afternoon"], "muted": ["VOO", "GONE"]}
+        db.commit()
+    assert client.get("/api/push/settings").json()["muted"] == ["VOO"]

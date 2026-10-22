@@ -239,6 +239,7 @@ describe('리밸런싱 · 통화 표기', () => {
     renderPanel()
 
     expect(await screen.findByText('리밸런싱할 종목이 없습니다')).toBeInTheDocument()
+    expect(screen.getByText('종목 관리에서 종목을 담으면 여기에 목표 비중과 지금 비중이 보입니다.')).toBeInTheDocument()
     // 누를 곳이 있다 — 폰은 종목 관리가 "더보기" 안이다 (디자인 2차)
     expect(screen.getByRole('link', { name: '종목 추가하러 가기' })).toHaveAttribute('href', '/stocks')
   })
@@ -907,16 +908,19 @@ describe('리밸런싱 · 주문 옆 거래 입력 (디자인 2차, 주인 결�
 })
 
 describe('날마다의 평가금액 안내 (0.44.0)', () => {
-  it('리뷰 · 기록 안에, 리뷰 기록과 따로라는 말과 며칠째인지', async () => {
+  it('리뷰 · 기록 안에, 리뷰 기록과 따로라는 말과 며칠치인지 (0.45.0 D3 — 방침과 같은 말, 볼 화면은 아직 없음)', async () => {
     mockApi({ ...CURRENT, value_record: { enabled: true, days: 12, since: '2026-10-05' } })
     renderPanel()
     const section = (await screen.findByRole('heading', { name: /리뷰 · 기록/ })).closest('section') as HTMLElement
     const line = section.querySelector('.value-record-line') as HTMLElement
-    expect(line.textContent).toBe('리뷰 기록과 따로, 평가금액은 매일 아침 자동으로 남깁니다 — 2026-10-05부터 12일째.')
+    expect(line.textContent?.replace(/\s+/g, ' ')).toBe(
+      '리뷰 기록과 따로, 서버가 매일 아침 평가금액과 보유 모습(수량·평단가·종가·현금·환율)을 남깁니다 — ' +
+        '2026-10-05부터 12일치 쌓였습니다(쌓인 기록을 보는 화면은 아직 없습니다).',
+    )
     // 날짜는 줄 끝에서 갈라지지 않는다
     expect(within(line).getByText('2026-10-05부터').classList.contains('nowrap')).toBe(true)
     // 리뷰 기록이 하나도 없다는 말과 같이 보여도 서로 어긋나지 않는다 — "따로"
-    expect(within(section).getByText(/아직 남긴 기록이 없습니다/)).toBeTruthy()
+    expect(within(section).getByText(/아직 리뷰 기록이 없습니다/)).toBeTruthy()
   })
 
   it('아직 쌓이지 않았으면 언제부터인지', () => {

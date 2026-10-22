@@ -702,10 +702,20 @@ def seed() -> None:
         for back in range(4, -1, -1):
             value_record.record_day(db, now=now - dt.timedelta(days=back))
 
+        # 알림 설정 (0.45.0 B) — 주인은 오후 알림만, SCHD 는 알림을 끈 것처럼. 🔔 설정의 "받을 때"·"종목별 알림"이 보인다
+        from app.models import User as _User
+        from app.services.settings import get_settings
+
+        owner = db.query(_User).filter(_User.email == OWNER).one()
+        get_settings(db, owner.id).push_prefs = {"slots": ["afternoon"], "muted": ["SCHD"]}
+        db.commit()
+
     # 백업 한 벌 (0.44.0 D0) — 진단의 백업 줄(시각·크기·벌 수)이 보이게. 데이터 폴더 안 backups/ 에 뜬다
     from app.services import backup
 
     backup.run_backup()
+    # 사흘 전에 관리자 PC 로 꺼낸 것처럼 (0.45.0 A) — 진단의 "밖에 꺼낸 것" 줄이 보이게
+    backup.mark_pulled(now=dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=3))
 
 
 # ---------------------------------------------------------------------------

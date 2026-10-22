@@ -5,6 +5,7 @@ import { macroValue } from '../lib/macro'
 import type { MacroHistory } from '../types'
 import { ErrorNotice } from './ErrorNotice'
 import { MacroChart } from './MacroChart'
+import { lockBodyScroll } from '../lib/scrollLock'
 
 export const MACRO_RANGES = [
   { value: '1y', label: '1년' },
@@ -49,11 +50,10 @@ export function MacroChartModal({ code, name, onClose }: Props) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
     document.addEventListener('keydown', onKey)
-    const previous = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    const release = lockBodyScroll()
     return () => {
       document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = previous
+      release()
     }
   }, [onClose])
 

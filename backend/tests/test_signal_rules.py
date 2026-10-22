@@ -24,7 +24,13 @@ from app.models import IndicatorDaily
 from app.services import signal_rules
 from app.services.indicators import compute_indicators
 from app.services.signal_rules import BUY, SELL, any_of
-from app.services.signals import buy_conditions, buy_conditions_many, compute_signals, knee_conditions
+from app.services.signals import (
+    buy_conditions,
+    buy_conditions_many,
+    compute_signals,
+    knee_conditions,
+    sell_conditions_many,
+)
 
 REPO = Path(__file__).resolve().parents[2]
 RULES_SOURCE = REPO / "backend" / "app" / "services" / "signal_rules.py"
@@ -308,6 +314,94 @@ def test_dashboard_conditions_use_the_row_n_trading_days_ago(api):
         if last["stddev20"] < ind["stddev20"].iloc[-1 - signal_rules.LOOKBACK_DAYS] and not last["vol_ratio"] > signal_rules.VOL_RATIO_EXPAND:
             only_by_shrink += 1
     assert only_by_shrink > 0
+
+
+# ---------- 매도(참고) 조건 — 차트 팝업 (0.45.0 C) ----------
+
+@pytest.mark.parametrize("t", [None, signal_rules.Thresholds(lookback_days=3, adx_trend=15)])
+@pytest.mark.parametrize("seed,holes", [(3, False), (5, True)])
+def test_today_sell_conditions_agree_with_the_stored_sell_signal_every_day(seed, holes, t):
+    """오늘 한 줄의 매도 조건(화면) — "다 충족" 이 표 전체 계산의 `shoulder_sell_ref`(배지)와 날마다 같다. 기본·내 기준 둘 다."""
+    ind = compute_indicators(_prices(300, seed, holes))
+    stored = compute_signals(ind, t)
+    desc = _orm_desc(ind)
+    size = (t or signal_rules.DEFAULT).lookback_days + 1
+    for i in range(len(desc)):
+        window = desc[i : i + size]
+        day = window[0].date
+        met = sell_conditions_many({"T": window}, {"T": float(ind.loc[day, "close"])}, t)["T"]
+        assert all(v is True for v in met.values()) == bool(stored.loc[day, "shoulder_sell_ref"]), day
+    assert stored["shoulder_sell_ref"].any()
+
+
+def test_sell_conditions_without_that_days_close_cannot_judge_ma50():
+    desc = _orm_desc(compute_indicators(_prices(80, 1)))
+    met = sell_conditions_many({"T": desc[:6], "EMPTY": []}, {"T": None})
+    assert met["T"]["above_ma50"] is None
+    assert met["T"]["adx_rising"] is not None
+    assert met["EMPTY"] == {c.key: None for c in SELL.conditions}
+
+
+def test_dashboard_sell_conditions_match_the_badge(api):
+    """카드의 `sell_conditions` — 키는 규칙의 매도 조건 키, "다 충족" == `shoulder_sell_ref`, 표 전체 계산과 같은 값."""
+    client, Session = api
+    with Session() as db:
+        frames = _seed_many(db)
+    cards = {c["ticker"]: c for c in client.get("/api/dashboard").json()}
+    on = 0
+    for ticker, ind in frames.items():
+        card = cards[ticker]
+        assert card["sell_conditions"] == signal_rules.latest_conditions(SELL, ind), ticker
+        assert all(v is True for v in card["sell_conditions"].values()) == card["shoulder_sell_ref"], ticker
+        on += card["shoulder_sell_ref"]
+    # 켜진 종목과 꺼진 종목이 둘 다 있어야 시험이다
+    assert 0 < on < len(frames)
+
+
+def test_dashboard_sell_conditions_follow_my_thresholds(api):
+    """내 기준(N거래일)을 쓰는 사람 — "ADX 상승"이 내 N 으로, 배지와 같다."""
+    client, Session = api
+    with Session() as db:
+        frames = _seed_many(db)
+    assert client.put("/api/signal-thresholds", json={"lookback_days": 2}).json()["custom"] is True
+    t = signal_rules.Thresholds(lookback_days=2)
+    _, sell = signal_rules.build_rules(t)
+    cards = {c["ticker"]: c for c in client.get("/api/dashboard").json()}
+    for ticker, ind in frames.items():
+        card = cards[ticker]
+        assert card["sell_conditions"] == signal_rules.latest_conditions(sell, ind), ticker
+        assert all(v is True for v in card["sell_conditions"].values()) == card["shoulder_sell_ref"], ticker
+
+
+def test_dashboard_sell_conditions_use_the_close_of_the_indicator_day(api):
+    """종가가 지표보다 하루 앞서 들어와 있어도(지표 계산 전) "MA50 위"는 **지표 날짜의 종가**로 잰다 — 배지와 같은 날."""
+    from app.models import PriceDaily
+
+    client, Session = api
+    with Session() as db:
+        frames = _seed_many(db)
+        above = [t for t, ind in frames.items() if ind["close"].iloc[-1] > ind["ma50"].iloc[-1]]
+        assert above
+        ticker = above[0]
+        last_day = frames[ticker].index[-1]
+        db.add(PriceDaily(ticker=ticker, date=last_day + dt.timedelta(days=1), open=1, high=1, low=0.01, close=0.01, volume=1))
+        db.commit()
+    card = next(c for c in client.get("/api/dashboard").json() if c["ticker"] == ticker)
+    assert card["sell_conditions"]["above_ma50"] is True
+
+
+def test_dashboard_hides_sell_conditions_when_the_signal_is_from_another_day(api):
+    """판정 날짜와 지표 날짜가 다르면(판정이 하루 늦었다) 근거를 보내지 않는다 — 배지와 다른 날의 말을 하지 않게."""
+    from app.models import SignalDaily
+
+    client, Session = api
+    with Session() as db:
+        _seed_many(db, n=1)
+        latest = db.query(SignalDaily).filter(SignalDaily.ticker == "S00").order_by(SignalDaily.date.desc()).first()
+        db.delete(latest)
+        db.commit()
+    card = client.get("/api/dashboard").json()[0]
+    assert card["sell_conditions"] is None
 
 
 def test_ai_context_values_n_trading_days_ago(api):
