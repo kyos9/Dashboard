@@ -167,6 +167,8 @@ export function PriceChart({ history, height = 440 }: Props) {
     if (!handles || !day) return
     handles.chart.setCrosshairPosition(day.close, day.date as Time, handles.series)
     setPicked({ date: day.date, close: day.close })
+    // 누른 것이 가리키는 것보다 앞선다 — 남아 있던 가리킴(손가락 기기의 흉내 마우스 등)이 탭을 덮지 않게
+    setHover(null)
   }
   const pickRef = useRef(pick)
   useEffect(() => {
@@ -239,16 +241,15 @@ export function PriceChart({ history, height = 440 }: Props) {
     day && prices?.some((p) => p.date === day.date && p.close === day.close) ? day : null
   const current = valid(hover) ?? valid(picked)
   const shown = current ?? (last ? { date: last.date, close: last.close } : null)
-  const shownIndex = shown && prices ? prices.findIndex((p) => p.date === shown.date) : -1
+  // ◀ ▶ 는 고른 날(없으면 마지막 날)에서 — 마우스가 가리키는 날이 아니다(단추를 누르러 가면 차트를 떠난다)
+  const base = valid(picked) ?? (last ? { date: last.date, close: last.close } : null)
+  const from = base && prices ? prices.findIndex((p) => p.date === base.date) : -1
   const step = (by: -1 | 1) => {
-    const base = valid(picked) ?? (last ? { date: last.date, close: last.close } : null)
-    const from = base && prices ? prices.findIndex((p) => p.date === base.date) : -1
     if (from < 0 || !prices?.[from + by]) return
-    setHover(null)
     pick(from + by)
   }
-  const atStart = shownIndex <= 0
-  const atEnd = !prices || shownIndex === prices.length - 1
+  const atStart = from <= 0
+  const atEnd = !prices || from === prices.length - 1
 
   return (
     <div className="chart-shell">

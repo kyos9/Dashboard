@@ -242,6 +242,14 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
     expect(chart.setCrosshairPosition).not.toHaveBeenCalled()
   })
 
+  it('탭은 남아 있던 가리킴보다 앞선다 — 손가락 기기에 흉내 마우스가 차트 위에 남아 탭이 안 먹는 것처럼 보였다', async () => {
+    const { act } = await import('@testing-library/react')
+    const { canvas, line } = shown()
+    act(() => handler(chart.subscribeCrosshairMove)(at('2026-09-15', 101)))
+    await tap(canvas, 0)
+    expect(line()).toHaveTextContent('2026-09-14 · 종가 100.00')
+  })
+
   it('마우스 왼쪽 클릭도 같은 길', async () => {
     const { canvas, line } = shown()
     await tap(canvas, 100, 100, 0, { kind: 'mouse' })
