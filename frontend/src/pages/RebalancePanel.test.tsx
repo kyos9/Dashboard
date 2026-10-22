@@ -753,6 +753,23 @@ describe('리밸런싱 · 팔지 않고 새 돈만 나누기 (0.42.0 B6)', () =>
     expect(await orderRow('VOO')).toHaveTextContent('팔기')
   })
 
+  it('칸 바로 아래 풀이 앞에도 계산에 쓴 금액 — 폰에서는 위 줄이 화면 밖이다, 읽기는 위 줄 하나 (0.45.2 A4)', async () => {
+    mockApi(SKEWED)
+    const user = userEvent.setup()
+    renderPanel()
+    const box = await screen.findByLabelText(/이번에 새로 넣을 돈/)
+    const hint = () => box.closest('.new-money')!.querySelector('.hint')!
+    // 빈 칸이면 지금 풀이 그대로
+    expect(hint().textContent).toBe('새로 넣을 돈까지 더한 전체 자금으로 목표 비중을 다시 맞춘 주문이 나옵니다(파는 주문도 있을 수 있습니다). 저장되지 않습니다.')
+    await user.type(box, '75')
+    expect(hint().textContent).toBe(
+      '새로 넣을 돈 ₩75 반영 — 새로 넣을 돈까지 더한 전체 자금으로 목표 비중을 다시 맞춘 주문이 나옵니다(파는 주문도 있을 수 있습니다). 저장되지 않습니다.',
+    )
+    expect(screen.getAllByRole('status')).toHaveLength(1)
+    await user.click(screen.getByLabelText('팔지 않고 새 돈만 나누기'))
+    expect(hint().textContent).toMatch(/^새로 넣을 돈 ₩75 반영 — 팔지 않고, 새로 넣을 돈만/)
+  })
+
   it('켜면 파는 주문이 없고 새 돈이 모자란 종목으로 간다 — 기기에 기억한다', async () => {
     mockApi(SKEWED)
     const user = userEvent.setup()
