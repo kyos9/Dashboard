@@ -217,3 +217,15 @@ it('여러 종목이 실패하면 **첫** 실패 줄로', async () => {
     Element.prototype.scrollIntoView = original
   }
 })
+
+describe('보유 수량에 빼기 (0.45.2 A2)', () => {
+  it('"-3" 에는 보유 수량이 합계라는 한 마디가 붙고, 평단가에는 없다', async () => {
+    const user = userEvent.setup()
+    const { dialog } = open()
+    const live = () => document.querySelector('[data-num-live]')
+    await editQuantity(user, dialog, 'VOO', '-3')
+    expect(live()).toHaveTextContent('VOO 보유수량 — 빼기(−)는 넣을 수 없습니다 · 지금 값 3 · 보유 수량은 가진 전체 수량입니다(판 수량이 아닙니다)')
+    await user.type(within(dialog).getByRole('textbox', { name: 'VOO 평단가' }), '-')
+    expect(live()).not.toHaveTextContent('판 수량')
+  })
+})

@@ -6,6 +6,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ErrorNotice } from '../components/ErrorNotice'
 import { PageIntro } from '../components/PageIntro'
 import { NumberInput } from '../components/NumberInput'
+import { HOLDING_MINUS_HINT } from '../lib/numberDropped'
 import { StockEditModal } from '../components/StockEditModal'
 import { SymbolSearch } from '../components/SymbolSearch'
 import { avgPrice, CURRENCY_BY_MARKET, CURRENCY_META, MARKET_LABEL, num, qty, stockLabel } from '../lib/display'
@@ -414,6 +415,7 @@ export function StockManager() {
             <NumberInput
               id="new-quantity"
               placeholder="0"
+              minusHint={HOLDING_MINUS_HINT}
               value={form.quantity}
               onChange={(v) => setForm({ ...form, quantity: v })}
               // 미국 주식은 소수점 단위로도 산다

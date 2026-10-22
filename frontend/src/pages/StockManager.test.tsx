@@ -135,6 +135,18 @@ describe('종목 등록', () => {
     expect(screen.getByLabelText(/평단가 \(₩\)/)).toBeInTheDocument()
   })
 
+  it('종목 추가의 보유 수량에 빼기를 치면 합계라는 한 마디가 붙는다 (0.45.2 A2)', async () => {
+    mockApi()
+    const user = userEvent.setup()
+    renderManager()
+    await user.type(symbolInput(), '삼성전자')
+    await user.click(await screen.findByText('삼성전자'))
+    await user.type(screen.getByLabelText('보유 수량'), '-3')
+    expect(document.querySelector('[data-num-live]')).toHaveTextContent(
+      '보유 수량 — 빼기(−)는 넣을 수 없습니다 · 지금 값 3 · 보유 수량은 가진 전체 수량입니다(판 수량이 아닙니다)',
+    )
+  })
+
   it('이미 들고 있는 종목은 수량·평단가·목표 비중을 같이 보낸다', async () => {
     mockApi()
     const create = vi.spyOn(api, 'createStock').mockResolvedValue(created())

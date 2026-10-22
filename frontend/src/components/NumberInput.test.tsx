@@ -3,7 +3,7 @@ import { useState } from 'react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { formatNumeric, NumberInput, parseNumeric } from './NumberInput'
-import { droppedKinds, droppedText } from '../lib/numberDropped'
+import { droppedKinds, droppedText, HOLDING_MINUS_HINT } from '../lib/numberDropped'
 
 describe('천 단위 표기', () => {
   it('세 자리마다 콤마를 넣는다', () => {
@@ -220,7 +220,7 @@ describe('버린 것을 말하기 (0.45.1 A)', () => {
     expect(droppedText('금액', ['minus'], '')).toContain('지금 값 없음')
   })
 
-  function Controlled(props: { allowDecimal?: boolean; allowNegative?: boolean; label?: string; onChange?: (v: string) => void }) {
+  function Controlled(props: { allowDecimal?: boolean; allowNegative?: boolean; label?: string; minusHint?: string; onChange?: (v: string) => void }) {
     const [value, setValue] = useState('')
     return (
       <>
@@ -232,6 +232,7 @@ describe('버린 것을 말하기 (0.45.1 A)', () => {
           }}
           allowDecimal={props.allowDecimal}
           allowNegative={props.allowNegative}
+          minusHint={props.minusHint}
           aria-label={props.label ?? '기간'}
         />
         <button>다른 곳</button>
@@ -289,6 +290,28 @@ describe('버린 것을 말하기 (0.45.1 A)', () => {
     expect(live()).toHaveTextContent('빼기(−)는 넣을 수 없습니다 · 지금 값 35')
     await user.type(input, '.')
     expect(live()).toHaveTextContent('소수점은 넣을 수 없어 숫자만 이어 붙였습니다 · 지금 값 35')
+  })
+
+  it('빼기가 뜻을 가진 칸은 빼기를 버렸을 때만 한 마디를 더한다 (0.45.2 A2)', async () => {
+    expect(droppedText('SCHD 보유수량', ['minus'], '3', HOLDING_MINUS_HINT)).toBe(
+      'SCHD 보유수량 — 빼기(−)는 넣을 수 없습니다 · 지금 값 3 · 보유 수량은 가진 전체 수량입니다(판 수량이 아닙니다)',
+    )
+    // 빼기가 아닌 것을 버렸으면 붙이지 않는다
+    expect(droppedText('SCHD 보유수량', ['unit'], '100', HOLDING_MINUS_HINT)).not.toContain('판 수량')
+    expect(droppedText('SCHD 보유수량', ['minus', 'decimal'], '3', HOLDING_MINUS_HINT)).toContain('판 수량이 아닙니다')
+
+    const user = userEvent.setup()
+    const { unmount } = render(<Controlled label="SCHD 보유수량" minusHint={HOLDING_MINUS_HINT} />)
+    await user.type(screen.getByLabelText('SCHD 보유수량'), '-3')
+    expect(live()).toHaveTextContent('지금 값 3 · 보유 수량은 가진 전체 수량입니다(판 수량이 아닙니다)')
+    expect(line()).toHaveTextContent('판 수량이 아닙니다')
+    unmount()
+
+    // 한 마디가 없는 칸(평단가 등)은 지금 그대로
+    render(<Controlled label="SCHD 평단가" />)
+    await user.type(screen.getByLabelText('SCHD 평단가'), '-3')
+    expect(live()).toHaveTextContent('SCHD 평단가 — 빼기(−)는 넣을 수 없습니다 · 지금 값 3')
+    expect(live()).not.toHaveTextContent('판 수량')
   })
 
   it('음수 칸에 "0.2−" 를 붙여넣으면 맨 앞에만 쓸 수 있다고 말한다', async () => {

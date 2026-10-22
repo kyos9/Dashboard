@@ -27,9 +27,16 @@ const DROPPED_TEXT: Record<Dropped, string> = {
 }
 
 /** 줄의 글 — 칸 이름 · 버린 것 · 지금 값(`shown` — 칸에 보이는 꼴, 콤마 포함). "소수점을 뺐습니다"만으로는 7 로 읽혔다(75 인데, 계획 사용자 검토) */
-export function droppedText(label: string | undefined, kinds: Dropped[], shown: string): string {
+export function droppedText(label: string | undefined, kinds: Dropped[], shown: string, minusHint?: string): string {
   const what = kinds.map((k) => DROPPED_TEXT[k]).join(' · ')
   const now = shown === '' || shown === '-' ? '지금 값 없음' : `지금 값 ${shown}`
-  return `${label ? `${label} — ` : ''}${what} · ${now}`
+  // 빼기를 버렸을 때만 칸마다의 한 마디 — "-3" 을 "3주 팔았다"로 친 사람에게 3주가 남는다는 말이 없었다(0.45.2 A2)
+  const hint = minusHint && kinds.includes('minus') ? ` · ${minusHint}` : ''
+  return `${label ? `${label} — ` : ''}${what} · ${now}${hint}`
 }
+
+/** 보유 수량 칸들의 한 마디 — 합계를 넣는 칸이다 (0.45.2 A2) */
+export const HOLDING_MINUS_HINT = '보유 수량은 가진 전체 수량입니다(판 수량이 아닙니다)'
+/** 리밸런싱 거래 입력의 수량 — "샀다"인 채 -3 을 치면 3주 산 것으로 저장된다 (0.45.2 A2, 계획 개발자 검토) */
+export const TRADE_MINUS_HINT = '팔았으면 ‘팔았다’를 고르세요'
 

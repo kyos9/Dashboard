@@ -7,6 +7,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ErrorNotice } from '../components/ErrorNotice'
 import { PageIntro } from '../components/PageIntro'
 import { NumberInput } from '../components/NumberInput'
+import { HOLDING_MINUS_HINT, TRADE_MINUS_HINT } from '../lib/numberDropped'
 import { MoneyLine } from '../components/PortfolioView'
 import { usePrefs } from '../lib/prefs'
 import {
@@ -193,6 +194,8 @@ function TradeForm({
       <div className="input-with-button tight">
         <NumberInput
           value={tradeQty}
+          // "샀다"인 채 -3 을 치면 3주 산 것으로 저장된다 — 고른 쪽이 "샀다"일 때만 (0.45.2 A2)
+          minusHint={side === 'buy' ? TRADE_MINUS_HINT : undefined}
           onChange={(v) => {
             setTradeQty(v)
             setProblem(null)
@@ -276,7 +279,7 @@ function useRowFields({ row, draft, onChange }: Pick<HoldingRowProps, 'row' | 'd
   const native = row.current.currency
   const set = (patch: Partial<HoldingDraft>) => onChange({ ...draft, ...patch })
   return {
-    quantity: <NumberInput value={draft.quantity} onChange={(v) => set({ quantity: v })} aria-label={`${row.ticker} 보유수량`} />,
+    quantity: <NumberInput value={draft.quantity} onChange={(v) => set({ quantity: v })} aria-label={`${row.ticker} 보유수량`} minusHint={HOLDING_MINUS_HINT} />,
     avgCost: (
       <div className="input-with-button tight">
         <span className="unit">{CURRENCY_META[native].symbol}</span>

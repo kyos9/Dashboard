@@ -360,6 +360,28 @@ describe('리밸런싱 · 평단가와 거래 입력', () => {
     await waitFor(() => expect(update).toHaveBeenCalledWith('VOO', 1, 400, null))
   })
 
+  it('빼기를 친 수량 칸은 뜻을 한 마디 더 말한다 — 보유수량은 합계, 거래 수량은 "샀다"일 때만 (0.45.2 A2)', async () => {
+    mockApi(HELD)
+    const user = userEvent.setup()
+    renderPanel()
+    const live = () => document.querySelector('[data-num-live]')
+
+    await user.type(await screen.findByLabelText('VOO 보유수량'), '-')
+    expect(live()).toHaveTextContent('VOO 보유수량 — 빼기(−)는 넣을 수 없습니다 · 지금 값 2 · 보유 수량은 가진 전체 수량입니다(판 수량이 아닙니다)')
+    await user.type(screen.getByLabelText('VOO 평단가'), '-')
+    expect(live()).not.toHaveTextContent('판 수량')
+
+    const [voo] = await screen.findAllByRole('button', { name: '거래 입력' })
+    await user.click(voo)
+    await user.type(screen.getByLabelText('VOO 거래 수량'), '-3')
+    expect(live()).toHaveTextContent('VOO 거래 수량 — 빼기(−)는 넣을 수 없습니다 · 지금 값 3 · 팔았으면 ‘팔았다’를 고르세요')
+    await user.click(screen.getByRole('button', { name: '팔았다' }))
+    await user.clear(screen.getByLabelText('VOO 거래 수량'))
+    await user.type(screen.getByLabelText('VOO 거래 수량'), '-1')
+    expect(live()).toHaveTextContent('VOO 거래 수량 — 빼기(−)는 넣을 수 없습니다 · 지금 값 1')
+    expect(live()).not.toHaveTextContent('팔았다’를')
+  })
+
   it('평단가 칸을 비워 저장하면 "모름"으로 보낸다', async () => {
     mockApi(HELD)
     const update = vi.spyOn(api, 'updateHolding').mockResolvedValue({} as never)

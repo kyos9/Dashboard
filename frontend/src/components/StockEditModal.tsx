@@ -8,6 +8,7 @@ import type { Stock } from '../types'
 import { ConfirmDialog } from './ConfirmDialog'
 import { ErrorNotice } from './ErrorNotice'
 import { NumberInput } from './NumberInput'
+import { HOLDING_MINUS_HINT } from '../lib/numberDropped'
 import { lockBodyScroll } from '../lib/scrollLock'
 
 interface Props {
@@ -350,7 +351,7 @@ function StockFields({
         <label className="field" data-field="quantity">
           <span>보유 수량</span>
           <span className="input-with-button tight">
-            <NumberInput value={draft.quantity} onChange={(v) => onChange('quantity', v)} placeholder="0" aria-label={`${label} 보유수량`} />
+            <NumberInput value={draft.quantity} onChange={(v) => onChange('quantity', v)} placeholder="0" aria-label={`${label} 보유수량`} minusHint={HOLDING_MINUS_HINT} />
             <span className="unit">주</span>
           </span>
         </label>

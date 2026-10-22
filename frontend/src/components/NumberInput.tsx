@@ -88,6 +88,8 @@ interface Props
   allowDecimal?: boolean
   /** 음수 허용 여부. 기본은 false — 물가 예상치처럼 마이너스가 되는 값에만 켠다 */
   allowNegative?: boolean
+  /** 빼기를 버렸을 때 줄 끝에 붙일 한 마디 — 보유 수량("판 수량이 아닙니다")처럼 빼기가 뜻을 가진 칸 (0.45.2 A2) */
+  minusHint?: string
 }
 
 export function NumberInput({
@@ -95,6 +97,7 @@ export function NumberInput({
   onChange,
   allowDecimal = true,
   allowNegative = false,
+  minusHint,
   className,
   ...rest
 }: Props) {
@@ -152,7 +155,7 @@ export function NumberInput({
         rest.onBlur?.(event)
       }}
     />
-    {dropped.length > 0 && <NumberNotice text={droppedText(name, dropped, formatNumeric(value))} />}
+    {dropped.length > 0 && <NumberNotice text={droppedText(name, dropped, formatNumeric(value), minusHint)} />}
     </>
   )
 }
