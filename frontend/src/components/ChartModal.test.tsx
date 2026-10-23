@@ -239,7 +239,7 @@ describe('저장 구간 안내', () => {
     )
 
     await user.click(await screen.findByRole('button', { name: '5년' }))
-    expect(await screen.findByText(/고른 기간보다 짧습니다 \(앞부분은 관리자가 받을 수 있습니다\)/)).toBeInTheDocument()
+    expect(await screen.findByText(/고른 기간보다 짧습니다\(앞부분은 관리자가 받을 수 있습니다\)/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '전체 기간 다시 받기' })).toBeNull()
   })
 

@@ -45,6 +45,7 @@ import {
   signed,
   stockLabel,
   trafficLight,
+  conditionTitle,
   type MetricKey,
   type Traffic,
 } from '../lib/display'
@@ -168,7 +169,7 @@ function ConditionMark({ metric, conditions }: { metric: MetricKey; conditions: 
   return (
     <span
       className={`cond-mark${met === true ? ' met' : ''}`}
-      title={`${condition.label} — ${condition.detail} · ${mark.word}`}
+      title={conditionTitle(condition.detail, mark.word, condition.label)}
       aria-label={`${condition.label} ${mark.word}`}
     >
       {mark.sign}
@@ -897,7 +898,7 @@ export function Dashboard() {
         {rules.custom && (
           <p className="kpi-foot mine-note" role="note">
             <strong>내 기준</strong>으로 본 판정 · 오늘 매수 {summary.buy}개
-            {summary.buyDefault === summary.buy ? ' — 기본 기준과 같습니다' : ` (기본 기준이면 ${summary.buyDefault}개)`}
+            {summary.buyDefault === summary.buy ? ' · 기본 기준과 같습니다' : ` (기본 기준이면 ${summary.buyDefault}개)`}
             {/* 어느 종목이 달라졌는지 — 숫자만으로는 찾을 수 없었다 (0.42.0 사용자 확인) */}
             {summary.buyDiffers.length > 0 && ` · 다른 종목: ${summary.buyDiffers.join(', ')}`}
             {' · '}
@@ -945,23 +946,15 @@ export function Dashboard() {
           <button className={`chip${quick === 'sell' ? ' active' : ''}`} onClick={() => setQuick('sell')}>
             <SignalShape kind="sell" size={9} /> 매도 {summary.hot}
           </button>
+          {/* 위 요약의 초과·미달을 켜면 여기서는 비중조절 칩이 켜져 그 갈래를 말한다 — 아무것도 안 켜진 줄이 됐다(계획 검토).
+              칩을 따로 더하면 폰에서 이 줄이 한 줄 늘어 첫 카드가 640 화면 끝까지 밀렸다(다시 보기) */}
           <button
-            className={`chip${quick === 'rebalance' ? ' active' : ''}`}
+            className={`chip${quick === 'rebalance' || quick === 'over' || quick === 'under' ? ' active' : ''}`}
             onClick={() => setQuick('rebalance')}
           >
-            <SignalShape kind="rebalance" size={9} /> 비중조절 {summary.rebalanceCount}
+            <SignalShape kind="rebalance" size={9} /> 비중조절{' '}
+            {quick === 'over' ? `· 초과 ${summary.sellReview}` : quick === 'under' ? `· 미달 ${summary.buyReview}` : summary.rebalanceCount}
           </button>
-          {/* 위 요약의 초과·미달을 켜면 여기서도 켜져 보인다 — 없으면 아무것도 안 켜진 줄이 됐다(계획 검토) */}
-          {summary.sellReview > 0 && (
-            <button className={`chip${quick === 'over' ? ' active' : ''}`} onClick={() => setQuick('over')}>
-              <SignalShape kind="rebalance" size={9} /> 비중 초과 {summary.sellReview}
-            </button>
-          )}
-          {summary.buyReview > 0 && (
-            <button className={`chip${quick === 'under' ? ' active' : ''}`} onClick={() => setQuick('under')}>
-              <SignalShape kind="rebalance" size={9} /> 비중 미달 {summary.buyReview}
-            </button>
-          )}
           {narrow && (
             <button
               className={`chip${viewToolsOpen || ordering || view === 'edit' ? ' active' : ''}`}
@@ -1298,7 +1291,7 @@ function SignalMatrix({
                           <span key={condition.key} className="extra-cond">
                             <span
                               className={`cond-mark${met === true ? ' met' : ''}`}
-                              title={`${condition.label} — ${condition.detail} · ${mark.word}`}
+                              title={conditionTitle(condition.detail, mark.word, condition.label)}
                               aria-label={`${condition.label} ${mark.word}`}
                             >
                               {mark.sign}

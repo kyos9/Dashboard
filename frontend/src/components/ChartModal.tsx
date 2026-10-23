@@ -77,10 +77,10 @@ export function ChartCoverage({
   return (
     <p className="hint chart-coverage">
       {coverageText(history)}
-      {needsBackfill(history, range) && !isAdmin && ' — 고른 기간보다 짧습니다 (앞부분은 관리자가 받을 수 있습니다).'}
+      {needsBackfill(history, range) && !isAdmin && ' · 고른 기간보다 짧습니다(앞부분은 관리자가 받을 수 있습니다).'}
       {needsBackfill(history, range) && isAdmin && (
         <>
-          {' — 고른 기간보다 짧습니다. '}
+          {' · 고른 기간보다 짧습니다. '}
           <button className="link-btn" onClick={() => void backfill()} disabled={busy}>
             {busy ? '받는 중…' : '전체 기간 다시 받기'}
           </button>

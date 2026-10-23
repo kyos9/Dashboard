@@ -469,8 +469,10 @@ describe('대시보드 · 비중 초과·미달 칩을 누르면 그 종목만 (
     expect(over).toHaveAttribute('aria-pressed', 'true')
     expect(await shownRows()).toEqual(['QQQ', 'SCHD'])
     const toolbar = screen.getByText('신호', { selector: '.toolbar-label' }).parentElement as HTMLElement
-    expect(within(toolbar).getByRole('button', { name: '비중 초과 2' })).toHaveClass('active')
+    // 아래 칩 줄은 비중조절 칩이 켜져 그 갈래를 말한다(칩을 더하지 않는다 — 폰에서 줄이 는다)
+    expect(within(toolbar).getByRole('button', { name: '비중조절 · 초과 2' })).toHaveClass('active')
     expect(within(toolbar).getByRole('button', { name: '모두 보기' })).not.toHaveClass('active')
+    expect(within(toolbar).queryByRole('button', { name: /^비중 초과/ })).toBeNull()
 
     // 미달로 바꾸면 하나만 켜진다
     await userEvent.click(within(summaryRow).getByRole('button', { name: '비중 미달 1' }))
@@ -487,15 +489,17 @@ describe('대시보드 · 비중 초과·미달 칩을 누르면 그 종목만 (
     expect(await shownRows()).toEqual(['QQQ', 'SCHD'])
   })
 
-  it('아래 칩 줄의 초과·미달도 같은 상태 · 없으면 칩이 없다', async () => {
+  it('아래 비중조절 칩을 누르면 초과·미달을 풀고 비중조절 전체로 · 미달이 없으면 그 칩이 없다', async () => {
     mockApi([card({ ticker: 'VOO' }), card({ ticker: 'QQQ', rebalance_signal: { active: true, reasons: ['밴드 초과(매도 검토)'] } })])
     renderDashboard()
     await cardRow('VOO')
+    const summaryRow = document.querySelector('.badge-row') as HTMLElement
+    expect(within(summaryRow).queryByRole('button', { name: /비중 미달/ })).toBeNull()
+    await userEvent.click(within(summaryRow).getByRole('button', { name: '비중 초과 1' }))
     const toolbar = screen.getByText('신호', { selector: '.toolbar-label' }).parentElement as HTMLElement
-    expect(within(toolbar).queryByRole('button', { name: /비중 미달/ })).toBeNull()
-    await userEvent.click(within(toolbar).getByRole('button', { name: '비중 초과 1' }))
-    expect(within(document.querySelector('.badge-row') as HTMLElement).getByRole('button', { name: '비중 초과 1' })).toHaveAttribute('aria-pressed', 'true')
-    expect(await shownRows()).toEqual(['QQQ'])
+    await userEvent.click(within(toolbar).getByRole('button', { name: '비중조절 · 초과 1' }))
+    expect(within(summaryRow).getByRole('button', { name: '비중 초과 1' })).toHaveAttribute('aria-pressed', 'false')
+    expect(within(toolbar).getByRole('button', { name: '비중조절 1' })).toHaveClass('active')
   })
 })
 
@@ -1079,7 +1083,7 @@ describe('대시보드 · 시그널 기준 내 설정 (0.42.0)', () => {
     vi.spyOn(api, 'getSignalRules').mockResolvedValue(rulesOf(true))
     renderDashboard()
     const note = await screen.findByText((_, el) => !!el?.classList.contains('mine-note'))
-    expect(note).toHaveTextContent('오늘 매수 1개 — 기본 기준과 같습니다')
+    expect(note).toHaveTextContent('오늘 매수 1개 · 기본 기준과 같습니다')
   })
 
   it('저장하면 돌려받은 규칙으로 바로 바꾸고 화면을 다시 받는다', async () => {

@@ -1,4 +1,4 @@
-import { conditionMark } from '../lib/display'
+import { conditionMark, conditionTitle } from '../lib/display'
 import { buyRule, cardConditions, METRIC_ORDER, sellRule, showsSellConditions, useSignalRules } from '../lib/signalRules'
 import type { DashboardCard, SignalRuleCondition } from '../types'
 
@@ -42,7 +42,7 @@ export function BuyConditions({ card }: { card: DashboardCard }) {
             <span
               key={condition.key}
               className={`cond${state === true ? ' met' : ''}`}
-              title={`${condition.detail} — ${mark.word}`}
+              title={conditionTitle(condition.detail, mark.word)}
               aria-label={`${condition.label} ${mark.word}`}
             >
               {mark.sign} {condition.label}
@@ -83,7 +83,7 @@ export function SellConditions({ card }: { card: DashboardCard }) {
             <span
               key={condition.key}
               className="cond"
-              title={`${condition.detail} — ${mark.word}`}
+              title={conditionTitle(condition.detail, mark.word)}
               aria-label={`${condition.label} ${mark.word}`}
             >
               {mark.sign} {condition.label}

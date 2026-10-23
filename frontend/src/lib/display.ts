@@ -363,3 +363,12 @@ export function savedStocksText(labels: string[]): string {
   if (n <= 3) return `${labels.join('·')} ${n}종목을 저장했습니다`
   return `${labels[0]} 외 ${n - 1}종목을 저장했습니다`
 }
+
+/**
+ * 조건 칩의 풀이(마우스를 올리면) — 이음표 대신 콜론·괄호 (0.45.3 C). 신호 칸의 흐린 "—"(관망)와 한 화면에서 뜻이 겹쳤다.
+ * 서버 풀이 안의 " — "("-DI > +DI — 하락 방향이 우위")도 화면에서만 쉼표로 — 서버 문자열은 그대로(규칙 파일 "운영 중인 앱")
+ */
+export function conditionTitle(detail: string, word: string, label?: string): string {
+  const plain = detail.replace(/\s+—\s+/g, ', ')
+  return `${label ? `${label}: ` : ''}${plain} (${word})`
+}

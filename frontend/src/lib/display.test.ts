@@ -3,6 +3,7 @@ import type { DashboardCard, KneeConditions } from '../types'
 import {
   amount,
   avgPrice,
+  conditionTitle,
   savedStocksText,
   CATEGORY_UNSET,
   categoryOf,
@@ -268,5 +269,13 @@ describe('일괄 수정 뒤 한 줄 (0.45.2 A3)', () => {
     expect(savedStocksText(['SCHD', '삼성전자'])).toBe('SCHD·삼성전자 2종목을 저장했습니다')
     expect(savedStocksText(['A', 'B', 'C'])).toBe('A·B·C 3종목을 저장했습니다')
     expect(savedStocksText(['A', 'B', 'C', 'D'])).toBe('A 외 3종목을 저장했습니다')
+  })
+})
+
+describe('조건 칩 풀이 (0.45.3 C)', () => {
+  it('이음표 대신 콜론·괄호, 서버 풀이 안의 이음표는 쉼표로', () => {
+    expect(conditionTitle('-DI > +DI — 하락 방향이 우위', '미충족', 'DI 약세')).toBe('DI 약세: -DI > +DI, 하락 방향이 우위 (미충족)')
+    expect(conditionTitle('종가가 MA20 아래', '충족')).toBe('종가가 MA20 아래 (충족)')
+    expect(conditionTitle('a — b — c', '판정 불가')).not.toContain('—')
   })
 })

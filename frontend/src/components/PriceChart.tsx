@@ -444,7 +444,7 @@ export function coverageText(history: HistoryResponse | null): string {
   return `저장된 시세 ${coverage.first_date} ~ ${coverage.last_date} · ${coverage.rows.toLocaleString('ko-KR')}거래일`
 }
 
-const STREAK_HINT = '시그널이 뜬 날 수 — 괄호는 며칠 이어서 뜬 것을 한 번으로 센 횟수(차트의 점 하나가 한 번)'
+const STREAK_HINT = '시그널이 뜬 날 수. 괄호는 며칠 이어서 뜬 것을 한 번으로 센 횟수(차트의 점 하나가 한 번)'
 
 export function ChartLegend({
   history,
