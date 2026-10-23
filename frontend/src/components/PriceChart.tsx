@@ -339,6 +339,8 @@ export function PriceChart({ history, height = 440 }: Props) {
   const valid = (day: Day | null) => (day && day.of === history ? day : null)
   const current = valid(hover) ?? valid(picked)
   const shown = current ?? (last ? { date: last.date, close: last.close } : null)
+  // 보이는 날의 시그널 — 이어진 날 가운데 날도(차트의 점은 첫날만이라 원본을 본다)
+  const daySignals = shown ? (history?.markers ?? []).filter((m) => m.date === shown.date).map((m) => m.kind) : []
   // ◀ ▶ 는 고른 날(없으면 마지막 날)에서 — 마우스가 가리키는 날이 아니다(단추를 누르러 가면 차트를 떠난다)
   const base = valid(picked) ?? (last ? { date: last.date, close: last.close } : null)
   const from = base && prices ? prices.findIndex((p) => p.date === base.date) : -1
@@ -356,10 +358,29 @@ export function PriceChart({ history, height = 440 }: Props) {
           <p className="chart-readout" aria-live="polite">
             <span className="mono">{shown.date}</span> · 종가{' '}
             <span className="mono">{chartPrice(shown.close, currencyOfTicker(history.ticker))}</span>
-            {/* 고른 뒤에도 같은 길이의 풀이를 둔다 — 풀이가 빠지면 폰에서 두 줄이 한 줄이 되어 단추·차트가 20px 뛰었다(검토·사용자 확인) */}
-            <span className="hint">
-              {current && current.date !== last?.date ? ' (▶ 나 오른쪽 끝을 누르면 마지막 날)' : ' (마지막 날 — 차트를 누르면 그 날)'}
-            </span>
+            {/* 그 날이 시그널 날이면 풀이 대신 그 말 — 차트의 점은 이어진 날의 첫날만 찍혀 가운데 날은 점이 없고, 고른 점에 화살표가 가렸다(0.45.2 사용자 확인).
+                점이 아닌 시그널 날 전부(원본 markers). 풀이보다 짧아 줄이 늘지 않는다 — 두 줄 자리는 CSS 가 잡는다 */}
+            {daySignals.length > 0 ? (
+              <span className="chart-day-signal">
+                {daySignals.includes('buy') && (
+                  <span className="nowrap">
+                    {' · '}
+                    <SignalShape kind="buy" /> 매수 시그널
+                  </span>
+                )}
+                {daySignals.includes('sell') && (
+                  <span className="nowrap">
+                    {' · '}
+                    <SignalShape kind="sell" /> 매도 시그널(참고)
+                  </span>
+                )}
+              </span>
+            ) : (
+              /* 고른 뒤에도 같은 길이의 풀이를 둔다 — 풀이가 빠지면 폰에서 두 줄이 한 줄이 되어 단추·차트가 20px 뛰었다(검토·사용자 확인) */
+              <span className="hint">
+                {current && current.date !== last?.date ? ' (▶ 나 오른쪽 끝을 누르면 마지막 날)' : ' (마지막 날 · 차트를 누르면 그 날)'}
+              </span>
+            )}
           </p>
           {/* 1년 보기에서 1px 이 하루쯤이라 바로 옆 거래일을 손가락으로 짚기 어려웠다 (0.45.2 C2). 끝에서는 꺼 두되 포커스는 남긴다(aria-disabled) */}
           <div className="chart-tools">
@@ -423,7 +444,7 @@ export function coverageText(history: HistoryResponse | null): string {
   return `저장된 시세 ${coverage.first_date} ~ ${coverage.last_date} · ${coverage.rows.toLocaleString('ko-KR')}거래일`
 }
 
-const STREAK_HINT = '시그널이 뜬 날 수 — 괄호는 며칠 이어서 뜬 것을 한 번으로 센 횟수(차트의 점 하나가 한 번)'
+const STREAK_HINT = '시그널이 뜬 날 수. 괄호는 며칠 이어서 뜬 것을 한 번으로 센 횟수(차트의 점 하나가 한 번)'
 
 export function ChartLegend({
   history,

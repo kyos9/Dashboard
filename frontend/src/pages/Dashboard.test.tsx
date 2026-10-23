@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, useNavigate } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppStateProvider } from '../AppState'
 import { api } from '../api/client'
@@ -307,6 +307,45 @@ describe('대시보드 · 상태 표시', () => {
   })
 })
 
+describe('대시보드 · 카드의 비중 줄에 숫자 (0.45.3 B)', () => {
+  it('비중 줄 끝에 지금·목표·밴드 — 리밸런싱 행의 수, 그 종목 행이 없으면 숫자 없이', async () => {
+    mockApi(
+      [
+        card({ ticker: 'VOO', rebalance_signal: { active: true, reasons: ['밴드 초과(매도 검토)'] } }),
+        card({ ticker: 'QQQ', rebalance_signal: { active: true, reasons: ['밴드 미달(매수 검토)'] } }),
+        card({ ticker: 'SCHD' }),
+        card({ ticker: 'MSFT', rebalance_signal: { active: true, reasons: ['밴드 미달(매수 검토)'] } }),
+      ],
+      {
+        ...REBALANCE,
+        rows: [
+          weightRow({ ticker: 'VOO', actual_weight_pct: 35.34, target_weight_pct: 20, band_pct: 2.5, excess_pct: 15.34 }),
+          // 미달은 빼기 그대로, 목표·밴드는 적은 그대로(반올림하면 차이와 셈이 안 맞았다 — 끝 검토)
+          weightRow({ ticker: 'QQQ', actual_weight_pct: 1, target_weight_pct: 2.5, band_pct: 2.25, excess_pct: -1.5 }),
+          weightRow({ ticker: 'SCHD', actual_weight_pct: 10, target_weight_pct: 10 }),
+        ],
+      },
+    )
+    renderDashboard()
+    await userEvent.click(await screen.findByRole('button', { name: '카드 보기' }))
+    const cardOf = (t: string) => screen.getAllByText(t, { selector: '.stock-name, .stock-name *' })[0].closest('.card, article, li') as HTMLElement
+    const voo = cardOf('VOO')
+    expect(voo.querySelector('.weight-numbers')?.textContent?.replace(/\s+/g, ' ')).toBe('지금 35.3% · 목표 20% · +15.3%p (허용 ±2.5%p)')
+    expect(cardOf('QQQ').querySelector('.weight-numbers')?.textContent?.replace(/\s+/g, ' ')).toBe('지금 1.0% · 목표 2.5% · -1.5%p (허용 ±2.25%p)')
+    // 조각 사이에서 꺾인다 — 한 덩어리면 카드 테두리 밖으로 나갔다(끝 검토)
+    expect(voo.querySelector('.weight-numbers')).not.toHaveClass('nowrap')
+    expect(voo.querySelectorAll('.weight-numbers > .nowrap')).toHaveLength(4)
+    // 행이 없으면(옛·다른 자료) 숫자 없이 배지만
+    expect(cardOf('MSFT').querySelector('.weight-numbers')).toBeNull()
+    expect(within(cardOf('MSFT')).getByText('비중 미달')).toBeInTheDocument()
+    // 비중 줄이 없는 종목에는 숫자도 없다
+    expect(cardOf('SCHD').querySelector('.weight-numbers')).toBeNull()
+    // 카드의 매수 조건 이름표는 단추가 아니다 — 펼치는 풀이는 차트 팝업에만(카드 높이 그대로, 0.45.3 D)
+    expect(document.querySelector('.cond-toggle')).toBeNull()
+    expect(within(voo).getByText('매수 조건')).toBeInTheDocument()
+  })
+})
+
 describe('대시보드 · 신호 칸은 짧게, 모양으로도 (ROADMAP 8-4)', () => {
   it('신호 칸은 이름표 두 줄 — 시그널(▲ 매수·▼ 매도)과 비중(◆ 비중 미달·초과), 풀이는 설명으로 (0.44.0)', async () => {
     mockApi([
@@ -329,13 +368,15 @@ describe('대시보드 · 신호 칸은 짧게, 모양으로도 (ROADMAP 8-4)', 
       })
     const voo = await cardRow('VOO')
     expect(lines(voo)).toEqual(['시그널 | buy:매수', '비중 | rebalance:비중 미달'])
-    expect(within(voo).getByText('비중 미달').closest('.badge')).toHaveAttribute('title', expect.stringMatching(/^밴드 미달/))
+    expect(within(voo).getByText('비중 미달').closest('.badge')).toHaveAttribute('title', expect.stringMatching(/^비중 미달: /))
     expect(within(voo).getByText('매수').closest('.traffic')).toHaveAttribute('title', expect.stringMatching(/^매수 시그널/))
 
     // 정기 리뷰는 모든 종목에 같은 날 붙는 날짜라 비중 줄에 세우지 않는다 — 신호 요약의 "정기 리뷰 N" 이 말한다
     expect(lines(await cardRow('QQQ'))).toEqual(['시그널 | sell:매도', '비중 | rebalance:비중 초과'])
     // 둘 다 뜨면 신호등은 매수, 매도 쪽은 ▼ 배지로 남는다. 비중 신호가 없으면 비중 줄도 없다
     expect(lines(await cardRow('SCHD'))).toEqual(['시그널 | buy:매수 sell:매도 조건도'])
+    // 풀이에 이음표 없이 — 관망의 흐린 "—"와 겹치지 않게 (0.45.3 C)
+    expect(within(await cardRow('SCHD')).getByText('매도 조건도').closest('.badge')).toHaveAttribute('title', '매도 조건도 충족(참고). 두 시그널이 같이 뜨면 신호등은 매수를 보여줍니다.')
     // 사유가 와도 비중 신호가 꺼져 있으면(active=false) 비중 줄을 그리지 않는다
     expect(lines(await cardRow('GOOG'))).toEqual(['시그널 | buy:매수'])
     // 정기 리뷰만 있으면 비중 줄이 없다
@@ -376,10 +417,10 @@ describe('대시보드 · 신호 칸은 짧게, 모양으로도 (ROADMAP 8-4)', 
     const voo = await cardRow('VOO')
     const watch = voo.querySelector('.signal-cell-rows .traffic-watch') as HTMLElement
     expect(watch.textContent).toBe('—')
-    expect(watch).toHaveAttribute('title', '관망 — 매수·매도 조건 미충족')
-    expect(within(voo).getByLabelText('관망 — 매수·매도 조건 미충족')).toBe(watch)
+    expect(watch).toHaveAttribute('title', '관망(매수·매도 조건 미충족)')
+    expect(within(voo).getByLabelText('관망(매수·매도 조건 미충족)')).toBe(watch)
     // 이름을 가진 기호(role=img) — role 없는 span 의 aria-label 은 읽기 기기마다 다르다
-    expect(within(voo).getByRole('img', { name: '관망 — 매수·매도 조건 미충족' })).toBe(watch)
+    expect(within(voo).getByRole('img', { name: '관망(매수·매도 조건 미충족)' })).toBe(watch)
     // 툴팁은 폰·키보드로 못 본다 — 같은 풀이가 화면 글로도 있다
     expect(document.querySelector('.signal-key')?.textContent).toMatch(/흐린 —는 관망\(매수·매도 조건 미충족\)입니다/)
     expect(document.querySelector('.signal-key')?.textContent).toMatch(/비중 줄은 지표와 따로/)
@@ -403,12 +444,107 @@ describe('대시보드 · 신호 칸은 짧게, 모양으로도 (ROADMAP 8-4)', 
     ])
     renderDashboard()
     await cardRow('VOO')
-    const review = screen.getByText(/^비중 미달 1$/).closest('.badge')!
-    expect(review).toHaveClass('badge-purple')
+    const summaryRow = document.querySelector('.badge-row') as HTMLElement
+    const review = within(summaryRow).getByRole('button', { name: '비중 미달 1' })
+    expect(review).toHaveClass('weight-chip')
     expect(review.querySelector('.signal-shape.rebalance')).not.toBeNull()
-    expect(screen.getByText(/^비중 초과 2$/).closest('.badge')).toHaveClass('badge-purple')
+    expect(within(summaryRow).getByRole('button', { name: '비중 초과 2' })).toHaveClass('weight-chip')
     expect(document.querySelector('.count-chip.green .signal-shape.buy')).not.toBeNull()
     expect(document.querySelector('.count-chip.red .signal-shape.sell')).not.toBeNull()
+  })
+})
+
+describe('대시보드 · 비중 초과·미달 칩을 누르면 그 종목만 (0.45.3 A)', () => {
+  const CARDS3 = [
+    card({ ticker: 'VOO', knee_buy_v2: true, rebalance_signal: { active: true, reasons: ['밴드 미달(매수 검토)'] } }),
+    card({ ticker: 'QQQ', rebalance_signal: { active: true, reasons: ['밴드 초과(매도 검토)', '정기 리뷰 도래'] } }),
+    card({ ticker: 'SCHD', rebalance_signal: { active: true, reasons: ['밴드 초과(매도 검토)'] } }),
+    // 꺼진 비중 신호의 사유는 세지도 거르지도 않는다
+    card({ ticker: 'GOOG', rebalance_signal: { active: false, reasons: ['밴드 초과(매도 검토)'] } }),
+    card({ ticker: 'MSFT', rebalance_signal: { active: true, reasons: ['정기 리뷰 도래'] } }),
+  ]
+  const shownRows = async () =>
+    within((await screen.findAllByRole('table'))[0])
+      .getAllByRole('row')
+      .slice(1)
+      .map((tr) => tr.querySelector('.stock-name')?.textContent?.trim())
+
+  it('칩 수 = 걸러진 줄 수, 순서는 사용자 순서 그대로, 다시 누르면 전체 — 아래 칩 줄도 같이 켜진다', async () => {
+    mockApi(CARDS3)
+    renderDashboard()
+    await cardRow('VOO')
+    const summaryRow = document.querySelector('.badge-row') as HTMLElement
+    const over = within(summaryRow).getByRole('button', { name: '비중 초과 2' })
+    expect(over).toHaveAttribute('aria-pressed', 'false')
+
+    await userEvent.click(over)
+    expect(over).toHaveAttribute('aria-pressed', 'true')
+    expect(await shownRows()).toEqual(['QQQ', 'SCHD'])
+    const toolbar = screen.getByText('신호', { selector: '.toolbar-label' }).parentElement as HTMLElement
+    // 아래 칩 줄은 비중조절 칩이 켜져 그 갈래를 말한다(칩을 더하지 않는다 — 폰에서 줄이 는다)
+    expect(within(toolbar).getByRole('button', { name: '비중조절 · 초과 2' })).toHaveClass('active')
+    expect(within(toolbar).getByRole('button', { name: '모두 보기' })).not.toHaveClass('active')
+    expect(within(toolbar).queryByRole('button', { name: /^비중 초과/ })).toBeNull()
+
+    // 미달로 바꾸면 하나만 켜진다
+    await userEvent.click(within(summaryRow).getByRole('button', { name: '비중 미달 1' }))
+    expect(over).toHaveAttribute('aria-pressed', 'false')
+    expect(await shownRows()).toEqual(['VOO'])
+
+    // 다시 누르면 전체
+    await userEvent.click(within(summaryRow).getByRole('button', { name: '비중 미달 1' }))
+    expect(await shownRows()).toEqual(['VOO', 'QQQ', 'SCHD', 'GOOG', 'MSFT'])
+
+    // 키보드로도 — 진짜 단추다
+    within(summaryRow).getByRole('button', { name: '비중 초과 2' }).focus()
+    await userEvent.keyboard('{Enter}')
+    expect(await shownRows()).toEqual(['QQQ', 'SCHD'])
+    // 켜진 초과를 다시 누르면 전체
+    await userEvent.click(within(summaryRow).getByRole('button', { name: '비중 초과 2' }))
+    expect(await shownRows()).toEqual(['VOO', 'QQQ', 'SCHD', 'GOOG', 'MSFT'])
+  })
+
+  it('미달을 켜도 아래 비중조절 칩이 켜져 "· 미달 N"', async () => {
+    mockApi(CARDS3)
+    renderDashboard()
+    await cardRow('VOO')
+    await userEvent.click(within(document.querySelector('.badge-row') as HTMLElement).getByRole('button', { name: '비중 미달 1' }))
+    const toolbar = screen.getByText('신호', { selector: '.toolbar-label' }).parentElement as HTMLElement
+    expect(within(toolbar).getByRole('button', { name: '비중조절 · 미달 1' })).toHaveClass('active')
+  })
+
+  it('다른 화면에서 넘어온 종목이 초과·미달 거르기에 가려 있으면 거르기를 푼다 (ABCE 검토)', async () => {
+    mockApi(CARDS3)
+    function Jump() {
+      const navigate = useNavigate()
+      return <button onClick={() => navigate('/?view=signal', { state: { focus: 'MSFT' } })}>넘어오기</button>
+    }
+    render(
+      <MemoryRouter initialEntries={['/?view=signal']}>
+        <AppStateProvider>
+          <Jump />
+          <Dashboard />
+        </AppStateProvider>
+      </MemoryRouter>,
+    )
+    await cardRow('VOO')
+    await userEvent.click(within(document.querySelector('.badge-row') as HTMLElement).getByRole('button', { name: '비중 초과 2' }))
+    expect(await shownRows()).toEqual(['QQQ', 'SCHD'])
+    await userEvent.click(screen.getByRole('button', { name: '넘어오기' }))
+    await waitFor(async () => expect(await shownRows()).toContain('MSFT'))
+  })
+
+  it('아래 비중조절 칩을 누르면 초과·미달을 풀고 비중조절 전체로 · 미달이 없으면 그 칩이 없다', async () => {
+    mockApi([card({ ticker: 'VOO' }), card({ ticker: 'QQQ', rebalance_signal: { active: true, reasons: ['밴드 초과(매도 검토)'] } })])
+    renderDashboard()
+    await cardRow('VOO')
+    const summaryRow = document.querySelector('.badge-row') as HTMLElement
+    expect(within(summaryRow).queryByRole('button', { name: /비중 미달/ })).toBeNull()
+    await userEvent.click(within(summaryRow).getByRole('button', { name: '비중 초과 1' }))
+    const toolbar = screen.getByText('신호', { selector: '.toolbar-label' }).parentElement as HTMLElement
+    await userEvent.click(within(toolbar).getByRole('button', { name: '비중조절 · 초과 1' }))
+    expect(within(summaryRow).getByRole('button', { name: '비중 초과 1' })).toHaveAttribute('aria-pressed', 'false')
+    expect(within(toolbar).getByRole('button', { name: '비중조절 1' })).toHaveClass('active')
   })
 })
 
@@ -824,7 +960,7 @@ describe('대시보드 · 시그널 규칙은 서버에서 (0.41.0)', () => {
 
   /** 0.40.0 화면이 적어 두던 글 — 옛 서버든 새 서버든 정의가 같으면 글자까지 같아야 한다 */
   const OLD_SENTENCE =
-    '매수 시그널 = 이격도 < 0 · ADX > 20 · DI 약세(-DI > +DI) · 변동성·거래량(StdDev20 축소 또는 거래량비 > 1.1) — 네 조건을 모두 만족할 때.'
+    '매수 시그널 = 이격도 < 0 · ADX > 20 · DI 약세(-DI > +DI) · 변동성·거래량(StdDev20 축소 또는 거래량비 > 1.1): 네 조건을 모두 만족할 때.'
   const OLD_HEADERS = ['-DI > +DI', '< 0', '변동성↓ 또는 >1.1', '> 20']
 
   async function expectOldScreen() {
@@ -894,7 +1030,7 @@ describe('대시보드 · 시그널 규칙은 서버에서 (0.41.0)', () => {
 
     expect(await screen.findByRole('note')).toHaveTextContent('시그널 계산 방식이 2026-11-02에 바뀌었습니다')
     expect(
-      screen.getByText((_, el) => el?.tagName === 'P' && !!el.textContent?.includes('이격도 < 0 · ADX > 25 · DI 약세(-DI > +DI) · 변동성·거래량(StdDev20 축소 또는 거래량비 > 1.1) · RSI < 30 — 다섯 조건을 모두 만족할 때.')),
+      screen.getByText((_, el) => el?.tagName === 'P' && !!el.textContent?.includes('이격도 < 0 · ADX > 25 · DI 약세(-DI > +DI) · 변동성·거래량(StdDev20 축소 또는 거래량비 > 1.1) · RSI < 30: 다섯 조건을 모두 만족할 때.')),
     ).toBeInTheDocument()
     const row = await cardRow('VOO')
     expect(within(row).getByLabelText('ADX > 25 충족')).toBeInTheDocument()
@@ -992,7 +1128,7 @@ describe('대시보드 · 시그널 기준 내 설정 (0.42.0)', () => {
     vi.spyOn(api, 'getSignalRules').mockResolvedValue(rulesOf(true))
     renderDashboard()
     const note = await screen.findByText((_, el) => !!el?.classList.contains('mine-note'))
-    expect(note).toHaveTextContent('오늘 매수 1개 — 기본 기준과 같습니다')
+    expect(note).toHaveTextContent('오늘 매수 1개 · 기본 기준과 같습니다')
   })
 
   it('저장하면 돌려받은 규칙으로 바로 바꾸고 화면을 다시 받는다', async () => {

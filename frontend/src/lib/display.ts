@@ -275,10 +275,10 @@ export function trafficLight(card: DashboardCard, rules: SignalRules = LEGACY_SI
     return { state: 'stale', tone: 'grey', label: '갱신 필요', desc: '최근 시세가 없어 판정할 수 없습니다.' }
   }
   if (card.knee_buy_v2) {
-    return { state: 'buy', tone: 'green', label: '매수', desc: `매수 시그널 — 매수 조건 ${buyRule(rules).conditions.length}개를 모두 만족합니다.` }
+    return { state: 'buy', tone: 'green', label: '매수', desc: `매수 시그널: 매수 조건 ${buyRule(rules).conditions.length}개를 모두 만족합니다.` }
   }
   if (card.shoulder_sell_ref) {
-    return { state: 'hot', tone: 'red', label: '매도', desc: '매도 시그널 — 매도 조건 충족(참고). 실제 매도 실행일은 리뷰 마감일입니다.' }
+    return { state: 'hot', tone: 'red', label: '매도', desc: '매도 시그널(참고): 매도 조건 충족. 실제 매도 실행일은 리뷰 마감일입니다.' }
   }
   return { state: 'watch', tone: 'amber', label: '관망', desc: '매수·매도 어느 조건도 충족하지 않습니다.' }
 }
@@ -300,17 +300,17 @@ export interface ReasonBadge {
 const REASON_BADGE: Record<string, ReasonBadge> = {
   '밴드 초과(매도 검토)': {
     label: '비중 초과',
-    desc: '밴드 초과 — 목표 비중보다 밴드 이상 많습니다. 줄일지 검토하세요.',
+    desc: '비중 초과: 목표 비중보다 밴드 넘게 많습니다. 줄일지 검토하세요.',
     rebalance: true,
   },
   '밴드 미달(매수 검토)': {
     label: '비중 미달',
-    desc: '밴드 미달 — 목표 비중보다 밴드 이상 적습니다. 채울지 검토하세요.',
+    desc: '비중 미달: 목표 비중보다 밴드 넘게 적습니다. 채울지 검토하세요.',
     rebalance: true,
   },
   '정기 리뷰 도래': {
     label: '정기 리뷰',
-    desc: '정기 리뷰 도래 — 리뷰 마감일이 됐습니다. 전체 비중을 맞춰 보세요.',
+    desc: '정기 리뷰: 리뷰 마감일이 됐습니다. 전체 비중을 맞춰 보세요.',
     rebalance: false,
   },
 }
@@ -362,4 +362,13 @@ export function savedStocksText(labels: string[]): string {
   if (n === 0) return ''
   if (n <= 3) return `${labels.join('·')} ${n}종목을 저장했습니다`
   return `${labels[0]} 외 ${n - 1}종목을 저장했습니다`
+}
+
+/**
+ * 조건 칩의 풀이(마우스를 올리면) — 이음표 대신 콜론·괄호 (0.45.3 C). 신호 칸의 흐린 "—"(관망)와 한 화면에서 뜻이 겹쳤다.
+ * 서버 풀이 안의 " — "("-DI > +DI — 하락 방향이 우위")도 화면에서만 쉼표로 — 서버 문자열은 그대로(규칙 파일 "운영 중인 앱")
+ */
+export function conditionTitle(detail: string, word: string, label?: string): string {
+  const plain = detail.replace(/\s+—\s+/g, ', ')
+  return `${label ? `${label}: ` : ''}${plain} (${word})`
 }

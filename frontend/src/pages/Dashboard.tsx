@@ -4,7 +4,7 @@ import { MacroStrip } from '../components/MacroStrip'
 import { PortfolioView, type SignalFilter } from '../components/PortfolioView'
 import { ReasonTag, SellTooTag, SignalShape } from '../components/SignalShape'
 import { BuyConditions } from '../components/BuyConditions'
-import { hasWeightSignal, isWeightReason } from '../components/weightSignal'
+import { hasWeightSignal, isWeightReason, weightSide } from '../components/weightSignal'
 import { useNarrow } from '../lib/narrow'
 import { loadView, saveView, type DashboardView } from '../lib/portfolio'
 import { NumberInput } from '../components/NumberInput'
@@ -45,6 +45,7 @@ import {
   signed,
   stockLabel,
   trafficLight,
+  conditionTitle,
   type MetricKey,
   type Traffic,
 } from '../lib/display'
@@ -57,18 +58,29 @@ import {
   METRIC_ORDER,
   useSignalRules,
 } from '../lib/signalRules'
-import type { DashboardCard, RebalanceCurrent, SignalRules, Stock, StockUpdateInput } from '../types'
+import type { DashboardCard, RebalanceCurrent, RebalanceRow, SignalRules, Stock, StockUpdateInput } from '../types'
 
-type QuickFilter = 'all' | 'knee' | 'sell' | 'rebalance'
+// over·under — 신호 요약의 "비중 초과·미달" 칩 (0.45.3 A). 눌러도 아무 일이 없었다(0.44.0 사용자 확인)
+type QuickFilter = 'all' | 'knee' | 'sell' | 'rebalance' | 'over' | 'under'
 /** 표 / 카드 / 설정(편집) — 같은 목록을 다른 형태로 보는 것이라 한 자리에서 고른다 */
 type ViewMode = 'table' | 'card' | 'edit'
 
 /** 관망을 대신하는 흐린 "—" 의 풀이 — 마우스를 올리거나 읽어 주는 기기가 이 말을 쓴다 (0.44.0, 주인 결정) */
-const WATCH_HINT = '관망 — 매수·매도 조건 미충족'
+const WATCH_HINT = '관망(매수·매도 조건 미충족)'
 
 /** 신호등 — 매수 ▲ · 매도 ▼ 는 모양이 붙는다. 색만으로 가리지 않는다 (8-4).
     관망은 할 일이 없다는 뜻이라 눈에 띄지 않게 흐린 "—" 만 (0.44.0). 빈칸으로 두면 "시세 없음"과 같아 보이고,
     매수·매도만 남아 할 일 목록처럼 읽힌다(계획 검토). 수는 그대로 센다 — 신호 요약의 "관망 N" */
+/** 신호 거르기 하나 — 목록·넘어온 종목 풀기·칩 수가 같은 판정을 쓴다 (0.45.3 A) */
+function matchesQuick(card: DashboardCard, quick: QuickFilter, rules: SignalRules): boolean {
+  if (quick === 'knee') return !!card.knee_buy_v2
+  // 매도는 신호 요약의 "매도" 수와 같은 것 — 신호등이 매도인 종목 (디자인 2차, 주인 결정)
+  if (quick === 'sell') return trafficLight(card, rules).state === 'hot'
+  if (quick === 'rebalance') return hasWeightSignal(card)
+  if (quick === 'over' || quick === 'under') return weightSide(card) === quick
+  return true
+}
+
 function TrafficBadge({ traffic }: { traffic: Traffic }) {
   if (traffic.state === 'watch') {
     return (
@@ -99,7 +111,15 @@ function TrafficBadge({ traffic }: { traffic: Traffic }) {
  * 표에서는 "▼ 매도"와 "◆ 매수 검토"가 이름 없이 한 줄로 붙어 "팔라는데 사라고도?"로 읽혔다.
  * 부르는 쪽이 `.signal-rows` 격자 안에 둔다(카드는 그 아래 매수 조건 줄을 더 붙인다).
  */
-function SignalAndWeightRows({ card, rules }: { card: DashboardCard; rules: SignalRules }) {
+/** 사람이 정한 목표·밴드 — 적은 그대로(2.5 는 2.5, 2.25 는 2.25). 반올림하면 차이와 셈이 안 맞았다(끝 검토) */
+function pctText(value: number): string {
+  return String(Number(value.toFixed(2)))
+}
+
+/** 비중 줄 끝의 숫자 — 리밸런싱 행(현금 포함 전체 자금 대비, 기준통화). 카드에서만 (0.45.3 B) */
+type WeightNumbers = Pick<RebalanceRow, 'actual_weight_pct' | 'target_weight_pct' | 'band_pct' | 'excess_pct'>
+
+function SignalAndWeightRows({ card, rules, numbers }: { card: DashboardCard; rules: SignalRules; numbers?: WeightNumbers }) {
   // 비중 줄에는 초과·미달만. 정기 리뷰는 모든 종목에 같은 날 붙는 포트폴리오의 날짜라 줄마다 세우면 시끄럽다 —
   // 신호 요약의 "정기 리뷰 N" 배지가 말한다(계획 B, 0.43 의 `hasWeightSignal` 과 같은 기준)
   const weight = card.rebalance_signal.active ? card.rebalance_signal.reasons.filter(isWeightReason) : []
@@ -120,6 +140,21 @@ function SignalAndWeightRows({ card, rules }: { card: DashboardCard; rules: Sign
             {weight.map((r) => (
               <ReasonTag key={r} reason={r} />
             ))}
+            {/* 얼마나 벗어났는지 — "비중 초과"만으로는 몰랐다(0.44.0 사용자 확인). 밴드도 — "왜 이 종목만 미달?"(계획 사용자 검토).
+                리밸런싱 화면과 같은 수(현금 포함 전체 자금 대비). 그 종목의 행이 없으면 숫자 없이 지금 그대로 */}
+            {numbers && (
+              <span className="hint weight-numbers">
+                {/* 조각마다 안 꺾이게, 조각 사이에서는 꺾이게 — 한 덩어리로 묶으면 카드 테두리 밖으로 나갔다(끝 검토) */}
+                <span className="nowrap">지금 {num(numbers.actual_weight_pct, 1)}%</span>{' '}
+                <span className="nowrap">· 목표 {pctText(numbers.target_weight_pct)}%</span>{' '}
+                {/* 차이를 바로 — 목표에서 빼어 구해야 했다(사용자 확인). 리밸런싱의 "+8.6%p"와 같은 수(`excess_pct`), 허용 폭(밴드)은 괄호에 */}
+                <span className="nowrap">
+                  · {numbers.excess_pct > 0 ? '+' : ''}
+                  {num(numbers.excess_pct, 1)}%p
+                </span>{' '}
+                <span className="nowrap">(허용 ±{pctText(numbers.band_pct)}%p)</span>
+              </span>
+            )}
           </div>
         </div>
       )}
@@ -147,7 +182,7 @@ function ConditionMark({ metric, conditions }: { metric: MetricKey; conditions: 
   return (
     <span
       className={`cond-mark${met === true ? ' met' : ''}`}
-      title={`${condition.label} — ${condition.detail} · ${mark.word}`}
+      title={conditionTitle(condition.detail, mark.word, condition.label)}
       aria-label={`${condition.label} ${mark.word}`}
     >
       {mark.sign}
@@ -373,6 +408,7 @@ export function Dashboard() {
   const [cards, setCards] = useState<DashboardCard[]>([])
   // 리밸런싱과 같은 응답 — 대시보드와 리밸런싱의 합계가 원 단위까지 같다 (ROADMAP 8-3)
   const [current, setCurrent] = useState<RebalanceCurrent | null>(null)
+  const weights = useMemo(() => new Map((current?.rows ?? []).map((r) => [r.ticker, r])), [current])
   const [error, setError] = useState<unknown>(null)
   const narrow = useNarrow()
   // 팝업과 어느 탭부터 열지 — 종목 이름은 차트, 맨 오른쪽 "AI 분석" 버튼은 AI 탭
@@ -555,8 +591,9 @@ export function Dashboard() {
       hot: lights.filter((l) => l.state === 'hot').length,
       stale: lights.filter((l) => l.state === 'stale').length,
       rebalanceCount: cards.filter(hasWeightSignal).length,
-      sellReview: reasons.filter((r) => r.includes('매도')).length,
-      buyReview: reasons.filter((r) => r.includes('매수')).length,
+      // 칩 수와 누르면 걸러진 수가 같게 — 종목 수로, 거르기와 같은 판정(`weightSide`)으로 센다 (0.45.3 A)
+      sellReview: cards.filter((c) => weightSide(c) === 'over').length,
+      buyReview: cards.filter((c) => weightSide(c) === 'under').length,
       periodicReview: reasons.filter((r) => r.includes('정기')).length,
       // 내 기준을 쓰는 사람에게만 뜻이 있다 — 같은 카드를 기본 기준의 오늘 매수로 바꿔 센다 (0.42.0)
       buyDefault: cards.filter(
@@ -583,10 +620,7 @@ export function Dashboard() {
   const visible = useMemo(() => {
     const shown = cards.filter((c) => {
       if (category !== '전체' && categoryOf(c.category) !== category) return false
-      if (quick === 'knee' && !c.knee_buy_v2) return false
-      // 매도는 신호 요약의 "매도" 수와 같은 것 — 신호등이 매도인 종목 (디자인 2차, 주인 결정)
-      if (quick === 'sell' && trafficLight(c, rules).state !== 'hot') return false
-      if (quick === 'rebalance' && !hasWeightSignal(c)) return false
+      if (!matchesQuick(c, quick, rules)) return false
       return true
     })
     if (!preview) return shown
@@ -671,9 +705,7 @@ export function Dashboard() {
     const target = cards.find((c) => c.ticker === focus)
     if (!target) return
     if (category !== '전체' && categoryOf(target.category) !== category) setCategory('전체')
-    if (quick === 'knee' && !target.knee_buy_v2) setQuick('all')
-    if (quick === 'sell' && trafficLight(target, rules).state !== 'hot') setQuick('all')
-    if (quick === 'rebalance' && !hasWeightSignal(target)) setQuick('all')
+    if (!matchesQuick(target, quick, rules)) setQuick('all')
     if (view === 'edit') setView(narrow ? 'card' : 'table')
     // 필터를 고른 뒤의 화면에서 찾는다 — 한 번만 (같은 칸으로 다시 오면 다시)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -843,18 +875,27 @@ export function Dashboard() {
           </button>
         </div>
         <div className="badge-row">
-          {/* 비중조절은 보라 ◆ — 매도·매수 시그널(빨강·초록)이나 오르내림 색과 섞이지 않게 (8-4) */}
+          {/* 비중조절은 보라 ◆ — 매도·매수 시그널(빨강·초록)이나 오르내림 색과 섞이지 않게 (8-4).
+              초과·미달은 누르면 그 종목만 — 테두리 있는 칩(누르는 것), 정기 리뷰·밴드 이내는 그대로 배지(표시만) (0.45.3 A) */}
           {summary.sellReview > 0 && (
-            <span className="badge badge-purple badge-nowrap">
-              <SignalShape kind="rebalance" size={9} />
-              비중 초과 {summary.sellReview}
-            </span>
+            <button
+              type="button"
+              className={`chip weight-chip${quick === 'over' ? ' active' : ''}`}
+              aria-pressed={quick === 'over'}
+              onClick={() => setQuick(quick === 'over' ? 'all' : 'over')}
+            >
+              <SignalShape kind="rebalance" size={9} /> 비중 초과 {summary.sellReview}
+            </button>
           )}
           {summary.buyReview > 0 && (
-            <span className="badge badge-purple badge-nowrap">
-              <SignalShape kind="rebalance" size={9} />
-              비중 미달 {summary.buyReview}
-            </span>
+            <button
+              type="button"
+              className={`chip weight-chip${quick === 'under' ? ' active' : ''}`}
+              aria-pressed={quick === 'under'}
+              onClick={() => setQuick(quick === 'under' ? 'all' : 'under')}
+            >
+              <SignalShape kind="rebalance" size={9} /> 비중 미달 {summary.buyReview}
+            </button>
           )}
           {summary.periodicReview > 0 && (
             <span className="badge badge-purple">정기 리뷰 {summary.periodicReview}</span>
@@ -870,7 +911,7 @@ export function Dashboard() {
         {rules.custom && (
           <p className="kpi-foot mine-note" role="note">
             <strong>내 기준</strong>으로 본 판정 · 오늘 매수 {summary.buy}개
-            {summary.buyDefault === summary.buy ? ' — 기본 기준과 같습니다' : ` (기본 기준이면 ${summary.buyDefault}개)`}
+            {summary.buyDefault === summary.buy ? ' · 기본 기준과 같습니다' : ` (기본 기준이면 ${summary.buyDefault}개)`}
             {/* 어느 종목이 달라졌는지 — 숫자만으로는 찾을 수 없었다 (0.42.0 사용자 확인) */}
             {summary.buyDiffers.length > 0 && ` · 다른 종목: ${summary.buyDiffers.join(', ')}`}
             {' · '}
@@ -918,11 +959,14 @@ export function Dashboard() {
           <button className={`chip${quick === 'sell' ? ' active' : ''}`} onClick={() => setQuick('sell')}>
             <SignalShape kind="sell" size={9} /> 매도 {summary.hot}
           </button>
+          {/* 위 요약의 초과·미달을 켜면 여기서는 비중조절 칩이 켜져 그 갈래를 말한다 — 아무것도 안 켜진 줄이 됐다(계획 검토).
+              칩을 따로 더하면 폰에서 이 줄이 한 줄 늘어 첫 카드가 640 화면 끝까지 밀렸다(다시 보기) */}
           <button
-            className={`chip${quick === 'rebalance' ? ' active' : ''}`}
+            className={`chip${quick === 'rebalance' || quick === 'over' || quick === 'under' ? ' active' : ''}`}
             onClick={() => setQuick('rebalance')}
           >
-            <SignalShape kind="rebalance" size={9} /> 비중조절 {summary.rebalanceCount}
+            <SignalShape kind="rebalance" size={9} /> 비중조절{' '}
+            {quick === 'over' ? `· 초과 ${summary.sellReview}` : quick === 'under' ? `· 미달 ${summary.buyReview}` : summary.rebalanceCount}
           </button>
           {narrow && (
             <button
@@ -1011,6 +1055,7 @@ export function Dashboard() {
       ) : (
         <SignalCards
           cards={visible}
+          weights={weights}
           onChart={openChart}
           onAi={openAi}
           controls={rowControls}
@@ -1259,7 +1304,7 @@ function SignalMatrix({
                           <span key={condition.key} className="extra-cond">
                             <span
                               className={`cond-mark${met === true ? ' met' : ''}`}
-                              title={`${condition.label} — ${condition.detail} · ${mark.word}`}
+                              title={conditionTitle(condition.detail, mark.word, condition.label)}
                               aria-label={`${condition.label} ${mark.word}`}
                             >
                               {mark.sign}
@@ -1466,11 +1511,13 @@ function SettingsTable({
 
 function SignalCards({
   cards,
+  weights,
   onChart,
   onAi,
   controls,
 }: {
   cards: DashboardCard[]
+  weights?: Map<string, WeightNumbers>
   onChart: (card: DashboardCard) => void
   onAi: (card: DashboardCard) => void
   controls: RowControlProps
@@ -1519,7 +1566,7 @@ function SignalCards({
             {/* 시그널 · 비중 · 매수 조건 — 왼쪽 이름표로 종류를 가른다 (디자인 2차, 주인 결정 시안 v4).
                 "▼ 매도"와 "◆ 매수 검토"가 이름표 없이 붙어 있으면 "팔라는데 사라고도?"로 읽혔다 */}
             <div className="signal-rows">
-              <SignalAndWeightRows card={card} rules={rules} />
+              <SignalAndWeightRows card={card} rules={rules} numbers={weights?.get(card.ticker)} />
               <BuyConditions card={card} />
             </div>
 
