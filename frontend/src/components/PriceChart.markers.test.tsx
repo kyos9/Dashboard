@@ -206,7 +206,7 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
   it('처음에는 마지막 날의 날짜·종가, 그 날이 "마지막 날"임을 말한다', () => {
     const { line } = shown()
     expect(line()).toHaveTextContent('2026-09-16 · 종가 102.00')
-    expect(line()).toHaveTextContent('마지막 날 — 차트를 누르면 그 날')
+    expect(line()).toHaveTextContent('마지막 날 · 차트를 누르면 그 날')
   })
 
   it('짧게 탭하면 십자선을 그 자리로 옮기고, 한 줄이 그 날을 말한다', async () => {
@@ -214,7 +214,7 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
     await tap(canvas, 0)
     expect(chart.setCrosshairPosition).toHaveBeenLastCalledWith(100, '2026-09-14', series)
     expect(line()).toHaveTextContent('2026-09-14 · 종가 100.00')
-    expect(line()).not.toHaveTextContent('(마지막 날 —')
+    expect(line()).not.toHaveTextContent('(마지막 날 ·')
     // 풀이는 같은 길이로 남는다 — 빠지면 폰에서 줄 수가 바뀌어 단추·차트가 뛰었다
     expect(line()).toHaveTextContent('(▶ 나 오른쪽 끝을 누르면 마지막 날)')
   })
@@ -480,10 +480,37 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
     expect(line()).toHaveTextContent('2026-09-16 · 종가 102.00')
   })
 
+  it('고른 날이 시그널 날이면 풀이 대신 그 말 — 이어진 날 가운데 날도, 같은 날 둘 다도 (0.45.3 E)', async () => {
+    const h = history([
+      { date: '2026-09-14', kind: 'buy' },
+      { date: '2026-09-15', kind: 'buy' },
+      { date: '2026-09-15', kind: 'sell' },
+      { date: '2026-09-16', kind: 'sell' },
+    ])
+    const { canvas, line } = shown(h)
+    // 마지막 날(09-16, 오늘까지 이어진 매도)
+    expect(line()).toHaveTextContent('2026-09-16 · 종가 102.00 · 매도 시그널(참고)')
+    expect(line()).not.toHaveTextContent('마지막 날 ·')
+    // 첫날
+    await tap(canvas, 0)
+    expect(line()).toHaveTextContent('2026-09-14 · 종가 100.00 · 매수 시그널')
+    expect(line()).not.toHaveTextContent('매도')
+    // 이어진 매수의 둘째 날(차트에는 점이 없다) + 같은 날 매도
+    await tap(canvas, 100, 100, 1000)
+    expect(line()).toHaveTextContent('2026-09-15 · 종가 101.00 · 매수 시그널 · 매도 시그널(참고)')
+  })
+
+  it('시그널이 없는 날은 풀이 그대로', async () => {
+    const { canvas, line } = shown(history([{ date: '2026-09-16', kind: 'buy' }]))
+    await tap(canvas, 0)
+    expect(line()).toHaveTextContent('2026-09-14 · 종가 100.00 (▶ 나 오른쪽 끝을 누르면 마지막 날)')
+    expect(line()).not.toHaveTextContent('시그널')
+  })
+
   it('마지막 날을 고르면 풀이도 "마지막 날"', async () => {
     const { canvas, line } = shown()
     await tap(canvas, 290)
-    expect(line()).toHaveTextContent('(마지막 날 — 차트를 누르면 그 날)')
+    expect(line()).toHaveTextContent('(마지막 날 · 차트를 누르면 그 날)')
   })
 
   it('마우스 왼쪽 클릭도 같은 길', async () => {

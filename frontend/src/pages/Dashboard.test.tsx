@@ -329,7 +329,7 @@ describe('대시보드 · 신호 칸은 짧게, 모양으로도 (ROADMAP 8-4)', 
       })
     const voo = await cardRow('VOO')
     expect(lines(voo)).toEqual(['시그널 | buy:매수', '비중 | rebalance:비중 미달'])
-    expect(within(voo).getByText('비중 미달').closest('.badge')).toHaveAttribute('title', expect.stringMatching(/^밴드 미달/))
+    expect(within(voo).getByText('비중 미달').closest('.badge')).toHaveAttribute('title', expect.stringMatching(/^비중 미달: /))
     expect(within(voo).getByText('매수').closest('.traffic')).toHaveAttribute('title', expect.stringMatching(/^매수 시그널/))
 
     // 정기 리뷰는 모든 종목에 같은 날 붙는 날짜라 비중 줄에 세우지 않는다 — 신호 요약의 "정기 리뷰 N" 이 말한다
@@ -376,10 +376,10 @@ describe('대시보드 · 신호 칸은 짧게, 모양으로도 (ROADMAP 8-4)', 
     const voo = await cardRow('VOO')
     const watch = voo.querySelector('.signal-cell-rows .traffic-watch') as HTMLElement
     expect(watch.textContent).toBe('—')
-    expect(watch).toHaveAttribute('title', '관망 — 매수·매도 조건 미충족')
-    expect(within(voo).getByLabelText('관망 — 매수·매도 조건 미충족')).toBe(watch)
+    expect(watch).toHaveAttribute('title', '관망(매수·매도 조건 미충족)')
+    expect(within(voo).getByLabelText('관망(매수·매도 조건 미충족)')).toBe(watch)
     // 이름을 가진 기호(role=img) — role 없는 span 의 aria-label 은 읽기 기기마다 다르다
-    expect(within(voo).getByRole('img', { name: '관망 — 매수·매도 조건 미충족' })).toBe(watch)
+    expect(within(voo).getByRole('img', { name: '관망(매수·매도 조건 미충족)' })).toBe(watch)
     // 툴팁은 폰·키보드로 못 본다 — 같은 풀이가 화면 글로도 있다
     expect(document.querySelector('.signal-key')?.textContent).toMatch(/흐린 —는 관망\(매수·매도 조건 미충족\)입니다/)
     expect(document.querySelector('.signal-key')?.textContent).toMatch(/비중 줄은 지표와 따로/)
@@ -824,7 +824,7 @@ describe('대시보드 · 시그널 규칙은 서버에서 (0.41.0)', () => {
 
   /** 0.40.0 화면이 적어 두던 글 — 옛 서버든 새 서버든 정의가 같으면 글자까지 같아야 한다 */
   const OLD_SENTENCE =
-    '매수 시그널 = 이격도 < 0 · ADX > 20 · DI 약세(-DI > +DI) · 변동성·거래량(StdDev20 축소 또는 거래량비 > 1.1) — 네 조건을 모두 만족할 때.'
+    '매수 시그널 = 이격도 < 0 · ADX > 20 · DI 약세(-DI > +DI) · 변동성·거래량(StdDev20 축소 또는 거래량비 > 1.1): 네 조건을 모두 만족할 때.'
   const OLD_HEADERS = ['-DI > +DI', '< 0', '변동성↓ 또는 >1.1', '> 20']
 
   async function expectOldScreen() {
@@ -894,7 +894,7 @@ describe('대시보드 · 시그널 규칙은 서버에서 (0.41.0)', () => {
 
     expect(await screen.findByRole('note')).toHaveTextContent('시그널 계산 방식이 2026-11-02에 바뀌었습니다')
     expect(
-      screen.getByText((_, el) => el?.tagName === 'P' && !!el.textContent?.includes('이격도 < 0 · ADX > 25 · DI 약세(-DI > +DI) · 변동성·거래량(StdDev20 축소 또는 거래량비 > 1.1) · RSI < 30 — 다섯 조건을 모두 만족할 때.')),
+      screen.getByText((_, el) => el?.tagName === 'P' && !!el.textContent?.includes('이격도 < 0 · ADX > 25 · DI 약세(-DI > +DI) · 변동성·거래량(StdDev20 축소 또는 거래량비 > 1.1) · RSI < 30: 다섯 조건을 모두 만족할 때.')),
     ).toBeInTheDocument()
     const row = await cardRow('VOO')
     expect(within(row).getByLabelText('ADX > 25 충족')).toBeInTheDocument()

@@ -118,7 +118,7 @@ export function countWord(n: number): string {
 /** 표·카드의 지표 칸 순서 — 설명 줄도 이 순서로 읽는다 (0.42.0 B1). 칸이 없는 조건은 뒤에, 받은 순서대로 */
 export const METRIC_ORDER = ['disparity', 'adx', 'di', 'volume']
 
-/** 시그널 보기 아래 설명 줄의 앞부분 — "매수 시그널 = A · B · C · D — 네 조건을 모두 만족할 때." */
+/** 시그널 보기 아래 설명 줄의 앞부분 — "매수 시그널 = A · B · C · D: 네 조건을 모두 만족할 때." */
 export function buyRuleSentence(rules: SignalRules): string {
   const rule = buyRule(rules)
   const n = rule.conditions.length
@@ -128,5 +128,5 @@ export function buyRuleSentence(rules: SignalRules): string {
   }
   // 정의(서버)의 조건 순서는 AI 지시문과 지문이 쓴다 — 바꾸지 않고 화면에서만 칸 순서로 늘어놓는다
   const ordered = [...rule.conditions].sort((a, b) => rank(a.metric) - rank(b.metric))
-  return `${rule.name} = ${ordered.map((c) => c.formula).join(' · ')} — ${countWord(n)} 조건을 모두 만족할 때.`
+  return `${rule.name} = ${ordered.map((c) => c.formula).join(' · ')}: ${countWord(n)} 조건을 모두 만족할 때.`
 }
