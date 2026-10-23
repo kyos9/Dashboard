@@ -438,6 +438,31 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
     expect(line()).toHaveTextContent('2026-09-14 · 종가 100.00')
   })
 
+  it('터치 노트북: 손가락이 ◀ 가 아닌 곳(빈 곳·전체 보기)에 닿아도 읽기 줄은 고른 날, 구간이 바뀌면 십자선도 고른 날로 (끝 검토 네 번째)', async () => {
+    const { act } = await import('@testing-library/react')
+    const { canvas, line } = shown()
+    await tap(canvas, 100)
+    act(() => hoverOn(canvas, '2026-09-16', 102))
+    act(() => pointer(document.body, 'pointerdown', { x: 5, y: 5, t: 6000 }))
+    expect(line()).toHaveTextContent('2026-09-15 · 종가 101.00')
+    const onRange = (scale.subscribeVisibleLogicalRangeChange.mock.lastCall as [() => void])[0]
+    chart.setCrosshairPosition.mockClear()
+    act(() => onRange())
+    await act(() => new Promise<void>((r) => requestAnimationFrame(() => r())))
+    expect(chart.setCrosshairPosition).toHaveBeenLastCalledWith(101, '2026-09-15', series)
+  })
+
+  it('마우스·펜으로 누르고 있는 동안은 가리킨 날 그대로 — 손가락만 마우스 가리킴을 놓는다', async () => {
+    const { act } = await import('@testing-library/react')
+    const { canvas, line } = shown()
+    await tap(canvas, 100)
+    act(() => hoverOn(canvas, '2026-09-16', 102))
+    act(() => pointer(canvas, 'pointerdown', { x: 0, y: 100, t: 7000, kind: 'mouse' }))
+    expect(line()).toHaveTextContent('2026-09-16 · 종가 102.00')
+    act(() => pointer(canvas, 'pointerdown', { x: 0, y: 100, t: 7100, kind: 'pen', id: 3 }))
+    expect(line()).toHaveTextContent('2026-09-16 · 종가 102.00')
+  })
+
   it('펜은 마우스처럼 띄운 채 가리킨다 (끝 검토)', async () => {
     const { act } = await import('@testing-library/react')
     const { canvas, line } = shown()
@@ -641,9 +666,13 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
     const { unmount, canvas } = shown()
     // 붙인 것: 차트 칸(탭·밀기·가리킴) · 창(차트 밖에서 놓은 마우스·손가락 떼기)
     type Spy = { mock: { calls: unknown[][]; contexts: unknown[] } }
+    // capture 도 짝으로 본다 — capture 로 붙인 것을 capture 없이 떼면 떼지지 않아 차트를 열 때마다 쌓인다(끝 검토 네 번째)
+    const captureOf = (o: unknown) => (typeof o === 'boolean' ? o : Boolean((o as { capture?: boolean } | undefined)?.capture))
     const pairs = (spy: Spy, win: Spy) => [
-      ...spy.mock.calls.map((call, i) => ({ target: spy.mock.contexts[i], type: call[0], fn: call[1] })).filter(({ target }) => target === canvas),
-      ...win.mock.calls.map((call) => ({ target: window as unknown, type: call[0], fn: call[1] })),
+      ...spy.mock.calls
+        .map((call, i) => ({ target: spy.mock.contexts[i], type: call[0], fn: call[1], capture: captureOf(call[2]) }))
+        .filter(({ target }) => target === canvas),
+      ...win.mock.calls.map((call) => ({ target: window as unknown, type: call[0], fn: call[1], capture: captureOf(call[2]) })),
     ]
     const attached = pairs(add, addWin).filter(({ type }) => String(type).startsWith('pointer') || type === 'wheel')
     expect(new Set(attached.filter(({ target }) => target === canvas).map(({ type }) => type))).toEqual(
@@ -652,7 +681,8 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
     expect(new Set(attached.filter(({ target }) => target === window).map(({ type }) => type))).toEqual(new Set(['pointerup', 'pointercancel', 'pointerdown']))
     unmount()
     const detached = pairs(remove, removeWin)
-    for (const one of attached) expect(detached.some((d) => d.target === one.target && d.type === one.type && d.fn === one.fn)).toBe(true)
+    for (const one of attached)
+      expect(detached.some((d) => d.target === one.target && d.type === one.type && d.fn === one.fn && d.capture === one.capture)).toBe(true)
     expect(chart.unsubscribeCrosshairMove).toHaveBeenCalled()
     expect(scale.unsubscribeVisibleLogicalRangeChange).toHaveBeenCalled()
     add.mockRestore()

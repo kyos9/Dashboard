@@ -130,3 +130,12 @@
 | M4 마우스 누름도 손가락 누름 | `frontend/src/components/PriceChart.tsx` | 잡힘 |
 | M7 창 pointercancel 떼기 안 받음 | `frontend/src/components/PriceChart.tsx` | 잡힘 |
 | T1 손가락이 닿아도 마우스 가리킴 남김 | `frontend/src/components/PriceChart.tsx` | 잡힘 |
+
+## 끝 검토 네 번째의 조건부 (final-review4.md) — 시험만 더함(앱 코드 바뀜 없음)
+
+| 뮤테이션 | 파일 | 결과 |
+| --- | --- | --- |
+| T5 손가락 닿을 때 hoverRef 안 비움 | `frontend/src/components/PriceChart.tsx` | 잡힘 |
+| T6 손가락 닿을 때 읽기 줄 안 비움 | `frontend/src/components/PriceChart.tsx` | 잡힘 |
+| T9 capture 없이 뗌 | `frontend/src/components/PriceChart.tsx` | 잡힘 |
+| T2 마우스 누름에도 놓음 | `frontend/src/components/PriceChart.tsx` | 잡힘 |
