@@ -307,6 +307,35 @@ describe('대시보드 · 상태 표시', () => {
   })
 })
 
+describe('대시보드 · 카드의 비중 줄에 숫자 (0.45.3 B)', () => {
+  it('비중 줄 끝에 지금·목표·밴드 — 리밸런싱 행의 수, 그 종목 행이 없으면 숫자 없이', async () => {
+    mockApi(
+      [
+        card({ ticker: 'VOO', rebalance_signal: { active: true, reasons: ['밴드 초과(매도 검토)'] } }),
+        card({ ticker: 'QQQ', rebalance_signal: { active: true, reasons: ['밴드 미달(매수 검토)'] } }),
+        card({ ticker: 'SCHD' }),
+      ],
+      {
+        ...REBALANCE,
+        rows: [
+          weightRow({ ticker: 'VOO', actual_weight_pct: 35.34, target_weight_pct: 20, band_pct: 5 }),
+          weightRow({ ticker: 'SCHD', actual_weight_pct: 10, target_weight_pct: 10 }),
+        ],
+      },
+    )
+    renderDashboard()
+    await userEvent.click(await screen.findByRole('button', { name: '카드 보기' }))
+    const cardOf = (t: string) => screen.getAllByText(t, { selector: '.stock-name, .stock-name *' })[0].closest('.card, article, li') as HTMLElement
+    const voo = cardOf('VOO')
+    expect(voo.querySelector('.weight-numbers')?.textContent).toBe('지금 35.3% · 목표 20% ± 5%p')
+    // 행이 없으면(옛·다른 자료) 숫자 없이 배지만
+    expect(cardOf('QQQ').querySelector('.weight-numbers')).toBeNull()
+    expect(within(cardOf('QQQ')).getByText('비중 미달')).toBeInTheDocument()
+    // 비중 줄이 없는 종목에는 숫자도 없다
+    expect(cardOf('SCHD').querySelector('.weight-numbers')).toBeNull()
+  })
+})
+
 describe('대시보드 · 신호 칸은 짧게, 모양으로도 (ROADMAP 8-4)', () => {
   it('신호 칸은 이름표 두 줄 — 시그널(▲ 매수·▼ 매도)과 비중(◆ 비중 미달·초과), 풀이는 설명으로 (0.44.0)', async () => {
     mockApi([

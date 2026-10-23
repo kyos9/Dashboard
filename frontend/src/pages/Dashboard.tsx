@@ -57,7 +57,7 @@ import {
   METRIC_ORDER,
   useSignalRules,
 } from '../lib/signalRules'
-import type { DashboardCard, RebalanceCurrent, SignalRules, Stock, StockUpdateInput } from '../types'
+import type { DashboardCard, RebalanceCurrent, RebalanceRow, SignalRules, Stock, StockUpdateInput } from '../types'
 
 type QuickFilter = 'all' | 'knee' | 'sell' | 'rebalance'
 /** 표 / 카드 / 설정(편집) — 같은 목록을 다른 형태로 보는 것이라 한 자리에서 고른다 */
@@ -99,7 +99,10 @@ function TrafficBadge({ traffic }: { traffic: Traffic }) {
  * 표에서는 "▼ 매도"와 "◆ 매수 검토"가 이름 없이 한 줄로 붙어 "팔라는데 사라고도?"로 읽혔다.
  * 부르는 쪽이 `.signal-rows` 격자 안에 둔다(카드는 그 아래 매수 조건 줄을 더 붙인다).
  */
-function SignalAndWeightRows({ card, rules }: { card: DashboardCard; rules: SignalRules }) {
+/** 비중 줄 끝의 숫자 — 리밸런싱 행(현금 포함 전체 자금 대비, 기준통화). 카드에서만 (0.45.3 B) */
+type WeightNumbers = Pick<RebalanceRow, 'actual_weight_pct' | 'target_weight_pct' | 'band_pct'>
+
+function SignalAndWeightRows({ card, rules, numbers }: { card: DashboardCard; rules: SignalRules; numbers?: WeightNumbers }) {
   // 비중 줄에는 초과·미달만. 정기 리뷰는 모든 종목에 같은 날 붙는 포트폴리오의 날짜라 줄마다 세우면 시끄럽다 —
   // 신호 요약의 "정기 리뷰 N" 배지가 말한다(계획 B, 0.43 의 `hasWeightSignal` 과 같은 기준)
   const weight = card.rebalance_signal.active ? card.rebalance_signal.reasons.filter(isWeightReason) : []
@@ -120,6 +123,13 @@ function SignalAndWeightRows({ card, rules }: { card: DashboardCard; rules: Sign
             {weight.map((r) => (
               <ReasonTag key={r} reason={r} />
             ))}
+            {/* 얼마나 벗어났는지 — "비중 초과"만으로는 몰랐다(0.44.0 사용자 확인). 밴드도 — "왜 이 종목만 미달?"(계획 사용자 검토).
+                리밸런싱 화면과 같은 수(현금 포함 전체 자금 대비). 그 종목의 행이 없으면 숫자 없이 지금 그대로 */}
+            {numbers && (
+              <span className="hint weight-numbers nowrap">
+                지금 {num(numbers.actual_weight_pct, 1)}% · 목표 {num(numbers.target_weight_pct, 0)}% ± {num(numbers.band_pct, 0)}%p
+              </span>
+            )}
           </div>
         </div>
       )}
@@ -373,6 +383,7 @@ export function Dashboard() {
   const [cards, setCards] = useState<DashboardCard[]>([])
   // 리밸런싱과 같은 응답 — 대시보드와 리밸런싱의 합계가 원 단위까지 같다 (ROADMAP 8-3)
   const [current, setCurrent] = useState<RebalanceCurrent | null>(null)
+  const weights = useMemo(() => new Map((current?.rows ?? []).map((r) => [r.ticker, r])), [current])
   const [error, setError] = useState<unknown>(null)
   const narrow = useNarrow()
   // 팝업과 어느 탭부터 열지 — 종목 이름은 차트, 맨 오른쪽 "AI 분석" 버튼은 AI 탭
@@ -1011,6 +1022,7 @@ export function Dashboard() {
       ) : (
         <SignalCards
           cards={visible}
+          weights={weights}
           onChart={openChart}
           onAi={openAi}
           controls={rowControls}
@@ -1466,11 +1478,13 @@ function SettingsTable({
 
 function SignalCards({
   cards,
+  weights,
   onChart,
   onAi,
   controls,
 }: {
   cards: DashboardCard[]
+  weights?: Map<string, WeightNumbers>
   onChart: (card: DashboardCard) => void
   onAi: (card: DashboardCard) => void
   controls: RowControlProps
@@ -1519,7 +1533,7 @@ function SignalCards({
             {/* 시그널 · 비중 · 매수 조건 — 왼쪽 이름표로 종류를 가른다 (디자인 2차, 주인 결정 시안 v4).
                 "▼ 매도"와 "◆ 매수 검토"가 이름표 없이 붙어 있으면 "팔라는데 사라고도?"로 읽혔다 */}
             <div className="signal-rows">
-              <SignalAndWeightRows card={card} rules={rules} />
+              <SignalAndWeightRows card={card} rules={rules} numbers={weights?.get(card.ticker)} />
               <BuyConditions card={card} />
             </div>
 
