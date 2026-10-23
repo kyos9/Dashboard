@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, useNavigate } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppStateProvider } from '../AppState'
 import { api } from '../api/client'
@@ -318,7 +318,7 @@ describe('대시보드 · 카드의 비중 줄에 숫자 (0.45.3 B)', () => {
       {
         ...REBALANCE,
         rows: [
-          weightRow({ ticker: 'VOO', actual_weight_pct: 35.34, target_weight_pct: 20, band_pct: 5, excess_pct: 15.34 }),
+          weightRow({ ticker: 'VOO', actual_weight_pct: 35.34, target_weight_pct: 20, band_pct: 2.5, excess_pct: 15.34 }),
           weightRow({ ticker: 'SCHD', actual_weight_pct: 10, target_weight_pct: 10 }),
         ],
       },
@@ -327,7 +327,7 @@ describe('대시보드 · 카드의 비중 줄에 숫자 (0.45.3 B)', () => {
     await userEvent.click(await screen.findByRole('button', { name: '카드 보기' }))
     const cardOf = (t: string) => screen.getAllByText(t, { selector: '.stock-name, .stock-name *' })[0].closest('.card, article, li') as HTMLElement
     const voo = cardOf('VOO')
-    expect(voo.querySelector('.weight-numbers')?.textContent?.replace(/\s+/g, ' ')).toBe('지금 35.3% · 목표 20% · +15.3%p (허용 ±5%p)')
+    expect(voo.querySelector('.weight-numbers')?.textContent?.replace(/\s+/g, ' ')).toBe('지금 35.3% · 목표 20% · +15.3%p (허용 ±2.5%p)')
     // 행이 없으면(옛·다른 자료) 숫자 없이 배지만
     expect(cardOf('QQQ').querySelector('.weight-numbers')).toBeNull()
     expect(within(cardOf('QQQ')).getByText('비중 미달')).toBeInTheDocument()
@@ -493,6 +493,36 @@ describe('대시보드 · 비중 초과·미달 칩을 누르면 그 종목만 (
     // 켜진 초과를 다시 누르면 전체
     await userEvent.click(within(summaryRow).getByRole('button', { name: '비중 초과 2' }))
     expect(await shownRows()).toEqual(['VOO', 'QQQ', 'SCHD', 'GOOG', 'MSFT'])
+  })
+
+  it('미달을 켜도 아래 비중조절 칩이 켜져 "· 미달 N"', async () => {
+    mockApi(CARDS3)
+    renderDashboard()
+    await cardRow('VOO')
+    await userEvent.click(within(document.querySelector('.badge-row') as HTMLElement).getByRole('button', { name: '비중 미달 1' }))
+    const toolbar = screen.getByText('신호', { selector: '.toolbar-label' }).parentElement as HTMLElement
+    expect(within(toolbar).getByRole('button', { name: '비중조절 · 미달 1' })).toHaveClass('active')
+  })
+
+  it('다른 화면에서 넘어온 종목이 초과·미달 거르기에 가려 있으면 거르기를 푼다 (ABCE 검토)', async () => {
+    mockApi(CARDS3)
+    function Jump() {
+      const navigate = useNavigate()
+      return <button onClick={() => navigate('/?view=signal', { state: { focus: 'MSFT' } })}>넘어오기</button>
+    }
+    render(
+      <MemoryRouter initialEntries={['/?view=signal']}>
+        <AppStateProvider>
+          <Jump />
+          <Dashboard />
+        </AppStateProvider>
+      </MemoryRouter>,
+    )
+    await cardRow('VOO')
+    await userEvent.click(within(document.querySelector('.badge-row') as HTMLElement).getByRole('button', { name: '비중 초과 2' }))
+    expect(await shownRows()).toEqual(['QQQ', 'SCHD'])
+    await userEvent.click(screen.getByRole('button', { name: '넘어오기' }))
+    await waitFor(async () => expect(await shownRows()).toContain('MSFT'))
   })
 
   it('아래 비중조절 칩을 누르면 초과·미달을 풀고 비중조절 전체로 · 미달이 없으면 그 칩이 없다', async () => {

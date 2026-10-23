@@ -115,6 +115,35 @@ describe('차트 팝업', () => {
     buy.focus()
     await user.keyboard('{Enter}')
     expect(buy).toHaveAttribute('aria-expanded', 'true')
+    // 기준일은 월-일 꼴로 맨 앞에 (D 검토)
+    expect(document.getElementById(buy.getAttribute('aria-controls')!)!.querySelector('p')!.textContent).toMatch(/^10-22 기준 · /)
+
+    // 매도 줄도 따로 펼쳐진다 — 조건 셋, 회색 칩의 풀이 (D 검토)
+    const sell = screen.getByRole('button', { name: /매도 조건/ })
+    await user.click(sell)
+    const sellPanel = document.getElementById(sell.getAttribute('aria-controls')!)!
+    const sellItems = [...sellPanel.querySelectorAll('li')].map((li) => li.textContent)
+    expect(sellItems).toHaveLength(3)
+    expect(sellItems.every((t) => t!.startsWith('✓ 충족 · '))).toBe(true)
+    expect(sellItems.some((t) => t!.includes('MA50 위: '))).toBe(true)
+  })
+
+  it('지표 날짜가 없는 카드도 펼쳐진다 — 기준일 줄만 빠진다 (D 검토)', async () => {
+    vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
+    const userEvent = (await import('@testing-library/user-event')).default
+    const user = userEvent.setup()
+    const card = {
+      ticker: '005930.KS',
+      indicators: { date: null },
+      knee_conditions: { di_bearish: true, disparity_negative: false, volatility_or_volume: false, adx_trending: null },
+    } as never
+    render(<ChartModal ticker="005930.KS" name="삼성전자" card={card} onClose={() => {}} />)
+    const buy = screen.getByRole('button', { name: /매수 조건/ })
+    expect(buy).not.toHaveTextContent('·')
+    await user.click(buy)
+    const panel = document.getElementById(buy.getAttribute('aria-controls')!)!
+    expect(panel.querySelector('p')).toBeNull()
+    expect(panel.querySelectorAll('li')).toHaveLength(4)
   })
 
   it('매도 조건 (참고) 은 매도(참고) 신호가 켜진 날만 — 회색 칩, 명령하는 말 없음 (0.45.0 C)', async () => {

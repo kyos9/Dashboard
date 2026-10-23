@@ -26,3 +26,14 @@
 | 뮤테이션 | 파일 | 결과 |
 | --- | --- | --- |
 | A 칩 다시 누르면 전체 안 됨 | `frontend/src/pages/Dashboard.tsx` | 잡힘 |
+
+## 검토 조건부 (ABCE-review.md · D-review.md)
+
+| 뮤테이션 | 파일 | 결과 |
+| --- | --- | --- |
+| ABCE 넘어오기에서 초과 안 풂 | `frontend/src/pages/Dashboard.tsx` | 잡힘 |
+| ABCE 미달에 아래 칩 안 켜짐 | `frontend/src/pages/Dashboard.tsx` | 잡힘 |
+| ABCE 밴드 정수로 | `frontend/src/pages/Dashboard.tsx` | 잡힘 |
+| D 매도 풀이 안 펼침 | `frontend/src/components/BuyConditions.tsx` | 잡힘 |
+| D 날짜 없을 때 막음 지움 | `frontend/src/components/BuyConditions.tsx` | 잡힘 |
+| D 월-일 대신 전체 날짜 | `frontend/src/components/BuyConditions.tsx` | 잡힘 |

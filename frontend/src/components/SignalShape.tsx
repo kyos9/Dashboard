@@ -37,7 +37,7 @@ export function ReasonTag({ reason }: { reason: string }) {
 /** 매수 신호등 옆에서 매도 조건도 같이 충족했음을 알린다 — 신호등은 매수를 보여주므로 매도가 조용히 사라지지 않게 */
 export function SellTooTag() {
   return (
-    <span className="badge badge-red badge-nowrap" title="매도 조건도 충족(참고) — 두 시그널이 같이 뜨면 신호등은 매수를 보여줍니다.">
+    <span className="badge badge-red badge-nowrap" title="매도 조건도 충족(참고). 두 시그널이 같이 뜨면 신호등은 매수를 보여줍니다.">
       <SignalShape kind="sell" size={9} />
       매도 조건도
     </span>

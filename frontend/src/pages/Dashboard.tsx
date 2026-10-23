@@ -141,7 +141,7 @@ function SignalAndWeightRows({ card, rules, numbers }: { card: DashboardCard; ru
               <span className="hint weight-numbers nowrap">
                 {/* 차이를 바로 — 목표에서 빼어 구해야 했다(사용자 확인). 리밸런싱의 "+8.6%p"와 같은 수(`excess_pct`), 허용 폭(밴드)은 괄호에 */}
                 지금 {num(numbers.actual_weight_pct, 1)}% · 목표 {num(numbers.target_weight_pct, 0)}% · {numbers.excess_pct > 0 ? '+' : ''}
-                {num(numbers.excess_pct, 1)}%p (허용 ±{num(numbers.band_pct, 0)}%p)
+                {num(numbers.excess_pct, 1)}%p (허용 ±{num(numbers.band_pct, Number.isInteger(numbers.band_pct) ? 0 : 1)}%p)
               </span>
             )}
           </div>
