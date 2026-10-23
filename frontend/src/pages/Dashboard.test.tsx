@@ -333,6 +333,9 @@ describe('대시보드 · 카드의 비중 줄에 숫자 (0.45.3 B)', () => {
     expect(within(cardOf('QQQ')).getByText('비중 미달')).toBeInTheDocument()
     // 비중 줄이 없는 종목에는 숫자도 없다
     expect(cardOf('SCHD').querySelector('.weight-numbers')).toBeNull()
+    // 카드의 매수 조건 이름표는 단추가 아니다 — 펼치는 풀이는 차트 팝업에만(카드 높이 그대로, 0.45.3 D)
+    expect(document.querySelector('.cond-toggle')).toBeNull()
+    expect(within(voo).getByText('매수 조건')).toBeInTheDocument()
   })
 })
 

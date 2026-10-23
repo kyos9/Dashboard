@@ -1,3 +1,4 @@
+import { useId, useState } from 'react'
 import { conditionMark, conditionTitle } from '../lib/display'
 import { buyRule, cardConditions, METRIC_ORDER, sellRule, showsSellConditions, useSignalRules } from '../lib/signalRules'
 import type { DashboardCard, SignalRuleCondition } from '../types'
@@ -21,19 +22,100 @@ function orderedBuyConditions(conditions: SignalRuleCondition[]): SignalRuleCond
   return [...conditions].sort((a, b) => rank(a.metric) - rank(b.metric))
 }
 
-export function BuyConditions({ card }: { card: DashboardCard }) {
+
+/**
+ * 줄 이름표 — 차트 팝업(`explain`)에서는 단추: 누르면 그 줄 조건 전부의 풀이가 아래에 펼쳐진다 (0.45.3 D).
+ * 칩 풀이가 마우스를 올려야(title) 보여 폰에서 못 봤고, 지난 날을 눌러도 칩은 오늘 것인데 날짜가 없었다.
+ * 칩마다 누르게 하면 칩마다 44px 라 폰 팝업 높이를 못 지켰다(계획 검토 막음) — 줄마다 단추 하나. 이름표는 두 줄("매수 조건" / "2/4 ▾")로
+ * 칸 폭을 지금과 비슷하게 둔다(넓어지면 칩이 세 줄로 넘어가 날짜 축이 밖으로 — 다시 보기). 카드(대시보드)는 단추가 아니다(카드 높이 그대로).
+ */
+function RowLabel({
+  name,
+  count,
+  explain,
+  open,
+  panelId,
+  onToggle,
+}: {
+  name: string
+  count: string
+  explain: boolean
+  open: boolean
+  panelId: string
+  onToggle: () => void
+}) {
+  if (!explain) {
+    return (
+      <span className="signal-row-label">
+        {name} <span className="nowrap mono">{count}</span>
+      </span>
+    )
+  }
+  return (
+    <button
+      type="button"
+      className="signal-row-label cond-toggle"
+      aria-expanded={open}
+      aria-controls={panelId}
+      onClick={onToggle}
+    >
+      <span>{name}</span>
+      <span className="nowrap">
+        <span className="mono">{count}</span> <span aria-hidden="true">{open ? '▴' : '▾'}</span>
+      </span>
+    </button>
+  )
+}
+
+/** 펼친 풀이 — 맨 위에 기준일(칩은 그 날 지표의 것이다), 줄마다 "✓ 충족 · 이름: 풀이". 서버 풀이는 화면에서만 다듬는다(이음표 → 쉼표) */
+function Explain({
+  id,
+  date,
+  conditions,
+  states,
+}: {
+  id: string
+  date: string | null | undefined
+  conditions: SignalRuleCondition[]
+  states: Record<string, boolean | null | undefined>
+}) {
+  return (
+    <div className="cond-explain" id={id}>
+      {date && <p className="hint">{date.slice(5)} 기준 · 차트에서 다른 날을 골라도 이 날의 조건입니다</p>}
+      <ul>
+        {conditions.map((condition) => {
+          const mark = conditionMark(states[condition.key])
+          return (
+            <li key={condition.key}>
+              <span className="nowrap">
+                {mark.sign} {mark.word}
+              </span>{' '}
+              · <b>{condition.label}</b>: {condition.detail.replace(/\s+—\s+/g, ', ')}
+            </li>
+          )
+        })}
+      </ul>
+    </div>
+  )
+}
+
+export function BuyConditions({ card, explain = false }: { card: DashboardCard; explain?: boolean }) {
   const rule = buyRule(useSignalRules())
   const conditions = orderedBuyConditions(rule.conditions)
   const states = cardConditions(card)
   const met = conditions.filter((c) => states[c.key] === true).length
+  const [open, setOpen] = useState(false)
+  const panelId = useId()
   return (
     <div className="signal-row">
-      <span className="signal-row-label">
-        매수 조건{' '}
-        <span className="nowrap mono">
-          {met}/{conditions.length}
-        </span>
-      </span>
+      <RowLabel
+        name="매수 조건"
+        count={`${met}/${conditions.length}`}
+        explain={explain}
+        open={open}
+        panelId={panelId}
+        onToggle={() => setOpen((o) => !o)}
+      />
       <div className="signal-row-items">
         {conditions.map((condition) => {
           const state = states[condition.key]
@@ -50,6 +132,7 @@ export function BuyConditions({ card }: { card: DashboardCard }) {
           )
         })}
       </div>
+      {explain && open && <Explain id={panelId} date={card.indicators.date} conditions={conditions} states={states} />}
     </div>
   )
 }
@@ -63,19 +146,23 @@ export function BuyConditions({ card }: { card: DashboardCard }) {
  * 판정 날짜와 지표 날짜가 다르면 서버가 null 을 보낸다 — 배지와 다른 날의 근거는 그리지 않는다. 옛 서버도 그리지 않는다.
  * 판정 불가가 섞인 날도 그리지 않는다(`showsSellConditions`).
  */
-export function SellConditions({ card }: { card: DashboardCard }) {
+export function SellConditions({ card, explain = false }: { card: DashboardCard; explain?: boolean }) {
   const rule = sellRule(useSignalRules())
+  const [open, setOpen] = useState(false)
+  const panelId = useId()
   if (!showsSellConditions(card)) return null
   const states = card.sell_conditions!
   const met = rule.conditions.filter((c) => states[c.key] === true).length
   return (
     <div className="signal-row sell-conditions">
-      <span className="signal-row-label">
-        매도 조건 (참고){' '}
-        <span className="nowrap mono">
-          {met}/{rule.conditions.length}
-        </span>
-      </span>
+      <RowLabel
+        name="매도 조건 (참고)"
+        count={`${met}/${rule.conditions.length}`}
+        explain={explain}
+        open={open}
+        panelId={panelId}
+        onToggle={() => setOpen((o) => !o)}
+      />
       <div className="signal-row-items">
         {rule.conditions.map((condition) => {
           const mark = conditionMark(states[condition.key])
@@ -91,6 +178,7 @@ export function SellConditions({ card }: { card: DashboardCard }) {
           )
         })}
       </div>
+      {explain && open && <Explain id={panelId} date={card.indicators.date} conditions={rule.conditions} states={states} />}
     </div>
   )
 }

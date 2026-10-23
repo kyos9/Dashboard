@@ -77,6 +77,44 @@ describe('차트 팝업', () => {
     expect(screen.queryByText('매수 조건')).toBeNull()
   })
 
+  it('조건 줄 이름표를 누르면 그 줄 풀이가 펼쳐진다 — 기준일, "✓ 충족 · 이름: 풀이", 다시 누르면 접힘 (0.45.3 D)', async () => {
+    vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
+    const userEvent = (await import('@testing-library/user-event')).default
+    const user = userEvent.setup()
+    const card = {
+      ticker: '005930.KS',
+      indicators: { date: '2026-10-22' },
+      knee_conditions: { di_bearish: true, disparity_negative: false, volatility_or_volume: false, adx_trending: null },
+      shoulder_sell_ref: true,
+      sell_conditions: { above_ma50: true, adx_rising: true, volume_strong: true },
+    } as never
+    const { container } = render(<ChartModal ticker="005930.KS" name="삼성전자" card={card} onClose={() => {}} />)
+    const buy = screen.getByRole('button', { name: /매수 조건/ })
+    expect(buy).toHaveAttribute('aria-expanded', 'false')
+    expect(container.querySelector('.cond-explain')).toBeNull()
+
+    await user.click(buy)
+    expect(buy).toHaveAttribute('aria-expanded', 'true')
+    const panel = document.getElementById(buy.getAttribute('aria-controls')!)!
+    expect(panel).toHaveTextContent('10-22 기준')
+    const items = [...panel.querySelectorAll('li')].map((li) => li.textContent)
+    expect(items).toContain('✓ 충족 · DI 약세: -DI > +DI, 하락 방향이 우위')
+    expect(items.some((t) => t!.startsWith('? 판정 불가 · ADX > 20: '))).toBe(true)
+    // 이음표 없이 — 신호 칸의 흐린 "—"(관망)와 겹치지 않게 (C)
+    expect(panel.textContent).not.toContain('—')
+    // 매도 줄은 따로
+    expect(screen.getByRole('button', { name: /매도 조건/ })).toHaveAttribute('aria-expanded', 'false')
+
+    await user.click(buy)
+    expect(buy).toHaveAttribute('aria-expanded', 'false')
+    expect(container.querySelector('.cond-explain')).toBeNull()
+
+    // 키보드로도
+    buy.focus()
+    await user.keyboard('{Enter}')
+    expect(buy).toHaveAttribute('aria-expanded', 'true')
+  })
+
   it('매도 조건 (참고) 은 매도(참고) 신호가 켜진 날만 — 회색 칩, 명령하는 말 없음 (0.45.0 C)', async () => {
     vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
     const base = {
@@ -86,7 +124,7 @@ describe('차트 팝업', () => {
     const on = { ...base, shoulder_sell_ref: true, sell_conditions: { above_ma50: true, adx_rising: true, volume_strong: true } }
     const { container, unmount } = render(<ChartModal ticker="005930.KS" name="삼성전자" card={on as never} onClose={() => {}} />)
     const row = container.querySelector('.sell-conditions') as HTMLElement
-    expect(row.querySelector('.signal-row-label')!.textContent).toBe('매도 조건 (참고) 3/3')
+    expect(row.querySelector('.signal-row-label')!.textContent).toBe('매도 조건 (참고)3/3 ▾')
     expect(screen.getByLabelText('MA50 위 충족')).toBeInTheDocument()
     expect(screen.getByLabelText('ADX 상승 충족')).toBeInTheDocument()
     expect(screen.getByLabelText('거래량 받침 충족')).toBeInTheDocument()

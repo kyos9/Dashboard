@@ -272,8 +272,8 @@ export function ChartModal({ ticker, name, card, initialTab = 'chart', onClose }
             {/* 신호의 근거를 팝업 안에서 — 닫고 카드로 돌아가 읽지 않게 (과업 3) */}
             {card && (
               <div className="signal-rows chart-conditions">
-                <BuyConditions card={card} />
-                <SellConditions card={card} />
+                <BuyConditions card={card} explain />
+                <SellConditions card={card} explain />
               </div>
             )}
             <PriceChart history={history} height={chartHeight} />
