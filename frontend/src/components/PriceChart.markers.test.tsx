@@ -196,6 +196,13 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
 
   beforeEach(() => chart.setCrosshairPosition.mockClear())
 
+  /** 마우스가 차트에 들어와 그 날을 가리킨다 — 라이브러리의 가리킴은 진짜 포인터가 차트 위일 때만 받는다 */
+  const hoverOn = (canvas: Element, time: string, value: number) => {
+    pointer(canvas, 'pointerenter', { x: 0, y: 100, t: 0, kind: 'mouse' })
+    handler(chart.subscribeCrosshairMove)(at(time, value))
+  }
+  const leave = (canvas: Element) => pointer(canvas, 'pointerleave', { x: 0, y: 0, t: 0, kind: 'mouse' })
+
   it('처음에는 마지막 날의 날짜·종가, 그 날이 "마지막 날"임을 말한다', () => {
     const { line } = shown()
     expect(line()).toHaveTextContent('2026-09-16 · 종가 102.00')
@@ -254,7 +261,7 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
   it('탭은 남아 있던 가리킴보다 앞선다 — 손가락 기기에 흉내 마우스가 차트 위에 남아 탭이 안 먹는 것처럼 보였다', async () => {
     const { act } = await import('@testing-library/react')
     const { canvas, line } = shown()
-    act(() => handler(chart.subscribeCrosshairMove)(at('2026-09-15', 101)))
+    act(() => hoverOn(canvas, '2026-09-15', 101))
     await tap(canvas, 0)
     expect(line()).toHaveTextContent('2026-09-14 · 종가 100.00')
   })
@@ -354,14 +361,60 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
     expect(chart.setCrosshairPosition).toHaveBeenLastCalledWith(101, '2026-09-15', series)
 
     // 마우스가 차트 위에서 가리키는 중이면 라이브러리에 맡긴다
-    act(() => {
-      pointer(canvas, 'pointermove', { x: 0, y: 100, t: 9000, kind: 'mouse' })
-      handler(chart.subscribeCrosshairMove)(at('2026-09-16', 102))
-    })
+    act(() => hoverOn(canvas, '2026-09-16', 102))
     chart.setCrosshairPosition.mockClear()
     act(() => onRange())
     await frame()
     expect(chart.setCrosshairPosition).not.toHaveBeenCalled()
+
+    // 차트를 떠나 단추를 누르면: 라이브러리가 코드로 놓은 십자선 자리의 새 날로 알려도 받지 않고 고른 날로 다시 놓는다
+    act(() => leave(canvas))
+    chart.setCrosshairPosition.mockClear()
+    act(() => {
+      onRange()
+      handler(chart.subscribeCrosshairMove)(at('2026-09-14', 100))
+    })
+    await frame()
+    expect(chart.setCrosshairPosition).toHaveBeenLastCalledWith(101, '2026-09-15', series)
+
+    // 구간 사건이 한 그림 안에 여럿 와도 한 번만 놓는다
+    chart.setCrosshairPosition.mockClear()
+    act(() => {
+      onRange()
+      onRange()
+      onRange()
+    })
+    await frame()
+    expect(chart.setCrosshairPosition).toHaveBeenCalledTimes(1)
+  })
+
+  it('종목·기간을 바꾼 뒤의 구간 사건에는 옛 데이터에서 고른 날을 놓지 않는다 (끝 검토 다시)', async () => {
+    const { act } = await import('@testing-library/react')
+    const { canvas, rerender } = shown()
+    await tap(canvas, 100)
+    rerender(<PriceChart history={{ ...history([]) }} />)
+    const onRange = (scale.subscribeVisibleLogicalRangeChange.mock.lastCall as [() => void])[0]
+    chart.setCrosshairPosition.mockClear()
+    act(() => onRange())
+    await act(() => new Promise<void>((r) => requestAnimationFrame(() => r())))
+    expect(chart.setCrosshairPosition).not.toHaveBeenCalled()
+  })
+
+  it('펜은 마우스처럼 띄운 채 가리킨다 (끝 검토)', async () => {
+    const { act } = await import('@testing-library/react')
+    const { canvas, line } = shown()
+    act(() => {
+      pointer(canvas, 'pointerenter', { x: 0, y: 100, t: 0, kind: 'pen' })
+      handler(chart.subscribeCrosshairMove)(at('2026-09-15', 101))
+    })
+    expect(line()).toHaveTextContent('2026-09-15 · 종가 101.00')
+    // 손가락은 차트를 누르고 있을 때만
+    act(() => pointer(canvas, 'pointerleave', { x: 0, y: 0, t: 0, kind: 'pen' }))
+    act(() => {
+      pointer(canvas, 'pointerenter', { x: 0, y: 100, t: 0, kind: 'touch' })
+      handler(chart.subscribeCrosshairMove)(at('2026-09-15', 101))
+    })
+    expect(line()).toHaveTextContent('2026-09-16 · 종가 102.00')
   })
 
   it('마지막 날을 고르면 풀이도 "마지막 날"', async () => {
@@ -387,14 +440,18 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
   it('십자선이 움직이면 그 날, 차트를 떠나면 **고른 날**(없으면 마지막 날)로 돌아간다 (0.45.2 C2)', async () => {
     const { act } = await import('@testing-library/react')
     const { canvas, line } = shown()
-    act(() => handler(chart.subscribeCrosshairMove)(at('2026-09-15', 101)))
+    act(() => hoverOn(canvas, '2026-09-15', 101))
     expect(line()).toHaveTextContent('2026-09-15 · 종가 101.00')
-    act(() => handler(chart.subscribeCrosshairMove)(at(undefined)))
+    act(() => leave(canvas))
     expect(line()).toHaveTextContent('2026-09-16 · 종가 102.00')
 
     await tap(canvas, 0)
-    act(() => handler(chart.subscribeCrosshairMove)(at('2026-09-15', 101)))
-    act(() => handler(chart.subscribeCrosshairMove)(at(undefined)))
+    act(() => hoverOn(canvas, '2026-09-15', 101))
+    act(() => leave(canvas))
+    expect(line()).toHaveTextContent('2026-09-14 · 종가 100.00')
+
+    // 차트 밖(단추 위)에서 오는 가리킴은 받지 않는다 — 코드로 놓은 십자선이 구간이 바뀌어 새 날로 알려도 (끝 검토 다시)
+    act(() => handler(chart.subscribeCrosshairMove)(at('2026-09-16', 102)))
     expect(line()).toHaveTextContent('2026-09-14 · 종가 100.00')
   })
 
@@ -513,7 +570,8 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
     const { canvas, line, getByRole } = shown()
     await tap(canvas, 100, 100, 0, { kind: 'mouse' })
     // 고른 날 2026-09-15, 가리키는 날 2026-09-16 (마우스가 차트 위에 있다)
-    act(() => handler(chart.subscribeCrosshairMove)(at('2026-09-16', 102)))
+    act(() => hoverOn(canvas, '2026-09-16', 102))
+    expect(line()).toHaveTextContent('2026-09-16 · 종가 102.00')
     await user.click(getByRole('button', { name: '이전 거래일' }))
     expect(line()).toHaveTextContent('2026-09-14 · 종가 100.00')
   })
@@ -537,26 +595,31 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
     expect(line().textContent).not.toMatch(/68,000\.00/)
   })
 
-  it('닫으면 구독·듣기를 푼다', () => {
+  it('닫으면 구독·듣기를 푼다 — 차트 칸·창에 붙인 것을 붙인 만큼', () => {
+    const add = vi.spyOn(EventTarget.prototype, 'addEventListener')
+    const remove = vi.spyOn(EventTarget.prototype, 'removeEventListener')
+    const addWin = vi.spyOn(window, 'addEventListener')
+    const removeWin = vi.spyOn(window, 'removeEventListener')
     const { unmount, canvas } = shown()
-    const removed = vi.spyOn(canvas, 'removeEventListener')
+    // 붙인 것: 차트 칸(탭·밀기·가리킴) · 창(차트 밖에서 놓은 마우스·손가락 떼기)
+    type Spy = { mock: { calls: unknown[][]; contexts: unknown[] } }
+    const pairs = (spy: Spy, win: Spy) => [
+      ...spy.mock.calls.map((call, i) => ({ target: spy.mock.contexts[i], type: call[0], fn: call[1] })).filter(({ target }) => target === canvas),
+      ...win.mock.calls.map((call) => ({ target: window as unknown, type: call[0], fn: call[1] })),
+    ]
+    const attached = pairs(add, addWin).filter(({ type }) => String(type).startsWith('pointer') || type === 'wheel')
+    expect(new Set(attached.filter(({ target }) => target === canvas).map(({ type }) => type))).toEqual(
+      new Set(['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'pointerenter', 'pointerleave', 'wheel']),
+    )
+    expect(new Set(attached.filter(({ target }) => target === window).map(({ type }) => type))).toEqual(new Set(['pointerup', 'pointercancel']))
     unmount()
+    const detached = pairs(remove, removeWin)
+    for (const one of attached) expect(detached.some((d) => d.target === one.target && d.type === one.type && d.fn === one.fn)).toBe(true)
     expect(chart.unsubscribeCrosshairMove).toHaveBeenCalled()
-    expect(removed.mock.calls.map(([type]) => type).sort()).toEqual(['pointercancel', 'pointerdown', 'pointermove', 'pointerup', 'wheel'])
-    // 창에 단 것도 (차트 밖에서 놓은 마우스)
-    const onWindow = vi.spyOn(window, 'removeEventListener')
-    const second = shown()
-    second.unmount()
-    expect(onWindow.mock.calls.map(([type]) => type)).toEqual(expect.arrayContaining(['pointerdown', 'pointermove', 'pointerup', 'pointercancel']))
     expect(scale.unsubscribeVisibleLogicalRangeChange).toHaveBeenCalled()
-    // 손가락 종류를 보는 창 듣기(capture)도 다 푼다 — 붙인 만큼
-    const added = vi.spyOn(window, 'addEventListener')
-    const third = shown()
-    const capture = (calls: unknown[][]) => calls.filter(([, , o]) => o === true).map(([type]) => type).sort()
-    const attached = capture(added.mock.calls)
-    onWindow.mockClear()
-    third.unmount()
-    expect(attached).toEqual(['pointercancel', 'pointerdown', 'pointermove', 'pointerup'])
-    expect(capture(onWindow.mock.calls)).toEqual(attached)
+    add.mockRestore()
+    remove.mockRestore()
+    addWin.mockRestore()
+    removeWin.mockRestore()
   })
 })

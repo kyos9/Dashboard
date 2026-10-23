@@ -110,3 +110,15 @@
 | C 구간 바뀌어도 십자선 안 다시 놓음 | `frontend/src/components/PriceChart.tsx` | 잡힘 |
 | C 가리키는 중에도 다시 놓음 | `frontend/src/components/PriceChart.tsx` | 잡힘 |
 | C 마지막 날 골라도 ▶ 풀이 | `frontend/src/components/PriceChart.tsx` | 잡힘 |
+
+## 끝 검토 다시 보기(불합격) 뒤 — 진짜 포인터가 차트 위일 때만 가리킴
+
+| 뮤테이션 | 파일 | 결과 |
+| --- | --- | --- |
+| N1 차트 밖 가리킴도 받음 | `frontend/src/components/PriceChart.tsx` | 잡힘 |
+| N2 떠날 때 가리킴 안 지움 | `frontend/src/components/PriceChart.tsx` | 잡힘 |
+| N3 손가락 떼도 누름 남음 | `frontend/src/components/PriceChart.tsx` | 잡힘 |
+| N4 옛 데이터의 고른 날도 다시 놓음 | `frontend/src/components/PriceChart.tsx` | 잡힘 |
+| N6 펜을 손가락처럼 | `frontend/src/components/PriceChart.tsx` | 잡힘 |
+| N7 rAF 취소 안 함 | `frontend/src/components/PriceChart.tsx` | 잡힘 |
+| N8 창 떼기 듣기 안 풂 | `frontend/src/components/PriceChart.tsx` | 잡힘 |

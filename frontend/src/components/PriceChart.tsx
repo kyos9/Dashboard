@@ -149,9 +149,8 @@ export function PriceChart({ history, height = 440 }: Props) {
   // `of` — 어느 데이터에서 고른·가리킨 날인가. 종목·기간을 바꾸면 버린다(날짜·값이 우연히 같아도 — 사용자 확인: 바꾼 뒤 엉뚱한 날이 남았다)
   const [hover, setHover] = useState<Day | null>(null)
   const [picked, setPicked] = useState<Day | null>(null)
-  // 손가락 기기 — 탭 뒤 브라우저가 흉내 마우스를 보내 라이브러리가 그 자리를 "가리킨 날"로 알린다. 화면이 밀리면(읽기 줄이 줄어 20px) 그 자리가
-  // 차트 위라 ◀ 를 눌러도 엉뚱한 날이 남았다(BC 사용자 확인). 마지막 포인터가 손가락이면 누르고 있는 동안(길게 누른 채 밀기)만 받는다(마우스·펜은 늘)
-  const pointing = useRef<{ type: string; down: boolean }>({ type: 'mouse', down: false })
+  // 가리킴을 받을 때 — 아래 "진짜로 차트를 가리키고 있나" (BC 사용자 확인 · 끝 검토 다시)
+  const pointing = useRef({ over: false, touch: false })
   const hoverRef = useRef<Day | null>(null)
   const pickedRef = useRef<Day | null>(null)
   // 사람이 밀거나 키워 보이는 구간을 바꿨나 — "전체 보기" (C3). 구간 이벤트는 데이터·창 크기에도 와서 쓰지 않는다(계획 검토)
@@ -166,7 +165,7 @@ export function PriceChart({ history, height = 440 }: Props) {
     const onMove = (param: MouseEventParams<Time>) => {
       const point = param.time !== undefined ? param.seriesData.get(series) : undefined
       const value = (point as { value?: unknown } | undefined)?.value
-      if (pointing.current.type === 'touch' && !pointing.current.down) return
+      if (!pointing.current.over && !pointing.current.touch) return
       const day = typeof value === 'number' ? { date: chartDate(param.time as Time), close: value, of: history } : null
       hoverRef.current = day
       setHover(day)
@@ -197,29 +196,42 @@ export function PriceChart({ history, height = 440 }: Props) {
     }
   }, [handles, history])
 
-  // 마지막 포인터의 종류 — 창 전체에서 (◀ 단추를 누른 손가락도)
+  /* 진짜로 차트를 가리키고 있나 — 마우스·펜이 차트 칸 위에 있거나 손가락이 차트를 누르고 있을 때만. 라이브러리는 그 밖에도 "가리킨 날"을 알린다:
+     손가락 탭 뒤 흉내 마우스(화면이 밀리면 차트 위), 코드로 놓은 십자선이 구간이 바뀌어 화면의 같은 자리의 새 날로(끝 검토 다시: 전체 보기 뒤 ◀ 가 뒤로),
+     단추를 누르는 손가락이 닿은 동안의 관성 이동. 마지막 포인터 종류로 가리면 이 둘을 놓쳤다 */
   useEffect(() => {
+    if (!container) return
+    const enter = (e: PointerEvent) => {
+      if (e.pointerType !== 'touch') pointing.current.over = true
+    }
+    const leave = (e: PointerEvent) => {
+      if (e.pointerType === 'touch') return
+      pointing.current.over = false
+      // 떠날 때 라이브러리가 보내는 "가리킴 없음"은 위에서 막히니 여기서 지운다 — 고른 날로 돌아간다
+      hoverRef.current = null
+      setHover(null)
+    }
     const down = (e: PointerEvent) => {
-      pointing.current = { type: e.pointerType, down: e.pointerType === 'touch' }
+      if (e.pointerType === 'touch') pointing.current.touch = true
     }
-    const move = (e: PointerEvent) => {
-      // 겸용 기기·펜: 손가락 뒤에 마우스(펜)를 움직이면 다시 가리킴을 받는다. 펜은 띄운 채 가리킨다(끝 검토)
-      if (e.pointerType !== 'touch') pointing.current = { type: e.pointerType, down: false }
+    const lift = (e: PointerEvent) => {
+      if (e.pointerType === 'touch') pointing.current.touch = false
     }
-    const up = (e: PointerEvent) => {
-      pointing.current = { type: e.pointerType, down: false }
-    }
-    window.addEventListener('pointerdown', down, true)
-    window.addEventListener('pointermove', move, true)
-    window.addEventListener('pointerup', up, true)
-    window.addEventListener('pointercancel', up, true)
+    container.addEventListener('pointerenter', enter)
+    container.addEventListener('pointermove', enter)
+    container.addEventListener('pointerleave', leave)
+    container.addEventListener('pointerdown', down)
+    window.addEventListener('pointerup', lift)
+    window.addEventListener('pointercancel', lift)
     return () => {
-      window.removeEventListener('pointerdown', down, true)
-      window.removeEventListener('pointermove', move, true)
-      window.removeEventListener('pointerup', up, true)
-      window.removeEventListener('pointercancel', up, true)
+      container.removeEventListener('pointerenter', enter)
+      container.removeEventListener('pointermove', enter)
+      container.removeEventListener('pointerleave', leave)
+      container.removeEventListener('pointerdown', down)
+      window.removeEventListener('pointerup', lift)
+      window.removeEventListener('pointercancel', lift)
     }
-  }, [])
+  }, [container])
 
   /** 고른 날을 바꾸고 십자선을 그 날로 */
   const pick = (index: number) => {
