@@ -400,6 +400,44 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
     expect(chart.setCrosshairPosition).not.toHaveBeenCalled()
   })
 
+  it('마우스로 누르고 뗀 뒤 차트를 떠나면 라이브러리의 가리킴을 받지 않는다 — 마우스 누름은 손가락 누름이 아니다 (끝 검토 세 번째)', async () => {
+    const { act } = await import('@testing-library/react')
+    const { canvas, line } = shown()
+    act(() => pointer(canvas, 'pointerenter', { x: 0, y: 100, t: 0, kind: 'mouse' }))
+    await tap(canvas, 100, 100, 0, { kind: 'mouse' })
+    act(() => leave(canvas))
+    act(() => handler(chart.subscribeCrosshairMove)(at('2026-09-14', 100)))
+    expect(line()).toHaveTextContent('2026-09-15 · 종가 101.00')
+  })
+
+  it('손가락 누름이 취소되면(세로 스크롤로 넘어감) 그 뒤의 가리킴을 받지 않는다 (끝 검토 세 번째)', async () => {
+    const { act } = await import('@testing-library/react')
+    const { canvas, line } = shown()
+    await tap(canvas, 100)
+    act(() => {
+      pointer(canvas, 'pointerdown', { x: 0, y: 100, t: 2000 })
+      pointer(window as unknown as Element, 'pointercancel', { x: 0, y: 100, t: 2050 })
+      handler(chart.subscribeCrosshairMove)(at('2026-09-14', 100))
+    })
+    expect(line()).toHaveTextContent('2026-09-15 · 종가 101.00')
+  })
+
+  it('터치 노트북: 마우스가 차트 위에 있어도 손가락이 닿으면 그 가리킴을 놓는다 (끝 검토 세 번째)', async () => {
+    const { act } = await import('@testing-library/react')
+    const { canvas, line, getByRole } = shown()
+    await tap(canvas, 100)
+    act(() => hoverOn(canvas, '2026-09-16', 102))
+    expect(line()).toHaveTextContent('2026-09-16 · 종가 102.00')
+    const prev = getByRole('button', { name: '이전 거래일' })
+    act(() => {
+      pointer(prev, 'pointerdown', { x: 0, y: 0, t: 5000 })
+      pointer(prev, 'pointerup', { x: 0, y: 0, t: 5050 })
+      prev.click()
+      handler(chart.subscribeCrosshairMove)(at('2026-09-16', 102))
+    })
+    expect(line()).toHaveTextContent('2026-09-14 · 종가 100.00')
+  })
+
   it('펜은 마우스처럼 띄운 채 가리킨다 (끝 검토)', async () => {
     const { act } = await import('@testing-library/react')
     const { canvas, line } = shown()
@@ -611,7 +649,7 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
     expect(new Set(attached.filter(({ target }) => target === canvas).map(({ type }) => type))).toEqual(
       new Set(['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'pointerenter', 'pointerleave', 'wheel']),
     )
-    expect(new Set(attached.filter(({ target }) => target === window).map(({ type }) => type))).toEqual(new Set(['pointerup', 'pointercancel']))
+    expect(new Set(attached.filter(({ target }) => target === window).map(({ type }) => type))).toEqual(new Set(['pointerup', 'pointercancel', 'pointerdown']))
     unmount()
     const detached = pairs(remove, removeWin)
     for (const one of attached) expect(detached.some((d) => d.target === one.target && d.type === one.type && d.fn === one.fn)).toBe(true)

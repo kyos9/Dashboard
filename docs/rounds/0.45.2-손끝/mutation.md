@@ -122,3 +122,11 @@
 | N6 펜을 손가락처럼 | `frontend/src/components/PriceChart.tsx` | 잡힘 |
 | N7 rAF 취소 안 함 | `frontend/src/components/PriceChart.tsx` | 잡힘 |
 | N8 창 떼기 듣기 안 풂 | `frontend/src/components/PriceChart.tsx` | 잡힘 |
+
+## 끝 검토 세 번째의 조건부 (final-review3.md)
+
+| 뮤테이션 | 파일 | 결과 |
+| --- | --- | --- |
+| M4 마우스 누름도 손가락 누름 | `frontend/src/components/PriceChart.tsx` | 잡힘 |
+| M7 창 pointercancel 떼기 안 받음 | `frontend/src/components/PriceChart.tsx` | 잡힘 |
+| T1 손가락이 닿아도 마우스 가리킴 남김 | `frontend/src/components/PriceChart.tsx` | 잡힘 |

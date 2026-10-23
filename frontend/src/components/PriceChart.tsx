@@ -217,13 +217,23 @@ export function PriceChart({ history, height = 440 }: Props) {
     const lift = (e: PointerEvent) => {
       if (e.pointerType === 'touch') pointing.current.touch = false
     }
+    // 터치 노트북: 마우스를 차트 위에 둔 채 손가락으로 ◀ 를 누르면 남은 마우스의 가리킴이 ◀ 를 덮었다(끝 검토 세 번째) — 손가락이 닿으면 놓는다.
+    // 마우스를 다시 움직이면 위 enter 가 되살린다
+    const touchAnywhere = (e: PointerEvent) => {
+      if (e.pointerType !== 'touch' || !pointing.current.over) return
+      pointing.current.over = false
+      hoverRef.current = null
+      setHover(null)
+    }
     container.addEventListener('pointerenter', enter)
     container.addEventListener('pointermove', enter)
     container.addEventListener('pointerleave', leave)
     container.addEventListener('pointerdown', down)
     window.addEventListener('pointerup', lift)
     window.addEventListener('pointercancel', lift)
+    window.addEventListener('pointerdown', touchAnywhere, true)
     return () => {
+      window.removeEventListener('pointerdown', touchAnywhere, true)
       container.removeEventListener('pointerenter', enter)
       container.removeEventListener('pointermove', enter)
       container.removeEventListener('pointerleave', leave)
