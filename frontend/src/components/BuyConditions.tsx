@@ -32,6 +32,7 @@ function orderedBuyConditions(conditions: SignalRuleCondition[]): SignalRuleCond
 function RowLabel({
   name,
   count,
+  date,
   explain,
   open,
   panelId,
@@ -39,6 +40,8 @@ function RowLabel({
 }: {
   name: string
   count: string
+  /** 칩이 어느 날 지표의 것인가 — 차트 팝업에서만 */
+  date?: string | null
   explain: boolean
   open: boolean
   panelId: string
@@ -61,7 +64,9 @@ function RowLabel({
     >
       <span>{name}</span>
       <span className="nowrap">
-        <span className="mono">{count}</span> <span aria-hidden="true">{open ? '▴' : '▾'}</span>
+        <span className="mono">{count}</span>
+        {/* 기준일을 접힌 채로도 — 차트에서 지난 날을 골라도 칩은 이 날의 것인데 펼쳐야만 보였다(사용자 확인) */}
+        {date && <span className="mono"> · {date.slice(5)}</span>} <span aria-hidden="true">{open ? '▴' : '▾'}</span>
       </span>
     </button>
   )
@@ -111,6 +116,7 @@ export function BuyConditions({ card, explain = false }: { card: DashboardCard; 
       <RowLabel
         name="매수 조건"
         count={`${met}/${conditions.length}`}
+        date={card.indicators?.date}
         explain={explain}
         open={open}
         panelId={panelId}
@@ -132,7 +138,7 @@ export function BuyConditions({ card, explain = false }: { card: DashboardCard; 
           )
         })}
       </div>
-      {explain && open && <Explain id={panelId} date={card.indicators.date} conditions={conditions} states={states} />}
+      {explain && open && <Explain id={panelId} date={card.indicators?.date} conditions={conditions} states={states} />}
     </div>
   )
 }
@@ -158,6 +164,7 @@ export function SellConditions({ card, explain = false }: { card: DashboardCard;
       <RowLabel
         name="매도 조건 (참고)"
         count={`${met}/${rule.conditions.length}`}
+        date={card.indicators?.date}
         explain={explain}
         open={open}
         panelId={panelId}
@@ -178,7 +185,7 @@ export function SellConditions({ card, explain = false }: { card: DashboardCard;
           )
         })}
       </div>
-      {explain && open && <Explain id={panelId} date={card.indicators.date} conditions={rule.conditions} states={states} />}
+      {explain && open && <Explain id={panelId} date={card.indicators?.date} conditions={rule.conditions} states={states} />}
     </div>
   )
 }

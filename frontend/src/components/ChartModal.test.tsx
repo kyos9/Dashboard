@@ -91,6 +91,8 @@ describe('차트 팝업', () => {
     const { container } = render(<ChartModal ticker="005930.KS" name="삼성전자" card={card} onClose={() => {}} />)
     const buy = screen.getByRole('button', { name: /매수 조건/ })
     expect(buy).toHaveAttribute('aria-expanded', 'false')
+    // 접힌 채로도 기준일 — 지난 날을 골라도 칩은 이 날의 것(사용자 확인)
+    expect(buy).toHaveTextContent('1/4 · 10-22')
     expect(container.querySelector('.cond-explain')).toBeNull()
 
     await user.click(buy)

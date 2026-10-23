@@ -112,7 +112,7 @@ function TrafficBadge({ traffic }: { traffic: Traffic }) {
  * 부르는 쪽이 `.signal-rows` 격자 안에 둔다(카드는 그 아래 매수 조건 줄을 더 붙인다).
  */
 /** 비중 줄 끝의 숫자 — 리밸런싱 행(현금 포함 전체 자금 대비, 기준통화). 카드에서만 (0.45.3 B) */
-type WeightNumbers = Pick<RebalanceRow, 'actual_weight_pct' | 'target_weight_pct' | 'band_pct'>
+type WeightNumbers = Pick<RebalanceRow, 'actual_weight_pct' | 'target_weight_pct' | 'band_pct' | 'excess_pct'>
 
 function SignalAndWeightRows({ card, rules, numbers }: { card: DashboardCard; rules: SignalRules; numbers?: WeightNumbers }) {
   // 비중 줄에는 초과·미달만. 정기 리뷰는 모든 종목에 같은 날 붙는 포트폴리오의 날짜라 줄마다 세우면 시끄럽다 —
@@ -139,7 +139,9 @@ function SignalAndWeightRows({ card, rules, numbers }: { card: DashboardCard; ru
                 리밸런싱 화면과 같은 수(현금 포함 전체 자금 대비). 그 종목의 행이 없으면 숫자 없이 지금 그대로 */}
             {numbers && (
               <span className="hint weight-numbers nowrap">
-                지금 {num(numbers.actual_weight_pct, 1)}% · 목표 {num(numbers.target_weight_pct, 0)}% ± {num(numbers.band_pct, 0)}%p
+                {/* 차이를 바로 — 목표에서 빼어 구해야 했다(사용자 확인). 리밸런싱의 "+8.6%p"와 같은 수(`excess_pct`), 허용 폭(밴드)은 괄호에 */}
+                지금 {num(numbers.actual_weight_pct, 1)}% · 목표 {num(numbers.target_weight_pct, 0)}% · {numbers.excess_pct > 0 ? '+' : ''}
+                {num(numbers.excess_pct, 1)}%p (허용 ±{num(numbers.band_pct, 0)}%p)
               </span>
             )}
           </div>

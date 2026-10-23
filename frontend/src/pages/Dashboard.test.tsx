@@ -318,7 +318,7 @@ describe('대시보드 · 카드의 비중 줄에 숫자 (0.45.3 B)', () => {
       {
         ...REBALANCE,
         rows: [
-          weightRow({ ticker: 'VOO', actual_weight_pct: 35.34, target_weight_pct: 20, band_pct: 5 }),
+          weightRow({ ticker: 'VOO', actual_weight_pct: 35.34, target_weight_pct: 20, band_pct: 5, excess_pct: 15.34 }),
           weightRow({ ticker: 'SCHD', actual_weight_pct: 10, target_weight_pct: 10 }),
         ],
       },
@@ -327,7 +327,7 @@ describe('대시보드 · 카드의 비중 줄에 숫자 (0.45.3 B)', () => {
     await userEvent.click(await screen.findByRole('button', { name: '카드 보기' }))
     const cardOf = (t: string) => screen.getAllByText(t, { selector: '.stock-name, .stock-name *' })[0].closest('.card, article, li') as HTMLElement
     const voo = cardOf('VOO')
-    expect(voo.querySelector('.weight-numbers')?.textContent).toBe('지금 35.3% · 목표 20% ± 5%p')
+    expect(voo.querySelector('.weight-numbers')?.textContent?.replace(/\s+/g, ' ')).toBe('지금 35.3% · 목표 20% · +15.3%p (허용 ±5%p)')
     // 행이 없으면(옛·다른 자료) 숫자 없이 배지만
     expect(cardOf('QQQ').querySelector('.weight-numbers')).toBeNull()
     expect(within(cardOf('QQQ')).getByText('비중 미달')).toBeInTheDocument()
