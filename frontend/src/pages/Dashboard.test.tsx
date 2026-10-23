@@ -314,11 +314,14 @@ describe('대시보드 · 카드의 비중 줄에 숫자 (0.45.3 B)', () => {
         card({ ticker: 'VOO', rebalance_signal: { active: true, reasons: ['밴드 초과(매도 검토)'] } }),
         card({ ticker: 'QQQ', rebalance_signal: { active: true, reasons: ['밴드 미달(매수 검토)'] } }),
         card({ ticker: 'SCHD' }),
+        card({ ticker: 'MSFT', rebalance_signal: { active: true, reasons: ['밴드 미달(매수 검토)'] } }),
       ],
       {
         ...REBALANCE,
         rows: [
           weightRow({ ticker: 'VOO', actual_weight_pct: 35.34, target_weight_pct: 20, band_pct: 2.5, excess_pct: 15.34 }),
+          // 미달은 빼기 그대로, 목표·밴드는 적은 그대로(반올림하면 차이와 셈이 안 맞았다 — 끝 검토)
+          weightRow({ ticker: 'QQQ', actual_weight_pct: 1, target_weight_pct: 2.5, band_pct: 2.25, excess_pct: -1.5 }),
           weightRow({ ticker: 'SCHD', actual_weight_pct: 10, target_weight_pct: 10 }),
         ],
       },
@@ -328,9 +331,13 @@ describe('대시보드 · 카드의 비중 줄에 숫자 (0.45.3 B)', () => {
     const cardOf = (t: string) => screen.getAllByText(t, { selector: '.stock-name, .stock-name *' })[0].closest('.card, article, li') as HTMLElement
     const voo = cardOf('VOO')
     expect(voo.querySelector('.weight-numbers')?.textContent?.replace(/\s+/g, ' ')).toBe('지금 35.3% · 목표 20% · +15.3%p (허용 ±2.5%p)')
+    expect(cardOf('QQQ').querySelector('.weight-numbers')?.textContent?.replace(/\s+/g, ' ')).toBe('지금 1.0% · 목표 2.5% · -1.5%p (허용 ±2.25%p)')
+    // 조각 사이에서 꺾인다 — 한 덩어리면 카드 테두리 밖으로 나갔다(끝 검토)
+    expect(voo.querySelector('.weight-numbers')).not.toHaveClass('nowrap')
+    expect(voo.querySelectorAll('.weight-numbers > .nowrap')).toHaveLength(4)
     // 행이 없으면(옛·다른 자료) 숫자 없이 배지만
-    expect(cardOf('QQQ').querySelector('.weight-numbers')).toBeNull()
-    expect(within(cardOf('QQQ')).getByText('비중 미달')).toBeInTheDocument()
+    expect(cardOf('MSFT').querySelector('.weight-numbers')).toBeNull()
+    expect(within(cardOf('MSFT')).getByText('비중 미달')).toBeInTheDocument()
     // 비중 줄이 없는 종목에는 숫자도 없다
     expect(cardOf('SCHD').querySelector('.weight-numbers')).toBeNull()
     // 카드의 매수 조건 이름표는 단추가 아니다 — 펼치는 풀이는 차트 팝업에만(카드 높이 그대로, 0.45.3 D)
@@ -368,6 +375,8 @@ describe('대시보드 · 신호 칸은 짧게, 모양으로도 (ROADMAP 8-4)', 
     expect(lines(await cardRow('QQQ'))).toEqual(['시그널 | sell:매도', '비중 | rebalance:비중 초과'])
     // 둘 다 뜨면 신호등은 매수, 매도 쪽은 ▼ 배지로 남는다. 비중 신호가 없으면 비중 줄도 없다
     expect(lines(await cardRow('SCHD'))).toEqual(['시그널 | buy:매수 sell:매도 조건도'])
+    // 풀이에 이음표 없이 — 관망의 흐린 "—"와 겹치지 않게 (0.45.3 C)
+    expect(within(await cardRow('SCHD')).getByText('매도 조건도').closest('.badge')).toHaveAttribute('title', '매도 조건도 충족(참고). 두 시그널이 같이 뜨면 신호등은 매수를 보여줍니다.')
     // 사유가 와도 비중 신호가 꺼져 있으면(active=false) 비중 줄을 그리지 않는다
     expect(lines(await cardRow('GOOG'))).toEqual(['시그널 | buy:매수'])
     // 정기 리뷰만 있으면 비중 줄이 없다

@@ -37,3 +37,13 @@
 | D 매도 풀이 안 펼침 | `frontend/src/components/BuyConditions.tsx` | 잡힘 |
 | D 날짜 없을 때 막음 지움 | `frontend/src/components/BuyConditions.tsx` | 잡힘 |
 | D 월-일 대신 전체 날짜 | `frontend/src/components/BuyConditions.tsx` | 잡힘 |
+
+## 끝 검토 조건부 (final-review.md)
+
+| 뮤테이션 | 파일 | 결과 |
+| --- | --- | --- |
+| F1 매도 이름표 기준일 뺌 | `frontend/src/components/BuyConditions.tsx` | 잡힘 |
+| F3 차이 절댓값 | `frontend/src/pages/Dashboard.tsx` | 잡힘 |
+| F6 매도 조건도 이음표 | `frontend/src/components/SignalShape.tsx` | 잡힘 |
+| 목표 반올림 | `frontend/src/pages/Dashboard.tsx` | 잡힘 |
+| 한 덩어리 nowrap | `frontend/src/pages/Dashboard.tsx` | 잡힘 |

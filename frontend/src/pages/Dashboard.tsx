@@ -111,6 +111,11 @@ function TrafficBadge({ traffic }: { traffic: Traffic }) {
  * 표에서는 "▼ 매도"와 "◆ 매수 검토"가 이름 없이 한 줄로 붙어 "팔라는데 사라고도?"로 읽혔다.
  * 부르는 쪽이 `.signal-rows` 격자 안에 둔다(카드는 그 아래 매수 조건 줄을 더 붙인다).
  */
+/** 사람이 정한 목표·밴드 — 적은 그대로(2.5 는 2.5, 2.25 는 2.25). 반올림하면 차이와 셈이 안 맞았다(끝 검토) */
+function pctText(value: number): string {
+  return String(Number(value.toFixed(2)))
+}
+
 /** 비중 줄 끝의 숫자 — 리밸런싱 행(현금 포함 전체 자금 대비, 기준통화). 카드에서만 (0.45.3 B) */
 type WeightNumbers = Pick<RebalanceRow, 'actual_weight_pct' | 'target_weight_pct' | 'band_pct' | 'excess_pct'>
 
@@ -138,10 +143,16 @@ function SignalAndWeightRows({ card, rules, numbers }: { card: DashboardCard; ru
             {/* 얼마나 벗어났는지 — "비중 초과"만으로는 몰랐다(0.44.0 사용자 확인). 밴드도 — "왜 이 종목만 미달?"(계획 사용자 검토).
                 리밸런싱 화면과 같은 수(현금 포함 전체 자금 대비). 그 종목의 행이 없으면 숫자 없이 지금 그대로 */}
             {numbers && (
-              <span className="hint weight-numbers nowrap">
+              <span className="hint weight-numbers">
+                {/* 조각마다 안 꺾이게, 조각 사이에서는 꺾이게 — 한 덩어리로 묶으면 카드 테두리 밖으로 나갔다(끝 검토) */}
+                <span className="nowrap">지금 {num(numbers.actual_weight_pct, 1)}%</span>{' '}
+                <span className="nowrap">· 목표 {pctText(numbers.target_weight_pct)}%</span>{' '}
                 {/* 차이를 바로 — 목표에서 빼어 구해야 했다(사용자 확인). 리밸런싱의 "+8.6%p"와 같은 수(`excess_pct`), 허용 폭(밴드)은 괄호에 */}
-                지금 {num(numbers.actual_weight_pct, 1)}% · 목표 {num(numbers.target_weight_pct, 0)}% · {numbers.excess_pct > 0 ? '+' : ''}
-                {num(numbers.excess_pct, 1)}%p (허용 ±{num(numbers.band_pct, Number.isInteger(numbers.band_pct) ? 0 : 1)}%p)
+                <span className="nowrap">
+                  · {numbers.excess_pct > 0 ? '+' : ''}
+                  {num(numbers.excess_pct, 1)}%p
+                </span>{' '}
+                <span className="nowrap">(허용 ±{pctText(numbers.band_pct)}%p)</span>
               </span>
             )}
           </div>

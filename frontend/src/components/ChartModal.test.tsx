@@ -120,6 +120,8 @@ describe('차트 팝업', () => {
 
     // 매도 줄도 따로 펼쳐진다 — 조건 셋, 회색 칩의 풀이 (D 검토)
     const sell = screen.getByRole('button', { name: /매도 조건/ })
+    // 매도 이름표에도 기준일
+    expect(sell).toHaveTextContent('3/3 · 10-22')
     await user.click(sell)
     const sellPanel = document.getElementById(sell.getAttribute('aria-controls')!)!
     const sellItems = [...sellPanel.querySelectorAll('li')].map((li) => li.textContent)
