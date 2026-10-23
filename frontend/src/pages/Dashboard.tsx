@@ -4,7 +4,7 @@ import { MacroStrip } from '../components/MacroStrip'
 import { PortfolioView, type SignalFilter } from '../components/PortfolioView'
 import { ReasonTag, SellTooTag, SignalShape } from '../components/SignalShape'
 import { BuyConditions } from '../components/BuyConditions'
-import { hasWeightSignal, isWeightReason } from '../components/weightSignal'
+import { hasWeightSignal, isWeightReason, weightSide } from '../components/weightSignal'
 import { useNarrow } from '../lib/narrow'
 import { loadView, saveView, type DashboardView } from '../lib/portfolio'
 import { NumberInput } from '../components/NumberInput'
@@ -59,7 +59,8 @@ import {
 } from '../lib/signalRules'
 import type { DashboardCard, RebalanceCurrent, RebalanceRow, SignalRules, Stock, StockUpdateInput } from '../types'
 
-type QuickFilter = 'all' | 'knee' | 'sell' | 'rebalance'
+// over·under — 신호 요약의 "비중 초과·미달" 칩 (0.45.3 A). 눌러도 아무 일이 없었다(0.44.0 사용자 확인)
+type QuickFilter = 'all' | 'knee' | 'sell' | 'rebalance' | 'over' | 'under'
 /** 표 / 카드 / 설정(편집) — 같은 목록을 다른 형태로 보는 것이라 한 자리에서 고른다 */
 type ViewMode = 'table' | 'card' | 'edit'
 
@@ -69,6 +70,16 @@ const WATCH_HINT = '관망(매수·매도 조건 미충족)'
 /** 신호등 — 매수 ▲ · 매도 ▼ 는 모양이 붙는다. 색만으로 가리지 않는다 (8-4).
     관망은 할 일이 없다는 뜻이라 눈에 띄지 않게 흐린 "—" 만 (0.44.0). 빈칸으로 두면 "시세 없음"과 같아 보이고,
     매수·매도만 남아 할 일 목록처럼 읽힌다(계획 검토). 수는 그대로 센다 — 신호 요약의 "관망 N" */
+/** 신호 거르기 하나 — 목록·넘어온 종목 풀기·칩 수가 같은 판정을 쓴다 (0.45.3 A) */
+function matchesQuick(card: DashboardCard, quick: QuickFilter, rules: SignalRules): boolean {
+  if (quick === 'knee') return !!card.knee_buy_v2
+  // 매도는 신호 요약의 "매도" 수와 같은 것 — 신호등이 매도인 종목 (디자인 2차, 주인 결정)
+  if (quick === 'sell') return trafficLight(card, rules).state === 'hot'
+  if (quick === 'rebalance') return hasWeightSignal(card)
+  if (quick === 'over' || quick === 'under') return weightSide(card) === quick
+  return true
+}
+
 function TrafficBadge({ traffic }: { traffic: Traffic }) {
   if (traffic.state === 'watch') {
     return (
@@ -566,8 +577,9 @@ export function Dashboard() {
       hot: lights.filter((l) => l.state === 'hot').length,
       stale: lights.filter((l) => l.state === 'stale').length,
       rebalanceCount: cards.filter(hasWeightSignal).length,
-      sellReview: reasons.filter((r) => r.includes('매도')).length,
-      buyReview: reasons.filter((r) => r.includes('매수')).length,
+      // 칩 수와 누르면 걸러진 수가 같게 — 종목 수로, 거르기와 같은 판정(`weightSide`)으로 센다 (0.45.3 A)
+      sellReview: cards.filter((c) => weightSide(c) === 'over').length,
+      buyReview: cards.filter((c) => weightSide(c) === 'under').length,
       periodicReview: reasons.filter((r) => r.includes('정기')).length,
       // 내 기준을 쓰는 사람에게만 뜻이 있다 — 같은 카드를 기본 기준의 오늘 매수로 바꿔 센다 (0.42.0)
       buyDefault: cards.filter(
@@ -594,10 +606,7 @@ export function Dashboard() {
   const visible = useMemo(() => {
     const shown = cards.filter((c) => {
       if (category !== '전체' && categoryOf(c.category) !== category) return false
-      if (quick === 'knee' && !c.knee_buy_v2) return false
-      // 매도는 신호 요약의 "매도" 수와 같은 것 — 신호등이 매도인 종목 (디자인 2차, 주인 결정)
-      if (quick === 'sell' && trafficLight(c, rules).state !== 'hot') return false
-      if (quick === 'rebalance' && !hasWeightSignal(c)) return false
+      if (!matchesQuick(c, quick, rules)) return false
       return true
     })
     if (!preview) return shown
@@ -682,9 +691,7 @@ export function Dashboard() {
     const target = cards.find((c) => c.ticker === focus)
     if (!target) return
     if (category !== '전체' && categoryOf(target.category) !== category) setCategory('전체')
-    if (quick === 'knee' && !target.knee_buy_v2) setQuick('all')
-    if (quick === 'sell' && trafficLight(target, rules).state !== 'hot') setQuick('all')
-    if (quick === 'rebalance' && !hasWeightSignal(target)) setQuick('all')
+    if (!matchesQuick(target, quick, rules)) setQuick('all')
     if (view === 'edit') setView(narrow ? 'card' : 'table')
     // 필터를 고른 뒤의 화면에서 찾는다 — 한 번만 (같은 칸으로 다시 오면 다시)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -854,18 +861,27 @@ export function Dashboard() {
           </button>
         </div>
         <div className="badge-row">
-          {/* 비중조절은 보라 ◆ — 매도·매수 시그널(빨강·초록)이나 오르내림 색과 섞이지 않게 (8-4) */}
+          {/* 비중조절은 보라 ◆ — 매도·매수 시그널(빨강·초록)이나 오르내림 색과 섞이지 않게 (8-4).
+              초과·미달은 누르면 그 종목만 — 테두리 있는 칩(누르는 것), 정기 리뷰·밴드 이내는 그대로 배지(표시만) (0.45.3 A) */}
           {summary.sellReview > 0 && (
-            <span className="badge badge-purple badge-nowrap">
-              <SignalShape kind="rebalance" size={9} />
-              비중 초과 {summary.sellReview}
-            </span>
+            <button
+              type="button"
+              className={`chip weight-chip${quick === 'over' ? ' active' : ''}`}
+              aria-pressed={quick === 'over'}
+              onClick={() => setQuick(quick === 'over' ? 'all' : 'over')}
+            >
+              <SignalShape kind="rebalance" size={9} /> 비중 초과 {summary.sellReview}
+            </button>
           )}
           {summary.buyReview > 0 && (
-            <span className="badge badge-purple badge-nowrap">
-              <SignalShape kind="rebalance" size={9} />
-              비중 미달 {summary.buyReview}
-            </span>
+            <button
+              type="button"
+              className={`chip weight-chip${quick === 'under' ? ' active' : ''}`}
+              aria-pressed={quick === 'under'}
+              onClick={() => setQuick(quick === 'under' ? 'all' : 'under')}
+            >
+              <SignalShape kind="rebalance" size={9} /> 비중 미달 {summary.buyReview}
+            </button>
           )}
           {summary.periodicReview > 0 && (
             <span className="badge badge-purple">정기 리뷰 {summary.periodicReview}</span>
@@ -935,6 +951,17 @@ export function Dashboard() {
           >
             <SignalShape kind="rebalance" size={9} /> 비중조절 {summary.rebalanceCount}
           </button>
+          {/* 위 요약의 초과·미달을 켜면 여기서도 켜져 보인다 — 없으면 아무것도 안 켜진 줄이 됐다(계획 검토) */}
+          {summary.sellReview > 0 && (
+            <button className={`chip${quick === 'over' ? ' active' : ''}`} onClick={() => setQuick('over')}>
+              <SignalShape kind="rebalance" size={9} /> 비중 초과 {summary.sellReview}
+            </button>
+          )}
+          {summary.buyReview > 0 && (
+            <button className={`chip${quick === 'under' ? ' active' : ''}`} onClick={() => setQuick('under')}>
+              <SignalShape kind="rebalance" size={9} /> 비중 미달 {summary.buyReview}
+            </button>
+          )}
           {narrow && (
             <button
               className={`chip${viewToolsOpen || ordering || view === 'edit' ? ' active' : ''}`}

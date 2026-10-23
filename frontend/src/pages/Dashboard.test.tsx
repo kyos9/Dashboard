@@ -432,12 +432,70 @@ describe('대시보드 · 신호 칸은 짧게, 모양으로도 (ROADMAP 8-4)', 
     ])
     renderDashboard()
     await cardRow('VOO')
-    const review = screen.getByText(/^비중 미달 1$/).closest('.badge')!
-    expect(review).toHaveClass('badge-purple')
+    const summaryRow = document.querySelector('.badge-row') as HTMLElement
+    const review = within(summaryRow).getByRole('button', { name: '비중 미달 1' })
+    expect(review).toHaveClass('weight-chip')
     expect(review.querySelector('.signal-shape.rebalance')).not.toBeNull()
-    expect(screen.getByText(/^비중 초과 2$/).closest('.badge')).toHaveClass('badge-purple')
+    expect(within(summaryRow).getByRole('button', { name: '비중 초과 2' })).toHaveClass('weight-chip')
     expect(document.querySelector('.count-chip.green .signal-shape.buy')).not.toBeNull()
     expect(document.querySelector('.count-chip.red .signal-shape.sell')).not.toBeNull()
+  })
+})
+
+describe('대시보드 · 비중 초과·미달 칩을 누르면 그 종목만 (0.45.3 A)', () => {
+  const CARDS3 = [
+    card({ ticker: 'VOO', knee_buy_v2: true, rebalance_signal: { active: true, reasons: ['밴드 미달(매수 검토)'] } }),
+    card({ ticker: 'QQQ', rebalance_signal: { active: true, reasons: ['밴드 초과(매도 검토)', '정기 리뷰 도래'] } }),
+    card({ ticker: 'SCHD', rebalance_signal: { active: true, reasons: ['밴드 초과(매도 검토)'] } }),
+    // 꺼진 비중 신호의 사유는 세지도 거르지도 않는다
+    card({ ticker: 'GOOG', rebalance_signal: { active: false, reasons: ['밴드 초과(매도 검토)'] } }),
+    card({ ticker: 'MSFT', rebalance_signal: { active: true, reasons: ['정기 리뷰 도래'] } }),
+  ]
+  const shownRows = async () =>
+    within((await screen.findAllByRole('table'))[0])
+      .getAllByRole('row')
+      .slice(1)
+      .map((tr) => tr.querySelector('.stock-name')?.textContent?.trim())
+
+  it('칩 수 = 걸러진 줄 수, 순서는 사용자 순서 그대로, 다시 누르면 전체 — 아래 칩 줄도 같이 켜진다', async () => {
+    mockApi(CARDS3)
+    renderDashboard()
+    await cardRow('VOO')
+    const summaryRow = document.querySelector('.badge-row') as HTMLElement
+    const over = within(summaryRow).getByRole('button', { name: '비중 초과 2' })
+    expect(over).toHaveAttribute('aria-pressed', 'false')
+
+    await userEvent.click(over)
+    expect(over).toHaveAttribute('aria-pressed', 'true')
+    expect(await shownRows()).toEqual(['QQQ', 'SCHD'])
+    const toolbar = screen.getByText('신호', { selector: '.toolbar-label' }).parentElement as HTMLElement
+    expect(within(toolbar).getByRole('button', { name: '비중 초과 2' })).toHaveClass('active')
+    expect(within(toolbar).getByRole('button', { name: '모두 보기' })).not.toHaveClass('active')
+
+    // 미달로 바꾸면 하나만 켜진다
+    await userEvent.click(within(summaryRow).getByRole('button', { name: '비중 미달 1' }))
+    expect(over).toHaveAttribute('aria-pressed', 'false')
+    expect(await shownRows()).toEqual(['VOO'])
+
+    // 다시 누르면 전체
+    await userEvent.click(within(summaryRow).getByRole('button', { name: '비중 미달 1' }))
+    expect(await shownRows()).toEqual(['VOO', 'QQQ', 'SCHD', 'GOOG', 'MSFT'])
+
+    // 키보드로도 — 진짜 단추다
+    within(summaryRow).getByRole('button', { name: '비중 초과 2' }).focus()
+    await userEvent.keyboard('{Enter}')
+    expect(await shownRows()).toEqual(['QQQ', 'SCHD'])
+  })
+
+  it('아래 칩 줄의 초과·미달도 같은 상태 · 없으면 칩이 없다', async () => {
+    mockApi([card({ ticker: 'VOO' }), card({ ticker: 'QQQ', rebalance_signal: { active: true, reasons: ['밴드 초과(매도 검토)'] } })])
+    renderDashboard()
+    await cardRow('VOO')
+    const toolbar = screen.getByText('신호', { selector: '.toolbar-label' }).parentElement as HTMLElement
+    expect(within(toolbar).queryByRole('button', { name: /비중 미달/ })).toBeNull()
+    await userEvent.click(within(toolbar).getByRole('button', { name: '비중 초과 1' }))
+    expect(within(document.querySelector('.badge-row') as HTMLElement).getByRole('button', { name: '비중 초과 1' })).toHaveAttribute('aria-pressed', 'true')
+    expect(await shownRows()).toEqual(['QQQ'])
   })
 })
 

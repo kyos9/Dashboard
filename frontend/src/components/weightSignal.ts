@@ -14,3 +14,15 @@ export function isWeightReason(reason: string): boolean {
 export function hasWeightSignal(card: Pick<DashboardCard, 'rebalance_signal'>): boolean {
   return card.rebalance_signal.reasons.some(isWeightReason)
 }
+
+/**
+ * 비중이 어느 쪽으로 벗어났나 — 신호 요약의 "비중 초과·미달" 칩이 세는 것과 거르는 것이 같게 이 하나로 (0.45.3 A).
+ * 칩 수는 켜진 비중 신호의 사유로 셌다(`includes('매도')`) — 거르기도 같은 사유로 본다. 둘 다면 초과(먼저 줄일 쪽이 아니라 서버 사유 순서)
+ */
+export function weightSide(card: Pick<DashboardCard, 'rebalance_signal'>): 'over' | 'under' | null {
+  if (!card.rebalance_signal.active) return null
+  const reasons = card.rebalance_signal.reasons
+  if (reasons.some((r) => r.includes('매도 검토'))) return 'over'
+  if (reasons.some((r) => r.includes('매수 검토'))) return 'under'
+  return null
+}

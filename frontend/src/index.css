@@ -5618,3 +5618,12 @@ section.signal-line {
     display: none;
   }
 }
+
+/* 신호 요약의 비중 초과·미달 — 누르는 칩(테두리)이지만 비중조절의 보라 ◆ 글자색은 그대로 (0.45.3 A) */
+.chip.weight-chip {
+  color: var(--purple);
+}
+
+.chip.weight-chip.active {
+  border-color: var(--purple);
+}
