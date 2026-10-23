@@ -3,7 +3,7 @@ import { useState } from 'react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { formatNumeric, NumberInput, parseNumeric } from './NumberInput'
-import { droppedKinds, droppedText } from '../lib/numberDropped'
+import { droppedKinds, droppedText, HOLDING_MINUS_HINT, noticeTop } from '../lib/numberDropped'
 
 describe('천 단위 표기', () => {
   it('세 자리마다 콤마를 넣는다', () => {
@@ -220,7 +220,7 @@ describe('버린 것을 말하기 (0.45.1 A)', () => {
     expect(droppedText('금액', ['minus'], '')).toContain('지금 값 없음')
   })
 
-  function Controlled(props: { allowDecimal?: boolean; allowNegative?: boolean; label?: string; onChange?: (v: string) => void }) {
+  function Controlled(props: { allowDecimal?: boolean; allowNegative?: boolean; label?: string; minusHint?: string; onChange?: (v: string) => void }) {
     const [value, setValue] = useState('')
     return (
       <>
@@ -232,6 +232,7 @@ describe('버린 것을 말하기 (0.45.1 A)', () => {
           }}
           allowDecimal={props.allowDecimal}
           allowNegative={props.allowNegative}
+          minusHint={props.minusHint}
           aria-label={props.label ?? '기간'}
         />
         <button>다른 곳</button>
@@ -291,6 +292,28 @@ describe('버린 것을 말하기 (0.45.1 A)', () => {
     expect(live()).toHaveTextContent('소수점은 넣을 수 없어 숫자만 이어 붙였습니다 · 지금 값 35')
   })
 
+  it('빼기가 뜻을 가진 칸은 빼기를 버렸을 때만 한 마디를 더한다 (0.45.2 A2)', async () => {
+    expect(droppedText('SCHD 보유수량', ['minus'], '3', HOLDING_MINUS_HINT)).toBe(
+      'SCHD 보유수량 — 빼기(−)는 넣을 수 없습니다 · 지금 값 3 · 보유 수량은 가진 전체 수량입니다(판 수량이 아닙니다)',
+    )
+    // 빼기가 아닌 것을 버렸으면 붙이지 않는다
+    expect(droppedText('SCHD 보유수량', ['unit'], '100', HOLDING_MINUS_HINT)).not.toContain('판 수량')
+    expect(droppedText('SCHD 보유수량', ['minus', 'decimal'], '3', HOLDING_MINUS_HINT)).toContain('판 수량이 아닙니다')
+
+    const user = userEvent.setup()
+    const { unmount } = render(<Controlled label="SCHD 보유수량" minusHint={HOLDING_MINUS_HINT} />)
+    await user.type(screen.getByLabelText('SCHD 보유수량'), '-3')
+    expect(live()).toHaveTextContent('지금 값 3 · 보유 수량은 가진 전체 수량입니다(판 수량이 아닙니다)')
+    expect(line()).toHaveTextContent('판 수량이 아닙니다')
+    unmount()
+
+    // 한 마디가 없는 칸(평단가 등)은 지금 그대로
+    render(<Controlled label="SCHD 평단가" />)
+    await user.type(screen.getByLabelText('SCHD 평단가'), '-3')
+    expect(live()).toHaveTextContent('SCHD 평단가 — 빼기(−)는 넣을 수 없습니다 · 지금 값 3')
+    expect(live()).not.toHaveTextContent('판 수량')
+  })
+
   it('음수 칸에 "0.2−" 를 붙여넣으면 맨 앞에만 쓸 수 있다고 말한다', async () => {
     const user = userEvent.setup()
     render(<Controlled allowNegative label="예상치" />)
@@ -345,5 +368,78 @@ describe('버린 것을 말하기 (0.45.1 A)', () => {
     await user.click(screen.getByLabelText('금액'))
     await user.click(screen.getByRole('button'))
     expect(onBlur).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('줄의 자리 (0.45.2 A1 — 폰에서 화면 위 줄이 팝업 제목·✕ 를 덮었다)', () => {
+  const view = { top: 0, bottom: 800 }
+
+  it('팝업 밖: 보이는 화면 위 · 치는 칸과 겹치면 아래 끝', () => {
+    expect(noticeTop({ view, field: { top: 300, bottom: 344 }, height: 40 })).toBe(8)
+    expect(noticeTop({ view, field: { top: 10, bottom: 54 }, height: 40 })).toBe(800 - 40 - 8)
+  })
+
+  it('팝업 안: 머리 아래 — 머리가 스크롤로 사라졌으면 팝업의 보이는 위', () => {
+    const dialog = { top: 20, bottom: 780 }
+    expect(noticeTop({ view, dialog, head: { top: 20, bottom: 76 }, field: { top: 400, bottom: 444 }, height: 40 })).toBe(84)
+    expect(noticeTop({ view, dialog, head: { top: -300, bottom: -244 }, field: { top: 400, bottom: 444 }, height: 40 })).toBe(28)
+    // 첫 줄 칸이 머리 바로 아래면 겹친다 → 아래 끝
+    expect(noticeTop({ view, dialog, head: { top: 20, bottom: 76 }, field: { top: 90, bottom: 134 }, height: 40 })).toBe(752)
+  })
+
+  it('폰 키보드가 올라오면 보이는 부분 안에서 — 위가 밀려 올라간 아이폰(offsetTop 200)', () => {
+    const shifted = { top: 200, bottom: 600 }
+    // 팝업 머리는 보이는 부분 위로 밀려났다 — 보이는 부분 위에 붙는다
+    expect(noticeTop({ view: shifted, dialog: { top: 0, bottom: 800 }, head: { top: 0, bottom: 56 }, field: { top: 400, bottom: 444 }, height: 40 })).toBe(208)
+    // 칸이 보이는 부분 위쪽에 있으면 키보드 바로 위
+    expect(noticeTop({ view: shifted, field: { top: 205, bottom: 249 }, height: 40 })).toBe(552)
+  })
+
+  it('보이는 부분이 줄보다 낮으면 위에 붙인다(화면 밖으로 나가지 않는다)', () => {
+    expect(noticeTop({ view: { top: 100, bottom: 130 }, field: { top: 0, bottom: 0 }, height: 60 })).toBe(108)
+  })
+
+  it('그린 줄이 그 자리에 선다 — 팝업 안 칸', async () => {
+    const user = userEvent.setup()
+    const rect = (top: number, bottom: number) => ({ top, bottom, left: 0, right: 300, width: 300, height: bottom - top, x: 0, y: top, toJSON: () => ({}) }) as DOMRect
+    render(
+      <div role="dialog" aria-label="수정">
+        <div className="modal-head">
+          <h3>수정</h3>
+        </div>
+        <NumberInput value="" onChange={() => {}} aria-label="보유수량" />
+      </div>,
+    )
+    const dialog = screen.getByRole('dialog')
+    dialog.getBoundingClientRect = () => rect(20, 780)
+    dialog.querySelector('.modal-head')!.getBoundingClientRect = () => rect(20, 76)
+    const input = screen.getByLabelText('보유수량')
+    input.getBoundingClientRect = () => rect(400, 444)
+    await user.type(input, '-')
+    await act(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())))
+    const notice = document.querySelector<HTMLElement>('.num-notice')!
+    expect(notice.style.top).toBe('84px')
+    expect(notice.style.visibility).toBe('')
+  })
+
+  it('폰 키보드가 올라오면 보이는 부분(visualViewport)으로 잰다 — 위쪽 칸이면 키보드 바로 위 (A 검토)', async () => {
+    const user = userEvent.setup()
+    const rect = (top: number, bottom: number) => ({ top, bottom, left: 0, right: 300, width: 300, height: bottom - top, x: 0, y: top, toJSON: () => ({}) }) as DOMRect
+    const vv = Object.assign(new EventTarget(), { offsetTop: 200, height: 400 })
+    Object.defineProperty(window, 'visualViewport', { value: vv, configurable: true })
+    const height = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight')
+    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', { configurable: true, get: () => 40 })
+    try {
+      render(<NumberInput value="" onChange={() => {}} aria-label="보유수량" />)
+      const input = screen.getByLabelText('보유수량')
+      input.getBoundingClientRect = () => rect(205, 249)
+      await user.type(input, '-')
+      await act(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())))
+      // 보이는 부분 200~600, 칸이 위쪽(205~249)이라 아래 끝: 600 - 40 - 8
+      expect(document.querySelector<HTMLElement>('.num-notice')!.style.top).toBe('552px')
+    } finally {
+      delete (window as { visualViewport?: unknown }).visualViewport
+      if (height) Object.defineProperty(HTMLElement.prototype, 'offsetHeight', height)
+    }
   })
 })

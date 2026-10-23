@@ -336,13 +336,15 @@ def status(backup_dir: Path | None = None) -> dict:
 
 # 진단의 경고와 같은 기준 (DiagnosticsModal) — 매일 백업이 이만큼 없으면, 밖에 꺼낸 지 이만큼 지나면
 STALE_HOURS = 36
-OFFSITE_STALE_DAYS = 30
+# 매주 꺼내는 길(DEPLOY 10-0)이라 한 번 걸러도 사흘 안에 뜨게 — 30일은 한 달을 말없이 넘겼다(0.45.2 B3).
+# 화면 `lib/backupWarnings.ts` 와 같아야 한다(test_backup 이 비교한다)
+OFFSITE_STALE_DAYS = 10
 
 
 def attention(now: dt.datetime | None = None, backup_dir: Path | None = None) -> bool:
     """관리자가 진단을 열어 봐야 하나 — 헤더 ⋯ 메뉴의 점 (0.45.0 A). 진단은 매일 여는 곳이 아니라서.
 
-    매일 백업이 실패했거나 36시간 넘게 없거나, **한 번이라도** 밖에 꺼낸 뒤 30일이 넘었으면. 한 번도 안 꺼냈으면 점은
+    매일 백업이 실패했거나 36시간 넘게 없거나, **한 번이라도** 밖에 꺼낸 뒤 10일이 넘었으면. 한 번도 안 꺼냈으면 점은
     없다(진단에 "밖에 꺼낸 기록이 없습니다"만) — 꺼내는 길을 쓰지 않는 서버에 늘 점이 뜨면 점이 아무 뜻이 없어진다.
     """
     now = now or dt.datetime.now(dt.timezone.utc)

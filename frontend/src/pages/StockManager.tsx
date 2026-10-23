@@ -6,9 +6,10 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ErrorNotice } from '../components/ErrorNotice'
 import { PageIntro } from '../components/PageIntro'
 import { NumberInput } from '../components/NumberInput'
+import { HOLDING_MINUS_HINT } from '../lib/numberDropped'
 import { StockEditModal } from '../components/StockEditModal'
 import { SymbolSearch } from '../components/SymbolSearch'
-import { avgPrice, CURRENCY_BY_MARKET, CURRENCY_META, MARKET_LABEL, num, qty, stockLabel } from '../lib/display'
+import { avgPrice, CURRENCY_BY_MARKET, CURRENCY_META, MARKET_LABEL, num, qty, savedStocksText, stockLabel } from '../lib/display'
 import { fxFromInput, fxUnitLabel } from '../lib/fxInput'
 import type { Holding, ListingStatus, Stock, SymbolMatch } from '../types'
 import { listingHint, listingRefreshNotice } from '../lib/listing'
@@ -167,6 +168,8 @@ export function StockManager() {
   const [holdings, setHoldings] = useState<Map<string, Holding>>(new Map())
   // 종목 한 번에 수정 (ROADMAP 9-11)
   const [editing, setEditing] = useState(false)
+  // 일괄 수정을 닫은 뒤 한 줄 — 수정 단추 바로 아래, 수정을 다시 열 때까지 (0.45.2 A3). 맨 위 알림 칸은 폰에서 화면 밖이다
+  const [savedNote, setSavedNote] = useState('')
   const [purgeBusy, setPurgeBusy] = useState(false)
 
   // 시세를 뒤에서 받는 중인 종목. 다음에 목록을 받았을 때 여기서 빠진 종목이 "다 받은" 종목이다.
@@ -414,6 +417,7 @@ export function StockManager() {
             <NumberInput
               id="new-quantity"
               placeholder="0"
+              minusHint={HOLDING_MINUS_HINT}
               value={form.quantity}
               onChange={(v) => setForm({ ...form, quantity: v })}
               // 미국 주식은 소수점 단위로도 산다
@@ -464,11 +468,23 @@ export function StockManager() {
             {cashTarget > 0 && ` (현금 ${cashTarget.toFixed(1)}% 포함)`}
           </span>
           {stocks.length > 0 && (
-            <button className="sm section-action" onClick={() => setEditing(true)} aria-label="종목 한 번에 수정">
+            <button
+              className="sm section-action"
+              onClick={() => {
+                setSavedNote('')
+                setEditing(true)
+              }}
+              aria-label="종목 한 번에 수정"
+            >
               ✎ 수정
             </button>
           )}
         </div>
+        {savedNote && (
+          <p className="hint saved-note" role="status">
+            ✓ {savedNote}
+          </p>
+        )}
 
         {stocks.length === 0 ? (
           <div className="empty-state">
@@ -516,7 +532,10 @@ export function StockManager() {
           holdings={holdings}
           cashTargetPct={cashTarget}
           onClose={() => setEditing(false)}
-          onSaved={handleSaved}
+          onSaved={(labels) => {
+            setSavedNote(savedStocksText(labels))
+            handleSaved()
+          }}
         />
       )}
 

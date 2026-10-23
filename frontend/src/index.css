@@ -394,6 +394,12 @@ button.menu-btn {
   right: -2px;
 }
 
+/* 숫자 배지와 같이 뜰 때 — 숫자(오른쪽 위)에 붙으면 숫자의 일부로 읽혀 왼쪽 위로 비킨다 (0.45.2 B4) */
+.menu-badge.menu-dot.menu-dot-aside {
+  right: auto;
+  left: -2px;
+}
+
 .menu-panel {
   position: absolute;
   z-index: 45;
@@ -5554,9 +5560,43 @@ section.signal-line {
   cursor: default;
 }
 
-/* 차트 위 한 줄 — 가리킨 날(없으면 마지막 날)의 날짜·종가 (0.44.0 C1) */
-.chart-readout {
+/* 차트 위 줄 — 읽기 글(왼쪽)과 ◀ ▶ · 전체 보기(오른쪽). 좁으면 단추 줄이 아래로 (0.45.2 C2·C3) */
+.chart-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0 8px;
   margin: 0 0 6px;
+}
+
+.chart-tools {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.chart-step,
+.chart-fit {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 10px;
+}
+
+.chart-step[aria-disabled='true'] {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* 아이폰의 두 번 탭 확대를 끈다 — 차트를 빠르게 두 번 누르면 화면이 커졌다(0.45.2 C1). 밀기·벌리기는 그대로 */
+.chart-canvas {
+  touch-action: manipulation;
+}
+
+/* 차트 위 한 줄 — 가리킨 날(없으면 마지막 날)의 날짜·종가 (0.44.0 C1). 폰에서는 두 줄 자리를 늘 잡는다 — 줄 수가 바뀌면 단추·차트가 뛰었다(0.45.2) */
+.chart-readout {
+  min-height: calc(2 * 1.45em);
+  margin: 0;
   font-size: var(--fs-sub);
   color: var(--text-dim);
   word-break: keep-all;
@@ -5565,4 +5605,16 @@ section.signal-line {
 /* 진단의 경고 한 줄 — 백업이 멈췄거나 실패했을 때 (0.44.0 D0) */
 .diag-warn {
   color: var(--amber);
+}
+
+/* 진단 맨 위 요약의 백업 꼬리 — 회색 글 사이에서 눈에 띄게 굵게 (0.45.2 B1). 색은 경고 노랑 그대로 */
+.diag-summary .diag-warn {
+  font-weight: 700;
+}
+
+/* 손가락 기기에만 보이는 풀이 (0.45.2 C3 — 차트의 길게 누르기) */
+@media (pointer: fine) {
+  .touch-only {
+    display: none;
+  }
 }

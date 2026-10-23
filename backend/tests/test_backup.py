@@ -475,8 +475,8 @@ def _daily(directory, when: dt.datetime) -> None:
     [
         (2, None, False, False),  # 꺼낸 적이 없으면 점은 없다
         (2, 3, False, False),
-        (2, 29, False, False),  # 30일 안
-        (2, 31, False, True),  # 꺼낸 지 30일 넘음
+        (2, 9, False, False),  # 10일 안 (0.45.2 B3 — 전에는 30일)
+        (2, 11, False, True),  # 꺼낸 지 10일 넘음
         (40, 3, False, True),  # 매일 백업이 36시간 넘게 없음
         (2, 3, True, True),  # 마지막 매일 백업이 실패
         (None, None, False, False),  # 아직 한 벌도 없다(막 켠 서버) — 매일 백업 경고와 같게
@@ -528,3 +528,14 @@ def _hammer(directory: str, who: str) -> None:
     where = _Path(directory)
     for i in range(200):
         assert backup._update_status({f"{who}{i}": i}, backup_dir=where)
+
+
+def test_offsite_threshold_matches_the_screen():
+    """⋯ 점(서버)과 진단의 경고 줄(화면)이 같은 날 수에서 켜진다 — 한쪽만 바꾸면 점만 뜨고 까닭이 없다 (0.45.2 B3 검토)."""
+    import re
+
+    source = (Path(__file__).resolve().parents[2] / "frontend" / "src" / "lib" / "backupWarnings.ts").read_text(encoding="utf-8")
+    screen = re.search(r"export const OFFSITE_STALE_DAYS = (\d+)", source)
+    stale = re.search(r"export const BACKUP_STALE_HOURS = (\d+)", source)
+    assert screen and int(screen.group(1)) == backup.OFFSITE_STALE_DAYS
+    assert stale and int(stale.group(1)) == backup.STALE_HOURS

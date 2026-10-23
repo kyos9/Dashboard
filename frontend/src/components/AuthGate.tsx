@@ -50,7 +50,7 @@ interface AuthValue {
   pending: boolean
   /** 관리자에게만 — 기다리는 가입 신청 수. 헤더의 사용자 버튼에 뜬다 */
   pendingCount: number
-  /** 관리자에게만 — 진단의 백업 칸을 봐야 하나(매일 백업 실패·멈춤, 밖에 꺼낸 지 30일). ⋯ 메뉴에 점 (0.45.0) */
+  /** 관리자에게만 — 진단의 백업 칸을 봐야 하나(매일 백업 실패·멈춤, 밖에 꺼낸 지 10일). ⋯ 메뉴에 점 (0.45.0) */
   backupAttention: boolean
   /** 승인·거절한 뒤 신청 수를 다시 센다 */
   recountPending: () => void

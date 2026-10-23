@@ -469,6 +469,11 @@ describe('보유 종목 표', () => {
     // 종목 설정은 손대지 않았으니 보내지 않는다
     expect(updateStock).not.toHaveBeenCalled()
     await waitFor(() => expect(screen.queryByRole('dialog', { name: '종목 한 번에 수정' })).not.toBeInTheDocument())
+    // 닫힌 뒤 "수정" 단추 아래 한 줄 (0.45.2 A3)
+    expect(await screen.findByText('✓ 삼성전자 1종목을 저장했습니다')).toHaveAttribute('role', 'status')
+    // 수정을 다시 열면 지운다 (A 검토)
+    await openEditor()
+    expect(screen.queryByText(/종목을 저장했습니다/)).not.toBeInTheDocument()
   })
 
   it('줄마다 "수정"은 없고, 위의 "수정" 하나가 보유·관심 종목 전부를 연다 (9-11)', async () => {

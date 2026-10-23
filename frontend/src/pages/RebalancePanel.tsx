@@ -7,6 +7,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ErrorNotice } from '../components/ErrorNotice'
 import { PageIntro } from '../components/PageIntro'
 import { NumberInput } from '../components/NumberInput'
+import { HOLDING_MINUS_HINT, TRADE_MINUS_HINT } from '../lib/numberDropped'
 import { MoneyLine } from '../components/PortfolioView'
 import { usePrefs } from '../lib/prefs'
 import {
@@ -193,6 +194,8 @@ function TradeForm({
       <div className="input-with-button tight">
         <NumberInput
           value={tradeQty}
+          // "샀다"인 채 -3 을 치면 3주 산 것으로 저장된다 — 고른 쪽이 "샀다"일 때만 (0.45.2 A2)
+          minusHint={side === 'buy' ? TRADE_MINUS_HINT : undefined}
           onChange={(v) => {
             setTradeQty(v)
             setProblem(null)
@@ -276,7 +279,7 @@ function useRowFields({ row, draft, onChange }: Pick<HoldingRowProps, 'row' | 'd
   const native = row.current.currency
   const set = (patch: Partial<HoldingDraft>) => onChange({ ...draft, ...patch })
   return {
-    quantity: <NumberInput value={draft.quantity} onChange={(v) => set({ quantity: v })} aria-label={`${row.ticker} 보유수량`} />,
+    quantity: <NumberInput value={draft.quantity} onChange={(v) => set({ quantity: v })} aria-label={`${row.ticker} 보유수량`} minusHint={HOLDING_MINUS_HINT} />,
     avgCost: (
       <div className="input-with-button tight">
         <span className="unit">{CURRENCY_META[native].symbol}</span>
@@ -1193,6 +1196,12 @@ export function RebalancePanel() {
       </div>
       {/* 예전 글 "모자란 종목부터 채우는 주문"은 실제(전체를 다시 맞춘다, 명세 6.4)와 달랐다 (0.42.0) */}
       <span className="hint">
+        {/* 계산에 쓴 금액을 칸 바로 아래에도 — 폰에서는 위의 반영 줄이 치는 동안 화면 밖이었다(0.45.2 A4). 읽기는 위 줄(status)만 */}
+        {plan.newMoney > 0 && (
+          <>
+            새로 넣을 돈 <b>{amount(plan.newMoney, baseCurrency)}</b> 반영 —{' '}
+          </>
+        )}
         {buyOnly
           ? '팔지 않고, 새로 넣을 돈만 목표에 모자란 만큼에 비례해 나눕니다. 저장되지 않습니다.'
           : '새로 넣을 돈까지 더한 전체 자금으로 목표 비중을 다시 맞춘 주문이 나옵니다(파는 주문도 있을 수 있습니다). 저장되지 않습니다.'}

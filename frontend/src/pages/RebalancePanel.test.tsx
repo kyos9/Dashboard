@@ -360,6 +360,28 @@ describe('리밸런싱 · 평단가와 거래 입력', () => {
     await waitFor(() => expect(update).toHaveBeenCalledWith('VOO', 1, 400, null))
   })
 
+  it('빼기를 친 수량 칸은 뜻을 한 마디 더 말한다 — 보유수량은 합계, 거래 수량은 "샀다"일 때만 (0.45.2 A2)', async () => {
+    mockApi(HELD)
+    const user = userEvent.setup()
+    renderPanel()
+    const live = () => document.querySelector('[data-num-live]')
+
+    await user.type(await screen.findByLabelText('VOO 보유수량'), '-')
+    expect(live()).toHaveTextContent('VOO 보유수량 — 빼기(−)는 넣을 수 없습니다 · 지금 값 2 · 보유 수량은 가진 전체 수량입니다(판 수량이 아닙니다)')
+    await user.type(screen.getByLabelText('VOO 평단가'), '-')
+    expect(live()).not.toHaveTextContent('판 수량')
+
+    const [voo] = await screen.findAllByRole('button', { name: '거래 입력' })
+    await user.click(voo)
+    await user.type(screen.getByLabelText('VOO 거래 수량'), '-3')
+    expect(live()).toHaveTextContent('VOO 거래 수량 — 빼기(−)는 넣을 수 없습니다 · 지금 값 3 · 팔았으면 ‘팔았다’를 고르세요')
+    await user.click(screen.getByRole('button', { name: '팔았다' }))
+    await user.clear(screen.getByLabelText('VOO 거래 수량'))
+    await user.type(screen.getByLabelText('VOO 거래 수량'), '-1')
+    expect(live()).toHaveTextContent('VOO 거래 수량 — 빼기(−)는 넣을 수 없습니다 · 지금 값 1')
+    expect(live()).not.toHaveTextContent('팔았다’를')
+  })
+
   it('평단가 칸을 비워 저장하면 "모름"으로 보낸다', async () => {
     mockApi(HELD)
     const update = vi.spyOn(api, 'updateHolding').mockResolvedValue({} as never)
@@ -729,6 +751,23 @@ describe('리밸런싱 · 팔지 않고 새 돈만 나누기 (0.42.0 B6)', () =>
     expect(screen.queryByText(/모자란 종목부터 채우는 주문/)).toBeNull()
     expect(screen.getByRole('status')).toHaveTextContent('새로 넣을 돈 ₩900,000 반영 — 전체 자금으로 목표 비중을 다시 맞춘 주문입니다')
     expect(await orderRow('VOO')).toHaveTextContent('팔기')
+  })
+
+  it('칸 바로 아래 풀이 앞에도 계산에 쓴 금액 — 폰에서는 위 줄이 화면 밖이다, 읽기는 위 줄 하나 (0.45.2 A4)', async () => {
+    mockApi(SKEWED)
+    const user = userEvent.setup()
+    renderPanel()
+    const box = await screen.findByLabelText(/이번에 새로 넣을 돈/)
+    const hint = () => box.closest('.new-money')!.querySelector('.hint')!
+    // 빈 칸이면 지금 풀이 그대로
+    expect(hint().textContent).toBe('새로 넣을 돈까지 더한 전체 자금으로 목표 비중을 다시 맞춘 주문이 나옵니다(파는 주문도 있을 수 있습니다). 저장되지 않습니다.')
+    await user.type(box, '75')
+    expect(hint().textContent).toBe(
+      '새로 넣을 돈 ₩75 반영 — 새로 넣을 돈까지 더한 전체 자금으로 목표 비중을 다시 맞춘 주문이 나옵니다(파는 주문도 있을 수 있습니다). 저장되지 않습니다.',
+    )
+    expect(screen.getAllByRole('status')).toHaveLength(1)
+    await user.click(screen.getByLabelText('팔지 않고 새 돈만 나누기'))
+    expect(hint().textContent).toMatch(/^새로 넣을 돈 ₩75 반영 — 팔지 않고, 새로 넣을 돈만/)
   })
 
   it('켜면 파는 주문이 없고 새 돈이 모자란 종목으로 간다 — 기기에 기억한다', async () => {

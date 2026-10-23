@@ -10,6 +10,7 @@ import {
   REVIEW_PERIOD_LABEL,
   reviewCountdown,
   rowLabel,
+  savedStocksText,
   signed,
   signedAmount,
   stockLabel,
@@ -80,6 +81,8 @@ export function PortfolioView({ current, cards, stocks, narrow, onChart, onSigna
   const [sort, setSort] = useState<SortKey>(loadSort)
   // 종목 한 번에 수정 — 열려 있으면 처음 커서를 둘 자리 (ROADMAP 9-11)
   const [editing, setEditing] = useState<Editing | null>(null)
+  // 일괄 수정을 닫은 뒤 한 줄 — 수정을 다시 열 때까지 (0.45.2 A3)
+  const [savedNote, setSavedNote] = useState('')
   usePrefs() // 금액 가리기를 바꾸면 아래 표까지 다시 그린다 (lib/display 의 amount 가 읽는다)
 
   const items = useMemo(() => joinItems(current.rows, cards), [current.rows, cards])
@@ -111,7 +114,11 @@ export function PortfolioView({ current, cards, stocks, narrow, onChart, onSigna
     }
   }, [items, rules])
 
-  const edit: OnEdit = (item, field = 'quantity') => setEditing({ ticker: item.row.ticker, field })
+  const startEdit = (next: Editing) => {
+    setSavedNote('')
+    setEditing(next)
+  }
+  const edit: OnEdit = (item, field = 'quantity') => startEdit({ ticker: item.row.ticker, field })
   // 리밸런싱 응답의 종목(활성)만 — 순서도 그대로
   const editable = useMemo(() => {
     const byTicker = new Map(stocks.map((stock) => [stock.ticker, stock]))
@@ -176,12 +183,17 @@ export function PortfolioView({ current, cards, stocks, narrow, onChart, onSigna
               </label>
             )}
             {editable.length > 0 && (
-              <button className="sm" onClick={() => setEditing({ ticker: null, field: 'quantity' })} aria-label="종목 한 번에 수정">
+              <button className="sm" onClick={() => startEdit({ ticker: null, field: 'quantity' })} aria-label="종목 한 번에 수정">
                 ✎ 수정
               </button>
             )}
           </div>
         </div>
+        {savedNote && (
+          <p className="hint saved-note" role="status">
+            ✓ {savedNote}
+          </p>
+        )}
 
         {held.length === 0 ? (
           <div className="empty-state compact">
@@ -218,7 +230,10 @@ export function PortfolioView({ current, cards, stocks, narrow, onChart, onSigna
           cashTargetPct={current.cash.target_pct}
           focus={editing.ticker ? { ticker: editing.ticker, field: editing.field } : undefined}
           onClose={() => setEditing(null)}
-          onSaved={onSaved}
+          onSaved={(labels) => {
+            setSavedNote(savedStocksText(labels))
+            onSaved()
+          }}
         />
       )}
     </div>

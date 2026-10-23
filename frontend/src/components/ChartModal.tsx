@@ -111,7 +111,8 @@ export function ChartModal({ ticker, name, card, initialTab = 'chart', onClose }
   // 매도 조건 (참고) 줄이 더해지는 날, 폰(360×640)에서 차트의 날짜 축이 첫 화면 밖으로 나갔다 — 그만큼 줄인다 (0.45.0 C).
   // 이름 옆에 코드가 붙는 한국·일본 종목은 머리가 한 줄 더 내려와 330 으로는 모자랐다(C 검토: 663/640)
   const narrow = useNarrow()
-  const chartHeight = narrow && card && showsSellConditions(card) ? 300 : 380
+  // 차트 위 ◀ ▶ 줄(44px)이 더해져 폰에서 날짜 축이 다시 첫 화면 밖으로 나갔다 — 그만큼 더 줄인다 (0.45.2 C2: TSLA 651/640, 아주 긴 이름 TIGER… 645 → 316)
+  const chartHeight = !narrow ? 380 : card && showsSellConditions(card) ? 256 : 316
   const [tab, setTab] = useState<ChartTab>(initialTab)
   const [fundamentals, setFundamentals] = useState<FundamentalsResponse | null>(null)
   const [range, setRange] = useState<Range>('1y')

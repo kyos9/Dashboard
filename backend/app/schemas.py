@@ -496,10 +496,13 @@ class RebalanceTargetUpdate(BaseModel):
 
 
 class LogEntry(BaseModel):
-    time: str
+    time: str  # 로그에 찍힌 글자 그대로 — 서버 시간대, 시간대 표시 없음
     level: str
     logger: str
     message: str
+    # 같은 시각에 서버 시간대를 붙인 ISO (0.45.2 B5). 화면이 보는 사람의 시간대로 바꿔 다른 줄과 맞춘다 — 도커(UTC)에서 9시간 어긋나 보였다.
+    # 옛 서버는 보내지 않는다(화면은 그때 `time` 그대로)
+    at: Optional[str] = None
 
 
 class LogsOut(BaseModel):

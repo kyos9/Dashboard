@@ -27,9 +27,37 @@ const DROPPED_TEXT: Record<Dropped, string> = {
 }
 
 /** 줄의 글 — 칸 이름 · 버린 것 · 지금 값(`shown` — 칸에 보이는 꼴, 콤마 포함). "소수점을 뺐습니다"만으로는 7 로 읽혔다(75 인데, 계획 사용자 검토) */
-export function droppedText(label: string | undefined, kinds: Dropped[], shown: string): string {
+export function droppedText(label: string | undefined, kinds: Dropped[], shown: string, minusHint?: string): string {
   const what = kinds.map((k) => DROPPED_TEXT[k]).join(' · ')
   const now = shown === '' || shown === '-' ? '지금 값 없음' : `지금 값 ${shown}`
-  return `${label ? `${label} — ` : ''}${what} · ${now}`
+  // 빼기를 버렸을 때만 칸마다의 한 마디 — "-3" 을 "3주 팔았다"로 친 사람에게 3주가 남는다는 말이 없었다(0.45.2 A2)
+  const hint = minusHint && kinds.includes('minus') ? ` · ${minusHint}` : ''
+  return `${label ? `${label} — ` : ''}${what} · ${now}${hint}`
 }
 
+/** 보유 수량 칸들의 한 마디 — 합계를 넣는 칸이다 (0.45.2 A2) */
+export const HOLDING_MINUS_HINT = '보유 수량은 가진 전체 수량입니다(판 수량이 아닙니다)'
+/** 리밸런싱 거래 입력의 수량 — "샀다"인 채 -3 을 치면 3주 산 것으로 저장된다 (0.45.2 A2, 계획 개발자 검토) */
+export const TRADE_MINUS_HINT = '팔았으면 ‘팔았다’를 고르세요'
+
+
+/** 세로 구간 — 화면(레이아웃 뷰포트) 좌표 */
+export interface Span {
+  top: number
+  bottom: number
+}
+
+/**
+ * 줄을 놓을 위쪽 자리 (0.45.2 A1). 폰에서 화면 위 줄이 팝업 제목·✕ 를 덮었다(0.45.1 사용자 확인).
+ * 칸 옆에는 두지 않는다 — 아래 칸·저장 단추를 덮었다(0.45.2 계획 검토, 0.45.1 의 결정 그대로).
+ * ① 팝업 안이면 그 머리 아래(머리가 스크롤로 사라졌으면 팝업의 보이는 위), 밖이면 보이는 화면 위 — 치는 칸과 겹치지 않으면 여기
+ * ② 아니면 보이는 화면 아래 끝(폰 키보드 바로 위)
+ * - `view`: 보이는 화면(visualViewport 의 offsetTop ~ +height) · `head`: 팝업 머리 · `dialog`: 팝업 상자 · `field`: 치는 칸 · `height`: 줄 높이
+ */
+export function noticeTop({ view, head, dialog, field, height }: { view: Span; head?: Span | null; dialog?: Span | null; field: Span; height: number }): number {
+  const GAP = 8
+  const first = Math.max(view.top, head?.bottom ?? -Infinity, dialog?.top ?? -Infinity) + GAP
+  const overlaps = first < field.bottom + GAP / 2 && first + height > field.top - GAP / 2
+  if (!overlaps && first + height <= view.bottom - GAP) return first
+  return Math.max(view.top + GAP, view.bottom - height - GAP)
+}

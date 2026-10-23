@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 
 from app import slow_requests
-from app.logging_setup import LOG_FILE
+from app.logging_setup import DATE_FORMAT, LOG_FILE
 from app.schemas import LogEntry, LogsOut, SlowRequestStat, SlowRequestsOut
 from app.services.users import require_owner
 
@@ -48,6 +48,17 @@ def _tail_text(limit: int | None = None) -> str:
         return fh.read().decode("utf-8", errors="replace")
 
 
+def _with_zone(stamp: str) -> str | None:
+    """로그 시각(서버 현지, `logging_setup.DATE_FORMAT`)에 서버 시간대를 붙인다 (0.45.2 B5).
+
+    줄마다 그 날의 시간대 규칙으로 붙인다 — 서머타임이 있는 시간대에서 응답 하나에 오프셋 하나를 주면 옛 줄이 한 시간 어긋난다(계획 검토).
+    """
+    try:
+        return dt.datetime.strptime(stamp, DATE_FORMAT).astimezone().isoformat()
+    except ValueError:
+        return None
+
+
 def parse_lines(text: str) -> list[LogEntry]:
     """로그 텍스트를 항목으로 나눈다. 오래된 것이 앞.
 
@@ -66,6 +77,7 @@ def parse_lines(text: str) -> list[LogEntry]:
         entries.append(
             LogEntry(
                 time=match["time"],
+                at=_with_zone(match["time"]),
                 level=match["level"],
                 logger=match["logger"],
                 message=match["message"],
