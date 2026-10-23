@@ -490,6 +490,9 @@ describe('대시보드 · 비중 초과·미달 칩을 누르면 그 종목만 (
     within(summaryRow).getByRole('button', { name: '비중 초과 2' }).focus()
     await userEvent.keyboard('{Enter}')
     expect(await shownRows()).toEqual(['QQQ', 'SCHD'])
+    // 켜진 초과를 다시 누르면 전체
+    await userEvent.click(within(summaryRow).getByRole('button', { name: '비중 초과 2' }))
+    expect(await shownRows()).toEqual(['VOO', 'QQQ', 'SCHD', 'GOOG', 'MSFT'])
   })
 
   it('아래 비중조절 칩을 누르면 초과·미달을 풀고 비중조절 전체로 · 미달이 없으면 그 칩이 없다', async () => {
