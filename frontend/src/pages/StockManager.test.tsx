@@ -112,7 +112,7 @@ describe('종목 등록', () => {
     await waitFor(() => expect(create).toHaveBeenCalled())
     // 고른 후보의 티커로 등록해야 한다 (이름을 그대로 보내면 서버가 다시 해석해야 한다)
     expect(create.mock.calls[0][0].ticker).toBe('005930.KS')
-    expect(await screen.findByText(/삼성전자 → 005930\.KS 추가 완료/)).toBeInTheDocument()
+    expect(await screen.findByText(/삼성전자 \(005930\.KS\) 추가 완료/)).toBeInTheDocument()
   })
 
   it('고르기 전에는 평단가에 단위가 없고, 국내 종목을 고르면 원화로 (0.44.0 C3)', async () => {
@@ -716,5 +716,44 @@ describe('종목 관리 · 표 이름 칸 고정 (디자인 2차, 주인 결정 
     renderManager()
     const table = await screen.findByRole('table')
     expect(table).toHaveClass('sticky-first')
+  })
+})
+
+describe('목표 비중을 비운 채 수량을 넣고 추가하면 (0.45.4 C)', () => {
+  beforeEach(() => vi.restoreAllMocks())
+
+  async function add(fields: { quantity?: string; weight?: string }) {
+    mockApi()
+    vi.spyOn(api, 'searchSymbols').mockResolvedValue([])
+    const create = vi.spyOn(api, 'createStock').mockResolvedValue(created())
+    const user = userEvent.setup()
+    renderManager()
+    if (fields.quantity) await user.type(screen.getByLabelText('보유 수량'), fields.quantity)
+    if (fields.weight) await user.type(screen.getByLabelText('목표 비중 (%)'), fields.weight)
+    await user.type(symbolInput(), '005930.KS{Enter}')
+    await waitFor(() => expect(create).toHaveBeenCalled())
+    await screen.findByText(/추가 완료/)
+    return user
+  }
+
+  it('사라지지 않는 경고 — 어디서 목표를 넣는지까지, 닫으면 사라진다', async () => {
+    const user = await add({ quantity: '10' })
+    const alert = screen.getByRole('alert')
+    expect(alert).toHaveTextContent('삼성전자의 목표 비중을 비워 0%로 넣었습니다 — 리밸런싱에서 전부 파는 계산이 됩니다')
+    expect(alert).toHaveTextContent('아래 표의 목표 칸이나 대시보드의 ✎ 수정에서')
+    // 추가 알림은 이름으로 (티커는 괄호)
+    expect(screen.getByText(/^삼성전자 \(005930\.KS\) 추가 완료/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '목표 비중 알림 닫기' }))
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('목표를 넣었거나 수량이 없으면(관심 종목) 경고가 없다', async () => {
+    await add({ quantity: '10', weight: '5' })
+    expect(screen.queryByText(/목표 비중을 비워 0%로/)).toBeNull()
+  })
+
+  it('수량 없이 넣은 관심 종목 — 팔 것이 없으니 경고가 없다', async () => {
+    await add({})
+    expect(screen.queryByText(/목표 비중을 비워 0%로/)).toBeNull()
   })
 })

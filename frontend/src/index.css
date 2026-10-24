@@ -5677,3 +5677,14 @@ section.signal-line {
   display: grid;
   gap: 2px;
 }
+
+/* 목표 0% 라 전부 파는 계산일 때의 풀이 (0.45.4 C). PC 표에서는 주문 칩 아래 — 칸 폭을 늘리지 않게 꺾인다 */
+.zero-target-note {
+  margin: 4px 0 0;
+  max-width: 28ch;
+  overflow-wrap: anywhere;
+}
+.order-card .zero-target-note,
+.zero-target-note[role='note'] {
+  max-width: none;
+}

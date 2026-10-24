@@ -25,7 +25,18 @@ import {
 } from '../lib/display'
 import { fxFromInput, fxToInput, fxUnitLabel } from '../lib/fxInput'
 import { useNarrow } from '../lib/narrow'
-import { buildOrderPlan, krwRatesOf, NOISE_THRESHOLD_PCT, orderTitle, sharesText, type OrderLine } from '../lib/orderPlan'
+import {
+  buildOrderPlan,
+  isZeroTargetSell,
+  krwRatesOf,
+  NOISE_THRESHOLD_PCT,
+  orderTitle,
+  sharesText,
+  ZERO_TARGET_NOTE,
+  ZERO_TARGET_SHORT,
+  zeroTargetSummary,
+  type OrderLine,
+} from '../lib/orderPlan'
 import { applyTrade, type TradeSide } from '../lib/trade'
 import { useCachedLoad } from '../lib/cache'
 import { PageSkeleton } from '../components/Skeleton'
@@ -1215,6 +1226,16 @@ export function RebalancePanel() {
 
   /** 사거나 팔 주문 수 — 유지는 빼고 (디자인 2차: 머리말이 "비중조절 신호 3종목"뿐이라 주문 14개와 어긋나 보였다) */
   const orderCount = plan.orders.filter((o) => o.action !== 'hold').length
+  // 목표 0% 라서 생긴 팔기 (0.45.4 C) — 하나면 그 줄에 풀이, 둘 이상이면 위에 한 줄로 모으고 줄마다는 짧게
+  const zeroSells = plan.orders.filter((o) => {
+    const r = rowByTicker.get(o.ticker)?.current
+    return !!r && isZeroTargetSell(o, r.target_weight_pct)
+  }).length
+  const zeroSummary = zeroTargetSummary(zeroSells)
+  const zeroNote = (o: OrderLine, targetPct: number) =>
+    isZeroTargetSell(o, targetPct) ? (
+      <p className="hint zero-target-note">{zeroSummary ? ZERO_TARGET_SHORT : ZERO_TARGET_NOTE}</p>
+    ) : null
 
   /** 새 돈만 나누기에서 1주도 안 되는 몫 — 소수 주를 못 사는 증권사면 실제로는 사지 못한다 (B 사용자 확인) */
   const underOne = plan.buyOnly
@@ -1318,6 +1339,11 @@ export function RebalancePanel() {
             주문 수량에는 영향이 없습니다
           </p>
         )}
+        {zeroSummary && (
+          <p className="hint zero-target-note" role="note">
+            {zeroSummary}
+          </p>
+        )}
         {/* 폰은 답(카드)이 먼저라 넣는 칸이 카드 아래에 있다(8단계) — 찾으러 끝까지 내려가지 않게 바로 가는 길 (B 사용자 확인) */}
         {narrow && (
           <p className="hint">
@@ -1365,6 +1391,7 @@ export function RebalancePanel() {
                       )}
                     </p>
                   )}
+                  {zeroNote(order, row.current.target_weight_pct)}
                   <SignalBadges current={row.current} />
                   <OrderTrade
                     row={row}
@@ -1469,6 +1496,7 @@ export function RebalancePanel() {
                       </td>
                       <td>
                         <ActionBadge action={action} />
+                        {zeroNote(order, row.current.target_weight_pct)}
                       </td>
                       <td className="num-cell">
                         {shares === null || action === 'hold' ? '—' : sharesText(shares, true)}

@@ -157,6 +157,9 @@ export function StockManager() {
   const [cashTarget, setCashTarget] = useState(0)
   const [error, setError] = useState<unknown>(null)
   const [notice, setNotice] = useState<{ tone: 'green' | 'amber'; text: string; detail?: string } | null>(null)
+  // 목표 비중을 비운 채 수량을 넣고 추가했을 때 (0.45.4 C) — 위 알림은 시세를 다 받으면 바뀌어 사라지므로 따로,
+  // 사람이 닫을 때까지 남긴다. 이어서 또 넣으면 마지막 것 하나만
+  const [zeroTarget, setZeroTarget] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [picked, setPicked] = useState<SymbolMatch | null>(null)
   // 산 환율은 목록에서 고른 외화 종목만 받는다
@@ -281,10 +284,15 @@ export function StockManager() {
       // 아주 빨리 받아서 목록에 "받는 중"이 한 번도 안 찍혀도 "다 받았다"를 알릴 수 있게
       if (result.data_pending) loadingRef.current = [...loadingRef.current, result.stock.ticker]
 
-      // 이름으로 등록했으면 어떤 티커로 해석됐는지 보여준다
-      const label = result.resolved_from
-        ? `${result.resolved_from} → ${result.stock.ticker}`
-        : result.stock.ticker
+      // 이름으로 알린다 — 코드("035720.KS 추가 완료")만으로는 무엇을 넣었는지 알아보기 어렵다(제로베이스 점검 W7).
+      // 어떤 티커로 해석됐는지도 그대로 보인다: "카카오 (035720.KS)"
+      const name = stockLabel(result.stock)
+      const label = name !== result.stock.ticker ? `${name} (${result.stock.ticker})` : name
+      setZeroTarget(
+        quantity && form.targetWeight === ''
+          ? `${name}의 목표 비중을 비워 0%로 넣었습니다 — 리밸런싱에서 전부 파는 계산이 됩니다. 목표 비중은 아래 표의 목표 칸이나 대시보드의 ✎ 수정에서 넣으세요.`
+          : null,
+      )
 
       setNotice(
         result.data_pending
@@ -354,6 +362,15 @@ export function StockManager() {
       </div>
 
       <ErrorNotice error={error} onDismiss={() => setError(null)} />
+      {zeroTarget && (
+        <div className="callout amber" role="alert">
+          <span className="ico">⚠</span>
+          <div>{zeroTarget}</div>
+          <button type="button" className="ghost sm" aria-label="목표 비중 알림 닫기" onClick={() => setZeroTarget(null)}>
+            ✕
+          </button>
+        </div>
+      )}
       {notice && (
         <div className={`callout ${notice.tone}`}>
           <span className="ico">{notice.tone === 'green' ? '✓' : '⚠'}</span>

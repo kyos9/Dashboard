@@ -252,3 +252,22 @@ export function orderTitle(label: string, order: Pick<OrderLine, 'action' | 'sha
   if (order.shares === null) return `${label} ${amount(Math.abs(order.adjustNative), order.currency)}어치 ${verb}`
   return `${label} ${sharesText(order.shares)} ${verb}`
 }
+
+/* ---------- 목표 0% 인 팔기 (0.45.4 C) ----------
+   목표 비중을 비워 두면 0% 로 저장되고, 주문 가이드는 0% 에 맞추려고 **전부 파는** 계산을 한다(계산은 그대로 둔다 —
+   일부러 0% 로 정리하는 사람도 있다). 막 넣은 종목에 "10주 팔기"가 뜨면 왜인지 알 수 없어서, 그 줄에만 말을 붙인다. */
+
+export const ZERO_TARGET_NOTE = "목표 0%라 전부 파는 계산입니다 · 목표는 아래 '보유 · 목표 비중'에서 정합니다"
+export const ZERO_TARGET_SHORT = '목표 0%'
+
+/** 이 주문이 "목표 0% 라서 생긴 팔기"인가 — 실제로 팔기 줄일 때만(유지·사기·시세 없음은 아니다) */
+export function isZeroTargetSell(order: Pick<OrderLine, 'action'>, targetPct: number): boolean {
+  return order.action === 'sell' && targetPct === 0
+}
+
+/** 둘 이상이면 표 위에 한 줄로 모으고, 줄마다는 짧은 꼴만 */
+export function zeroTargetSummary(count: number): string | null {
+  return count >= 2
+    ? `목표 비중이 0%인 보유 종목 ${count}개는 전부 파는 계산입니다 · 목표는 아래 '보유 · 목표 비중'에서 정합니다`
+    : null
+}
