@@ -105,3 +105,74 @@ def test_the_pc_copies_are_kept_as_the_policy_says():
     assert keep is not None
     assert f"최근 {keep.group(1)}벌만 남깁니다" in bat
     assert f"관리자 PC)으로 꺼낸 백업 사본도 최근 {keep.group(1)}벌만 두고" in _flat(POLICY)
+
+
+# ---------------------------------------------------------------------------
+#  AI 에게 보내는 것 — 방침 3절과 실제 문맥 (0.45.4)
+# ---------------------------------------------------------------------------
+#
+# 방침은 "무엇을 보내는지"를 기능마다 적는다. 그 말이 거짓이 되는 것은 숫자가 아니라 **보내는 칸이
+# 늘 때**다 — 그래서 칸을 허용 목록으로 고정한다. 하나라도 늘거나 바뀌면 여기서 멈추고, 방침 3절을
+# 같이 고친 뒤 이 목록을 고친다. (금지 목록이면 이름이 다른 금액 칸은 조용히 지나간다 — 계획 검토자 5)
+
+# 포트폴리오 진단 — 종목 한 줄에 실리는 칸
+PORTFOLIO_ROW_KEYS = {
+    "ticker", "name", "market", "currency", "category", "held", "actual", "target", "gap", "band", "reasons",
+    "return_pct", "fx_applied", "price_pct", "fx_pct", "shoulder",
+    # 공용 데이터
+    "year_change_pct", "from_high_pct", "vs_ma200", "buy_today", "per", "per_position", "as_of",
+}
+PORTFOLIO_KEYS = {
+    "thresholds", "base_currency", "rows", "held_count", "cash", "invested_pct", "top", "effective_n",
+    "by_market", "by_currency", "by_category", "total_return_pct", "unpriced_count", "day_change_pct",
+    "include_fx", "target_sum", "review", "macro", "as_of",
+}
+PORTFOLIO_CASH_KEYS = {"actual", "target", "gap"}  # % 뿐 — 현금 액수는 없다
+# 종목 분석 — 그 종목 + 내가 담은 종목들. 수익률은 없다
+RESEARCH_KEYS = {"ticker", "name", "category", "market", "currency", "price", "price_date", "fundamentals", "portfolio"}
+RESEARCH_PORTFOLIO_KEYS = {"ticker", "name", "market", "category", "actual", "target", "held"}
+
+
+@pytest.fixture
+def ai_contexts(db_session):
+    from app.services import ai_portfolio
+    from app.models import UserStock
+    from tests.test_ai_owner import _portfolio
+
+    _portfolio(db_session)
+    stock = db_session.query(UserStock).filter_by(ticker="ACME").one()
+    return (ai_portfolio.portfolio_context(db_session, 1),
+            ai_portfolio.research_context(db_session, 1, stock))
+
+
+def test_ai_contexts_send_only_what_the_policy_lists(ai_contexts):
+    portfolio, research = ai_contexts
+    hint = "AI 에 보내는 칸이 바뀌었습니다 — 방침 3절(Policy.tsx)을 같이 고치고 이 목록을 고치세요"
+    assert set(portfolio) == PORTFOLIO_KEYS, hint
+    assert portfolio["rows"], "시험 포트폴리오가 비었다"
+    for row in portfolio["rows"]:
+        assert set(row) == PORTFOLIO_ROW_KEYS, hint
+    assert set(portfolio["cash"]) == PORTFOLIO_CASH_KEYS, hint
+    assert set(research) == RESEARCH_KEYS, hint
+    assert research["portfolio"], "시험 포트폴리오가 비었다"
+    for row in research["portfolio"]:
+        assert set(row) == RESEARCH_PORTFOLIO_KEYS, hint
+
+
+def test_policy_says_what_each_ai_feature_sends():
+    flat = _flat(POLICY)
+    # 기능 이름이 방침에 있다
+    for feature in ("AI 정리", "AI 포트폴리오 진단", "AI 종목 분석"):
+        assert f"<b>{feature}</b>" in flat, feature
+    portfolio = flat[flat.index("<b>AI 포트폴리오 진단</b>"):flat.index("<b>AI 종목 분석</b>")]
+    research = flat[flat.index("<b>AI 종목 분석</b>"):]
+    research = research[:research.index("</li>")]
+    # 진단은 비중·밴드·수익률·현금 비중·리뷰·내 시그널 기준을, 종목 분석은 비중을 보내고 수익률은 안 보낸다
+    for word in ("비중", "밴드", "수익률", "현금 비중", "리뷰", "시그널 기준", "분류"):
+        assert word in portfolio, word
+    for word in ("비중", "분류", "웹 검색"):
+        assert word in research, word
+    assert "수익률은 보내지 않습니다" in research
+    # 금액은 어느 쪽도 보내지 않는다 — 그리고 예전의 "목표비중은 보내지 않는다"는 이제 거짓이라 없다
+    assert "금액은 보내지 않습니다" in flat
+    assert "목표비중처럼 나의 포트폴리오는 보내지 않" not in flat

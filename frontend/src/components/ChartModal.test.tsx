@@ -487,7 +487,10 @@ describe('차트 팝업 · 재무 탭', () => {
     )
     await screen.findByRole('tab', { name: '재무' })
     expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['차트', '재무', 'AI 분석'])
-    expect(screen.getByText(/알파 버킷 편입 판단/)).toBeInTheDocument()
+    // 지인엔 중립 틀 (0.45.4) — 화면 글도 서버 지시문과 같은 말: 편입 판단·익스포저 없이 자료 정리
+    expect(screen.getByText(/회사 자료를 한 장으로 정리받습니다/)).toBeInTheDocument()
+    expect(document.body.textContent).not.toMatch(/편입|알파|익스포저/)
+    expect(screen.getByRole('button', { name: '이미 담은 종목 중 같은 업종부터' })).toBeInTheDocument()
     expect(screen.queryByText(/관리자만 씁니다/)).toBeNull()
     await user.click(screen.getByText('AI 에게 보내는 내용 보기'))
     await waitFor(() => expect(context).toHaveBeenCalledWith({ kind: 'research', ticker: 'GOOG' }, ''))
