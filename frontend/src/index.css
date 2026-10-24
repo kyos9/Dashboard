@@ -265,6 +265,15 @@ td .mono {
   color: var(--text-dim);
 }
 
+/* PC 이름 단추(0.45.4) — 테두리 있는 상자 = 단추(용어집). 누르면 "모든 기기에서 나가기" */
+.account-btn {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 220px;
+  font-size: var(--fs-caption);
+}
+
 /* 말줄임은 글자를 담은 칸에 걸어야 먹는다 (flex 칸 자체에 걸면 안 줄어든다) */
 .account-name {
   min-width: 0;

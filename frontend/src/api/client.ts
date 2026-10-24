@@ -318,6 +318,8 @@ export const api = {
   login: (password: string) =>
     request<AuthStatus>('/auth/login', { method: 'POST', body: JSON.stringify({ password }) }),
   logout: () => request<AuthStatus>('/auth/logout', { method: 'POST' }),
+  /** 0.45.4 — 모든 기기에서 나가기(구글 로그인만). 다른 기기의 쪽지가 무효가 되고 알림 기기가 다 지워진다 */
+  logoutAll: () => request<AuthStatus>('/auth/logout-all', { method: 'POST' }),
   /** 탈퇴 — 내 종목·보유수량·매수 기록·설정과 계정을 지운다 */
   withdraw: () => request<void>('/auth/me', { method: 'DELETE' }),
   /** 관리자 — 사용자 목록과 가입 승인 */

@@ -268,6 +268,35 @@ describe('구글 계정', () => {
     await waitFor(() => expect(go).toHaveBeenCalledWith('/'))
   })
 
+  it('PC: 이름이 단추(▾) — 누르면 "모든 기기에서 나가기", 한 번 더 묻고 나가면 첫 화면 (0.45.4)', async () => {
+    const logoutAll = vi.spyOn(api, 'logoutAll').mockResolvedValue({ locked: true, authenticated: false })
+    const go = vi.spyOn(browser, 'go').mockImplementation(() => {})
+    renderSignedIn({ email: 'friend@example.com', name: '친구', is_owner: false })
+    // 나가기 단추는 그대로 한 번 누르기
+    expect(await screen.findByRole('button', { name: '나가기' })).toBeInTheDocument()
+    const nameButton = screen.getByRole('button', { name: '친구 — 계정' })
+    expect(nameButton).toHaveTextContent('친구 ▾')
+    await userEvent.click(nameButton)
+    await userEvent.click(screen.getByRole('button', { name: '모든 기기에서 나가기' }))
+    expect(logoutAll).not.toHaveBeenCalled()
+    const dialog = screen.getByRole('alertdialog', { name: '모든 기기에서 나갈까요?' })
+    expect(dialog).toHaveTextContent('모든 기기의 알림이 꺼집니다')
+    expect(dialog).toHaveTextContent('AI 회사에서 키를 새로 발급하세요')
+    await userEvent.click(within(dialog).getByRole('button', { name: '모든 기기에서 나가기' }))
+    expect(logoutAll).toHaveBeenCalledOnce()
+    await waitFor(() => expect(go).toHaveBeenCalledWith('/'))
+  })
+
+  it('모든 기기에서 나가기가 실패하면 창에 사유를 남긴다', async () => {
+    vi.spyOn(api, 'logoutAll').mockRejectedValue(new ApiError(500, '서버 오류', 'boom'))
+    renderSignedIn({ email: 'friend@example.com', name: '친구', is_owner: false })
+    await userEvent.click(await screen.findByRole('button', { name: '친구 — 계정' }))
+    await userEvent.click(screen.getByRole('button', { name: '모든 기기에서 나가기' }))
+    await userEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: '모든 기기에서 나가기' }))
+    expect(await screen.findByText('서버 오류')).toBeInTheDocument()
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument()
+  })
+
   it('탈퇴에 실패하면 창에 사유를 남기고 그대로 둔다', async () => {
     vi.spyOn(api, 'withdraw').mockRejectedValue(new ApiError(500, '서버 오류', 'boom'))
     renderSignedIn({ email: 'friend@example.com', name: '친구', is_owner: false })

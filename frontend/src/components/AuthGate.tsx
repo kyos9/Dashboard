@@ -73,6 +73,8 @@ interface AuthValue {
   logout: () => Promise<void>
   /** 탈퇴. 성공하면 손님 화면으로 돌아간다 */
   withdraw: () => Promise<void>
+  /** 모든 기기에서 나가기 (0.45.4, 구글 로그인만). 실패하면 던진다 */
+  logoutEverywhere: () => Promise<void>
 }
 
 const Ctx = createContext<AuthValue>({
@@ -93,6 +95,7 @@ const Ctx = createContext<AuthValue>({
   dismissLoginError: () => {},
   logout: async () => {},
   withdraw: async () => {},
+  logoutEverywhere: async () => {},
 })
 
 export function useAuth(): AuthValue {
@@ -227,6 +230,15 @@ export function AuthGate({ children }: { children: ReactNode }) {
     }
   }, [leave])
 
+  const logoutEverywhere = useCallback(async () => {
+    // 실패하면 그대로 던진다 — 확인 창이 사유를 보여준다(탈퇴와 같다). 서버가 내 알림 기기를 모두 지웠으니
+    // 브라우저 쪽만 거두고, 이 기기의 AI 키·글도 나가기처럼 지운다
+    await api.logoutAll()
+    await forgetPushDevice().catch(() => {})
+    clearAi()
+    leave()
+  }, [leave])
+
   const withdraw = useCallback(async () => {
     // 실패하면 그대로 던진다 — 확인 창이 사유를 보여준다. 여기서 삼키면 "눌렀는데
     // 그대로"가 되고, 탈퇴가 됐는지 안 됐는지 알 수 없다.
@@ -274,10 +286,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
       dismissLoginError,
       logout,
       withdraw,
+      logoutEverywhere,
     }),
     [
       locked, mode, user, guest, pending, pendingCount, backupAttention, recountPending, isAdmin, canAdvise, contact, login,
-      configProblem, error, dismissLoginError, logout, withdraw,
+      configProblem, error, dismissLoginError, logout, withdraw, logoutEverywhere,
     ],
   )
 

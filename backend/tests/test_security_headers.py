@@ -187,3 +187,10 @@ def test_real_app_body_limit_without_length_is_413_not_a_parse_error(api):
     res = client.put("/api/stocks/order", content=chunks(), headers={"content-type": "application/json"})
     assert res.status_code == 413
     assert res.json()["detail"]["message"] == "request body too large"
+
+
+def test_compose_passes_the_csp_switch_to_the_app():
+    """compose 는 적은 값만 넘긴다 — `.env` 에 off 를 적어도 여기 없으면 서버에 닿지 않는다."""
+    compose = (REPO / "docker-compose.yml").read_text(encoding="utf-8")
+    assert f"{sh.CSP_SWITCH}: ${{{sh.CSP_SWITCH}:-}}" in compose
+    assert sh.CSP_SWITCH in (REPO / ".env.example").read_text(encoding="utf-8")

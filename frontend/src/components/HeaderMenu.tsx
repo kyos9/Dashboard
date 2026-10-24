@@ -21,6 +21,9 @@ interface Props {
   badge?: number
   /** 숫자 없이 봐야 할 것이 있다 — 점 하나, 그 까닭은 읽기 이름으로 (0.45.0: 백업) */
   dot?: string
+  /** ⋯ 대신 글자 단추(끝에 ▾) — PC 머리줄의 이름 단추(0.45.4 모든 기기에서 나가기). 읽기 이름은 `buttonLabel` */
+  trigger?: ReactNode
+  buttonLabel?: string
 }
 
 /**
@@ -32,7 +35,7 @@ interface Props {
  * 항목을 누르면 메뉴를 **먼저 닫고** 그 일을 한다. 항목이 팝업을 열면 메뉴가 쌓아 둔 뒤로가기
  * 칸을 팝업이 그대로 이어 쓴다 — 뒤로가기 한 번에 팝업이 닫히고 보던 화면이 남는다.
  */
-export function HeaderMenu({ items, head, foot, badge = 0, dot }: Props) {
+export function HeaderMenu({ items, head, foot, badge = 0, dot, trigger, buttonLabel }: Props) {
   const [open, setOpen] = useState(false)
   const wrap = useRef<HTMLDivElement>(null)
   const toggle = useRef<HTMLButtonElement>(null)
@@ -40,6 +43,20 @@ export function HeaderMenu({ items, head, foot, badge = 0, dot }: Props) {
 
   return (
     <div className="header-menu" ref={wrap}>
+      {trigger !== undefined ? (
+        <button
+          ref={toggle}
+          className="ghost account-btn"
+          aria-expanded={open}
+          aria-controls={open ? id : undefined}
+          aria-label={buttonLabel}
+          title={buttonLabel}
+          onClick={() => setOpen((o) => !o)}
+        >
+          {trigger}
+          <span aria-hidden="true"> ▾</span>
+        </button>
+      ) : (
       <button
         ref={toggle}
         className="ghost menu-btn"
@@ -63,6 +80,7 @@ export function HeaderMenu({ items, head, foot, badge = 0, dot }: Props) {
         {/* 숫자가 있어도 점은 따로 — 숫자에 가려 백업 경고가 안 보였다(0.45.2 B4). 숫자가 있으면 왼쪽 위로 비켜 선다 */}
         {dot && <span className={`menu-badge menu-dot${badge > 0 ? ' menu-dot-aside' : ''}`} aria-hidden="true" />}
       </button>
+      )}
       {open && (
         <MenuPanel
           id={id}

@@ -71,6 +71,8 @@ services:
       ALLOWED_GOOGLE_EMAILS: ${ALLOWED_GOOGLE_EMAILS:-}
       OPERATOR_CONTACT: ${OPERATOR_CONTACT:-}
       PUBLIC_URL: ${PUBLIC_URL:-}
+      # 보안 헤더의 CSP 끄기 (v0.45.4, DEPLOY.md 9-5). 비우면 켜진다 — 화면이 깨질 때만 off
+      SIGNAL_DASHBOARD_CSP: ${SIGNAL_DASHBOARD_CSP:-}
     depends_on:
       db:
         condition: service_healthy

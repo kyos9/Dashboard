@@ -34,12 +34,28 @@ export function buildLabel(builtAt?: string | null): string {
 
 export function AppHeader() {
   const { refreshAll, refreshing, lastSync, refreshError } = useAppState()
-  const { locked, mode, user, guest, pending, pendingCount, backupAttention, recountPending, isAdmin, logout, withdraw } =
-    useAuth()
+  const {
+    locked, mode, user, guest, pending, pendingCount, backupAttention, recountPending, isAdmin, logout, withdraw,
+    logoutEverywhere,
+  } = useAuth()
   const [showUsers, setShowUsers] = useState(false)
   const [confirmWithdraw, setConfirmWithdraw] = useState(false)
   const [withdrawing, setWithdrawing] = useState(false)
   const [withdrawError, setWithdrawError] = useState<string | null>(null)
+  const [confirmEverywhere, setConfirmEverywhere] = useState(false)
+  const [leavingEverywhere, setLeavingEverywhere] = useState(false)
+  const [everywhereError, setEverywhereError] = useState<string | null>(null)
+
+  async function doLogoutEverywhere() {
+    setLeavingEverywhere(true)
+    setEverywhereError(null)
+    try {
+      await logoutEverywhere()
+    } catch (e) {
+      setEverywhereError(e instanceof Error ? e.message : String(e))
+      setLeavingEverywhere(false)
+    }
+  }
 
   async function doWithdraw() {
     setWithdrawing(true)
@@ -96,6 +112,8 @@ export function AppHeader() {
   const canLogout = locked && (!guest || pending)
   // 관리자는 탈퇴할 수 없다 (공용 데이터를 돌볼 사람이 사라진다)
   const canWithdraw = mode === 'google' && user && !user.is_owner && !pending
+  // 모든 기기에서 나가기 (0.45.4) — 구글 로그인으로 들어와 쓰는 사람만. 승인 대기는 서버가 401 이다
+  const canLogoutAll = mode === 'google' && !!user && !pending && !guest
   const version = health?.version
     ? `v${health.version}${buildLabel(health.built_at) ? ` · ${buildLabel(health.built_at)}` : ''}`
     : null
@@ -157,6 +175,7 @@ export function AppHeader() {
     { key: 'display', label: '화면 설정', title: '테마 · 상승 색', onSelect: () => setShowDisplay(true) },
     ...adminItems,
     ...(canLogout ? [{ key: 'logout', label: '나가기', onSelect: () => void logout() }] : []),
+    ...(canLogoutAll ? [{ key: 'logout-all', label: '모든 기기에서 나가기', onSelect: () => setConfirmEverywhere(true) }] : []),
     ...(canWithdraw
       ? [{ key: 'withdraw', label: '탈퇴', danger: true, onSelect: () => setConfirmWithdraw(true) }]
       : []),
@@ -287,7 +306,19 @@ export function AppHeader() {
             )}
             {/* 누구로 들어와 있는지 — 계정이 여럿인 폰에서 "내 종목이 없어졌다"가 사실은
                 다른 계정으로 들어온 것일 때가 있다. 그걸 한눈에 가릴 수 있어야 한다. */}
-            {signedIn && (
+            {signedIn && canLogoutAll && (
+              // 이름이 단추다(0.45.4) — 누르면 "모든 기기에서 나가기". 머리줄 단추 수와 "나가기" 한 번 누르기는 그대로
+              <span className="account-chip" title={user.email ?? undefined}>
+                <HeaderMenu
+                  items={[{ key: 'logout-all', label: '모든 기기에서 나가기', onSelect: () => setConfirmEverywhere(true) }]}
+                  head={accountHead}
+                  trigger={<span className="account-name">{user.name || user.email}</span>}
+                  buttonLabel={`${user.name || user.email} — 계정`}
+                />
+                {user.is_owner && <span className="badge badge-grey">관리자</span>}
+              </span>
+            )}
+            {signedIn && !canLogoutAll && (
               <span className="account-chip" title={user.email ?? undefined}>
                 <span className="account-name">{user.name || user.email}</span>
                 {user.is_owner && <span className="badge badge-grey">관리자</span>}
@@ -354,6 +385,30 @@ export function AppHeader() {
         <Suspense fallback={<ModalLoading plain title="사용자" onClose={() => setShowUsers(false)} />}>
           <UsersModal onClose={() => setShowUsers(false)} onChanged={recountPending} />
         </Suspense>
+      )}
+
+      {confirmEverywhere && (
+        <ConfirmDialog
+          title="모든 기기에서 나갈까요?"
+          confirmLabel="모든 기기에서 나가기"
+          busyLabel="나가는 중…"
+          busy={leavingEverywhere}
+          onConfirm={() => void doLogoutEverywhere()}
+          onCancel={() => {
+            setConfirmEverywhere(false)
+            setEverywhereError(null)
+          }}
+        >
+          <p>
+            이 기기와 다른 모든 기기에서 나갑니다. 다른 기기는 다음에 열 때 로그인 화면이 되고, <strong>모든 기기의 알림이
+            꺼집니다.</strong>
+          </p>
+          <p className="hint">
+            잃어버린 기기에 저장된 AI 키는 여기서 지울 수 없으니, AI 회사에서 키를 새로 발급하세요. 내 종목과 기록은 그대로
+            있습니다.
+          </p>
+          {everywhereError && <p className="error-text">{everywhereError}</p>}
+        </ConfirmDialog>
       )}
 
       {confirmWithdraw && (
