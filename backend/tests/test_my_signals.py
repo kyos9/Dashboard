@@ -150,7 +150,8 @@ def test_all_four_paths_follow_my_thresholds(world, mine):
 
     with Session() as db:
         values = alerts.current_values(db, 1)
-        today = dt.date.today().isoformat()
+        # 시세의 마지막 날 — 주말에는 오늘이 아니라 금요일이다(영업일로 붙인 시세)
+        today = PRICES["FLIP"].index[-1].isoformat()
         for ticker in PRICES:
             on = bool(_expected(ticker, mine)["knee_buy_v2"].iloc[-1])
             assert (values[f"buy:{ticker}"][0] == today) is on, ticker
@@ -305,7 +306,7 @@ def test_changing_thresholds_records_buy_state_without_alerting(world):
 
     assert client.put("/api/signal-thresholds", json={"adx_trend": 15, "lookback_days": 3}).status_code == 200
     with Session() as db:
-        assert db.get(PushState, (1, "buy:FLIP")).value == dt.date.today().isoformat()
+        assert db.get(PushState, (1, "buy:FLIP")).value == PRICES["FLIP"].index[-1].isoformat()
         fired = alerts.pending_changes(db, 1, alerts.current_values(db, 1))
         assert "buy:FLIP" not in {s for s, _, _ in fired}
 
