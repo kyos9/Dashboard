@@ -14,7 +14,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session, sessionmaker
 from starlette.concurrency import run_in_threadpool
 
@@ -74,7 +74,7 @@ def guest_can_read(method: str, path: str) -> bool:
 
 
 class LoginRequest(BaseModel):
-    password: str
+    password: str = Field(max_length=256)  # 0.45.4 — 한도 없이 받던 칸
 
 
 # ---------------------------------------------------------------------------

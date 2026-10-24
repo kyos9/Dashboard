@@ -93,6 +93,13 @@ const FIELD_LABEL: Record<string, string> = {
   avg_fx: '산 환율',
   note: '메모',
   value: '예상치',
+  // 0.45.4 — 글자·목록 한도
+  ticker: '종목',
+  name: '이름',
+  category: '구분',
+  tickers: '순서 목록',
+  codes: '지표 목록',
+  password: '비밀번호',
 }
 
 interface ValidationItem {
@@ -108,6 +115,8 @@ function rangeText(item: ValidationItem): string {
   const n = (v: unknown) => (typeof v === 'number' ? String(v) : null)
   if (item.type === 'missing') return '필요합니다'
   if (item.type?.endsWith('_parsing') || item.type === 'float_type' || item.type === 'int_type') return '숫자여야 합니다'
+  // 목록이 길면 "too_long"(글자는 "string_too_long") — 목록은 개수로 말한다
+  if (item.type === 'too_long' && n(ctx.max_length)) return `${n(ctx.max_length)}개 이하여야 합니다`
   if (n(ctx.max_length)) return `${n(ctx.max_length)}자 이하여야 합니다`
   if (n(ctx.min_length)) return `${n(ctx.min_length)}자 이상이어야 합니다`
   if (n(ctx.le) && (n(ctx.ge) ?? n(ctx.gt)) === null) return `${n(ctx.le)} 이하여야 합니다`
