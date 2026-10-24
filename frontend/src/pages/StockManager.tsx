@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import { useAppState } from '../AppState'
-import { api } from '../api/client'
+import { ApiError, api } from '../api/client'
 import { useAuth } from '../components/AuthGate'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ErrorNotice } from '../components/ErrorNotice'
@@ -315,7 +315,12 @@ export function StockManager() {
       )
       notifyDataChanged()
     } catch (e) {
-      setError(e)
+      // 이미 담은 종목 — 서버는 영어 한 줄("VOO already exists")만 준다. 서버 말은 그대로 두고 화면에서 바꾼다 (0.45.4 B 사용자 확인)
+      if (e instanceof ApiError && e.status === 409) {
+        setError(new ApiError(409, `${query}은(는) 이미 담은 종목입니다. 아래 목록에서 찾아 고치세요.`, e.detail))
+      } else {
+        setError(e)
+      }
     } finally {
       setCreating(false)
     }
@@ -405,6 +410,7 @@ export function StockManager() {
               selected={picked}
               onSelect={setPicked}
               onSubmitRaw={(typed) => void createWith(typed)}
+              onTypedChange={(typed) => setForm((f) => ({ ...f, ticker: typed }))}
               disabled={creating}
             />
           </div>

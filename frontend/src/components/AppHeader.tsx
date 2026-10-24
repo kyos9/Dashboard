@@ -328,7 +328,11 @@ export function AppHeader() {
             {/* 잠긴 서버에서 들어와 있을 때만 — 개인 PC와 손님에게는 나갈 문이 없다.
                 승인을 기다리는 사람은 나갈 수 있다 (다른 계정으로 바꿔 들어오려고) */}
             {canLogout && (
-              <button className="ghost" onClick={() => void logout()} title="로그아웃">
+              <button
+                className="ghost"
+                onClick={() => void logout()}
+                title={canLogoutAll ? '이 기기에서 나가기 — 다른 기기까지 나가려면 이름(▾)에서 "모든 기기에서 나가기"' : '로그아웃'}
+              >
                 나가기
               </button>
             )}

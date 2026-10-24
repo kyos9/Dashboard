@@ -757,3 +757,28 @@ describe('목표 비중을 비운 채 수량을 넣고 추가하면 (0.45.4 C)',
     expect(screen.queryByText(/목표 비중을 비워 0%로/)).toBeNull()
   })
 })
+
+it('후보를 고르지 않고 쳐 둔 글자로 "추가" 단추를 눌러도 등록된다 — 칸에 글자가 있는데 "입력해주세요"가 나던 것 (0.45.4 B 사용자 확인)', async () => {
+  vi.restoreAllMocks()
+  mockApi()
+  vi.spyOn(api, 'searchSymbols').mockResolvedValue([])
+  const create = vi.spyOn(api, 'createStock').mockResolvedValue(created({ stock: stock({ ticker: 'QQQ' }), resolved_from: null }))
+  const user = userEvent.setup()
+  renderManager()
+  await user.type(symbolInput(), 'QQQ')
+  await user.click(screen.getByRole('button', { name: /종목 추가/ }))
+  await waitFor(() => expect(create).toHaveBeenCalled())
+  expect(create.mock.calls[0][0].ticker).toBe('QQQ')
+  expect(screen.queryByText(/종목명이나 티커를 입력해주세요/)).toBeNull()
+})
+
+it('이미 담은 종목을 다시 넣으면 한국어로 — 서버의 영어 한 줄은 기술적 원인으로만 (0.45.4 B 사용자 확인)', async () => {
+  vi.restoreAllMocks()
+  mockApi()
+  vi.spyOn(api, 'searchSymbols').mockResolvedValue([])
+  vi.spyOn(api, 'createStock').mockRejectedValue(new ApiError(409, null, 'TQQQ already exists'))
+  const user = userEvent.setup()
+  renderManager()
+  await user.type(symbolInput(), 'TQQQ{Enter}')
+  expect(await screen.findByText(/TQQQ은\(는\) 이미 담은 종목입니다/)).toBeInTheDocument()
+})
