@@ -128,6 +128,10 @@ PORTFOLIO_KEYS = {
     "include_fx", "target_sum", "review", "macro", "as_of",
 }
 PORTFOLIO_CASH_KEYS = {"actual", "target", "gap"}  # % 뿐 — 현금 액수는 없다
+# 한 단계 더 안 — 여기에 금액 칸이 숨어 들어가도 잡는다 (A 검토 2: review 에 칸을 더한 뮤테이션이 살아남았다)
+PORTFOLIO_REVIEW_KEYS = {"period", "next_date", "due"}
+PORTFOLIO_TOP_KEYS = {1, 3, 5}  # 상위 n 종목 합 (%) — 종목이 적으면 일부만
+THRESHOLD_FIELDS = {"adx_trend", "vol_ratio_expand", "disparity_below", "lookback_days"}
 # 종목 분석 — 그 종목 + 내가 담은 종목들. 수익률은 없다
 RESEARCH_KEYS = {"ticker", "name", "category", "market", "currency", "price", "price_date", "fundamentals", "portfolio"}
 RESEARCH_PORTFOLIO_KEYS = {"ticker", "name", "market", "category", "actual", "target", "held"}
@@ -153,6 +157,14 @@ def test_ai_contexts_send_only_what_the_policy_lists(ai_contexts):
     for row in portfolio["rows"]:
         assert set(row) == PORTFOLIO_ROW_KEYS, hint
     assert set(portfolio["cash"]) == PORTFOLIO_CASH_KEYS, hint
+    assert set(portfolio["review"]) == PORTFOLIO_REVIEW_KEYS, hint
+    assert set(portfolio["top"]) <= PORTFOLIO_TOP_KEYS, hint
+    assert all(isinstance(v, float) for v in portfolio["top"].values()), hint
+    from dataclasses import fields
+
+    assert {f.name for f in fields(portfolio["thresholds"])} == THRESHOLD_FIELDS, hint
+    for group in ("by_market", "by_currency", "by_category"):  # (이름, %) 쌍 — 금액이 아니다
+        assert all(len(pair) == 2 and isinstance(pair[1], float) for pair in portfolio[group]), (group, hint)
     assert set(research) == RESEARCH_KEYS, hint
     assert research["portfolio"], "시험 포트폴리오가 비었다"
     for row in research["portfolio"]:
