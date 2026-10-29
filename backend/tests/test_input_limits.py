@@ -65,6 +65,7 @@ def test_limits_stay_generous_in_plain_numbers(api):
     넉넉해야 하는 까닭: 화면은 다른 칸만 고쳐도 이름·구분을 늘 다시 보낸다(옛 긴 값), 주인은 종목 30개 한도에서 빠진다."""
     client, Session = api
     assert client.post("/api/stocks", json={"ticker": "A" * 64}).status_code != 422  # 64자 티커(종목명 검색어)는 받는다
+    assert client.post("/api/stocks", json={"ticker": "A" * 65}).status_code == 422  # 위로 풀어도 잡는다 (끝 검토 다시 N7)
     assert client.post("/api/stocks", json={"ticker": "MSFT", "name": "가" * 200, "category": "나" * 60}).status_code == 200
     assert client.put("/api/stocks/MSFT", json={"name": "가" * 201}).status_code == 422
     assert client.put("/api/stocks/MSFT", json={"category": "나" * 61}).status_code == 422

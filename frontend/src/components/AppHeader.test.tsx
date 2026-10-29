@@ -322,14 +322,14 @@ describe('받은 때 (ROADMAP 8-1)', () => {
   })
 })
 
-it('서버가 아직 모르는 기능(405·404)이면 영어 대신 업데이트를 기다리라는 말 (끝 검토 참고)', async () => {
+it.each([404, 405])('서버가 아직 모르는 기능(%i)이면 영어 대신 업데이트를 기다리라는 말 — 창은 다시 눌리고 닫힌다 (끝 검토)', async (status) => {
   vi.restoreAllMocks()
   mockHealth()
   vi.spyOn(api, 'getAuthStatus').mockResolvedValue({
     locked: true, authenticated: true, mode: 'google', config_problem: null,
     user: { email: 'friend@example.com', name: '친구', is_owner: false, status: 'active' },
   })
-  vi.spyOn(api, 'logoutAll').mockRejectedValue(new ApiError(405, null, 'Method Not Allowed'))
+  vi.spyOn(api, 'logoutAll').mockRejectedValue(new ApiError(status, null, status === 405 ? 'Method Not Allowed' : 'Not Found'))
   render(
     <MemoryRouter>
       <AuthGate>
@@ -343,5 +343,11 @@ it('서버가 아직 모르는 기능(405·404)이면 영어 대신 업데이트
   await userEvent.click(screen.getByRole('button', { name: '모든 기기에서 나가기' }))
   await userEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: '모든 기기에서 나가기' }))
   expect(await screen.findByText(/서버가 아직 이 기능을 모릅니다/)).toBeInTheDocument()
-  expect(screen.queryByText('Method Not Allowed')).toBeNull()
+  expect(screen.queryByText(/Method Not Allowed|Not Found/)).toBeNull()
+  // 실패 뒤 창에 갇히지 않는다 — 안내대로 "나가기"를 누르려면 먼저 닫을 수 있어야 한다 (끝 검토 다시 N4)
+  const dialog = screen.getByRole('alertdialog')
+  const retry = within(dialog).getByRole('button', { name: '모든 기기에서 나가기' })
+  expect(retry).toBeEnabled()
+  await userEvent.click(within(dialog).getByRole('button', { name: '취소' }))
+  expect(screen.queryByRole('alertdialog')).toBeNull()
 })

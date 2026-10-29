@@ -34,3 +34,11 @@
 | F9 티커 한도 16 | `backend/app/schemas.py` | 잡힘 |
 | F6 이 종목 자신은 빼고 지움 | `backend/app/services/ai_portfolio.py` | 잡힘 |
 | 405 영어 그대로 | `frontend/src/components/AppHeader.tsx` | 잡힘 |
+
+## 끝 검토 다시 뒤 (final-review2.md 조건 1~3)
+
+| 뮤테이션 | 파일 | 결과 |
+| --- | --- | --- |
+| N4 실패 뒤 단추 막힘 | `frontend/src/components/AppHeader.tsx` | 잡힘 |
+| N2 404 갈래 빠짐 | `frontend/src/components/AppHeader.tsx` | 잡힘 |
+| N7 티커 한도 1000 | `backend/app/schemas.py` | 잡힘 |
