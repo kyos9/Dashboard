@@ -32,6 +32,9 @@ def dist(tmp_path, monkeypatch):
         f"<!doctype html><script>{THEME}</script><script type=\"module\" src=\"/assets/a.js\"></script>",
         encoding="utf-8",
     )
+    (folder / "assets").mkdir()
+    (folder / "assets" / "a.js").write_text("console.log(1)", encoding="utf-8")
+    (folder / "manifest.webmanifest").write_text('{"name": "자산관리"}', encoding="utf-8")
     monkeypatch.setattr(web, "DIST", folder)
     return folder
 
@@ -69,7 +72,8 @@ def _assert_always(res):
 
 
 @pytest.mark.parametrize("path, status", [("/api/ok", 200), ("/api/locked", 401), ("/api/nope", 404), ("/", 200),
-                                          ("/history", 200)])
+                                          ("/history", 200), ("/assets/a.js", 200), ("/manifest.webmanifest", 200),
+                                          ("/assets/none.js", 404)])
 def test_headers_on_pages_api_and_errors(small, path, status):
     res = small.get(path)
     assert res.status_code == status

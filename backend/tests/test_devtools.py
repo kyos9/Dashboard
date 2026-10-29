@@ -180,6 +180,9 @@ def test_demo_data_shows_every_state_a_screen_needs(server):
 
     rebalance = owner.get(server + "/api/rebalance/current").json()
     assert rebalance["total_value_base"] > 100_000_000  # 억 단위 금액
+    # 목표 0% 로 정리 중인 보유 종목 — 주문 가이드의 "목표 0%라 전부 파는 계산" 풀이가 보이려면 잡음 기준(0.5%)을 넘어야 한다 (0.45.4 C)
+    zero = [r for r in rebalance["rows"] if r["target_weight_pct"] == 0 and r["quantity"] > 0]
+    assert zero and any(r["current_value_base"] / rebalance["total_value_base"] > 0.005 for r in zero), "목표 0% 팔기"
     rates = rebalance["fx"]["rates"]
     assert rates["USD"]["krw_rate"] == fake_server.FX["USD"] and rates["JPY"]["krw_rate"] == fake_server.FX["JPY"]
 

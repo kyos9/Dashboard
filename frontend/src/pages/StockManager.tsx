@@ -160,6 +160,7 @@ export function StockManager() {
   // 목표 비중을 비운 채 수량을 넣고 추가했을 때 (0.45.4 C) — 위 알림은 시세를 다 받으면 바뀌어 사라지므로 따로,
   // 사람이 닫을 때까지 남긴다. 이어서 또 넣으면 마지막 것 하나만
   const [zeroTarget, setZeroTarget] = useState<string | null>(null)
+  const [searchKey, setSearchKey] = useState(0)
   const [creating, setCreating] = useState(false)
   const [picked, setPicked] = useState<SymbolMatch | null>(null)
   // 산 환율은 목록에서 고른 외화 종목만 받는다
@@ -281,6 +282,7 @@ export function StockManager() {
       })
       setForm(emptyForm)
       setPicked(null)
+      setSearchKey((k) => k + 1) // 검색칸도 비운다 — 글자가 남은 채 다시 누르면 "입력해주세요"가 났다 (B 검토 참고)
       // 아주 빨리 받아서 목록에 "받는 중"이 한 번도 안 찍혀도 "다 받았다"를 알릴 수 있게
       if (result.data_pending) loadingRef.current = [...loadingRef.current, result.stock.ticker]
 
@@ -288,11 +290,12 @@ export function StockManager() {
       // 어떤 티커로 해석됐는지도 그대로 보인다: "카카오 (035720.KS)"
       const name = stockLabel(result.stock)
       const label = name !== result.stock.ticker ? `${name} (${result.stock.ticker})` : name
-      setZeroTarget(
-        quantity && form.targetWeight === ''
-          ? `${name}의 목표 비중을 비워 0%로 넣었습니다 — 리밸런싱에서 전부 파는 계산이 됩니다. 목표 비중은 이 화면의 ✎ 수정(리밸런싱에서는 '보유 · 목표 비중')에서 넣으세요.`
-          : null,
-      )
+      // 경고가 필요 없는 추가(목표를 넣었거나 수량이 없다)는 앞의 경고를 건드리지 않는다 — 앞 종목은 여전히 전부 파는 계산이다 (C 검토 2)
+      if (quantity && form.targetWeight === '') {
+        setZeroTarget(
+          `${name}의 목표 비중을 비워 0%로 넣었습니다 — 리밸런싱에서 전부 파는 계산이 됩니다. 목표 비중은 이 화면의 ✎ 수정(리밸런싱에서는 '보유 · 목표 비중')에서 넣으세요.`,
+        )
+      }
 
       setNotice(
         result.data_pending
@@ -315,8 +318,9 @@ export function StockManager() {
       )
       notifyDataChanged()
     } catch (e) {
-      // 이미 담은 종목 — 서버는 영어 한 줄("VOO already exists")만 준다. 서버 말은 그대로 두고 화면에서 바꾼다 (0.45.4 B 사용자 확인)
-      if (e instanceof ApiError && e.status === 409) {
+      // 이미 담은 종목 — 서버는 영어 한 줄("VOO already exists")만 준다. 서버 말은 그대로 두고 화면에서 바꾼다 (0.45.4 B 사용자 확인).
+      // 같은 409 라도 종목 수 한도는 서버가 한국어 안내를 같이 준다 — 그건 그대로 보인다 (B 검토 1)
+      if (e instanceof ApiError && e.status === 409 && !e.hint && /already exists/.test(e.detail)) {
         setError(new ApiError(409, `${query}은(는) 이미 담은 종목입니다. 아래 목록에서 찾아 고치세요.`, e.detail))
       } else {
         setError(e)
@@ -407,6 +411,7 @@ export function StockManager() {
           <div className="field field-wide">
             <label htmlFor="new-ticker">종목 검색</label>
             <SymbolSearch
+              key={searchKey}
               selected={picked}
               onSelect={setPicked}
               onSubmitRaw={(typed) => void createWith(typed)}
