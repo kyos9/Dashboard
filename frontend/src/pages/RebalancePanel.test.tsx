@@ -974,3 +974,77 @@ describe('날마다의 평가금액 안내 (0.44.0)', () => {
     expect(container.textContent).toBe('')
   })
 })
+
+describe('목표 0%라 전부 파는 계산 (0.45.4 C)', () => {
+  // KAKAO 를 목표 비우고(0%) 10주 담았다 — 주문 가이드는 전부 팔기로 계산한다
+  const kakao = row({
+    ticker: '035720.KS', name: '카카오', currency: 'KRW', target_weight_pct: 0, quantity: 10,
+    last_close: 40_000, current_value: 400_000, current_value_base: 400_000,
+  })
+  const watch = row({ ticker: 'WATCH', name: '관심만', currency: 'KRW', target_weight_pct: 0, quantity: 0, last_close: 1000 })
+  const ONE = { ...CURRENT, total_value_base: 2_500_000, holdings_value_base: 2_500_000, rows: [...CURRENT.rows, kakao, watch] }
+  const naver = row({
+    ticker: '035420.KS', name: '네이버', currency: 'KRW', target_weight_pct: 0, quantity: 2,
+    last_close: 200_000, current_value: 400_000, current_value_base: 400_000,
+  })
+  const TWO = { ...ONE, total_value_base: 2_900_000, holdings_value_base: 2_900_000, rows: [...ONE.rows, naver] }
+  beforeEach(() => localStorage.removeItem('rebalance.buy-only'))
+  afterEach(() => localStorage.removeItem('rebalance.buy-only'))
+
+  it('팔기 줄에만 풀이 — 목표 > 0 인 줄·보유 0 인 관심 종목에는 없다, 계산(팔기)은 그대로', async () => {
+    mockApi(ONE)
+    renderPanel()
+    const k = await orderRow('카카오')
+    expect(k).toHaveTextContent('팔기')
+    expect(k).toHaveTextContent("목표 0%라 전부 파는 계산입니다 · 목표는 아래 '보유 · 목표 비중'에서 정합니다")
+    expect(await orderRow('VOO')).not.toHaveTextContent('전부 파는')
+    expect(await orderRow('삼성전자')).not.toHaveTextContent('전부 파는')
+    // 비중 칸의 "목표 0%" 는 원래 있다 — 풀이(꼬리)만 없다
+    expect((await orderRow('관심만')).querySelector('.zero-target-note')).toBeNull()
+    expect(screen.queryByRole('note')).toBeNull() // 하나면 모은 줄이 없다
+  })
+
+  it('목표가 있는 팔기(과중)에는 풀이가 없다 — 목표 0% 라서 생긴 팔기만', async () => {
+    // VOO 목표 20% 인데 지금 130만/250만 = 52% — 목표가 있어도 파는 줄
+    const OVER = { ...ONE, rows: ONE.rows.map((r) => (r.ticker === 'VOO' ? { ...r, target_weight_pct: 20 } : r)) }
+    mockApi(OVER)
+    renderPanel()
+    const voo = await orderRow('VOO')
+    expect(voo).toHaveTextContent('팔기')
+    expect(voo.querySelector('.zero-target-note')).toBeNull()
+    expect((await orderRow('카카오')).querySelector('.zero-target-note')).not.toBeNull()
+  })
+
+  it('둘 이상이면 위에 한 줄로 모으고 줄마다는 짧게', async () => {
+    mockApi(TWO)
+    renderPanel()
+    expect(await screen.findByRole('note')).toHaveTextContent('목표 비중이 0%인 보유 종목 2개는 전부 파는 계산입니다')
+    for (const name of ['카카오', '네이버']) {
+      const r = await orderRow(name)
+      expect(r.querySelector('.zero-target-note')).toHaveTextContent(/^목표 0%$/)
+      expect(r).not.toHaveTextContent('전부 파는')
+    }
+  })
+
+  it('팔지 않고 새 돈만 나누기에는 팔기가 없으니 풀이도 없다', async () => {
+    localStorage.setItem('rebalance.buy-only', '1')
+    mockApi(TWO)
+    const user = userEvent.setup()
+    renderPanel()
+    await user.type(await screen.findByLabelText(/이번에 새로 넣을 돈/), '900000')
+    expect((await orderRow('카카오')).querySelector('.zero-target-note')).toBeNull()
+    expect(screen.queryByRole('note')).toBeNull()
+  })
+
+  it('폰 카드에도 같은 풀이', async () => {
+    pretendPhone()
+    try {
+      mockApi(ONE)
+      renderPanel()
+      const card = (await screen.findByText(/카카오 10주 팔기/)).closest('li')!
+      expect(card).toHaveTextContent('목표 0%라 전부 파는 계산입니다')
+    } finally {
+      forgetPhone()
+    }
+  })
+})

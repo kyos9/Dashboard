@@ -1,4 +1,7 @@
-fastapi==0.115.6
+fastapi==0.120.4
+# fastapi 가 받는 범위(<0.50) 안에서 알려진 권고(Range 헤더 등)를 고친 판으로 따로 고정한다 — fastapi 만 올리면
+# starlette 는 옛 판(0.41.3)에 남는다 (0.45.4, 제로베이스 점검 5번)
+starlette==0.49.3
 uvicorn[standard]==0.34.0
 sqlalchemy==2.0.53
 # 스키마 변경 이력. 쓰던 DB를 지우지 않고 올리려면 필요하다 (app/migrate.py)
@@ -15,6 +18,6 @@ apscheduler==3.11.0
 google-auth==2.58.0
 # 푸시 알림 내용 암호화(ECDH·HKDF·AES-GCM, RFC 8291). google-auth 도 쓰는 것이라 이미 깔려
 # 있지만, 이제 직접 부르므로 적어둔다 (services/push.py).
-cryptography>=41
+cryptography==50.0.1
 pytest==8.3.4
 httpx==0.28.1

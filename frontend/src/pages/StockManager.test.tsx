@@ -112,7 +112,7 @@ describe('종목 등록', () => {
     await waitFor(() => expect(create).toHaveBeenCalled())
     // 고른 후보의 티커로 등록해야 한다 (이름을 그대로 보내면 서버가 다시 해석해야 한다)
     expect(create.mock.calls[0][0].ticker).toBe('005930.KS')
-    expect(await screen.findByText(/삼성전자 → 005930\.KS 추가 완료/)).toBeInTheDocument()
+    expect(await screen.findByText(/삼성전자 \(005930\.KS\) 추가 완료/)).toBeInTheDocument()
   })
 
   it('고르기 전에는 평단가에 단위가 없고, 국내 종목을 고르면 원화로 (0.44.0 C3)', async () => {
@@ -717,4 +717,119 @@ describe('종목 관리 · 표 이름 칸 고정 (디자인 2차, 주인 결정 
     const table = await screen.findByRole('table')
     expect(table).toHaveClass('sticky-first')
   })
+})
+
+describe('목표 비중을 비운 채 수량을 넣고 추가하면 (0.45.4 C)', () => {
+  beforeEach(() => vi.restoreAllMocks())
+
+  async function add(fields: { quantity?: string; weight?: string }) {
+    mockApi()
+    vi.spyOn(api, 'searchSymbols').mockResolvedValue([])
+    const create = vi.spyOn(api, 'createStock').mockResolvedValue(created())
+    const user = userEvent.setup()
+    renderManager()
+    if (fields.quantity) await user.type(screen.getByLabelText('보유 수량'), fields.quantity)
+    if (fields.weight) await user.type(screen.getByLabelText('목표 비중 (%)'), fields.weight)
+    await user.type(symbolInput(), '005930.KS{Enter}')
+    await waitFor(() => expect(create).toHaveBeenCalled())
+    await screen.findByText(/추가 완료/)
+    return user
+  }
+
+  it('사라지지 않는 경고 — 어디서 목표를 넣는지까지, 닫으면 사라진다', async () => {
+    const user = await add({ quantity: '10' })
+    const alert = screen.getByRole('alert')
+    expect(alert).toHaveTextContent('삼성전자의 목표 비중을 비워 0%로 넣었습니다 — 리밸런싱에서 전부 파는 계산이 됩니다')
+    expect(alert).toHaveTextContent("이 화면의 ✎ 수정(리밸런싱에서는 '보유 · 목표 비중')에서")
+    // 추가 알림은 이름으로 (티커는 괄호)
+    expect(screen.getByText(/^삼성전자 \(005930\.KS\) 추가 완료/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '목표 비중 알림 닫기' }))
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('목표를 넣었거나 수량이 없으면(관심 종목) 경고가 없다', async () => {
+    await add({ quantity: '10', weight: '5' })
+    expect(screen.queryByText(/목표 비중을 비워 0%로/)).toBeNull()
+  })
+
+  it('수량 없이 넣은 관심 종목 — 팔 것이 없으니 경고가 없다', async () => {
+    await add({})
+    expect(screen.queryByText(/목표 비중을 비워 0%로/)).toBeNull()
+  })
+})
+
+it('후보를 고르지 않고 쳐 둔 글자로 "추가" 단추를 눌러도 등록된다 — 칸에 글자가 있는데 "입력해주세요"가 나던 것 (0.45.4 B 사용자 확인)', async () => {
+  vi.restoreAllMocks()
+  mockApi()
+  vi.spyOn(api, 'searchSymbols').mockResolvedValue([])
+  const create = vi.spyOn(api, 'createStock').mockResolvedValue(created({ stock: stock({ ticker: 'QQQ' }), resolved_from: null }))
+  const user = userEvent.setup()
+  renderManager()
+  await user.type(symbolInput(), 'QQQ')
+  await user.click(screen.getByRole('button', { name: /종목 추가/ }))
+  await waitFor(() => expect(create).toHaveBeenCalled())
+  expect(create.mock.calls[0][0].ticker).toBe('QQQ')
+  expect(screen.queryByText(/종목명이나 티커를 입력해주세요/)).toBeNull()
+})
+
+it('이미 담은 종목을 다시 넣으면 한국어로 — 서버의 영어 한 줄은 기술적 원인으로만 (0.45.4 B 사용자 확인)', async () => {
+  vi.restoreAllMocks()
+  mockApi()
+  vi.spyOn(api, 'searchSymbols').mockResolvedValue([])
+  vi.spyOn(api, 'createStock').mockRejectedValue(new ApiError(409, null, 'TQQQ already exists'))
+  const user = userEvent.setup()
+  renderManager()
+  await user.type(symbolInput(), 'TQQQ{Enter}')
+  expect(await screen.findByText(/TQQQ은\(는\) 이미 담은 종목입니다/)).toBeInTheDocument()
+})
+
+it('종목 수 한도(409 + 한국어 안내)는 서버 말 그대로 — "이미 담은 종목"으로 바꾸지 않는다 (B 검토 1)', async () => {
+  vi.restoreAllMocks()
+  mockApi()
+  vi.spyOn(api, 'searchSymbols').mockResolvedValue([])
+  vi.spyOn(api, 'createStock').mockRejectedValue(
+    new ApiError(409, '종목은 30개까지 담을 수 있습니다. 쓰지 않는 종목을 지운 뒤 다시 추가하세요.', 'too many stocks'),
+  )
+  const user = userEvent.setup()
+  renderManager()
+  await user.type(symbolInput(), 'NEWONE{Enter}')
+  expect(await screen.findByText(/종목은 30개까지 담을 수 있습니다/)).toBeInTheDocument()
+  expect(screen.queryByText(/이미 담은 종목입니다/)).toBeNull()
+})
+
+it('추가가 끝나면 검색칸도 비워진다 — 글자가 남은 채 다시 누르면 "입력해주세요"가 났다', async () => {
+  vi.restoreAllMocks()
+  mockApi()
+  vi.spyOn(api, 'searchSymbols').mockResolvedValue([])
+  vi.spyOn(api, 'createStock').mockResolvedValue(created({ stock: stock({ ticker: 'QQQ' }), resolved_from: null }))
+  const user = userEvent.setup()
+  renderManager()
+  await user.type(symbolInput(), 'QQQ{Enter}')
+  await screen.findByText(/추가 완료/)
+  expect(symbolInput()).toHaveValue('')
+})
+
+it('경고는 닫을 때까지 남는다 — 목표를 넣은 다음 종목을 더해도 그대로, 또 비우면 마지막 것 하나만 (C 검토 2)', async () => {
+  vi.restoreAllMocks()
+  mockApi()
+  vi.spyOn(api, 'searchSymbols').mockResolvedValue([])
+  const create = vi.spyOn(api, 'createStock')
+  create.mockResolvedValueOnce(created({ stock: stock({ ticker: '035420.KS', name: 'NAVER', market: 'KR', currency: 'KRW' }), resolved_from: null }))
+  create.mockResolvedValueOnce(created({ stock: stock({ ticker: '068270.KS', name: '셀트리온', market: 'KR', currency: 'KRW' }), resolved_from: null }))
+  create.mockResolvedValueOnce(created({ stock: stock({ ticker: '035720.KS', name: '카카오', market: 'KR', currency: 'KRW' }), resolved_from: null }))
+  const user = userEvent.setup()
+  renderManager()
+  const addOne = async (ticker: string, qty: string, weight?: string) => {
+    await user.type(screen.getByLabelText('보유 수량'), qty)
+    if (weight) await user.type(screen.getByLabelText('목표 비중 (%)'), weight)
+    await user.type(symbolInput(), `${ticker}{Enter}`)
+    await waitFor(() => expect(screen.getByText(new RegExp(`${ticker.replace('.', '\\.')}\\) 추가 완료`))).toBeInTheDocument())
+  }
+  await addOne('035420.KS', '5')
+  expect(screen.getByRole('alert')).toHaveTextContent('NAVER의 목표 비중을 비워')
+  await addOne('068270.KS', '3', '5')
+  expect(screen.getByRole('alert')).toHaveTextContent('NAVER의 목표 비중을 비워') // 셀트리온은 목표가 있어 앞 경고를 건드리지 않는다
+  await addOne('035720.KS', '10')
+  expect(screen.getAllByRole('alert')).toHaveLength(1)
+  expect(screen.getByRole('alert')).toHaveTextContent('카카오의 목표 비중을 비워')
 })

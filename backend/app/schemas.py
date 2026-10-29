@@ -1,10 +1,24 @@
 import datetime as dt
-from typing import Any, Literal, Optional
+from typing import Annotated, Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.markets import Currency, Market
 from app.models import ReviewPeriod
+
+# 사용자가 보내는 글자의 한도 (0.45.4, 제로베이스 점검 4번). 넉넉하게 잡는다 — 화면은 다른 칸만 고쳐도 이름·구분을
+# 늘 다시 보내므로, 한도가 빠듯하면 옛 긴 값이 든 종목은 목표만 바꿔도 422 가 난다(계획 검토 개발자 5).
+# 읽는 쪽(`StockOut`)에는 걸지 않는다 — 옛 값도 그대로 읽힌다.
+TICKER_MAX = 64  # 티커뿐 아니라 종목명 검색어도 받는다
+NAME_MAX = 200
+CATEGORY_MAX = 60
+# 순서 바꾸기 목록 — 종목 수 한도(30)를 쓰면 한도에서 빠지는 주인이 깨진다(계획 검토 4)
+ORDER_MAX = 500
+CODES_MAX = 100  # 홈에 올리는 매크로 지표
+CURRENCY_KEYS_MAX = 10  # 통화별 현금·환율
+
+Ticker = Annotated[str, Field(max_length=TICKER_MAX)]
+CurrencyKey = Annotated[str, Field(max_length=8)]
 
 
 class SymbolMatchOut(BaseModel):
@@ -26,9 +40,9 @@ class SymbolMatchOut(BaseModel):
 class StockCreate(BaseModel):
     # 티커(`VOO`, `005930.KS`)뿐 아니라 종목명("삼성전자")이나 6자리 코드도 받는다.
     # 티커가 아니면 서버가 해석하며, 해석 결과는 응답의 `resolved_from`으로 확인할 수 있다.
-    ticker: str
-    name: Optional[str] = None
-    category: Optional[str] = None
+    ticker: Ticker
+    name: Optional[str] = Field(default=None, max_length=NAME_MAX)
+    category: Optional[str] = Field(default=None, max_length=CATEGORY_MAX)
     target_weight_pct: float = Field(default=0.0, ge=0, le=100)
     rebalance_band_pct: Optional[float] = Field(default=None, ge=0, le=100)
     # 이미 들고 있는 종목이면 등록하면서 같이 적는다. 비우면 보유 0으로 시작한다.
@@ -39,8 +53,8 @@ class StockCreate(BaseModel):
 
 
 class StockUpdate(BaseModel):
-    name: Optional[str] = None
-    category: Optional[str] = None
+    name: Optional[str] = Field(default=None, max_length=NAME_MAX)
+    category: Optional[str] = Field(default=None, max_length=CATEGORY_MAX)
     active: Optional[bool] = None
     target_weight_pct: Optional[float] = Field(default=None, ge=0, le=100)
     rebalance_band_pct: Optional[float] = Field(default=None, ge=0, le=100)
@@ -69,7 +83,7 @@ class StockOut(BaseModel):
 class StockOrderUpdate(BaseModel):
     """화면에 보여줄 순서. 받은 목록의 차례가 곧 순서다."""
 
-    tickers: list[str]
+    tickers: list[Ticker] = Field(max_length=ORDER_MAX)
 
 
 class StockCreateResult(BaseModel):
@@ -328,12 +342,12 @@ class SettingsUpdate(BaseModel):
     base_currency: Optional[Currency] = None
     # 통화코드 -> 직접 입력한 환율. 값에 null을 주면 그 통화만 자동 조회로 돌아간다
     # (`{"USD": 1380, "JPY": null}`). 보내지 않은 통화는 건드리지 않는다.
-    fx_overrides: Optional[dict[str, Optional[float]]] = None
+    fx_overrides: Optional[dict[CurrencyKey, Optional[float]]] = Field(default=None, max_length=CURRENCY_KEYS_MAX)
     review_period: Optional[ReviewPeriod] = None
     # null을 보내면 직접 정한 날을 지우고 주기로 돌아간다. 안 보내면 그대로.
     review_date_override: Optional[dt.date] = None
     # 통화코드 -> 금액. 값에 null이나 0을 주면 그 통화 현금을 지운다. 안 보낸 통화는 그대로.
-    cash: Optional[dict[str, Optional[float]]] = None
+    cash: Optional[dict[CurrencyKey, Optional[float]]] = Field(default=None, max_length=CURRENCY_KEYS_MAX)
     cash_target_pct: Optional[float] = Field(default=None, ge=0, le=100)
     # 수익률에 환율 효과 포함. 기준통화가 원일 때만 켤 수 있다.
     include_fx_effect: Optional[bool] = None
@@ -663,7 +677,7 @@ class MacroPinnedUpdate(BaseModel):
     """**빈 목록은 "다 껐다"는 뜻이다** — 기본값으로 되돌리라는 말이 아니다
     (`models.UserSettings.pinned_macro` 참고)."""
 
-    codes: list[str]
+    codes: list[Annotated[str, Field(max_length=64)]] = Field(max_length=CODES_MAX)
 
 
 class MacroForecastUpdate(BaseModel):
@@ -765,7 +779,7 @@ class FundamentalsOut(BaseModel):
 
 
 class AiModelsIn(BaseModel):
-    provider: str
+    provider: str = Field(max_length=100)
 
 
 class AiModel(BaseModel):
@@ -779,8 +793,8 @@ class AiModelsOut(BaseModel):
 
 
 class AiAnalyzeIn(BaseModel):
-    provider: str
-    model: str
+    provider: str = Field(max_length=100)
+    model: str = Field(max_length=100)
     # 사용자가 붙이는 요청 (선택). 길이는 서비스가 본다 (`ai_analysis.QUESTION_MAX`)
     question: Optional[str] = None
 

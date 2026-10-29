@@ -14,7 +14,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session, sessionmaker
 from starlette.concurrency import run_in_threadpool
 
@@ -74,7 +74,7 @@ def guest_can_read(method: str, path: str) -> bool:
 
 
 class LoginRequest(BaseModel):
-    password: str
+    password: str = Field(max_length=256)  # 0.45.4 — 한도 없이 받던 칸
 
 
 # ---------------------------------------------------------------------------
@@ -264,6 +264,39 @@ def login(payload: LoginRequest, request: Request, response: Response) -> dict:
 
 @router.post("/logout")
 def logout(response: Response) -> dict:
+    response.delete_cookie(auth.COOKIE_NAME, path="/")
+    return {"locked": auth.lock_enabled(), "authenticated": False}
+
+
+@router.post("/logout-all")
+def logout_everywhere(
+    response: Response,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(current_user_id),
+) -> dict:
+    """모든 기기에서 나가기 (0.45.4) — 폰을 잃어버렸을 때.
+
+    그 사람의 `session_epoch` 를 1 올린다. 쪽지 서명에 epoch 가 섞여 있으므로(쪽지 v2) **다른 기기에 남은 쪽지가
+    그 자리에서 무효**가 된다. 잃어버린 폰에 종목 이름이 담긴 알림이 계속 가지 않게 **알림 받는 기기도 모두 지운다**
+    (지금 나가기가 알림부터 끄는 것과 같은 까닭). 이 기기의 쿠키도 지운다.
+
+    구글 로그인일 때만 — 비밀번호 문과 열린 PC 는 사람마다의 epoch 가 없어 눌러도 아무 일이 없다(탈퇴처럼 400).
+    승인된 사람만 쓴다. 승인 대기·거절·차단은 401 이다(그 쪽지는 이미 들어올 수 없다).
+    """
+    if auth.mode() != auth.MODE_GOOGLE:
+        raise HTTPException(
+            status_code=400,
+            detail={"hint": "구글 로그인을 쓸 때만 모든 기기에서 나갈 수 있습니다.", "message": "no accounts"},
+        )
+    user = db.get(User, user_id)
+    if user is None or user.status != STATUS_ACTIVE:
+        raise HTTPException(
+            status_code=401,
+            detail={"hint": "로그인이 필요합니다.", "message": "authentication required"},
+        )
+    user.session_epoch = (user.session_epoch or 0) + 1
+    db.query(PushSubscription).filter(PushSubscription.user_id == user_id).delete(synchronize_session=False)
+    db.commit()
     response.delete_cookie(auth.COOKIE_NAME, path="/")
     return {"locked": auth.lock_enabled(), "authenticated": False}
 

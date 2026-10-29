@@ -15,6 +15,7 @@ import { AiKeyForm } from './AiKeyForm'
 import { AiText } from './AiText'
 import { buyRule, countWord, useSignalRules } from '../lib/signalRules'
 import { ErrorNotice } from './ErrorNotice'
+import { useAuth } from './AuthGate'
 
 /** 정리의 종류마다 다른 글 — 무엇을 보내는지, 무엇을 물을 수 있는지 */
 const COPY: Record<AiScope, { intro: string; examples: string[]; help: string; placeholder: string }> = {
@@ -59,6 +60,18 @@ const COPY: Record<AiScope, { intro: string; examples: string[]; help: string; p
     help: '무엇을 물어도 지표의 숫자를 보고 답하고, 금리·주가가 어떻게 될지는 점치지 않습니다.',
     placeholder: '예: 장단기 금리차가 무엇인지부터 설명해 줘',
   },
+}
+
+/**
+ * 종목 분석의 글 — 관리자가 아닌 사람 (0.45.4). 위 `research` 는 주인의 전략 틀(편입 판단)을 말하는데, 서버도
+ * 다른 사람에게는 중립 틀을 보낸다(`ai_portfolio.USER_RESEARCH_PROMPT`). 화면 글이 그 틀과 같은 말을 해야 한다.
+ */
+const USER_RESEARCH_COPY: (typeof COPY)[AiScope] = {
+  intro:
+    '이 종목의 재무(PER·PBR·ROE·FCF 수익률·3·5년 성장률 등)와 내 포트폴리오 비중(%)을 AI 에게 보내, 회사 자료를 한 장으로 정리받습니다. 앱에 없는 값(동종 업계 비교·선행 PER·최근 실적)은 AI 가 웹에서 찾아 출처와 함께 적습니다 — 검색 요금이 조금 더 나갑니다. 금액·수량은 보내지 않고, 검색어에 내 비중을 넣지 않게 합니다.',
+  examples: ['위험 요인 위주로 자세히', '경쟁사와 비교를 자세히', '이미 담은 종목 중 같은 업종부터', '표 없이 짧게'],
+  help: '숫자는 앱이 모은 것을 먼저 쓰고, 없는 값은 웹에서 찾아 출처를 붙이게 합니다. 찾지 못한 것만 "확인 필요"로 남습니다. 사라·팔라, 얼마나 담으라는 말이나 싸다·비싸다 판단, 목표 가격은 내지 않습니다.',
+  placeholder: '예: 이 회사의 매출이 어디서 나오는지 쉽게 설명해 줘',
 }
 
 /** 키를 다시 넣어야 풀리는 오류 — 이때는 키 입력을 바로 펼친다 */
@@ -142,7 +155,8 @@ function Sources({ result }: { result: AiAnalysis }) {
  */
 export function AiPanel({ target, account }: { target: AiTarget; account: string }) {
   const scope = target.kind
-  const copy = COPY[scope]
+  const { isAdmin } = useAuth()
+  const copy = scope === 'research' && !isAdmin ? USER_RESEARCH_COPY : COPY[scope]
   const conditionCount = countWord(buyRule(useSignalRules()).conditions.length)
   const examples = copy.examples.map((example) => example.replace('{조건 수}', conditionCount))
   const storeKey = aiTargetKey(target)

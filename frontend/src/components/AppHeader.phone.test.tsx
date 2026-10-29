@@ -100,7 +100,7 @@ describe('폰 헤더는 한 줄', () => {
     expect(document.querySelector('.brand-sub')).toBeNull()
 
     await openMenu()
-    expect(menuButtons()).toEqual(['알림 설정', 'AI 키 설정', '화면 설정', '나가기', '탈퇴'])
+    expect(menuButtons()).toEqual(['알림 설정', 'AI 키 설정', '화면 설정', '나가기', '모든 기기에서 나가기', '탈퇴'])
     // 누구로 들어왔는지는 메뉴 맨 위에
     const menu = screen.getByRole('group', { name: '메뉴' })
     expect(within(menu).getByText('친구')).toBeInTheDocument()
@@ -116,7 +116,7 @@ describe('폰 헤더는 한 줄', () => {
     expect(document.querySelector('.status-pill')).not.toBeNull()
 
     await userEvent.click(menuButton)
-    expect(menuButtons()).toEqual(['알림 설정', 'AI 키 설정', '화면 설정', '진단', '사용자2', '나가기'])
+    expect(menuButtons()).toEqual(['알림 설정', 'AI 키 설정', '화면 설정', '진단', '사용자2', '나가기', '모든 기기에서 나가기'])
     expect(within(screen.getByRole('button', { name: /사용자/ })).getByLabelText('가입 신청 2건')).toBeInTheDocument()
   })
 
@@ -195,6 +195,24 @@ describe('메뉴 항목', () => {
     await userEvent.click(screen.getByRole('button', { name: '탈퇴' }))
     expect(screen.getByRole('alertdialog', { name: '탈퇴할까요?' })).toBeInTheDocument()
     expect(withdraw).not.toHaveBeenCalled()
+  })
+})
+
+describe('모든 기기에서 나가기 (0.45.4)', () => {
+  it('폰: 나가기 바로 아래, 한 번 더 묻는다', async () => {
+    const logoutAll = vi.spyOn(api, 'logoutAll').mockResolvedValue({ locked: true, authenticated: false })
+    renderAs(FRIEND)
+    await openMenu()
+    await userEvent.click(screen.getByRole('button', { name: '모든 기기에서 나가기' }))
+    expect(screen.getByRole('alertdialog', { name: '모든 기기에서 나갈까요?' })).toBeInTheDocument()
+    expect(logoutAll).not.toHaveBeenCalled()
+  })
+
+  it('승인 대기에게는 없다 — 서버도 401 이다', async () => {
+    renderAs({ ...FRIEND, user: { ...FRIEND.user!, status: 'pending' } })
+    await openMenu()
+    expect(menuButtons()).not.toContain('모든 기기에서 나가기')
+    expect(menuButtons()).toContain('나가기')
   })
 })
 

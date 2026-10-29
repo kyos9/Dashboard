@@ -30,6 +30,8 @@ interface Props {
   onSelect: (match: SymbolMatch | null) => void
   /** 후보를 고르지 않고 엔터를 쳤을 때 (입력값 그대로 서버에 맡긴다) */
   onSubmitRaw: (typed: string) => void
+  /** 칸에 쳐 둔 글자 — 엔터 대신 바깥의 "추가" 단추로 보낼 때 쓴다 (0.45.4 B 사용자 확인: 단추를 누르면 "입력해주세요"가 났다) */
+  onTypedChange?: (typed: string) => void
   disabled?: boolean
 }
 
@@ -40,7 +42,7 @@ interface Props {
  * 회사의 시세를 받아오는데, 그건 "못 찾았다"보다 나쁘다. 그래서 사용자가 눈으로
  * 확인하고 고르게 한다.
  */
-export function SymbolSearch({ selected, onSelect, onSubmitRaw, disabled }: Props) {
+export function SymbolSearch({ selected, onSelect, onSubmitRaw, onTypedChange, disabled }: Props) {
   const [query, setQuery] = useState('')
   const [matches, setMatches] = useState<SymbolMatch[]>([])
   const [open, setOpen] = useState(false)
@@ -96,6 +98,7 @@ export function SymbolSearch({ selected, onSelect, onSubmitRaw, disabled }: Prop
   const choose = (match: SymbolMatch) => {
     onSelect(match)
     setQuery('')
+    onTypedChange?.('')
     setMatches([])
     setOpen(false)
   }
@@ -103,6 +106,7 @@ export function SymbolSearch({ selected, onSelect, onSubmitRaw, disabled }: Prop
   const clear = () => {
     onSelect(null)
     setQuery('')
+    onTypedChange?.('')
     setMatches([])
     setOpen(false)
   }
@@ -158,7 +162,10 @@ export function SymbolSearch({ selected, onSelect, onSubmitRaw, disabled }: Prop
         placeholder="삼성전자, 005930, VOO…"
         value={query}
         disabled={disabled}
-        onChange={(e) => setQuery(e.target.value)}
+        onChange={(e) => {
+          setQuery(e.target.value)
+          onTypedChange?.(e.target.value)
+        }}
         onFocus={() => matches.length > 0 && setOpen(true)}
         onKeyDown={onKeyDown}
       />

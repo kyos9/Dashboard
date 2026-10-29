@@ -1,0 +1,19 @@
+# 의존성 판 알림 (0.45.4, 제로베이스 점검 5번). 한 달에 한 번 PR 만 만든다 — 합치는 것은 주인이 CI 를 보고 한다.
+# 서버는 main 의 `latest` 이미지를 받아 쓰므로, 합친 PR 은 그다음 배포 때 같이 올라간다.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /backend
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3

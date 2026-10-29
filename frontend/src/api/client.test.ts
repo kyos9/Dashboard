@@ -96,6 +96,10 @@ describe('오류 응답 해석', () => {
       [{ type: 'greater_than', loc: ['body', 'avg_fx'], ctx: { gt: 0 } }, '산 환율은 0보다 커야 합니다'],
       [{ type: 'value_error', loc: ['body', 'mystery'] }, '입력값은 올바르지 않습니다'],
       [{ type: 'less_than', loc: ['body', 'quantity'], ctx: { lt: 10 } }, '수량은 10보다 작아야 합니다'],
+      // 0.45.4 — 글자 한도는 "자", 목록 한도는 "개"
+      [{ type: 'string_too_long', loc: ['body', 'name'], ctx: { max_length: 200 } }, '이름은 200자 이하여야 합니다'],
+      [{ type: 'string_too_long', loc: ['body', 'category'], ctx: { max_length: 60 } }, '구분은 60자 이하여야 합니다'],
+      [{ type: 'too_long', loc: ['body', 'tickers'], ctx: { max_length: 500 } }, '순서 목록은 500개 이하여야 합니다'],
     ]
     for (const [item, line] of cases) {
       mockFetch({ status: 422, text: JSON.stringify({ detail: [item] }) })

@@ -84,6 +84,7 @@ ENDPOINTS: dict[tuple[str, str], tuple[str, str]] = {
     ("GET", "/api/auth/google/start"): (PUBLIC, ANYONE),
     ("GET", "/api/auth/google/callback"): (PUBLIC, ANYONE),
     ("DELETE", "/api/auth/me"): (MINE, USER),  # 탈퇴 — 내 기록만 지운다
+    ("POST", "/api/auth/logout-all"): (MINE, USER),  # 0.45.4 모든 기기에서 나가기 — 내 epoch·내 알림 기기만
     ("GET", "/api/health"): (PUBLIC, ANYONE),
     # 내 종목
     ("GET", "/api/stocks"): (MINE, USER),
@@ -877,8 +878,54 @@ def check_push_test(w: World):
     _a_is_untouched(w)
 
 
+def check_logout_all(w: World):
+    """모든 기기에서 나가기 — 구글 모드, **진짜 쪽지**로. B 의 다른 기기 쪽지는 무효, B 의 알림 기기는 지워지고,
+    A 의 쪽지·epoch·알림 기기는 그대로다."""
+    from app.models import PushSubscription, User
+    from app.services import auth as auth_service
+
+    w.monkeypatch.setenv(auth_service.GOOGLE_CLIENT_ID_ENV, "test-client")
+    main_module.app.dependency_overrides.pop(current_user_id, None)
+    main_module.app.dependency_overrides.pop(viewer_user_id, None)
+    with w.Session() as db:
+        for uid in (A, B):
+            user = db.get(User, uid)
+            user.google_sub = f"google-sub-{uid}"
+        db.commit()
+        a, b = db.get(User, A), db.get(User, B)
+        a_epoch = a.session_epoch
+        a_cookie = auth_service.issue_user_token(A, a.session_epoch, a.google_sub)
+        b_phone = auth_service.issue_user_token(B, b.session_epoch, b.google_sub)
+        b_pc = auth_service.issue_user_token(B, b.session_epoch, b.google_sub, now=1.0 + __import__("time").time())
+        assert db.query(PushSubscription).filter_by(user_id=B).count() > 0
+        a_devices = db.query(PushSubscription).filter_by(user_id=A).count()
+        assert a_devices > 0
+
+    client = w.client
+    client.cookies.set(auth_service.COOKIE_NAME, b_pc)
+    assert client.get("/api/stocks").status_code == 200
+    res = client.post("/api/auth/logout-all")
+    assert res.status_code == 200, res.text
+    # 이 기기도 나간다 — 쿠키를 지우라는 답(만료된 빈 쿠키)
+    assert any(h.startswith(f"{auth_service.COOKIE_NAME}=") and "Max-Age=0" in h
+               for h in res.headers.get_list("set-cookie"))
+
+    for token in (b_phone, b_pc):  # 다른 기기에 남은 쪽지도 그 자리에서 무효
+        client.cookies.set(auth_service.COOKIE_NAME, token)
+        assert client.get("/api/stocks").status_code == 401
+    client.cookies.set(auth_service.COOKIE_NAME, a_cookie)
+    assert client.get("/api/stocks").status_code == 200  # A 는 그대로 들어온다
+    with w.Session() as db:
+        assert db.query(PushSubscription).filter_by(user_id=B).count() == 0
+        assert db.query(PushSubscription).filter_by(user_id=A).count() == a_devices
+        assert db.get(User, A).session_epoch == a_epoch
+    client.cookies.clear()
+    _a_is_untouched(w)
+
+
 CHECKS = {
     ("DELETE", "/api/auth/me"): check_withdraw,
+    ("POST", "/api/auth/logout-all"): check_logout_all,
     ("GET", "/api/stocks"): check_list_stocks,
     ("PUT", "/api/stocks/order"): check_order,
     ("POST", "/api/stocks"): check_create,

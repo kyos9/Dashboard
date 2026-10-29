@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app import version, web
 from app.db import init_db
 from app.logging_setup import setup_logging
+from app.security_headers import BodyLimit, SecurityHeaders
 from app.slow_requests import SlowRequestLog
 from app.routers import (
     admin, ai, auth, dashboard, fundamentals, history, logs, macro, push, rebalance, signal_rules,
@@ -46,7 +47,15 @@ async def lifespan(app: FastAPI):
     shutdown_scheduler()
 
 
-app = FastAPI(title="자산관리 대시보드 API", lifespan=lifespan)
+# 문서 화면(/docs·/redoc)은 끈다 — 로그인 없이 열려 공격면 전체(84KB 스키마)를 알려 줬다. 스키마는
+# `/api/` 아래로 옮겨 문지기 뒤에 둔다(로그인한 사람만, 0.45.4). 개발 도구는 `app.openapi()` 를 바로 부른다.
+app = FastAPI(
+    title="자산관리 대시보드 API",
+    lifespan=lifespan,
+    docs_url=None,
+    redoc_url=None,
+    openapi_url="/api/openapi.json",
+)
 
 # 문지기를 CORS보다 **먼저** 등록한다. 미들웨어는 나중에 등록한 것이 바깥에 서므로,
 # 이렇게 해야 CORS가 바깥이 되어 401 응답에도 CORS 헤더가 붙는다 (개발 서버에서
@@ -61,8 +70,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 느린 요청 기록은 가장 바깥에 — 문지기(세션 확인)에 든 시간까지 잰다 (ROADMAP 8-5)
+# 느린 요청 기록은 바깥에 — 문지기(세션 확인)에 든 시간까지 잰다 (ROADMAP 8-5)
 app.add_middleware(SlowRequestLog)
+
+# 본문 한도와 보안 헤더(0.45.4)는 그보다 더 바깥 — 413·401 에도 헤더가 붙게. 헤더가 맨 바깥이다
+app.add_middleware(BodyLimit)
+app.add_middleware(SecurityHeaders)
 
 app.include_router(auth.router)
 app.include_router(stocks.router)
