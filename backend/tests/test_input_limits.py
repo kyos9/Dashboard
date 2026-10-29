@@ -58,3 +58,19 @@ def test_settings_currency_maps_and_macro_codes_are_bounded(api):
 def test_password_is_bounded(api):
     client, _ = api
     assert client.post("/api/auth/login", json={"password": "x" * 257}).status_code == 422
+
+
+def test_limits_stay_generous_in_plain_numbers(api):
+    """한도를 기호(schemas.NAME_MAX)로만 시험하면 숫자를 줄여도 시험이 같이 줄어든다 — 계획에서 정한 값을 글자 그대로 (끝 검토 F5·F8·F9).
+    넉넉해야 하는 까닭: 화면은 다른 칸만 고쳐도 이름·구분을 늘 다시 보낸다(옛 긴 값), 주인은 종목 30개 한도에서 빠진다."""
+    client, Session = api
+    assert client.post("/api/stocks", json={"ticker": "A" * 64}).status_code != 422  # 64자 티커(종목명 검색어)는 받는다
+    assert client.post("/api/stocks", json={"ticker": "MSFT", "name": "가" * 200, "category": "나" * 60}).status_code == 200
+    assert client.put("/api/stocks/MSFT", json={"name": "가" * 201}).status_code == 422
+    assert client.put("/api/stocks/MSFT", json={"category": "나" * 61}).status_code == 422
+    tickers = [f"T{i:03d}" for i in range(500)]
+    with Session() as db:
+        for i, ticker in enumerate(tickers):
+            make_stock(db, ticker, sort_order=i)
+    assert client.put("/api/stocks/order", json={"tickers": tickers}).status_code == 200
+    assert client.put("/api/stocks/order", json={"tickers": tickers + ["X"]}).status_code == 422

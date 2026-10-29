@@ -22,3 +22,15 @@
 
 처음 돌림에서 살아남은 것은 시험을 더해(아래) 다시 돌려 잡혔다.
 - `test_input_limits.py`: 추가(POST)할 때 이름·구분 한도 — 고칠 때(PUT)만 보고 있었다.
+
+## 끝 검토 뒤 (final-review.md 조건 1)
+
+끝 검토의 직접 뮤테이션에서 살아남은 넷과 새 고침 하나를 시험을 더한 뒤 다시 돌렸다.
+
+| 뮤테이션 | 파일 | 결과 |
+| --- | --- | --- |
+| F5 순서 한도 50 | `backend/app/schemas.py` | 잡힘 |
+| F8 이름 한도 100 | `backend/app/schemas.py` | 잡힘 |
+| F9 티커 한도 16 | `backend/app/schemas.py` | 잡힘 |
+| F6 이 종목 자신은 빼고 지움 | `backend/app/services/ai_portfolio.py` | 잡힘 |
+| 405 영어 그대로 | `frontend/src/components/AppHeader.tsx` | 잡힘 |

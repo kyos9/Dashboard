@@ -237,6 +237,7 @@ def test_user_research_frame_has_no_owner_strategy_and_no_judgement():
     assert "목표 가격·상승 여력·하락 폭(%)·적정 배수를 내지 않습니다" in r
     assert "배수나 가격은 적지 않습니다" in r  # 시나리오에 배수 범위가 없다
     assert "## 6. 이미 담은 종목 중 같은 업종" in r
+    assert "이 종목 자신은 빼고" in r  # 자기 자신을 같은 업종으로 들지 않게 (다시 보기 사용자, 끝 검토 F6)
     for n in range(1, 7):
         assert f"## {n}. " in r
     # 자료를 모으는 규칙은 주인 틀과 같다 — 지어내지 않기, 웹 검색과 출처, 검색어에 내 비중 넣지 않기

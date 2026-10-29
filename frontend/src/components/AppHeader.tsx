@@ -1,6 +1,6 @@
 import { Suspense, useEffect, useState, useSyncExternalStore } from 'react'
 import { useAppState } from '../AppState'
-import { api } from '../api/client'
+import { ApiError, api } from '../api/client'
 import { useAuth } from './AuthGate'
 import { ConfirmDialog } from './ConfirmDialog'
 import { HeaderMenu, type MenuItem } from './HeaderMenu'
@@ -52,7 +52,15 @@ export function AppHeader() {
     try {
       await logoutEverywhere()
     } catch (e) {
-      setEverywhereError(e instanceof Error ? e.message : String(e))
+      // 화면이 서버보다 새로우면(업데이트 중) 서버가 이 기능을 모른다 — 405/404 를 영어 그대로 보이지 않는다 (끝 검토 참고)
+      const unknown = e instanceof ApiError && (e.status === 404 || e.status === 405)
+      setEverywhereError(
+        unknown
+          ? '서버가 아직 이 기능을 모릅니다 — 서버 업데이트가 끝난 뒤 다시 눌러 주세요. 이 기기에서만 나가려면 "나가기"를 누르세요.'
+          : e instanceof Error
+            ? e.message
+            : String(e),
+      )
       setLeavingEverywhere(false)
     }
   }

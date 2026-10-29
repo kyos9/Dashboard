@@ -321,3 +321,27 @@ describe('받은 때 (ROADMAP 8-1)', () => {
     expect(screen.queryByText('저장된 데이터 표시 중')).not.toBeInTheDocument()
   })
 })
+
+it('서버가 아직 모르는 기능(405·404)이면 영어 대신 업데이트를 기다리라는 말 (끝 검토 참고)', async () => {
+  vi.restoreAllMocks()
+  mockHealth()
+  vi.spyOn(api, 'getAuthStatus').mockResolvedValue({
+    locked: true, authenticated: true, mode: 'google', config_problem: null,
+    user: { email: 'friend@example.com', name: '친구', is_owner: false, status: 'active' },
+  })
+  vi.spyOn(api, 'logoutAll').mockRejectedValue(new ApiError(405, null, 'Method Not Allowed'))
+  render(
+    <MemoryRouter>
+      <AuthGate>
+        <AppStateProvider>
+          <AppHeader />
+        </AppStateProvider>
+      </AuthGate>
+    </MemoryRouter>,
+  )
+  await userEvent.click(await screen.findByRole('button', { name: '친구 — 계정' }))
+  await userEvent.click(screen.getByRole('button', { name: '모든 기기에서 나가기' }))
+  await userEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: '모든 기기에서 나가기' }))
+  expect(await screen.findByText(/서버가 아직 이 기능을 모릅니다/)).toBeInTheDocument()
+  expect(screen.queryByText('Method Not Allowed')).toBeNull()
+})
