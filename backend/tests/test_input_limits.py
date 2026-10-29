@@ -16,6 +16,10 @@ def test_stock_name_and_category_limits(api):
         assert res.status_code == 422, field
     res = client.post("/api/stocks", json={"ticker": "x" * (schemas.TICKER_MAX + 1)})
     assert res.status_code == 422
+    # 추가할 때도 같은 한도 (뮤테이션: StockCreate.name 한도를 빼도 살아남았다)
+    for field, size in (("name", schemas.NAME_MAX + 1), ("category", schemas.CATEGORY_MAX + 1)):
+        res = client.post("/api/stocks", json={"ticker": "MSFT", field: "x" * size})
+        assert res.status_code == 422, field
 
 
 def test_an_old_long_name_is_still_read(api):

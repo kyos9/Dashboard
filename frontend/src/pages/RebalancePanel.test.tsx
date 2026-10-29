@@ -1004,6 +1004,17 @@ describe('목표 0%라 전부 파는 계산 (0.45.4 C)', () => {
     expect(screen.queryByRole('note')).toBeNull() // 하나면 모은 줄이 없다
   })
 
+  it('목표가 있는 팔기(과중)에는 풀이가 없다 — 목표 0% 라서 생긴 팔기만', async () => {
+    // VOO 목표 20% 인데 지금 130만/250만 = 52% — 목표가 있어도 파는 줄
+    const OVER = { ...ONE, rows: ONE.rows.map((r) => (r.ticker === 'VOO' ? { ...r, target_weight_pct: 20 } : r)) }
+    mockApi(OVER)
+    renderPanel()
+    const voo = await orderRow('VOO')
+    expect(voo).toHaveTextContent('팔기')
+    expect(voo.querySelector('.zero-target-note')).toBeNull()
+    expect((await orderRow('카카오')).querySelector('.zero-target-note')).not.toBeNull()
+  })
+
   it('둘 이상이면 위에 한 줄로 모으고 줄마다는 짧게', async () => {
     mockApi(TWO)
     renderPanel()
