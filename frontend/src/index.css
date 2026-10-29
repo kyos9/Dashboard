@@ -5688,3 +5688,11 @@ section.signal-line {
 .zero-target-note[role='note'] {
   max-width: none;
 }
+
+/* 폰: 바뀐 줄 저장 막대는 늘 아래 탭 높이 위에 (0.45.4 C 사용자 확인). 글자를 치는 동안 탭이 비켰다가 — 저장을 누르는 순간
+   입력칸에서 나와 탭이 다시 올라오면 막대를 덮어, 첫 누름이 사라지고 두 번째 누름이 탭(다른 화면)으로 갔다 */
+@media (max-width: 720px) {
+  .save-bar {
+    bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+  }
+}

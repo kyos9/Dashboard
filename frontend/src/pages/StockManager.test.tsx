@@ -740,7 +740,7 @@ describe('목표 비중을 비운 채 수량을 넣고 추가하면 (0.45.4 C)',
     const user = await add({ quantity: '10' })
     const alert = screen.getByRole('alert')
     expect(alert).toHaveTextContent('삼성전자의 목표 비중을 비워 0%로 넣었습니다 — 리밸런싱에서 전부 파는 계산이 됩니다')
-    expect(alert).toHaveTextContent('아래 표의 목표 칸이나 대시보드의 ✎ 수정에서')
+    expect(alert).toHaveTextContent("이 화면의 ✎ 수정(리밸런싱에서는 '보유 · 목표 비중')에서")
     // 추가 알림은 이름으로 (티커는 괄호)
     expect(screen.getByText(/^삼성전자 \(005930\.KS\) 추가 완료/)).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: '목표 비중 알림 닫기' }))

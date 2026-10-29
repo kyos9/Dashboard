@@ -290,7 +290,7 @@ export function StockManager() {
       const label = name !== result.stock.ticker ? `${name} (${result.stock.ticker})` : name
       setZeroTarget(
         quantity && form.targetWeight === ''
-          ? `${name}의 목표 비중을 비워 0%로 넣었습니다 — 리밸런싱에서 전부 파는 계산이 됩니다. 목표 비중은 아래 표의 목표 칸이나 대시보드의 ✎ 수정에서 넣으세요.`
+          ? `${name}의 목표 비중을 비워 0%로 넣었습니다 — 리밸런싱에서 전부 파는 계산이 됩니다. 목표 비중은 이 화면의 ✎ 수정(리밸런싱에서는 '보유 · 목표 비중')에서 넣으세요.`
           : null,
       )
 
