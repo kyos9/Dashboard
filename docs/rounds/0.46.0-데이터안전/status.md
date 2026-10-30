@@ -4,7 +4,9 @@
 
 ## 시작 때 잰 것 (2026-10-30, 시작 커밋 65001de = main)
 - 버전 0.45.4 · Alembic 머리 0015 · 서버 0.44.0(0.45.0~0.45.4 배포 전)
-- (재는 중 — pytest · vitest · lint · tsc · 대시보드 · JS 크기, 기준 두 가지는 스크래치 `r050/baseline/`)
+- pytest 1532 통과 · 3 건너뜀 · vitest 1051 · lint 경고 22 · tsc 통과
+- 대시보드 20종목 중앙 31.9ms · 쿼리 12 · 첫 화면 JS gzip 114.47 kB
+- 기준 두 가지: 스크래치 `r050/baseline/`(openapi.json · snap/)
 - 다른 브랜치: ecstatic-brahmagupta-gvr506(10-13)·sharp-lovelace-2gm6pf(10-15) — main 에 다 들어감.
   dependabot 열넷(10-29, 의존성 올리기 PR 후보 — 남의 브랜치, 읽기만). 겹칠 수 있는 것: `requirements.txt`·`package-lock.json`·
   `.github/workflows/*`(actions 판). 이 라운드는 workflows 를 고친다 — 합칠 때 판 줄만 부딪힐 수 있다.
