@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { backupWarnings } from '../lib/backupWarnings'
 import { parseInstant, whenText } from '../lib/diagTime'
+import { refreshLine } from '../lib/refreshText'
 import { useBackToClose } from '../lib/backToClose'
 import { ErrorNotice } from './ErrorNotice'
-import type { BackupStatus, LogsResponse, RecordsStatus, SignalRulesStatus, SlowRequestsResponse } from '../types'
+import type { BackupStatus, LogsResponse, RecordsStatus, RefreshStatus, SignalRulesStatus, SlowRequestsResponse } from '../types'
 import { lockBodyScroll } from '../lib/scrollLock'
 
 /**
@@ -34,16 +35,17 @@ function sizeText(bytes: number): string {
  * 맨 위 한 줄. 무엇을 센 것인지("서버 로그")를 말에 넣고, 백업 칸에 경고가 있으면 끝에 붙인다 —
  * 로그만 세면서 "경고·오류가 없습니다"라고 하면 바로 아래 백업 경고와 어긋났다(0.45.1 C1).
  */
-export function summarize(logs: LogsResponse | null, backupWarn = false): string {
-  const { head, tail } = summaryParts(logs, backupWarn)
+export function summarize(logs: LogsResponse | null, backupWarn = false, refreshWarn = false): string {
+  const { head, tail } = summaryParts(logs, backupWarn, refreshWarn)
   return [head, tail].filter(Boolean).join(' · ')
 }
 
 /** 꼬리(백업)만 경고 모양으로 그리려고 둘로 나눈다 — 같은 작은 회색 글이라 눈에 띄지 않았다(0.45.2 B1) */
 const BACKUP_TAIL = '백업 확인 필요 — 아래 백업 칸'
+const REFRESH_TAIL = '시세 받기 막힘 — 아래 시세 받기 칸'
 
-function summaryParts(logs: LogsResponse | null, backupWarn: boolean): { head: string; tail: string } {
-  const tail = backupWarn ? BACKUP_TAIL : ''
+function summaryParts(logs: LogsResponse | null, backupWarn: boolean, refreshWarn = false): { head: string; tail: string } {
+  const tail = [backupWarn ? BACKUP_TAIL : '', refreshWarn ? REFRESH_TAIL : ''].filter(Boolean).join(' · ')
   if (!logs) return { head: '', tail }
   const bad = (logs.counts.ERROR ?? 0) + (logs.counts.CRITICAL ?? 0)
   const warn = logs.counts.WARNING ?? 0
@@ -55,8 +57,8 @@ function summaryParts(logs: LogsResponse | null, backupWarn: boolean): { head: s
   return { head, tail }
 }
 
-function SummaryLine({ logs, backupWarn }: { logs: LogsResponse | null; backupWarn: boolean }) {
-  const { head, tail } = summaryParts(logs, backupWarn)
+function SummaryLine({ logs, backupWarn, refreshWarn }: { logs: LogsResponse | null; backupWarn: boolean; refreshWarn: boolean }) {
+  const { head, tail } = summaryParts(logs, backupWarn, refreshWarn)
   return (
     <span className="hint diag-summary">
       {head}
@@ -246,6 +248,21 @@ function OffsiteLine({ lastAt, staleDays, warnings }: { lastAt: string | null; s
   )
 }
 
+/** 시세 받기 — 시장마다 마지막 정해진 갱신 (0.46.0 C). 막힌 줄만 경고 모양 */
+export function RefreshLines({ states }: { states: RefreshStatus[] }) {
+  return (
+    <section className="diag-slow" aria-labelledby="diag-refresh-title">
+      <h4 id="diag-refresh-title">시세 받기</h4>
+      {states.map((state) => (
+        <p key={state.market} className={state.blocked ? 'hint diag-warn' : 'hint'} role={state.blocked ? 'note' : undefined}>
+          {refreshLine(state)}
+        </p>
+      ))}
+      <p className="hint">정해진 시각(아침·오후)과 서버를 켤 때 받은 결과입니다. 막히면 관리자에게 한 번 알림이 갑니다.</p>
+    </section>
+  )
+}
+
 /** `now` — 응답을 받은 때(멈춤 경고의 기준) */
 export function RecordsLine({ status, now }: { status: RecordsStatus; now: number }) {
   const value = status.value_record
@@ -330,7 +347,11 @@ export function DiagnosticsModal({ onClose }: { onClose: () => void }) {
         <div className="modal-head">
           <div className="modal-title">
             <h3>진단</h3>
-            <SummaryLine logs={logs} backupWarn={records?.status.backup ? backupWarnings(records.status.backup, records.at).any : false} />
+            <SummaryLine
+              logs={logs}
+              backupWarn={records?.status.backup ? backupWarnings(records.status.backup, records.at).any : false}
+              refreshWarn={(records?.status.refresh ?? []).some((r) => r.blocked)}
+            />
           </div>
           <div className="chip-row">
             <button
@@ -356,6 +377,7 @@ export function DiagnosticsModal({ onClose }: { onClose: () => void }) {
         <div className="diag-body">
           {rules && <SignalRulesLine status={rules} />}
           {records && <RecordsLine status={records.status} now={records.at} />}
+          {records?.status.refresh && records.status.refresh.length > 0 && <RefreshLines states={records.status.refresh} />}
           {slow && <SlowRequests slow={slow} />}
           {loading && <p className="hint">불러오는 중…</p>}
           {!loading && logs?.available === false && (

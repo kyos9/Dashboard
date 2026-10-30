@@ -3,7 +3,8 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../api/client'
 import type { BackupStatus, LogsResponse, RecordsStatus, SignalRulesStatus, SlowRequestsResponse } from '../types'
-import { BackupLines, DiagnosticsModal, RecordsLine, summarize } from './DiagnosticsModal'
+import { BackupLines, DiagnosticsModal, RecordsLine, RefreshLines, summarize } from './DiagnosticsModal'
+import { refreshLine } from '../lib/refreshText'
 import { whenText } from '../lib/diagTime'
 
 /**
@@ -325,6 +326,38 @@ describe('맨 위 요약과 백업 경고 (0.45.1 C1)', () => {
     render(<DiagnosticsModal onClose={() => {}} />)
     await screen.findByRole('heading', { name: '평가금액 기록 · 백업' })
     expect(screen.getByText('서버 로그: 최근 경고·오류 없음')).toBeInTheDocument()
+  })
+})
+
+describe('진단의 시세 받기 (0.46.0 C)', () => {
+  const base = {
+    market: 'US', at: '2026-10-30T07:31:00+00:00', total: 20, failed: 0, failed_tickers: [] as string[],
+    providers: [] as string[], latest_date: '2026-10-29', blocked: false, reason: null, last_ok_at: '2026-10-30T07:31:00+00:00',
+  } as const
+  const at = new Date('2026-10-30T07:31:00Z').toLocaleString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })
+
+  it('받은 날 — 받은 때·종목 수·실패 수(이름까지)', () => {
+    expect(refreshLine({ ...base })).toBe(`미국: ${at} 받음 · 20종목 중 실패 0`)
+    expect(refreshLine({ ...base, failed: 1, failed_tickers: ['ZZZZ'] })).toBe(`미국: ${at} 받음 · 20종목 중 실패 1 (ZZZZ)`)
+  })
+
+  it('실패가 많아 막힘 — 출처 이름과 마지막으로 받은 때', () => {
+    const line = refreshLine({ ...base, blocked: true, reason: 'failed', failed: 18, providers: ['yahoo', 'stooq'], last_ok_at: '2026-10-28T07:31:00+00:00' })
+    expect(line).toMatch(/^미국: .* 20종목 중 18개 실패 \(시세 출처 Yahoo·Stooq\) — 마지막으로 받은 때 /)
+  })
+
+  it('실패는 없는데 묵음 — "실패 0" 과 막힘이 한 줄에 서지 않는다 (계획 다시 보기)', () => {
+    const line = refreshLine({ ...base, market: 'JP', blocked: true, reason: 'stale', latest_date: '2026-10-26' })
+    expect(line).toBe('일본: 받았지만 시세가 10월 26일에 멈춰 있습니다')
+    expect(line).not.toMatch(/실패 0/)
+  })
+
+  it('막힌 줄만 경고 모양, 맨 위 요약에 한 마디', () => {
+    render(<RefreshLines states={[{ ...base }, { ...base, market: 'KR', blocked: true, reason: 'failed', failed: 3, total: 3 }]} />)
+    expect(screen.getByRole('heading', { name: '시세 받기' })).toBeInTheDocument()
+    expect(screen.getAllByRole('note').map((n) => n.textContent)).toEqual([expect.stringMatching(/^한국: /)])
+    expect(summarize(null, false, true)).toBe('시세 받기 막힘 — 아래 시세 받기 칸')
+    expect(summarize(null, true, true)).toBe('백업 확인 필요 — 아래 백업 칸 · 시세 받기 막힘 — 아래 시세 받기 칸')
   })
 })
 

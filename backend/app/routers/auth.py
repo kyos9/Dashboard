@@ -30,7 +30,7 @@ from app.models import (
     UserSettings,
     UserStock,
 )
-from app.services import app_settings, auth, backup, pipeline
+from app.services import app_settings, auth, backup, pipeline, refresh_status
 from app.services import google_login as google
 from app.services.users import LOCAL_USER_ID, STATUS_ACTIVE, STATUS_PENDING, current_user_id
 
@@ -202,6 +202,12 @@ def status(request: Request, db: Session = Depends(get_db)) -> dict:
                 body["backup_attention"] = backup.attention()
             except OSError:
                 logger.warning("백업 상태를 읽지 못했습니다 — 메뉴의 점을 건너뜁니다", exc_info=True)
+            # 시세 받기가 막혔나 (0.46.0 C) — 같은 ⋯ 의 점. 깨진 값·DB 오류면 점만 포기한다(로그인 응답이 넘어지지 않게)
+            try:
+                body["refresh_attention"] = refresh_status.attention(db)
+            except Exception:
+                logger.warning("시세 받기 상태를 읽지 못했습니다 — 메뉴의 점을 건너뜁니다", exc_info=True)
+                db.rollback()
         # 설정이 덜 됐으면 로그인 버튼을 누르기 **전에** 알려준다 — 누르고 나서야 안 되는
         # 것을 알면 구글 쪽 문제로 보인다.
         body["config_problem"] = google.config_problem()

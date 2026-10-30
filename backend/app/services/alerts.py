@@ -138,6 +138,48 @@ def notify_signup(db: Session, name: str | None) -> None:
         deliver(db, owner.id, signup_message(name))
 
 
+# ---------------------------------------------------------------------------
+#  시세 받기가 막혔다 → 관리자 (0.46.0 C)
+# ---------------------------------------------------------------------------
+
+REFRESH_ALERT_SWITCH = "SIGNAL_DASHBOARD_REFRESH_ALERT"
+MARKET_NAMES = {"US": "미국", "KR": "한국", "JP": "일본"}
+PROVIDER_NAMES = {"yahoo": "Yahoo", "stooq": "Stooq", "naver": "네이버"}
+
+
+def refresh_alert_enabled() -> bool:
+    import os
+
+    return os.environ.get(REFRESH_ALERT_SWITCH, "").strip().lower() not in ("off", "0", "false", "no")
+
+
+def refresh_blocked_message(blocked: list[dict]) -> dict:
+    parts = []
+    for state in blocked:
+        name = MARKET_NAMES.get(state["market"], state["market"])
+        if state.get("reason") == "stale" and not state.get("failed"):
+            day = state.get("latest_date") or "?"
+            parts.append(f"{name}은 시세가 {day}에 멈춰 있습니다")
+        else:
+            parts.append(f"{name} {state['total']}종목 중 {state['failed']}개")
+    return {
+        "title": "시세를 받지 못했습니다",
+        "body": f"{' · '.join(parts)}. 진단에서 볼 수 있습니다. (관리자에게만 가는 알림)",
+        "url": "/",
+        "tag": "refresh-blocked",
+    }
+
+
+def notify_refresh_blocked(db: Session, blocked: list[dict]) -> None:
+    """막힘으로 **바뀐** 시장이 있을 때 한 번 — 받을 때(아침·오후)·알림 종류 설정을 따르지 않는다(가입 신청처럼 바로).
+    알림 종류로 만들지 않은 것은 옛 화면의 알림 설정 창이 모르는 종류에서 넘어지기 때문이다. 끄는 길은 `.env` 스위치(주인 결정)."""
+    if not blocked or not refresh_alert_enabled():
+        return
+    message = refresh_blocked_message(blocked)
+    for owner in db.query(User).filter(User.is_owner.is_(True)).all():
+        deliver(db, owner.id, message)
+
+
 def _run_in_background(job: Callable[[], None]) -> None:
     """로그인을 붙잡지 않도록 뒤에서 보낸다. 테스트는 이 자리를 바로 부르는 것으로 바꾼다."""
     threading.Thread(target=job, name="push-signup", daemon=True).start()

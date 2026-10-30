@@ -487,6 +487,20 @@ export interface ValueRecord {
 }
 
 /** 진단 — 기록이 살아 있나 (0.44.0, 주인). 평가금액은 합계만 */
+/** 시세 받기 — 한 시장의 마지막 정해진 갱신 (0.46.0 C, 관리자만) */
+export interface RefreshStatus {
+  market: string
+  at: string
+  total: number
+  failed: number
+  failed_tickers: string[]
+  providers: string[]
+  latest_date: string | null
+  blocked: boolean
+  reason: 'failed' | 'stale' | null
+  last_ok_at: string | null
+}
+
 export interface RecordsStatus {
   value_record: {
     enabled: boolean
@@ -496,6 +510,8 @@ export interface RecordsStatus {
   }
   /** 0.44.0 D0 — 옛 서버는 보내지 않는다. 파일 이름·경로는 없다 */
   backup?: BackupStatus
+  /** 0.46.0 C — 시장마다 시세 받기. 옛 서버는 보내지 않는다 */
+  refresh?: RefreshStatus[]
 }
 
 export interface BackupStatus {
@@ -607,6 +623,8 @@ export interface AuthStatus {
   pending_count?: number
   /** 관리자가 진단의 백업 칸을 봐야 하나 — 헤더 ⋯ 의 점 (0.45.0). 구글 모드의 관리자에게만, 옛 서버는 없다 */
   backup_attention?: boolean
+  /** 시세 받기가 막힌 시장이 있나 (0.46.0 C, 관리자만). 옛 서버는 없다 */
+  refresh_attention?: boolean
   /** 관리자에게 연락할 곳 (`.env` 의 OPERATOR_CONTACT). 적지 않았으면 없다 */
   contact?: string
 }

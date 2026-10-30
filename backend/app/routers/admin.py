@@ -17,7 +17,9 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models import User, UserStock
-from app.services import app_settings, auth, backup, pipeline, signal_recompute, signal_rules, value_record
+from app.services import (
+    app_settings, auth, backup, pipeline, refresh_status, signal_recompute, signal_rules, value_record,
+)
 from app.services.users import (
     STATUS_ACTIVE,
     STATUS_BLOCKED,
@@ -149,4 +151,5 @@ def records_status(db: Session = Depends(get_db)) -> dict:
     # ⋯ 의 점(`backup_attention`)과 같은 기준 (A 검토)
     if auth.mode() != auth.MODE_GOOGLE:
         state.pop("offsite", None)
-    return {"value_record": value_record.status(db), "backup": state}
+    # 시세 받기 — 시장마다 마지막 정해진 갱신의 결과 (0.46.0 C). 실패 종목 이름이 남의 것일 수 있어 관리자만
+    return {"value_record": value_record.status(db), "backup": state, "refresh": refresh_status.overview(db)}

@@ -719,6 +719,20 @@ def seed() -> None:
     # 사흘 전에 관리자 PC 로 꺼낸 것처럼 (0.45.0 A) — 진단의 "밖에 꺼낸 것" 줄이 보이게
     backup.mark_pulled(now=dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=3))
 
+    # 시세 받기 (0.46.0 C) — 미국·한국은 받았고 일본은 막힌 것처럼. 진단의 "시세 받기" 줄과 ⋯ 의 점이 보인다(푸시는 보내지 않는다)
+    from app.markets import Market, market_of
+    from app.models import UserStock as _Stock
+    from app.services import refresh_status
+
+    with SessionLocal() as db:
+        rows = []
+        for (ticker,) in db.query(_Stock.ticker).distinct().order_by(_Stock.ticker):
+            if market_of(ticker) == Market.JP:
+                rows.append({"ticker": ticker, "error": "막힘(데모)", "hint": "", "providers": ["yahoo", "stooq"], "not_found": False})
+            else:
+                rows.append({"ticker": ticker, "rows": 0})
+        refresh_status.record_run(db, rows)
+
 
 # ---------------------------------------------------------------------------
 #  실행

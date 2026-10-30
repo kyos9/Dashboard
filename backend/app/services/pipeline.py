@@ -124,13 +124,13 @@ def _refresh(db: Session, stocks: list[UserStock]) -> list[dict]:
         outcome = fetched.get(stock.ticker)
         if isinstance(outcome, data_ingestion.DataIngestionError):
             logger.warning("skip refresh for %s: %s", stock.ticker, outcome)
-            results.append({"ticker": stock.ticker, "error": str(outcome), "hint": outcome.hint})
+            results.append(_failure(stock.ticker, outcome))
             continue
         try:
             results.append(refresh_and_evaluate_stock(db, stock, price_df=outcome))
         except data_ingestion.DataIngestionError as exc:
             logger.warning("skip refresh for %s: %s", stock.ticker, exc)
-            results.append({"ticker": stock.ticker, "error": str(exc), "hint": exc.hint})
+            results.append(_failure(stock.ticker, exc))
             continue
         # 방금 받았다 — 사람이 바로 새로고침을 눌러도 다시 받지 않고 "방금 받았다"고 답한다
         limits.refresh_cooldown.mark(stock.ticker, ok=True)
@@ -142,6 +142,25 @@ def _refresh(db: Session, stocks: list[UserStock]) -> list[dict]:
         logger.warning("환율 갱신 실패 — 기존 환율을 계속 사용합니다", exc_info=True)
 
     return results
+
+
+def _failure(ticker: str, exc: data_ingestion.DataIngestionError) -> dict:
+    """실패한 종목 한 줄. 어느 제공자가 막혔는지(이름만)와 "그런 티커가 없다"만 받았는지를 더한다 (0.46.0 C —
+    `refresh_status` 가 시장이 막혔는지 셀 때 쓴다). 더하기만 — 새로고침 응답의 옛 칸은 그대로."""
+    cause = exc.__cause__
+    failures = getattr(cause, "failures", None) or []
+    names = []
+    for failure in failures:
+        name = getattr(failure, "provider", None)
+        if isinstance(name, str) and name not in names:
+            names.append(name)
+    return {
+        "ticker": ticker,
+        "error": str(exc),
+        "hint": exc.hint,
+        "providers": names,
+        "not_found": bool(getattr(cause, "looks_like_bad_ticker", False)),
+    }
 
 
 def stale_markets(db: Session) -> list[Market]:
