@@ -8,7 +8,7 @@ import pytest
 
 from app.models import PriceDaily, User
 from app.services import alerts, app_settings, refresh_status
-from tests.factories import make_push_subscription, make_stock, new_device
+from tests.factories import make_push_subscription, make_stock, make_user, new_device
 
 TODAY = dt.date(2026, 10, 30)  # 금요일 — 미국 마지막 거래일은 목요일 10-29
 NOW = dt.datetime(2026, 10, 30, 7, 31, tzinfo=dt.timezone.utc)
@@ -143,9 +143,7 @@ def _owner_with_device(db, monkeypatch):
     sent = []
     monkeypatch.setattr(alerts.push, "send", lambda endpoint, p256dh, auth, message, **kw: sent.append((endpoint, message)) or alerts.push.SENT)
     make_push_subscription(db, new_device("owner"), user_id=1)
-    friend = User(id=2, google_sub="s2", email="f@example.com", status="active", is_owner=False)
-    db.add(friend)
-    db.commit()
+    make_user(db, id=2, google_sub="s2", email="f@example.com", status="active", is_owner=False)
     make_push_subscription(db, new_device("friend"), user_id=2)
     return sent
 
