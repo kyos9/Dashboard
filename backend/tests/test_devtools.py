@@ -248,6 +248,7 @@ def test_demo_has_daily_value_records(server):
     refresh = {r["market"]: r for r in owner.get(server + "/api/admin/records").json()["refresh"]}
     assert set(refresh) == {"US", "KR", "JP"}
     assert refresh["JP"]["blocked"] is True and refresh["US"]["blocked"] is False and refresh["KR"]["blocked"] is False
+    assert refresh["JP"]["last_ok_at"] < refresh["JP"]["at"]  # 이틀 전에는 받았다 — "마지막으로 받은 때"가 보인다
     assert owner.get(server + "/api/auth/status").json()["refresh_attention"] is True
     # 알림 설정 (0.45.0 B) — 오후만, SCHD 끔
     push = owner.get(server + "/api/push/settings").json()

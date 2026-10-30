@@ -725,8 +725,12 @@ def seed() -> None:
     from app.services import refresh_status
 
     with SessionLocal() as db:
+        tickers = [ticker for (ticker,) in db.query(_Stock.ticker).distinct().order_by(_Stock.ticker)]
+        # 이틀 전에는 다 받았고(진단의 "마지막으로 받은 때"), 오늘 일본만 막혔다
+        refresh_status.record_run(db, [{"ticker": t, "rows": 0} for t in tickers],
+                                  now=dt.datetime.now(dt.timezone.utc).replace(microsecond=0) - dt.timedelta(days=2))
         rows = []
-        for (ticker,) in db.query(_Stock.ticker).distinct().order_by(_Stock.ticker):
+        for ticker in tickers:
             if market_of(ticker) == Market.JP:
                 rows.append({"ticker": ticker, "error": "막힘(데모)", "hint": "", "providers": ["yahoo", "stooq"], "not_found": False})
             else:
