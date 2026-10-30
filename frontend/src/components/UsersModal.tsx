@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api } from '../api/client'
+import { api, ApiError } from '../api/client'
 import { useBackToClose } from '../lib/backToClose'
 import { ConfirmDialog } from './ConfirmDialog'
 import { ErrorNotice } from './ErrorNotice'
@@ -33,6 +33,7 @@ export function UsersModal({ onClose, onChanged }: { onClose: () => void; onChan
   const [error, setError] = useState<unknown>(null)
   const [busyId, setBusyId] = useState<number | null>(null)
   const [confirmBlock, setConfirmBlock] = useState<AdminUser | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<AdminUser | null>(null)
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [savingSettings, setSavingSettings] = useState(false)
 
@@ -57,14 +58,14 @@ export function UsersModal({ onClose, onChanged }: { onClose: () => void; onChan
   useBackToClose(onClose)
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !confirmBlock && onClose()
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !confirmBlock && !confirmDelete && onClose()
     document.addEventListener('keydown', onKey)
     const release = lockBodyScroll()
     return () => {
       document.removeEventListener('keydown', onKey)
       release()
     }
-  }, [onClose, confirmBlock])
+  }, [onClose, confirmBlock, confirmDelete])
 
   async function change(user: AdminUser, status: Exclude<UserStatus, 'pending'>) {
     setBusyId(user.id)
@@ -78,6 +79,24 @@ export function UsersModal({ onClose, onChanged }: { onClose: () => void; onChan
     } finally {
       setBusyId(null)
       setConfirmBlock(null)
+    }
+  }
+
+  // 지우기 (0.46.0 D) — 승인 대기·거절·차단만. 실패하면 창을 닫고 까닭을 위에 보인다
+  async function remove(user: AdminUser) {
+    setBusyId(user.id)
+    setError(null)
+    try {
+      await api.deleteUser(user.id)
+      setUsers((rows) => rows?.filter((row) => row.id !== user.id) ?? rows)
+      onChanged()
+    } catch (e) {
+      // 화면이 서버보다 새로우면(업데이트 중) 서버가 이 주소를 모른다 — 까닭(hint)이 없는 404/405 를 영어로 보이지 않는다
+      const unknown = e instanceof ApiError && (e.status === 404 || e.status === 405) && !e.hint
+      setError(unknown ? new Error('서버가 아직 이 기능을 모릅니다 — 서버 업데이트가 끝난 뒤 다시 눌러 주세요.') : e)
+    } finally {
+      setBusyId(null)
+      setConfirmDelete(null)
     }
   }
 
@@ -134,7 +153,7 @@ export function UsersModal({ onClose, onChanged }: { onClose: () => void; onChan
 
           <p className="hint users-intro">
             구글로 처음 들어온 사람은 승인 대기로 시작합니다. 승인하면 바로(다시 로그인하지 않아도) 자기 종목과
-            포트폴리오를 만들 수 있습니다. 거절·차단해도 기록은 지우지 않습니다. 반년 넘게 안 들어온 사람(알림
+            포트폴리오를 만들 수 있습니다. 거절·차단해도 기록은 남습니다. 계정과 기록을 없애려면 ‘지우기’를 누르세요(승인 대기·거절·차단만). 반년 넘게 안 들어온 사람(알림
             받는 기기도 없는)이 혼자 담은 종목은 매일 받지 않고, 다시 들어오면 밀린 시세를 받습니다.
           </p>
 
@@ -187,6 +206,11 @@ export function UsersModal({ onClose, onChanged }: { onClose: () => void; onChan
                           {user.status === 'blocked' ? '차단 풀기' : '승인'}
                         </button>
                       )}
+                      {user.status !== 'active' && (
+                        <button className="ghost sm user-delete" disabled={busy} onClick={() => setConfirmDelete(user)}>
+                          지우기
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -210,6 +234,27 @@ export function UsersModal({ onClose, onChanged }: { onClose: () => void; onChan
             <b>{confirmBlock.name || confirmBlock.email}</b> 님은 바로 로그아웃되고, 다시 로그인해도 들어오지 못합니다.
           </p>
           <p className="hint">종목·보유수량 같은 기록은 남습니다. 차단을 풀면 그대로 돌아옵니다.</p>
+        </ConfirmDialog>
+      )}
+      {confirmDelete && (
+        <ConfirmDialog
+          title="계정을 지울까요?"
+          confirmLabel="지우기"
+          busyLabel="지우는 중…"
+          busy={busyId === confirmDelete.id}
+          onConfirm={() => void remove(confirmDelete)}
+          onCancel={() => setConfirmDelete(null)}
+        >
+          <p>
+            <b>{confirmDelete.name || confirmDelete.email || `사용자 ${confirmDelete.id}`}</b>
+            {confirmDelete.email && confirmDelete.name ? ` (${confirmDelete.email})` : ''} 님의 계정과 기록(종목{' '}
+            {confirmDelete.stock_count}개 포함)을 지웁니다. <b>되돌릴 수 없습니다.</b>
+          </p>
+          <p className="hint">
+            거절·차단은 기록을 남겨 다시 신청하지 못하게 하고, 지우기는 계정과 기록을 없애 같은 구글 계정으로 다시 가입 신청을 할 수
+            있게 합니다(서버 설정의 허용목록에 있는 이메일이면 바로 들어옵니다). 서버 백업에는 최대 7일, 관리자 PC 사본에는 최근
+            4벌까지 남았다가 지워집니다.
+          </p>
         </ConfirmDialog>
       )}
     </>

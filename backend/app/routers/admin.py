@@ -10,7 +10,7 @@
 import logging
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -25,6 +25,7 @@ from app.services.users import (
     STATUS_BLOCKED,
     STATUS_PENDING,
     STATUS_REJECTED,
+    delete_user_records,
     require_owner,
 )
 
@@ -97,6 +98,36 @@ def change_status(user_id: int, payload: StatusChange, db: Session = Depends(get
         db.commit()
         logger.info("사용자 %s 상태를 %s(으)로 바꿨습니다", user.id, payload.status)
     return _row(user, _stock_counts(db).get(user.id, 0), pipeline.is_dormant(db, user))
+
+
+@router.delete("/users/{user_id}", status_code=204)
+def delete_user(user_id: int, db: Session = Depends(get_db)) -> Response:
+    """승인 대기·거절·차단인 계정과 그 기록을 지운다 (0.46.0 D). 되돌릴 수 없다.
+
+    방침은 "승인 대기·거절·차단된 계정은 탈퇴 버튼이 없으니 지우고 싶으면 관리자에게 문의"라고 하는데, 관리자에게 지우는 수단이
+    없었다(DB 를 손으로 고쳐야 했다). 지우는 것은 탈퇴와 같다(`delete_user_records`).
+
+    - **쓰는 중(`active`)인 계정은 409** — 먼저 차단한다. 실수로 지인의 기록을 지우지 않게 두 단계.
+    - 관리자 계정은 403.
+    - 지우면 같은 구글 계정으로 다시 신청할 수 있다(거절·차단이 막던 이유가 사라진다). 허용목록(`ALLOWED_GOOGLE_EMAILS`)에
+      있는 이메일이면 다시 오는 순간 바로 쓰는 상태다.
+    """
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail={"hint": "없는 사용자입니다.", "message": "user not found"})
+    if user.is_owner:
+        raise HTTPException(
+            status_code=403,
+            detail={"hint": "관리자 계정은 지울 수 없습니다.", "message": "cannot delete the owner"},
+        )
+    if user.status == STATUS_ACTIVE:
+        raise HTTPException(
+            status_code=409,
+            detail={"hint": "쓰는 중인 계정은 지울 수 없습니다. 먼저 차단한 뒤 지우세요.", "message": "block first"},
+        )
+    delete_user_records(db, user)
+    logger.info("관리자가 사용자 %s 를 지웠습니다", user_id)
+    return Response(status_code=204)
 
 
 # ---------------------------------------------------------------------------

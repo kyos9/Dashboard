@@ -20,19 +20,10 @@ from sqlalchemy.orm import Session, sessionmaker
 from starlette.concurrency import run_in_threadpool
 
 from app.db import get_db
-from app.models import (
-    Holding,
-    PortfolioValueDaily,
-    PushState,
-    PushSubscription,
-    RebalanceSnapshot,
-    User,
-    UserSettings,
-    UserStock,
-)
+from app.models import PushSubscription, User
 from app.services import app_settings, auth, backup, pipeline, refresh_status
 from app.services import google_login as google
-from app.services.users import LOCAL_USER_ID, STATUS_ACTIVE, STATUS_PENDING, current_user_id
+from app.services.users import LOCAL_USER_ID, STATUS_ACTIVE, STATUS_PENDING, current_user_id, delete_user_records
 
 logger = logging.getLogger(__name__)
 
@@ -424,13 +415,7 @@ def withdraw(
             detail={"hint": "관리자 계정은 탈퇴할 수 없습니다.", "message": "owner cannot withdraw"},
         )
 
-    # 보유가 내 종목 행을, 기록·설정이 계정 행을 가리키므로 그 순서로 지운다
-    for model in (
-        Holding, UserStock, RebalanceSnapshot, PortfolioValueDaily, UserSettings, PushSubscription, PushState,
-    ):
-        db.query(model).filter(model.user_id == user_id).delete(synchronize_session=False)
-    db.delete(user)
-    db.commit()
+    delete_user_records(db, user)
     response.delete_cookie(auth.COOKIE_NAME, path="/")
     logger.info("사용자 %s 탈퇴", user_id)
 

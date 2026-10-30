@@ -136,6 +136,8 @@ ENDPOINTS: dict[tuple[str, str], tuple[str, str]] = {
     # 사용자 목록·가입 승인 — 모든 사람의 이메일이 들어 있다
     ("GET", "/api/admin/users"): (SHARED, OWNER),
     ("PUT", "/api/admin/users/{user_id}/status"): (SHARED, OWNER),
+    # 승인 대기·거절·차단 계정 지우기 (0.46.0 D) — 남의 계정과 기록을 지운다
+    ("DELETE", "/api/admin/users/{user_id}"): (SHARED, OWNER),
     # 앱 설정 (9-15) — 사용자에게 AI 진단·분석을 열지 같은, 모두에게 걸리는 스위치
     ("GET", "/api/admin/settings"): (SHARED, OWNER),
     ("PUT", "/api/admin/settings"): (SHARED, OWNER),
@@ -197,11 +199,11 @@ def test_the_table_has_no_api_that_is_gone():
 
 
 def test_owner_only_list_matches_the_plan():
-    """주인 전용은 15개다 (ROADMAP 6-1의 8개 + 4-4b 사용자 목록·승인 + 8-5 느린 요청
-    + 9-15 앱 설정 둘 + 0.41.0 시그널 재계산 상태 + 0.44.0 기록 상태). 늘거나 줄면 계획과 같이 고친다. 9-7·9-8 AI 진단·분석 4개는
+    """주인 전용은 16개다 (ROADMAP 6-1의 8개 + 4-4b 사용자 목록·승인 + 8-5 느린 요청
+    + 9-15 앱 설정 둘 + 0.41.0 시그널 재계산 상태 + 0.44.0 기록 상태 + 0.46.0 계정 지우기). 늘거나 줄면 계획과 같이 고친다. 9-7·9-8 AI 진단·분석 4개는
     9-15 에서 `열면`으로 갔다."""
     owner_only = sorted(key for key, (_, who) in ENDPOINTS.items() if who == OWNER)
-    assert len(owner_only) == 15, owner_only
+    assert len(owner_only) == 16, owner_only
     # 주인 전용은 전부 공용 자원을 건드리는 것이다 — 사용자별 자원을 주인만 쓰게 하는 것은 이제 없다
     assert [key for key in owner_only if ENDPOINTS[key][0] != SHARED] == []
     advice = sorted(key for key, (_, who) in ENDPOINTS.items() if who == ADVICE)
@@ -1068,6 +1070,7 @@ OWNER_CALLS = {
     ("GET", "/api/logs/slow"): {},
     ("GET", "/api/admin/users"): {},
     ("PUT", "/api/admin/users/{user_id}/status"): {"json": {"status": "blocked"}},
+    ("DELETE", "/api/admin/users/{user_id}"): {},
     ("GET", "/api/admin/settings"): {},
     ("PUT", "/api/admin/settings"): {"json": {"ai_advice_for_users": False}},
     ("GET", "/api/admin/signal-rules"): {},
@@ -1081,7 +1084,7 @@ def _url(path: str) -> str:
 
 
 def test_user_is_refused_every_owner_api(world):
-    """사용자 계정은 주인 전용 14개 모두 403. 아무것도 받아오지 않는다 (자기를 차단하지도 못한다)."""
+    """사용자 계정은 주인 전용 모두 403. 아무것도 받아오지 않는다 (자기를 차단하지도 못한다)."""
     assert set(OWNER_CALLS) == {key for key, (_, who) in ENDPOINTS.items() if who == OWNER}
     client = world.as_user(B)
     for (method, path), kwargs in OWNER_CALLS.items():

@@ -11,6 +11,7 @@ import { RequireLogin } from './LoginPrompt'
 import { UsersModal } from './UsersModal'
 import { whenLabel } from '../lib/display'
 import { resetScrollLock } from '../lib/scrollLock'
+import { resetBackToClose } from '../lib/backToClose'
 
 /** 가입 신청 → 관리자 승인 (ROADMAP 4-4b) — 신청한 사람의 화면과 관리자의 사용자 목록. */
 
@@ -48,6 +49,7 @@ function renderApp(status: AuthStatus, body: React.ReactNode = null) {
 
 beforeEach(() => {
   vi.restoreAllMocks()
+  resetBackToClose() // 앞 시험이 닫은 팝업의 기록 칸 빼기가 다음 시험의 목록을 닫지 않게
   localStorage.clear()
   vi.spyOn(api, 'getAppSettings').mockResolvedValue({ ai_advice_for_users: true })
 })
@@ -195,10 +197,11 @@ describe('사용자 목록', () => {
         .queryAllByRole('button')
         .map((b) => b.textContent)
 
-    expect(await buttons(7)).toEqual(['승인', '거절'])
+    // 지우기는 승인 대기·거절·차단에만, 맨 끝 (0.46.0 D) — 쓰는 중이면 먼저 차단
+    expect(await buttons(7)).toEqual(['승인', '거절', '지우기'])
     expect(await buttons(3)).toEqual(['차단'])
-    expect(await buttons(4)).toEqual(['승인'])
-    expect(await buttons(5)).toEqual(['차단 풀기'])
+    expect(await buttons(4)).toEqual(['승인', '지우기'])
+    expect(await buttons(5)).toEqual(['차단 풀기', '지우기'])
     expect(await buttons(1)).toEqual([])
     expect(screen.getByText('가입 신청 1건이 기다리고 있습니다')).toBeInTheDocument()
     expect(within(screen.getByTestId('user-3')).getByText(/종목 4개/)).toBeInTheDocument()
@@ -217,6 +220,49 @@ describe('사용자 목록', () => {
     await waitFor(() => expect(within(screen.getByTestId('user-3')).getByText('차단')).toBeInTheDocument())
     expect(onChanged).toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled() // 확인 창을 닫아도 목록은 그대로
+  })
+
+  it('지우기는 한 번 더 묻는다 — 이름·이메일·종목 수, 거절과의 차이, 되돌릴 수 없음 (0.46.0 D)', async () => {
+    const del = vi.spyOn(api, 'deleteUser').mockResolvedValue(undefined)
+    const blocked = person({ id: 5, name: '차단된 사람', email: 'b@example.com', status: 'blocked', stock_count: 3 })
+    const { onChanged, onClose } = open([blocked, OWNER])
+
+    await userEvent.click(within(await screen.findByTestId('user-5')).getByRole('button', { name: '지우기' }))
+    expect(del).not.toHaveBeenCalled()
+    const dialog = screen.getByRole('alertdialog', { name: '계정을 지울까요?' })
+    expect(dialog).toHaveTextContent('차단된 사람 (b@example.com) 님의 계정과 기록(종목 3개 포함)을 지웁니다. 되돌릴 수 없습니다.')
+    expect(dialog).toHaveTextContent(/거절·차단은 기록을 남겨 다시 신청하지 못하게 하고, 지우기는/)
+    expect(dialog).toHaveTextContent(/허용목록에 있는 이메일이면 바로 들어옵니다/)
+    await userEvent.click(within(dialog).getByRole('button', { name: '지우기' }))
+
+    expect(del).toHaveBeenCalledWith(5)
+    await waitFor(() => expect(screen.queryByTestId('user-5')).toBeNull())
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+    expect(onChanged).toHaveBeenCalled() // 헤더의 대기 숫자를 다시 센다
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('지우기 실패 — 서버의 까닭(쓰는 중이면 먼저 차단)을 보이고 줄은 남는다, 옛 서버면 한국어로', async () => {
+    const del = vi.spyOn(api, 'deleteUser').mockRejectedValue(
+      new ApiError(409, '쓰는 중인 계정은 지울 수 없습니다. 먼저 차단한 뒤 지우세요.', 'block first'),
+    )
+    open([WAITING])
+    await userEvent.click(within(await screen.findByTestId('user-7')).getByRole('button', { name: '지우기' }))
+    await userEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: '지우기' }))
+    expect(await screen.findByText(/먼저 차단한 뒤 지우세요/)).toBeInTheDocument()
+    expect(screen.getByTestId('user-7')).toBeInTheDocument()
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+
+    del.mockRejectedValue(new ApiError(404, null, 'Not Found'))
+    await userEvent.click(within(screen.getByTestId('user-7')).getByRole('button', { name: '지우기' }))
+    await userEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: '지우기' }))
+    expect(await screen.findByText(/서버가 아직 이 기능을 모릅니다/)).toBeInTheDocument()
+    expect(screen.queryByText('Not Found')).toBeNull()
+  })
+
+  it('목록 위 풀이가 지우는 길을 알려 준다', async () => {
+    open([FRIEND])
+    expect(await screen.findByText(/계정과 기록을 없애려면 ‘지우기’를 누르세요/)).toBeInTheDocument()
   })
 
   it('실패하면 사유를 보여주고 상태는 그대로 둔다', async () => {

@@ -49,6 +49,15 @@ describe('방침 화면', () => {
     expect(within(page).getAllByText('help@example.org').length).toBeGreaterThan(0)
   })
 
+  it('관리자가 승인 대기·거절·차단 계정을 지우면 — 다시 신청할 수 있고, 백업에 남는 기간 (0.46.0 D)', async () => {
+    mock(guest())
+    window.history.replaceState(null, '', '/privacy')
+    render(<App />)
+    const page = await screen.findByRole('article')
+    expect(page.textContent).toContain('관리자가 그런 계정을 지우면 탈퇴와 같이 계정과 기록이 지워지고, 같은 계정으로 다시 가입 신청을 할 수 있습니다.')
+    expect(page.textContent).toContain('서버 백업(최대 7일)과 관리자 PC 사본(최근 4벌)에 남았다가')
+  })
+
   it('서버가 날마다 남기는 평가금액 기록을 적고, 탈퇴하면 같이 지운다고 적는다 (0.44.0)', async () => {
     mock(guest())
     window.history.replaceState(null, '', '/privacy')
@@ -57,7 +66,7 @@ describe('방침 화면', () => {
     const page = await screen.findByRole('article')
     expect(within(page).getByText('서버가 날마다 만드는 기록')).toBeInTheDocument()
     expect(page.textContent).toContain('서버가 날마다 남긴 평가금액 기록을 바로 지웁니다')
-    expect(page.textContent).toContain('시행일 2026-10-24')
+    expect(page.textContent).toContain('시행일 2026-10-31')
   })
 
   it('모든 화면 아래에 방침 링크가 있다', async () => {

@@ -264,3 +264,77 @@ def test_a_backup_folder_that_cannot_be_read_does_not_break_the_admin_status(api
     assert res.status_code == 200
     assert res.json()["user"]["is_owner"] is True
     assert "backup_attention" not in res.json()
+
+
+# ---------------------------------------------------------------------------
+#  지우기 (0.46.0 D) — 승인 대기·거절·차단만
+# ---------------------------------------------------------------------------
+
+
+def _id_of(people, sub: str) -> int:
+    rows = people.be("sub-owner").get("/api/admin/users").json()
+    return next(r["id"] for r in rows if r["email"] == _EMAILS[sub])
+
+
+@pytest.mark.parametrize("status", ["pending", "rejected", "blocked"])
+def test_the_admin_deletes_a_waiting_rejected_or_blocked_account(api, people, status):
+    from app.db import Base
+
+    _, Session = api
+    people.login(STRANGER, "sub-x")
+    user_id = _id_of(people, "sub-x")
+    if status != "pending":
+        assert _set_status(people, "sub-x", status).status_code == 200
+    with Session() as db:  # 지울 기록이 있게 — 대기 중에도 설정·알림 기기 줄은 생길 수 있다
+        from tests.factories import make_push_subscription, make_settings, new_device
+
+        make_settings(db, user_id=user_id)
+        make_push_subscription(db, new_device("x"), user_id=user_id)
+
+    res = people.be("sub-owner").delete(f"/api/admin/users/{user_id}")
+    assert res.status_code == 204 and res.content == b""
+    with Session() as db:
+        assert db.get(User, user_id) is None
+        for table in (t for t in Base.metadata.sorted_tables if "user_id" in t.c):
+            assert db.execute(table.select().where(table.c.user_id == user_id)).first() is None, table.name
+    # 지웠으니 같은 구글 계정으로 다시 신청할 수 있다 — 승인 대기로 새로 생긴다(거절이 막던 이유가 사라졌다)
+    assert people.login(STRANGER, "sub-x") is None
+    assert _user(Session, "sub-x").status == "pending"
+
+
+def test_an_active_account_must_be_blocked_first(api, people):
+    _, Session = api
+    people.login(FRIEND, "sub-friend")  # 허용목록 — 바로 쓰는 상태
+    user_id = _id_of(people, "sub-friend")
+    res = people.be("sub-owner").delete(f"/api/admin/users/{user_id}")
+    assert res.status_code == 409
+    assert res.json()["detail"]["hint"] == "쓰는 중인 계정은 지울 수 없습니다. 먼저 차단한 뒤 지우세요."
+    assert _user(Session, "sub-friend").status == "active"
+
+
+def test_the_admin_and_unknown_ids(api, people):
+    _, Session = api
+    owner_id = _user(Session, "sub-owner").id
+    assert people.be("sub-owner").delete(f"/api/admin/users/{owner_id}").status_code == 403
+    assert people.be("sub-owner").delete("/api/admin/users/9999").status_code == 404
+
+
+def test_an_allowlisted_email_comes_back_active_after_deletion(api, people):
+    """허용목록에 있는 이메일은 지운 뒤 다시 오면 승인 대기가 아니라 바로 쓰는 상태 — 확인 창·DEPLOY 가 그렇게 말한다."""
+    _, Session = api
+    people.login(FRIEND, "sub-friend")
+    assert _set_status(people, "sub-friend", "blocked").status_code == 200
+    assert people.be("sub-owner").delete(f"/api/admin/users/{_id_of(people, 'sub-friend')}").status_code == 204
+    assert people.login(FRIEND, "sub-friend") is None
+    assert _user(Session, "sub-friend").status == "active"
+
+
+def test_a_deleted_persons_open_screen_is_a_guest_at_the_next_request(api, people):
+    """화면을 연 채 지워진 사람 — 탈퇴·거절과 같다. 다음 요청부터 손님(계획 검토 사용자)."""
+    people.login(STRANGER, "sub-x")
+    token = people.tokens["sub-x"]
+    assert people.be("sub-owner").delete(f"/api/admin/users/{_id_of(people, 'sub-x')}").status_code == 204
+    client = people.client
+    client.cookies.clear()
+    client.cookies.set(auth.COOKIE_NAME, token)
+    assert client.get("/api/auth/status").json()["user"] is None
