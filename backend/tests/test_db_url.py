@@ -57,7 +57,9 @@ def test_sqlite_needs_the_thread_option():
 
 def test_server_database_pings_before_use():
     """유휴 연결이 끊긴 뒤에도 풀에 남아 있다 — 안 찔러보면 첫 요청이 항상 실패한다."""
-    assert db.engine_options("postgresql+psycopg://u:p@h/d") == {"pool_pre_ping": True}
+    assert db.engine_options("postgresql+psycopg://u:p@h/d") == {"pool_pre_ping": True, "connect_args": {"connect_timeout": 5}}
+    # 주소에 적은 한도가 있으면 그것을 따른다 (0.46.0 B)
+    assert db.engine_options("postgresql+psycopg://u:p@h/d?connect_timeout=30") == {"pool_pre_ping": True}
 
 
 def test_sqlite_file_points_at_the_actual_file(tmp_path):

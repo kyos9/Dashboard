@@ -206,8 +206,12 @@ docker compose logs -f app        # 마이그레이션·갱신 로그
 
 ```bash
 curl -s https://signal.example.com/api/health
-# {"status":"ok","locked":true}  ← locked:true 여야 합니다
+# {"status":"ok","db":"ok","locked":true}  ← locked:true 여야 합니다
 ```
+
+v0.46.0 부터 이 주소가 **DB 까지** 봅니다. DB 가 답하지 않으면 `503` 과 `{"status":"error","db":"down",…}` 이고,
+`docker compose ps` 에서 app 이 `unhealthy` 로 보입니다(자동으로 다시 켜지지는 않습니다 — `docker compose logs db` 부터 봅니다).
+옛 버전은 DB 가 죽어도 `ok` 였습니다.
 
 `locked:false`면 `.env`의 `DASHBOARD_PASSWORD`가 비어 있다는 뜻입니다. **공개된
 주소에서 이 상태면 아무나 진단 화면과 로그를 봅니다.** 채우고 `docker compose up -d`.

@@ -4,11 +4,15 @@ import threading
 import time
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 
 from app import version, web
-from app.db import init_db
+from app.db import get_db, init_db
 from app.logging_setup import setup_logging
 from app.security_headers import BodyLimit, SecurityHeaders
 from app.slow_requests import SlowRequestLog
@@ -93,15 +97,39 @@ app.include_router(push.router)
 app.include_router(ai.router)
 
 
+def _db_answers(db: Session) -> bool:
+    """DB 가 한 줄에 답하나 (0.46.0 B). Postgres 면 이 트랜잭션에만 3초 한도 — 연결된 채 매달린 DB 에서 헬스체크가
+    30초마다 커넥션·스레드를 붙잡아 풀이 마르지 않게. 오류 글(접속 주소가 들 수 있다)은 로그에만."""
+    try:
+        if db.get_bind().dialect.name == "postgresql":
+            db.execute(text("SET LOCAL statement_timeout = '3s'"))
+        db.execute(text("SELECT 1"))
+        return True
+    except SQLAlchemyError:
+        logger.warning("헬스체크: DB 가 답하지 않습니다", exc_info=True)
+        return False
+    finally:
+        try:
+            db.rollback()
+        except SQLAlchemyError:
+            pass
+
+
 @app.get("/api/health")
-def health(request: Request):
+def health(request: Request, db: Session = Depends(get_db)):
     """상태 + 실행 중인 버전. 화면 헤더가 이 값을 보여준다.
 
     이 주소만은 잠금 뒤에 두지 않는다 — 컨테이너 헬스체크(Dockerfile)와 가동 확인이
     쓰는 자리라 401을 내면 "앱이 죽었다"로 읽힌다. 대신 **잠긴 상태에서는 상태만**
     돌려주고 버전·제공자는 로그인한 뒤에 알려준다.
+
+    **DB 도 본다** (0.46.0 B) — 전에는 DB 가 죽어도 `ok` 였다. 안 되면 503 이고 컨테이너가 unhealthy 가 된다
+    (`docker compose ps` 에 보인다. 이 상태를 기다리는 서비스·자동 재시작은 없다). DB 는 `get_db` 로 연다 — 시험이 바꿔 끼운 DB 를 보게.
     """
-    body = {"status": "ok", "locked": auth_service.lock_enabled()}
+    locked = auth_service.lock_enabled()
+    if not _db_answers(db):
+        return JSONResponse(status_code=503, content={"status": "error", "db": "down", "locked": locked})
+    body = {"status": "ok", "db": "ok", "locked": locked}
     if not auth.is_authenticated(request):
         return body
     return {

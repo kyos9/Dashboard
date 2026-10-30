@@ -15,6 +15,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 from starlette.concurrency import run_in_threadpool
 
@@ -442,9 +443,17 @@ async def guard(request: Request, call_next):
     if path.startswith("/api/"):
         token = request.cookies.get(auth.COOKIE_NAME)
         # 구글 모드에서는 DB를 본다. 이벤트 루프를 붙잡지 않게 스레드로 넘긴다.
-        request.state.user_id = await run_in_threadpool(
-            resolve_user_id, _db_factory(request), token
-        )
+        try:
+            request.state.user_id = await run_in_threadpool(
+                resolve_user_id, _db_factory(request), token
+            )
+        except SQLAlchemyError:
+            # DB 가 죽은 날 — 헬스체크만은 손님으로 넘겨 "DB 가 안 된다"(503)에 닿게 한다 (0.46.0 B). 다른 주소는 지금처럼 넘어진다.
+            # user_id 를 꼭 넣는다 — 비워 두면 is_authenticated 가 DB 를 다시 봐서 또 넘어진다
+            if path != "/api/health":
+                raise
+            logger.warning("헬스체크: 쪽지를 확인하지 못했습니다(DB) — 손님으로 봅니다")
+            request.state.user_id = None
         if (
             request.state.user_id is None
             and path not in PUBLIC_PATHS
