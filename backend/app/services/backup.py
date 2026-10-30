@@ -32,8 +32,32 @@ logger = logging.getLogger(__name__)
 BACKUP_DIR = Path(
     os.environ.get("SIGNAL_DASHBOARD_BACKUP_DIR", Path(__file__).resolve().parents[2] / "backups")
 )
-# 기본 7벌. 매일 한 번 도니 일주일이다. 더 오래 두고 싶으면 환경변수로 늘린다.
-KEEP = int(os.environ.get("SIGNAL_DASHBOARD_BACKUP_KEEP", "7"))
+
+
+def _env_int(name: str, default: int, minimum: int = 1) -> int:
+    """`.env` 의 숫자 — 비었거나 숫자가 아니거나 너무 작으면 기본값 (0.46.0 A2). 전에는 `int()` 가 넘어져 앱이 뜨지 않았다.
+
+    compose 는 적힌 이름을 늘 넘긴다(`${…:-}` — 안 적으면 빈 글자). 빈 글자도 기본값이다.
+    """
+    raw = os.environ.get(name, "").strip()
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    return value if value >= minimum else default
+
+
+# 매일 백업 기본 7벌. 매일 한 번 도니 일주일이다. 더 오래 두고 싶으면 환경변수로 늘린다.
+KEEP = _env_int("SIGNAL_DASHBOARD_BACKUP_KEEP", 7)
+# 업데이트 직전 백업(`-premigrate`)은 따로 센다 (0.46.0 A3) — 전에는 7벌에 같이 세어져, 업데이트가 잦은 주에는 되돌릴 수 있는
+# 매일 백업이 하루이틀로 줄었다. 최근 이만큼, 그리고 **7일 안**(방침 5절 "최대 7일" — 업데이트가 뜸하면 몇 주 남지 않게).
+KEEP_PREMIGRATE = _env_int("SIGNAL_DASHBOARD_BACKUP_KEEP_PREMIGRATE", 3, minimum=0)
+PREMIGRATE_MAX_AGE = dt.timedelta(days=7)
+# pg_dump 한 번의 시간 한도(초) (0.46.0 A2). 걸리면 업데이트 직전 필수 백업에서 앱이 뜨지 않은 채 기다렸다. 주인 서버의 덤프는 수 초다
+TIMEOUT_SECONDS = _env_int("SIGNAL_DASHBOARD_BACKUP_TIMEOUT", 600)
+# 덤프가 끝까지 써졌다는 표지 — pg_dump 가 맨 끝에 남긴다. 17.6 부터는 그 뒤에 `\unrestrict …` 줄이 오므로 꼬리 안에서 찾는다
+DUMP_COMPLETE = "-- PostgreSQL database dump complete"
+_TAIL_BYTES = 4096
 
 PREFIX = "signalboard-"
 STAMP = "%Y%m%d-%H%M%S"
@@ -108,13 +132,28 @@ def _write_failure(failure: dict | None, backup_dir: Path | None = None) -> None
     _update_status({"last_failure": failure}, backup_dir)
 
 
-def mark_pulled(now: dt.datetime | None = None, backup_dir: Path | None = None) -> bool:
+# PC 사본 폴더에 대한 경고 (0.46.0 A4) — bat 이 꺼낸 뒤 알려 준다. 작업 스케줄러로 돌면 창이 안 보여 주인이 못 본다
+OFFSITE_WARNINGS = ("onedrive", "noacl")
+
+
+def mark_pulled(
+    now: dt.datetime | None = None, backup_dir: Path | None = None, warnings: list[str] | None = None
+) -> bool:
     """서버 밖(관리자 PC)으로 백업을 꺼냈다고 적는다 (0.45.0 A) — `server-backup-pull.bat` 이 받은 크기를 확인한 뒤 부른다.
 
     따로 띄운 프로세스라 못 쓰면 메모리에 남겨 봐야 앱이 못 본다 — 그래서 False 를 돌려주고 부른 쪽이 알린다.
     """
     at = (now or dt.datetime.now(dt.timezone.utc)).astimezone(dt.timezone.utc).replace(microsecond=0).isoformat()
-    return _update_status({"pulled_at": at}, backup_dir)
+    # 아는 것만, 한 번씩. 꺼낼 때마다 새로 적는다 — 폴더를 옮겨 고쳤으면 다음 꺼내기에 경고가 사라진다
+    known = [w for w in OFFSITE_WARNINGS if w in (warnings or [])]
+    return _update_status({"pulled_at": at, "pulled_warnings": known}, backup_dir)
+
+
+def _read_pulled_warnings(backup_dir: Path | None = None) -> list[str]:
+    saved = _read_status_file(_status_path(backup_dir)).get("pulled_warnings")
+    if not isinstance(saved, list):
+        return []
+    return [w for w in OFFSITE_WARNINGS if w in saved]
 
 
 def _read_pulled(backup_dir: Path | None = None) -> str | None:
@@ -149,6 +188,10 @@ def _failure_kind(exc: BaseException) -> str:
         return "pg_dump 가 없습니다"
     if text.startswith("pg_dump 실패"):
         return "pg_dump 가 실패했습니다"
+    if isinstance(exc, subprocess.TimeoutExpired) or text.startswith("pg_dump 시간 초과"):
+        return f"백업이 {_minutes(TIMEOUT_SECONDS)} 안에 끝나지 않아 멈췄습니다 — 저장된 기록은 그대로입니다. 되풀이되면 서버 로그를 보세요"
+    if text.startswith("덤프가 끝나지 않음"):
+        return "백업 파일이 끝까지 써지지 않았습니다 — 저장된 기록은 그대로입니다. 되풀이되면 서버 로그를 보세요"
     if isinstance(exc, FileNotFoundError):
         return "DB 파일을 찾지 못했습니다"
     if isinstance(exc, PermissionError):
@@ -158,6 +201,10 @@ def _failure_kind(exc: BaseException) -> str:
     if isinstance(exc, OSError):
         return "파일을 쓰지 못했습니다"
     return "알 수 없는 오류 — 서버 로그를 보세요"
+
+
+def _minutes(seconds: int) -> str:
+    return f"{seconds // 60}분" if seconds >= 60 and seconds % 60 == 0 else f"{seconds}초"
 
 
 def _stamp() -> str:
@@ -190,6 +237,8 @@ def _backup_postgres(url_text: str, dest: Path) -> None:
     env = dict(os.environ)
     if url.password:
         env["PGPASSWORD"] = url.password
+    # 죽은 DB 에 접속하다 매달리지 않게 — 시간 한도(아래)보다 먼저 끊는다
+    env.setdefault("PGCONNECT_TIMEOUT", "10")
     # libpq가 이해하는 주소로 다시 만든다. 드라이버 이름(+psycopg)은 pg_dump가 모르고,
     # 비밀번호는 위 환경변수로 가므로 주소에서 뺀다.
     # (`url.set(password=None)`은 안 된다 — None은 "그대로 두라"는 뜻이라 지워지지 않는다.)
@@ -201,17 +250,41 @@ def _backup_postgres(url_text: str, dest: Path) -> None:
         database=url.database,
     ).render_as_string(hide_password=False)
 
-    result = subprocess.run(
-        ["pg_dump", "--no-owner", "--no-privileges", "--file", str(dest), target],
-        env=env,
-        capture_output=True,
-        text=True,
-    )
+    try:
+        result = subprocess.run(
+            ["pg_dump", "--no-owner", "--no-privileges", "--file", str(dest), target],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired:
+        # run 이 자식을 끝낸다. 반쯤 쓴 파일이 "가장 새 매일 백업"으로 꺼내지지 않게 지운다.
+        # 예외 글에는 명령줄(접속 주소)이 들어 있다 — 로그에만, 진단에는 갈래만(_failure_kind)
+        dest.unlink(missing_ok=True)
+        raise RuntimeError(f"pg_dump 시간 초과 ({TIMEOUT_SECONDS}초)") from None
     if result.returncode != 0:
         # check=True로 두면 "exit code 1"만 남고 왜 실패했는지는 사라진다.
         # 백업이 안 되는 이유를 모르면 고칠 수도 없다.
         dest.unlink(missing_ok=True)
         raise RuntimeError(f"pg_dump 실패 (코드 {result.returncode}): {result.stderr.strip()}")
+    if not dump_is_complete(dest):
+        # 코드 0 인데 끝 표지가 없다 — 디스크가 중간에 찼거나 누가 끊었다. 그대로 두면 붓기가 **표가 빠진 채 성공**한다
+        dest.unlink(missing_ok=True)
+        raise RuntimeError("덤프가 끝나지 않음: 끝 표지가 없습니다")
+
+
+def dump_is_complete(path: Path) -> bool:
+    """plain 덤프의 꼬리에 pg_dump 의 끝 표지가 있나 (0.46.0 A1). 잘린 덤프도 psql 은 대개 성공으로 붓는다 — 주석·빈 줄에서 끝나서."""
+    try:
+        with open(path, "rb") as f:
+            f.seek(0, os.SEEK_END)
+            size = f.tell()
+            f.seek(max(0, size - _TAIL_BYTES))
+            tail = f.read().decode("utf-8", errors="replace")
+    except OSError:
+        return False
+    return DUMP_COMPLETE in tail
 
 
 def create_backup(
@@ -247,11 +320,32 @@ def existing_backups(backup_dir: Path | None = None) -> list[Path]:
     return sorted(found, key=lambda p: p.name, reverse=True)
 
 
-def prune(keep: int | None = None, backup_dir: Path | None = None) -> list[Path]:
-    """오래된 백업을 지우고, 지운 목록을 돌려준다."""
+def prune(
+    keep: int | None = None,
+    backup_dir: Path | None = None,
+    *,
+    keep_premigrate: int | None = None,
+    now: dt.datetime | None = None,
+) -> list[Path]:
+    """오래된 백업을 지우고, 지운 목록을 돌려준다.
+
+    **꼬리표마다 따로 센다** (0.46.0 A3): 매일 백업(꼬리표 없음 — 켤 때·손으로 뜬 것도)은 최근 `keep` 개, 업데이트 직전 백업은
+    최근 `keep_premigrate` 개 그리고 7일 안. 날짜로 세지 않는다 — 달력 7일로 세면 백업이 8일 멈춘 뒤 첫 성공에서 지난 것이 다
+    지워진다(계획 검토). 모르는 꼬리표는 지우지 않는다(사람이 만든 것일 수 있다).
+    """
     keep = KEEP if keep is None else keep
+    keep_premigrate = KEEP_PREMIGRATE if keep_premigrate is None else keep_premigrate
+    now = now or dt.datetime.now()
+    found = existing_backups(backup_dir)
+    daily = [p for p in found if _label(p) == ""]
+    before = [p for p in found if _label(p) == "premigrate"]
+    doomed = daily[max(keep, 0) :] + before[max(keep_premigrate, 0) :]
+    for path in before[: max(keep_premigrate, 0)]:
+        stamp = _stamp_of(path)
+        if stamp is not None and now - stamp > PREMIGRATE_MAX_AGE:
+            doomed.append(path)
     removed = []
-    for path in existing_backups(backup_dir)[max(keep, 0) :]:
+    for path in doomed:
         path.unlink()
         removed.append(path)
     if removed:
@@ -279,14 +373,21 @@ def run_backup() -> Path | None:
     return path
 
 
+def _stamp_of(path: Path) -> dt.datetime | None:
+    """이름에 찍힌 서버 지역 시각(시간대 없음)."""
+    try:
+        return dt.datetime.strptime(path.name[len(PREFIX) :][: len(_stamp())], STAMP)
+    except ValueError:
+        return None
+
+
 def latest_age(backup_dir: Path | None = None) -> dt.timedelta | None:
     """가장 최근 백업이 얼마나 오래됐나. 하나도 없으면 None."""
     found = existing_backups(backup_dir)
     if not found:
         return None
-    try:
-        stamp = dt.datetime.strptime(found[0].name[len(PREFIX) :][: len(_stamp())], STAMP)
-    except ValueError:
+    stamp = _stamp_of(found[0])
+    if stamp is None:
         return None
     return dt.datetime.now() - stamp
 
@@ -300,9 +401,8 @@ def _label(path: Path) -> str:
 
 def _taken_at(path: Path) -> str | None:
     """이름에 찍힌 서버 시각을 UTC 로 — 화면이 보는 사람의 시간대로 바꾼다."""
-    try:
-        stamp = dt.datetime.strptime(path.name[len(PREFIX) :][: len(_stamp())], STAMP)
-    except ValueError:
+    stamp = _stamp_of(path)
+    if stamp is None:
         return None
     return stamp.astimezone(dt.timezone.utc).isoformat()
 
@@ -324,13 +424,17 @@ def status(backup_dir: Path | None = None) -> dict:
             last_size = None
     return {
         "count": len(found),
-        "keep": KEEP,
+        # 옛 화면은 "count개 보관(최대 keep개)" 로 보인다 — count 가 두 갈래를 합친 수이므로 keep 도 합친 최대 (0.46.0 A3)
+        "keep": KEEP + KEEP_PREMIGRATE,
+        "daily": {"count": len(daily), "keep": KEEP},
         "last_at": _taken_at(daily[0]) if daily else None,
         "last_size": last_size,
         "last_failure": _read_failure(backup_dir),
-        "premigrate": {"count": len(before), "last_at": _taken_at(before[0]) if before else None},
+        "premigrate": {
+            "count": len(before), "last_at": _taken_at(before[0]) if before else None, "keep": KEEP_PREMIGRATE,
+        },
         # 서버 밖(관리자 PC)으로 마지막으로 꺼낸 때 (0.45.0 A) — 꺼낸 쪽이 적는다. 서버는 밖에 무엇이 있는지 모른다
-        "offsite": {"last_at": _read_pulled(backup_dir)},
+        "offsite": {"last_at": _read_pulled(backup_dir), "warnings": _read_pulled_warnings(backup_dir)},
     }
 
 

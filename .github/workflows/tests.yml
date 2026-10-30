@@ -69,6 +69,21 @@ jobs:
           pip install -r requirements-postgres.txt
         working-directory: backend
 
+      - name: pg_dump 17 (백업 되돌리기 시험)
+        # tests/test_backup_restore_pg.py 가 진짜 pg_dump 로 뜨고 되돌린다 (0.46.0 A1). 러너에 깔린 16 은 17 서버를 덤프하지
+        # 못하고, 17 을 깔아도 /usr/bin/pg_dump(pg_wrapper)가 16 을 고를 수 있다 — 17 의 bin 을 PATH 앞에 두고 판을 확인한다.
+        # 판은 docker-compose.yml 의 postgres:17 · Dockerfile 의 PG_MAJOR 와 같아야 한다(test_backup_restore_versions 가 글자로 본다).
+        if: matrix.db == 'Postgres'
+        run: |
+          sudo apt-get install -y postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y postgresql-client-17
+          echo /usr/lib/postgresql/17/bin >> "$GITHUB_PATH"
+
+      - name: pg_dump 판 확인
+        if: matrix.db == 'Postgres'
+        run: pg_dump --version | tee /dev/stderr | grep -q "(PostgreSQL) 17\."
+
       - name: 테스트
         # 네트워크는 conftest가 막아두므로 시세 서버가 막힌 곳에서도 그대로 돈다.
         # TEST_DATABASE_URL이 비어 있으면 메모리 SQLite로 돈다 (tests/dbsetup.py).
@@ -76,6 +91,10 @@ jobs:
         working-directory: backend
         env:
           TEST_DATABASE_URL: ${{ matrix.db == 'Postgres' && 'postgresql+psycopg://postgres:ci@localhost:5432/signal' || '' }}
+          # Postgres 갈래에서는 되돌리기 시험을 건너뛰지 못하게 — 도구·판이 없으면 실패한다
+          REQUIRE_PG_RESTORE: ${{ matrix.db == 'Postgres' && '1' || '' }}
+          # 붓기는 운영처럼 DB 컨테이너 안의 psql 로 (DEPLOY 10-1 은 `docker compose exec db psql`)
+          PG_RESTORE_PSQL: ${{ matrix.db == 'Postgres' && format('docker exec -i {0} psql -U postgres', job.services.postgres.id) || '' }}
 
   frontend:
     name: 프런트엔드 (build + vitest)

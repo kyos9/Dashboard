@@ -73,6 +73,13 @@ services:
       PUBLIC_URL: ${PUBLIC_URL:-}
       # 보안 헤더의 CSP 끄기 (v0.45.4, DEPLOY.md 9-5). 비우면 켜진다 — 화면이 깨질 때만 off
       SIGNAL_DASHBOARD_CSP: ${SIGNAL_DASHBOARD_CSP:-}
+      # 백업 (v0.46.0, DEPLOY.md 10). 비우면 기본값 — 매일 백업 7개 · 업데이트 직전 3개(7일 안) · pg_dump 한도 600초.
+      # 전에는 여기 적지 않아 .env 에 KEEP 을 써도 서버에 닿지 않았다
+      SIGNAL_DASHBOARD_BACKUP_KEEP: ${SIGNAL_DASHBOARD_BACKUP_KEEP:-}
+      SIGNAL_DASHBOARD_BACKUP_KEEP_PREMIGRATE: ${SIGNAL_DASHBOARD_BACKUP_KEEP_PREMIGRATE:-}
+      SIGNAL_DASHBOARD_BACKUP_TIMEOUT: ${SIGNAL_DASHBOARD_BACKUP_TIMEOUT:-}
+      # 시세 받기 실패를 관리자에게 푸시 (v0.46.0). off 면 푸시만 끈다 — 진단의 줄과 ⋯ 점은 남는다
+      SIGNAL_DASHBOARD_REFRESH_ALERT: ${SIGNAL_DASHBOARD_REFRESH_ALERT:-}
     depends_on:
       db:
         condition: service_healthy

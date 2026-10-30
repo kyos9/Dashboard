@@ -182,12 +182,14 @@ export function BackupLines({ backup, now }: { backup: BackupStatus; now: number
     <>
       <p className="hint">
         {backup.last_at
-          ? `백업: 마지막 ${when(backup.last_at)}${backup.last_size !== null ? ` · ${bytes(backup.last_size)}` : ''} · ${backup.count}개 보관(최대 ${backup.keep}개)`
+          ? `백업: 마지막 ${when(backup.last_at)}${backup.last_size !== null ? ` · ${bytes(backup.last_size)}` : ''} · ${keptText(backup)}`
           : '백업: 아직 없습니다 — 매일 하나씩 서버 안에 뜹니다.'}
       </p>
       {backup.premigrate && backup.premigrate.count > 0 && backup.premigrate.last_at && (
         <p className="hint">
-          업그레이드 직전 백업 {backup.premigrate.count}개 · 마지막 {when(backup.premigrate.last_at)} (위 개수에 들어 있습니다)
+          {backup.premigrate.keep !== undefined
+            ? `업데이트 직전 백업 ${backup.premigrate.count}개(최대 ${backup.premigrate.keep}개, 7일 안) · 마지막 ${when(backup.premigrate.last_at)}`
+            : `업그레이드 직전 백업 ${backup.premigrate.count}개 · 마지막 ${when(backup.premigrate.last_at)} (위 개수에 들어 있습니다)`}
         </p>
       )}
       {stale && (
@@ -200,18 +202,41 @@ export function BackupLines({ backup, now }: { backup: BackupStatus; now: number
           마지막 실패: {when(backup.last_failure.at)} — {backup.last_failure.reason}
         </p>
       )}
-      {backup.offsite && <OffsiteLine lastAt={backup.offsite.last_at} staleDays={offsiteStaleDays} />}
+      {backup.offsite && (
+        <OffsiteLine lastAt={backup.offsite.last_at} staleDays={offsiteStaleDays} warnings={backup.offsite.warnings ?? []} />
+      )}
     </>
   )
 }
 
-function OffsiteLine({ lastAt, staleDays }: { lastAt: string | null; staleDays: number | null }) {
+/**
+ * 몇 개 남겨 두나 — 0.46.0 부터 서버가 매일 백업과 업데이트 직전 백업을 따로 센다(`daily`). 옛 서버는 둘을 합친 수만 보낸다.
+ */
+function keptText(backup: BackupStatus): string {
+  if (backup.daily) return `매일 백업 ${backup.daily.count}개 보관(최대 ${backup.daily.keep}개)`
+  return `${backup.count}개 보관(최대 ${backup.keep}개)`
+}
+
+/** PC 사본 폴더에 대한 경고 (0.46.0 A4) — bat 이 꺼낼 때 알려 준다. 작업 스케줄러로 돌면 창이 안 보여서 여기 남긴다 */
+const OFFSITE_WARNING_TEXT: Record<string, string> = {
+  onedrive: 'PC 사본 폴더가 OneDrive 아래에 있습니다 — 사본이 클라우드로 올라갈 수 있습니다. backup-pull.local.txt 의 DEST 를 OneDrive 밖으로 옮기세요.',
+  noacl: 'PC 사본 폴더를 나만 열게 하지 못했습니다 — USB·네트워크 드라이브일 수 있습니다. 받기는 그대로 됩니다.',
+}
+
+function OffsiteLine({ lastAt, staleDays, warnings }: { lastAt: string | null; staleDays: number | null; warnings: string[] }) {
   if (!lastAt) {
     return <p className="hint">밖에 꺼낸 기록이 없습니다 — 서버가 사라지면 이 백업도 같이 사라집니다. 내 PC 로 가져오는 법은 PC 의 Dashboard 폴더 DEPLOY.md 10-0.</p>
   }
   return (
     <>
       <p className="hint">밖에 꺼낸 것: 마지막 {when(lastAt)} (관리자 PC)</p>
+      {warnings
+        .filter((w) => OFFSITE_WARNING_TEXT[w])
+        .map((w) => (
+          <p key={w} className="hint diag-warn" role="note">
+            {OFFSITE_WARNING_TEXT[w]}
+          </p>
+        ))}
       {staleDays !== null && (
         <p className="hint diag-warn" role="note">
           {staleDays}일 동안 밖에 꺼내지 않았습니다 — PC 에서 server-backup-pull.bat 을 실행하세요.

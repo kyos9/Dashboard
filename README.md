@@ -513,8 +513,8 @@ AI 화면도 확인할 수 있습니다:
 | **스키마를 바꾸기 직전** | 마이그레이션이 잘못 돌면 되돌릴 자리가 여기뿐입니다 |
 | `backup.bat` (또는 `python -m app.services.backup`) | 직접 무언가를 크게 바꾸기 전에 |
 
-`backend/backups/`에 최대 7벌 보관하고 오래된 것부터 지웁니다
-(`SIGNAL_DASHBOARD_BACKUP_DIR`, `SIGNAL_DASHBOARD_BACKUP_KEEP`로 바꿀 수 있습니다).
+`backend/backups/`에 매일 백업 최대 7개, 업데이트 직전 백업 최대 3개(7일 안)를 보관하고 오래된 것부터 지웁니다
+(`SIGNAL_DASHBOARD_BACKUP_DIR`, `SIGNAL_DASHBOARD_BACKUP_KEEP`, `SIGNAL_DASHBOARD_BACKUP_KEEP_PREMIGRATE`로 바꿀 수 있습니다, v0.46.0).
 
 **복구는 파일을 제자리에 갖다 놓는 것입니다.** `stop.bat`으로 끈 뒤
 `backend/backups/signalboard-….db`를 `backend/signal_dashboard.db`로 덮어쓰면 끝입니다.

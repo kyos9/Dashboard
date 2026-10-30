@@ -326,3 +326,4 @@ def test_demo_backup_warning_shows_the_warning(server):
         age = dt.datetime.now(dt.timezone.utc) - dt.datetime.fromisoformat(pulled)
         assert dt.timedelta(days=39) < age < dt.timedelta(days=41)
         assert owner.get(demo + "/api/auth/status").json()["backup_attention"] is True
+        assert owner.get(demo + "/api/admin/records").json()["backup"]["offsite"]["warnings"] == ["onedrive"]

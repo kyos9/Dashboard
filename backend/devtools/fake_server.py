@@ -835,7 +835,8 @@ def main(argv: list[str] | None = None) -> None:
     if args.demo_backup_warning:
         from app.services import backup
 
-        backup.mark_pulled(now=dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=40))
+        # PC 사본 폴더가 OneDrive 아래 (0.46.0 A4) — 진단의 "밖에 꺼낸 것" 아래 경고 줄
+        backup.mark_pulled(now=dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=40), warnings=["onedrive"])
 
     import uvicorn
 

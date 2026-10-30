@@ -499,16 +499,19 @@ export interface RecordsStatus {
 }
 
 export interface BackupStatus {
+  /** 모든 백업(매일 + 업데이트 직전)의 수와 그 합친 최대 */
   count: number
   keep: number
+  /** 매일 백업만 (0.46.0 — 업데이트 직전 백업과 따로 센다). 옛 서버는 없다 */
+  daily?: { count: number; keep: number }
   /** 마지막 백업 시각(UTC ISO) */
   last_at: string | null
   last_size: number | null
   last_failure: { at: string; reason: string } | null
   /** 업그레이드 직전 백업 — "마지막"(매일 백업)과 따로 센다. 옛 0.44 개발판은 보내지 않을 수 있다 */
-  premigrate?: { count: number; last_at: string | null }
+  premigrate?: { count: number; last_at: string | null; keep?: number }
   /** 서버 밖(관리자 PC)으로 마지막으로 꺼낸 때 (0.45.0) — `server-backup-pull.bat` 이 적는다. 옛 서버는 없다 */
-  offsite?: { last_at: string | null }
+  offsite?: { last_at: string | null; warnings?: string[] }
 }
 
 /** 리밸런싱 기록에 얼려둔 종목 한 줄 */

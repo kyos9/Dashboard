@@ -328,6 +328,39 @@ describe('맨 위 요약과 백업 경고 (0.45.1 C1)', () => {
   })
 })
 
+describe('진단의 백업 줄 — 꼬리표마다 따로 센다 (0.46.0 A3·A4)', () => {
+  const NOW = Date.parse('2026-10-16T12:00:00Z')
+  const base: BackupStatus = {
+    count: 9, keep: 10, daily: { count: 7, keep: 7 }, last_at: '2026-10-15T23:30:00+00:00', last_size: 2_621_440,
+    last_failure: null, premigrate: { count: 2, last_at: '2026-10-14T09:30:00+00:00', keep: 3 },
+    offsite: { last_at: '2026-10-15T01:00:00+00:00', warnings: [] },
+  }
+
+  it('새 서버: 매일 백업 개수와 업데이트 직전 개수를 따로', () => {
+    render(<BackupLines backup={base} now={NOW} />)
+    expect(screen.getByText(/^백업: 마지막/).textContent).toMatch(/· 매일 백업 7개 보관\(최대 7개\)$/)
+    expect(screen.getByText(/^업데이트 직전 백업/).textContent).toMatch(/^업데이트 직전 백업 2개\(최대 3개, 7일 안\) · 마지막 /)
+    expect(screen.queryByText(/위 개수에 들어 있습니다/)).toBeNull()
+    expect(screen.queryByRole('note')).toBeNull()
+  })
+
+  it('PC 사본 폴더 경고 — 아는 것만, 받기 시각 아래에', () => {
+    render(<BackupLines backup={{ ...base, offsite: { last_at: base.offsite!.last_at, warnings: ['onedrive', 'noacl', '모름'] } }} now={NOW} />)
+    const notes = screen.getAllByRole('note').map((n) => n.textContent)
+    expect(notes).toEqual([
+      expect.stringMatching(/^PC 사본 폴더가 OneDrive 아래에 있습니다/),
+      expect.stringMatching(/^PC 사본 폴더를 나만 열게 하지 못했습니다/),
+    ])
+  })
+
+  it('옛 서버(daily·warnings 없음): 지금 문구 그대로', () => {
+    render(<BackupLines backup={{ ...base, daily: undefined, keep: 7, premigrate: { count: 2, last_at: base.premigrate!.last_at }, offsite: { last_at: base.offsite!.last_at } }} now={NOW} />)
+    expect(screen.getByText(/^백업: 마지막/).textContent).toMatch(/· 9개 보관\(최대 7개\)$/)
+    expect(screen.getByText(/^업그레이드 직전 백업 2개/).textContent).toMatch(/\(위 개수에 들어 있습니다\)$/)
+    expect(screen.queryByRole('note')).toBeNull()
+  })
+})
+
 describe('진단의 백업 줄 (0.44.0 D0)', () => {
   const NOW = Date.parse('2026-10-16T12:00:00Z')
   const backup = (overrides: Partial<BackupStatus> = {}): BackupStatus => ({
