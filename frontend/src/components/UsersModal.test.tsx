@@ -232,7 +232,7 @@ describe('사용자 목록', () => {
     const dialog = screen.getByRole('alertdialog', { name: '계정을 지울까요?' })
     expect(dialog).toHaveTextContent('차단된 사람 (b@example.com) 님의 계정과 기록(종목 3개 포함)을 지웁니다. 되돌릴 수 없습니다.')
     expect(dialog).toHaveTextContent(/거절·차단은 기록을 남겨 다시 신청하지 못하게 하고, 지우기는/)
-    expect(dialog).toHaveTextContent(/허용목록에 있는 이메일이면 바로 들어옵니다/)
+    expect(dialog).toHaveTextContent(/서버 설정에 미리 넣어 둔 이메일이면 승인 없이 바로 들어옵니다/)
     await userEvent.click(within(dialog).getByRole('button', { name: '지우기' }))
 
     expect(del).toHaveBeenCalledWith(5)

@@ -215,13 +215,13 @@ export function BackupLines({ backup, now }: { backup: BackupStatus; now: number
  * 몇 개 남겨 두나 — 0.46.0 부터 서버가 매일 백업과 업데이트 직전 백업을 따로 센다(`daily`). 옛 서버는 둘을 합친 수만 보낸다.
  */
 function keptText(backup: BackupStatus): string {
-  if (backup.daily) return `매일 백업 ${backup.daily.count}개 보관(최대 ${backup.daily.keep}개)`
+  if (backup.daily) return `매일 백업 지금 ${backup.daily.count}개 · 최근 ${backup.daily.keep}개까지 남김`
   return `${backup.count}개 보관(최대 ${backup.keep}개)`
 }
 
 /** PC 사본 폴더에 대한 경고 (0.46.0 A4) — bat 이 꺼낼 때 알려 준다. 작업 스케줄러로 돌면 창이 안 보여서 여기 남긴다 */
 const OFFSITE_WARNING_TEXT: Record<string, string> = {
-  onedrive: 'PC 사본 폴더가 OneDrive 아래에 있습니다 — 사본이 클라우드로 올라갈 수 있습니다. backup-pull.local.txt 의 DEST 를 OneDrive 밖으로 옮기세요.',
+  onedrive: 'PC 사본 폴더가 OneDrive 아래에 있습니다 — 사본이 클라우드로 올라갈 수 있습니다. PC 의 Dashboard 폴더에 있는 backup-pull.local.txt 에서 받는 폴더(DEST)를 OneDrive 밖으로 옮기세요.',
   noacl: 'PC 사본 폴더를 나만 열게 하지 못했습니다 — USB·네트워크 드라이브일 수 있습니다. 받기는 그대로 됩니다.',
 }
 
@@ -231,7 +231,7 @@ function OffsiteLine({ lastAt, staleDays, warnings }: { lastAt: string | null; s
   }
   return (
     <>
-      <p className="hint">밖에 꺼낸 것: 마지막 {when(lastAt)} (관리자 PC)</p>
+      <p className="hint">밖에 꺼낸 것: 마지막 {when(lastAt)} (관리자 PC — 최근 4벌까지 남김)</p>
       {warnings
         .filter((w) => OFFSITE_WARNING_TEXT[w])
         .map((w) => (
@@ -241,7 +241,7 @@ function OffsiteLine({ lastAt, staleDays, warnings }: { lastAt: string | null; s
         ))}
       {staleDays !== null && (
         <p className="hint diag-warn" role="note">
-          {staleDays}일 동안 밖에 꺼내지 않았습니다 — PC 에서 server-backup-pull.bat 을 실행하세요.
+          {staleDays}일 동안 밖에 꺼내지 않았습니다 — PC 의 Dashboard 폴더에서 server-backup-pull.bat 을 실행하세요.
         </p>
       )}
     </>

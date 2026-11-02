@@ -32,7 +32,7 @@ export function refreshLine(state: RefreshStatus): string {
     return `${market}: 받았지만 시세가 ${day}에 멈춰 있습니다${sources}`
   }
   const last = state.last_ok_at ? `마지막으로 받은 때 ${when(state.last_ok_at)}` : '아직 제대로 받은 적이 없습니다'
-  return `${market}: ${when(state.at)} ${state.total}종목 중 ${state.failed}개 실패${sources} — ${last}`
+  return `${market}: 막힘 — ${last} · ${when(state.at)}에 받으려 했으나 ${state.total}종목 중 ${state.failed}개 실패${sources}`
 }
 
 /** 진단의 어느 칸을 봐야 하나 — ⋯ 의 점 풀이에 붙인다. 없으면 null */

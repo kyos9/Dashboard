@@ -343,7 +343,7 @@ describe('진단의 시세 받기 (0.46.0 C)', () => {
 
   it('실패가 많아 막힘 — 출처 이름과 마지막으로 받은 때', () => {
     const line = refreshLine({ ...base, blocked: true, reason: 'failed', failed: 18, providers: ['yahoo', 'stooq'], last_ok_at: '2026-10-28T07:31:00+00:00' })
-    expect(line).toMatch(/^미국: .* 20종목 중 18개 실패 \(시세 출처 Yahoo·Stooq\) — 마지막으로 받은 때 /)
+    expect(line).toMatch(/^미국: 막힘 — 마지막으로 받은 때 .* · .*에 받으려 했으나 20종목 중 18개 실패 \(시세 출처 Yahoo·Stooq\)$/)
   })
 
   it('실패는 없는데 묵음 — "실패 0" 과 막힘이 한 줄에 서지 않는다 (계획 다시 보기)', () => {
@@ -371,7 +371,7 @@ describe('진단의 백업 줄 — 꼬리표마다 따로 센다 (0.46.0 A3·A4)
 
   it('새 서버: 매일 백업 개수와 업데이트 직전 개수를 따로', () => {
     render(<BackupLines backup={base} now={NOW} />)
-    expect(screen.getByText(/^백업: 마지막/).textContent).toMatch(/· 매일 백업 7개 보관\(최대 7개\)$/)
+    expect(screen.getByText(/^백업: 마지막/).textContent).toMatch(/· 매일 백업 지금 7개 · 최근 7개까지 남김$/)
     expect(screen.getByText(/^업데이트 직전 백업/).textContent).toMatch(/^업데이트 직전 백업 2개\(최대 3개, 7일 안\) · 마지막 /)
     expect(screen.queryByText(/위 개수에 들어 있습니다/)).toBeNull()
     expect(screen.queryByRole('note')).toBeNull()
@@ -495,7 +495,7 @@ describe('진단의 백업 줄 — 밖에 꺼낸 것 (0.45.0 A)', () => {
 
   it('꺼냈으면 그 시각(관리자 PC), 10일 넘으면 경고', () => {
     const { unmount } = render(<BackupLines backup={backup({ last_at: '2026-10-13T09:00:00+00:00' })} now={NOW} />)
-    expect(screen.getByText(/^밖에 꺼낸 것/).textContent).toBe(`밖에 꺼낸 것: 마지막 ${local('2026-10-13T09:00:00+00:00')} (관리자 PC)`)
+    expect(screen.getByText(/^밖에 꺼낸 것/).textContent).toBe(`밖에 꺼낸 것: 마지막 ${local('2026-10-13T09:00:00+00:00')} (관리자 PC — 최근 4벌까지 남김)`)
     expect(screen.queryByRole('note')).toBeNull()
     unmount()
 
@@ -504,10 +504,10 @@ describe('진단의 백업 줄 — 밖에 꺼낸 것 (0.45.0 A)', () => {
     expect(screen.queryByRole('note')).toBeNull()
     u2()
     const { unmount: u3 } = render(<BackupLines backup={backup({ last_at: '2026-10-10T00:00:00+00:00' })} now={NOW} />)
-    expect(screen.getByRole('note').textContent).toBe('10일 동안 밖에 꺼내지 않았습니다 — PC 에서 server-backup-pull.bat 을 실행하세요.')
+    expect(screen.getByRole('note').textContent).toBe('10일 동안 밖에 꺼내지 않았습니다 — PC 의 Dashboard 폴더에서 server-backup-pull.bat 을 실행하세요.')
     u3()
     render(<BackupLines backup={backup({ last_at: '2026-10-09T11:00:00+00:00' })} now={NOW} />)
-    expect(screen.getByRole('note').textContent).toBe('11일 동안 밖에 꺼내지 않았습니다 — PC 에서 server-backup-pull.bat 을 실행하세요.')
+    expect(screen.getByRole('note').textContent).toBe('11일 동안 밖에 꺼내지 않았습니다 — PC 의 Dashboard 폴더에서 server-backup-pull.bat 을 실행하세요.')
   })
 
   it('옛 서버(칸 없음)면 그 줄이 없다', () => {

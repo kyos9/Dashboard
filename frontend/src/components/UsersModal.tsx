@@ -153,7 +153,7 @@ export function UsersModal({ onClose, onChanged }: { onClose: () => void; onChan
 
           <p className="hint users-intro">
             구글로 처음 들어온 사람은 승인 대기로 시작합니다. 승인하면 바로(다시 로그인하지 않아도) 자기 종목과
-            포트폴리오를 만들 수 있습니다. 거절·차단해도 기록은 남습니다. 계정과 기록을 없애려면 ‘지우기’를 누르세요(승인 대기·거절·차단만). 반년 넘게 안 들어온 사람(알림
+            포트폴리오를 만들 수 있습니다. 거절·차단해도 기록은 남습니다. 계정과 기록을 없애려면 ‘지우기’를 누르세요 — 승인 대기·거절·차단된 계정에만 있고, 쓰는 중인 계정은 먼저 차단해야 지울 수 있습니다. 반년 넘게 안 들어온 사람(알림
             받는 기기도 없는)이 혼자 담은 종목은 매일 받지 않고, 다시 들어오면 밀린 시세를 받습니다.
           </p>
 
@@ -233,7 +233,7 @@ export function UsersModal({ onClose, onChanged }: { onClose: () => void; onChan
           <p>
             <b>{confirmBlock.name || confirmBlock.email}</b> 님은 바로 로그아웃되고, 다시 로그인해도 들어오지 못합니다.
           </p>
-          <p className="hint">종목·보유수량 같은 기록은 남습니다. 차단을 풀면 그대로 돌아옵니다.</p>
+          <p className="hint">종목·보유수량 같은 기록은 남습니다. 차단을 풀면 그대로 돌아옵니다. 계정과 기록을 아주 없애려면 차단한 뒤 ‘지우기’를 누르세요.</p>
         </ConfirmDialog>
       )}
       {confirmDelete && (
@@ -252,7 +252,7 @@ export function UsersModal({ onClose, onChanged }: { onClose: () => void; onChan
           </p>
           <p className="hint">
             거절·차단은 기록을 남겨 다시 신청하지 못하게 하고, 지우기는 계정과 기록을 없애 같은 구글 계정으로 다시 가입 신청을 할 수
-            있게 합니다(서버 설정의 허용목록에 있는 이메일이면 바로 들어옵니다). 서버 백업에는 최대 7일, 관리자 PC 사본에는 최근
+            있게 합니다(관리자가 서버 설정에 미리 넣어 둔 이메일이면 승인 없이 바로 들어옵니다). 서버 백업에는 최대 7일, 관리자 PC 사본에는 최근
             4벌까지 남았다가 지워집니다.
           </p>
         </ConfirmDialog>
