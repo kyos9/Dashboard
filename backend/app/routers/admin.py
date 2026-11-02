@@ -71,6 +71,19 @@ def list_users(db: Session = Depends(get_db)) -> list[dict]:
     return [_row(user, counts.get(user.id, 0), pipeline.is_dormant(db, user)) for user in users]
 
 
+# DB 의 정수 칸 범위 — 넘는 id 는 SQLite 가 OverflowError(500)를 낸다 (0.46.0 검토 조건 3)
+_MAX_USER_ID = 2**31 - 1
+
+
+def _user_or_error(db: Session, user_id: int) -> User:
+    if not 1 <= user_id <= _MAX_USER_ID:
+        raise HTTPException(status_code=400, detail={"hint": "사용자 번호가 범위를 벗어났습니다.", "message": "user id out of range"})
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail={"hint": "없는 사용자입니다.", "message": "user not found"})
+    return user
+
+
 @router.put("/users/{user_id}/status")
 def change_status(user_id: int, payload: StatusChange, db: Session = Depends(get_db)) -> dict:
     """승인(`active`)·거절(`rejected`)·차단(`blocked`).
@@ -82,9 +95,7 @@ def change_status(user_id: int, payload: StatusChange, db: Session = Depends(get
     문지기가 막지만, 쪽지를 살려 두면 다시 승인하는 순간 예전 쪽지가 되살아난다.
     내 종목·보유 같은 기록은 지우지 않는다. 다시 승인하면 그대로 돌아온다.
     """
-    user = db.get(User, user_id)
-    if user is None:
-        raise HTTPException(status_code=404, detail={"hint": "없는 사용자입니다.", "message": "user not found"})
+    user = _user_or_error(db, user_id)
     if user.is_owner:
         raise HTTPException(
             status_code=403,
@@ -112,9 +123,7 @@ def delete_user(user_id: int, db: Session = Depends(get_db)) -> Response:
     - 지우면 같은 구글 계정으로 다시 신청할 수 있다(거절·차단이 막던 이유가 사라진다). 허용목록(`ALLOWED_GOOGLE_EMAILS`)에
       있는 이메일이면 다시 오는 순간 바로 쓰는 상태다.
     """
-    user = db.get(User, user_id)
-    if user is None:
-        raise HTTPException(status_code=404, detail={"hint": "없는 사용자입니다.", "message": "user not found"})
+    user = _user_or_error(db, user_id)
     if user.is_owner:
         raise HTTPException(
             status_code=403,

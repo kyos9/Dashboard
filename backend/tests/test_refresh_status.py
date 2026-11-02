@@ -177,6 +177,19 @@ def test_push_ignores_slots_and_kinds_but_obeys_the_switch(db_session, monkeypat
     assert len(sent) == 1
 
 
+@pytest.mark.parametrize("value", ["off", "OFF", " off ", "0", "false", "False", "no"])
+def test_the_switch_turns_off_with_any_of_its_words(monkeypatch, value):
+    """끄는 말 — 문서의 off 와 흔히 쓰는 0·false·no (0.46.0 검토 조건 2: 별칭을 지워도 시험이 통과했다)."""
+    monkeypatch.setenv(alerts.REFRESH_ALERT_SWITCH, value)
+    assert alerts.refresh_alert_enabled() is False
+
+
+@pytest.mark.parametrize("value", ["", "on", "1", "true", "yes", "offf"])
+def test_anything_else_keeps_the_alert_on(monkeypatch, value):
+    monkeypatch.setenv(alerts.REFRESH_ALERT_SWITCH, value)
+    assert alerts.refresh_alert_enabled() is True
+
+
 def test_scheduler_records_and_pushes(monkeypatch):
     """정해진 시각의 갱신 → 적기 → 막힘이면 푸시. 적다가 넘어져도 갱신은 그대로."""
     from app.services import scheduler

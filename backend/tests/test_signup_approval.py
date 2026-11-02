@@ -319,6 +319,15 @@ def test_the_admin_and_unknown_ids(api, people):
     assert people.be("sub-owner").delete("/api/admin/users/9999").status_code == 404
 
 
+@pytest.mark.parametrize("user_id", ["0", "-1", str(2**31), str(10**30)])
+def test_out_of_range_ids_are_400_not_500(api, people, user_id):
+    """DB 정수 칸을 넘는 번호 — 전에는 SQLite OverflowError 로 500 (0.46.0 검토 조건 3). 지우기·상태 바꾸기 둘 다."""
+    owner = people.be("sub-owner")
+    for res in (owner.delete(f"/api/admin/users/{user_id}"), owner.put(f"/api/admin/users/{user_id}/status", json={"status": "blocked"})):
+        assert res.status_code == 400, res.text
+        assert res.json()["detail"]["hint"] == "사용자 번호가 범위를 벗어났습니다."
+
+
 def test_an_allowlisted_email_comes_back_active_after_deletion(api, people):
     """허용목록에 있는 이메일은 지운 뒤 다시 오면 승인 대기가 아니라 바로 쓰는 상태 — 확인 창·DEPLOY 가 그렇게 말한다."""
     _, Session = api

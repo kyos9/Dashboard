@@ -9,6 +9,14 @@ export const KIND_TEXT: Record<PushKind, { label: string; hint: string }> = {
   signup: { label: '가입 신청', hint: '누가 가입을 신청했을 때 (관리자)' },
 }
 
+/**
+ * 종류의 글 — 화면이 모르는 종류(새 서버가 더 보낸 것)는 기본 풀이로. 옛 화면·새 서버에서 창이 넘어지지 않게
+ * (0.46.0 계획 검토, 검토 조건 1).
+ */
+export function kindText(kind: string): { label: string; hint: string } {
+  return (KIND_TEXT as Record<string, { label: string; hint: string }>)[kind] ?? { label: kind, hint: '서버가 새로 더한 알림' }
+}
+
 /** 이 기기가 왜 켤 수 없는지 — 할 일을 같이 적는다. */
 export const STATE_TEXT: Record<Exclude<PushState, 'on' | 'off'>, string> = {
   'needs-install':

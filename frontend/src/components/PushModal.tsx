@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { ApiError, api } from '../api/client'
 import { useBackToClose } from '../lib/backToClose'
 import { disablePush, enablePush, pushState, type PushState } from '../lib/push'
-import { KIND_TEXT, STATE_TEXT } from '../lib/pushText'
+import { kindText, STATE_TEXT } from '../lib/pushText'
 import { stockLabel } from '../lib/display'
 import type { PushKind, PushSettings, PushSlot, Stock } from '../types'
 import { ErrorNotice } from './ErrorNotice'
@@ -217,7 +217,9 @@ export function PushModal({ account, onClose }: { account: string; onClose: () =
         {settings && (
           <section className="push-kinds">
             <h4>받을 알림</h4>
-            {settings.available.map((kind) => (
+            {settings.available.map((kind) => {
+              const text = kindText(kind)
+              return (
               <label key={kind} className="push-kind">
                 <input
                   type="checkbox"
@@ -225,11 +227,12 @@ export function PushModal({ account, onClose }: { account: string; onClose: () =
                   onChange={(e) => void toggleKind(kind, e.target.checked)}
                 />
                 <span>
-                  <b>{KIND_TEXT[kind].label}</b>
-                  <span className="hint"> — {KIND_TEXT[kind].hint}</span>
+                  <b>{text.label}</b>
+                  <span className="hint"> — {text.hint}</span>
                 </span>
               </label>
-            ))}
+              )
+            })}
           </section>
         )}
 
