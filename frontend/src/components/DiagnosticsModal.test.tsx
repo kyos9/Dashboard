@@ -495,7 +495,7 @@ describe('진단의 백업 줄 — 밖에 꺼낸 것 (0.45.0 A)', () => {
 
   it('꺼냈으면 그 시각(관리자 PC), 10일 넘으면 경고', () => {
     const { unmount } = render(<BackupLines backup={backup({ last_at: '2026-10-13T09:00:00+00:00' })} now={NOW} />)
-    expect(screen.getByText(/^밖에 꺼낸 것/).textContent).toBe(`밖에 꺼낸 것: 마지막 ${local('2026-10-13T09:00:00+00:00')} (관리자 PC — 최근 4벌까지 남김)`)
+    expect(screen.getByText(/^밖에 꺼낸 것/).textContent).toBe(`밖에 꺼낸 것: 마지막 ${local('2026-10-13T09:00:00+00:00')} (관리자 PC — 최근 4개까지 남김)`)
     expect(screen.queryByRole('note')).toBeNull()
     unmount()
 

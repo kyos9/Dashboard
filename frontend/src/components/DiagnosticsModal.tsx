@@ -231,7 +231,7 @@ function OffsiteLine({ lastAt, staleDays, warnings }: { lastAt: string | null; s
   }
   return (
     <>
-      <p className="hint">밖에 꺼낸 것: 마지막 {when(lastAt)} (관리자 PC — 최근 4벌까지 남김)</p>
+      <p className="hint">밖에 꺼낸 것: 마지막 {when(lastAt)} (관리자 PC — 최근 4개까지 남김)</p>
       {warnings
         .filter((w) => OFFSITE_WARNING_TEXT[w])
         .map((w) => (
