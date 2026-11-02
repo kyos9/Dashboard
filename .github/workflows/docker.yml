@@ -51,7 +51,7 @@ jobs:
       # 이게 있어야 GHCR에 올릴 수 있다. 기본값은 읽기뿐이다.
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: docker/setup-buildx-action@v3
 
