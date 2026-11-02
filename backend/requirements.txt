@@ -12,7 +12,7 @@ yfinance==1.7.0
 requests==2.34.2
 pandas==3.0.5
 numpy==2.3.3
-pandas-market-calendars==4.6.1
+pandas-market-calendars==5.5.0
 apscheduler==3.11.0
 # 구글 로그인의 id_token 검증 (서명·발급자·대상·만료 + 공개키 회전). 직접 짜지 않는다.
 google-auth==2.58.0
