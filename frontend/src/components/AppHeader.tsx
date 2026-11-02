@@ -1,5 +1,6 @@
 import { Suspense, useEffect, useState, useSyncExternalStore } from 'react'
 import { useAppState } from '../AppState'
+import { diagnosticsReason } from '../lib/refreshText'
 import { ApiError, api } from '../api/client'
 import { useAuth } from './AuthGate'
 import { ConfirmDialog } from './ConfirmDialog'
@@ -35,7 +36,7 @@ export function buildLabel(builtAt?: string | null): string {
 export function AppHeader() {
   const { refreshAll, refreshing, lastSync, refreshError } = useAppState()
   const {
-    locked, mode, user, guest, pending, pendingCount, backupAttention, recountPending, isAdmin, logout, withdraw,
+    locked, mode, user, guest, pending, pendingCount, backupAttention, refreshAttention, recountPending, isAdmin, logout, withdraw,
     logoutEverywhere,
   } = useAuth()
   const [showUsers, setShowUsers] = useState(false)
@@ -141,6 +142,9 @@ export function AppHeader() {
   //
   // 관리자만의 것: 진단에는 남의 종목과 오류가 찍혀 있다. 계정이 있는 것은 구글 로그인뿐이다
   // (혼자 쓰는 서버에는 사용자 목록이 없다).
+  // 진단을 열어 봐야 하는 까닭 (0.46.0 C) — 백업 또는 시세 받기. 점은 하나, 풀이에 까닭을 적는다
+  const diagReason = diagnosticsReason(backupAttention, refreshAttention)
+  const diagDot = diagReason ? `진단을 확인하세요 — ${diagReason}` : undefined
   const adminItems: MenuItem[] = isAdmin
     ? [
         {
@@ -149,10 +153,10 @@ export function AppHeader() {
           label: (
             <>
               진단
-              {backupAttention && <span className="badge badge-amber count-badge" aria-label="백업을 확인하세요">!</span>}
+              {diagDot && <span className="badge badge-amber count-badge" aria-label={diagDot}>!</span>}
             </>
           ),
-          title: backupAttention ? '백업을 확인하세요 — 진단의 백업 칸' : '서버가 남긴 경고·오류 보기',
+          title: diagDot ?? '서버가 남긴 경고·오류 보기',
           onSelect: () => setShowDiagnostics(true),
         },
         ...(mode === 'google'
@@ -255,7 +259,7 @@ export function AppHeader() {
               items={phoneItems}
               head={accountHead}
               badge={isAdmin ? pendingCount : 0}
-              dot={isAdmin && backupAttention ? '백업을 확인하세요' : undefined}
+              dot={isAdmin ? diagDot : undefined}
               foot={
                 version && (
                   <span className="mono" title={versionTitle}>
@@ -354,7 +358,7 @@ export function AppHeader() {
             </button>
             {/* 관리자 도구는 메뉴로 — 헤더 버튼이 아홉 개였다 */}
             {adminItems.length > 0 && (
-              <HeaderMenu items={adminItems} badge={pendingCount} dot={backupAttention ? '백업을 확인하세요' : undefined} />
+              <HeaderMenu items={adminItems} badge={pendingCount} dot={diagDot} />
             )}
           </div>
         </header>

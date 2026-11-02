@@ -39,9 +39,15 @@ ENV SIGNAL_DASHBOARD_DB=/data/signal_dashboard.db \
     SIGNAL_DASHBOARD_VAPID_FILE=/data/vapid.pem
 
 # postgresql-client: 백업의 pg_dump. curl: 아래 HEALTHCHECK.
+# pg_dump 의 큰 판은 docker-compose.yml 의 postgres 와 **같아야** 한다 (0.46.0 A1) — 옛 판은 새 서버를 덤프하지 못하고,
+# 새 판의 덤프는 옛 서버의 psql 에 부으면 넘어진다(17 의 `SET transaction_timeout`). 기본 이미지(데비안)가 바뀌어 판이
+# 갈라지면 빌드가 여기서 멈춘다. compose 와 이 값이 같은지는 tests/test_backup_restore_pg.py 가 글자로 본다.
+ARG PG_MAJOR=17
 RUN apt-get update \
     && apt-get install -y --no-install-recommends postgresql-client curl \
     && rm -rf /var/lib/apt/lists/*
+RUN pg_dump --version | grep -q "(PostgreSQL) ${PG_MAJOR}\." \
+    || { echo "pg_dump 판이 ${PG_MAJOR} 이 아닙니다: $(pg_dump --version)" >&2; exit 1; }
 
 WORKDIR /srv/backend
 

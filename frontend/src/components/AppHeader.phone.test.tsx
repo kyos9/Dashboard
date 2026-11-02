@@ -122,17 +122,29 @@ describe('폰 헤더는 한 줄', () => {
 
   it('관리자: 백업을 봐야 하면 메뉴에 점, 진단 항목에 표시 — 신청 수가 있으면 숫자가 먼저 (0.45.0)', async () => {
     renderAs({ ...OWNER, pending_count: 0, backup_attention: true })
-    const menuButton = await screen.findByRole('button', { name: '메뉴 — 백업을 확인하세요' })
+    const menuButton = await screen.findByRole('button', { name: '메뉴 — 진단을 확인하세요 — 백업' })
     expect(menuButton.querySelector('.menu-dot')).not.toBeNull()
     await userEvent.click(menuButton)
-    const diag = screen.getByRole('button', { name: /진단/ })
-    expect(within(diag).getByLabelText('백업을 확인하세요')).toBeInTheDocument()
-    expect(diag).toHaveAttribute('title', '백업을 확인하세요 — 진단의 백업 칸')
+    const diag = screen.getByRole('button', { name: /^진단/ })
+    expect(within(diag).getByLabelText('진단을 확인하세요 — 백업')).toBeInTheDocument()
+    expect(diag).toHaveAttribute('title', '진단을 확인하세요 — 백업')
+  })
+
+  it('관리자: 시세 받기가 막혔으면 같은 점, 풀이에 까닭 (0.46.0 C)', async () => {
+    renderAs({ ...OWNER, pending_count: 0, refresh_attention: true })
+    const menuButton = await screen.findByRole('button', { name: '메뉴 — 진단을 확인하세요 — 시세 받기' })
+    await userEvent.click(menuButton)
+    expect(within(screen.getByRole('button', { name: /^진단/ })).getByLabelText('진단을 확인하세요 — 시세 받기')).toBeInTheDocument()
+  })
+
+  it('관리자: 백업과 시세 둘 다면 까닭도 둘', async () => {
+    renderAs({ ...OWNER, pending_count: 0, backup_attention: true, refresh_attention: true })
+    expect(await screen.findByRole('button', { name: '메뉴 — 진단을 확인하세요 — 백업 · 시세 받기' })).toBeInTheDocument()
   })
 
   it('관리자: 신청도 있고 백업도 봐야 하면 숫자와 점을 같이, 읽기 이름에 둘 다 (0.45.2 B4 — 전에는 숫자가 점을 가렸다)', async () => {
     renderAs({ ...OWNER, backup_attention: true })
-    const menuButton = await screen.findByRole('button', { name: '메뉴 — 가입 신청 2건 — 백업을 확인하세요' })
+    const menuButton = await screen.findByRole('button', { name: '메뉴 — 가입 신청 2건 — 진단을 확인하세요 — 백업' })
     expect(menuButton).toHaveTextContent('2')
     expect(menuButton.querySelector('.menu-dot.menu-dot-aside')).not.toBeNull()
   })

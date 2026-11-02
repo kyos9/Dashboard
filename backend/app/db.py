@@ -66,7 +66,10 @@ def engine_options(url: str) -> dict:
         return {"connect_args": {"check_same_thread": False}}
     # 서버 DB는 유휴 연결이 방화벽·프록시에 끊긴 뒤에도 커넥션 풀에 남아 있다.
     # 꺼내 쓰기 전에 한 번 찔러보지 않으면 첫 요청이 항상 실패한다.
-    return {"pool_pre_ping": True}
+    # 접속 자체가 매달리지 않게 5초 (0.46.0 B — 헬스체크·마이그레이션도 이 함수를 쓴다). 주소에 이미 적었으면 그것을 따른다
+    if "connect_timeout" in url:
+        return {"pool_pre_ping": True}
+    return {"pool_pre_ping": True, "connect_args": {"connect_timeout": 5}}
 
 
 DATABASE_URL = database_url()

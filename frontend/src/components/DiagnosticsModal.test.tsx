@@ -3,7 +3,8 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../api/client'
 import type { BackupStatus, LogsResponse, RecordsStatus, SignalRulesStatus, SlowRequestsResponse } from '../types'
-import { BackupLines, DiagnosticsModal, RecordsLine, summarize } from './DiagnosticsModal'
+import { BackupLines, DiagnosticsModal, RecordsLine, RefreshLines, summarize } from './DiagnosticsModal'
+import { refreshLine } from '../lib/refreshText'
 import { whenText } from '../lib/diagTime'
 
 /**
@@ -328,6 +329,71 @@ describe('맨 위 요약과 백업 경고 (0.45.1 C1)', () => {
   })
 })
 
+describe('진단의 시세 받기 (0.46.0 C)', () => {
+  const base = {
+    market: 'US', at: '2026-10-30T07:31:00+00:00', total: 20, failed: 0, failed_tickers: [] as string[],
+    providers: [] as string[], latest_date: '2026-10-29', blocked: false, reason: null, last_ok_at: '2026-10-30T07:31:00+00:00',
+  } as const
+  const at = new Date('2026-10-30T07:31:00Z').toLocaleString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })
+
+  it('받은 날 — 받은 때·종목 수·실패 수(이름까지)', () => {
+    expect(refreshLine({ ...base })).toBe(`미국: ${at} 받음 · 20종목 중 실패 0`)
+    expect(refreshLine({ ...base, failed: 1, failed_tickers: ['ZZZZ'] })).toBe(`미국: ${at} 받음 · 20종목 중 실패 1 (ZZZZ)`)
+  })
+
+  it('실패가 많아 막힘 — 출처 이름과 마지막으로 받은 때', () => {
+    const line = refreshLine({ ...base, blocked: true, reason: 'failed', failed: 18, providers: ['yahoo', 'stooq'], last_ok_at: '2026-10-28T07:31:00+00:00' })
+    expect(line).toMatch(/^미국: 막힘 — 마지막으로 받은 때 .* · .*에 받으려 했으나 20종목 중 18개 실패 \(시세 출처 Yahoo·Stooq\)$/)
+  })
+
+  it('실패는 없는데 묵음 — "실패 0" 과 막힘이 한 줄에 서지 않는다 (계획 다시 보기)', () => {
+    const line = refreshLine({ ...base, market: 'JP', blocked: true, reason: 'stale', latest_date: '2026-10-26' })
+    expect(line).toBe('일본: 받았지만 시세가 10월 26일에 멈춰 있습니다')
+    expect(line).not.toMatch(/실패 0/)
+  })
+
+  it('막힌 줄만 경고 모양, 맨 위 요약에 한 마디', () => {
+    render(<RefreshLines states={[{ ...base }, { ...base, market: 'KR', blocked: true, reason: 'failed', failed: 3, total: 3 }]} />)
+    expect(screen.getByRole('heading', { name: '시세 받기' })).toBeInTheDocument()
+    expect(screen.getAllByRole('note').map((n) => n.textContent)).toEqual([expect.stringMatching(/^한국: /)])
+    expect(summarize(null, false, true)).toBe('시세 받기 막힘 — 아래 시세 받기 칸')
+    expect(summarize(null, true, true)).toBe('백업 확인 필요 — 아래 백업 칸 · 시세 받기 막힘 — 아래 시세 받기 칸')
+  })
+})
+
+describe('진단의 백업 줄 — 꼬리표마다 따로 센다 (0.46.0 A3·A4)', () => {
+  const NOW = Date.parse('2026-10-16T12:00:00Z')
+  const base: BackupStatus = {
+    count: 9, keep: 10, daily: { count: 7, keep: 7 }, last_at: '2026-10-15T23:30:00+00:00', last_size: 2_621_440,
+    last_failure: null, premigrate: { count: 2, last_at: '2026-10-14T09:30:00+00:00', keep: 3 },
+    offsite: { last_at: '2026-10-15T01:00:00+00:00', warnings: [] },
+  }
+
+  it('새 서버: 매일 백업 개수와 업데이트 직전 개수를 따로', () => {
+    render(<BackupLines backup={base} now={NOW} />)
+    expect(screen.getByText(/^백업: 마지막/).textContent).toMatch(/· 매일 백업 지금 7개 · 최근 7개까지 남김$/)
+    expect(screen.getByText(/^업데이트 직전 백업/).textContent).toMatch(/^업데이트 직전 백업 2개\(최대 3개, 7일 안\) · 마지막 /)
+    expect(screen.queryByText(/위 개수에 들어 있습니다/)).toBeNull()
+    expect(screen.queryByRole('note')).toBeNull()
+  })
+
+  it('PC 사본 폴더 경고 — 아는 것만, 받기 시각 아래에', () => {
+    render(<BackupLines backup={{ ...base, offsite: { last_at: base.offsite!.last_at, warnings: ['onedrive', 'noacl', '모름'] } }} now={NOW} />)
+    const notes = screen.getAllByRole('note').map((n) => n.textContent)
+    expect(notes).toEqual([
+      expect.stringMatching(/^PC 사본 폴더가 OneDrive 아래에 있습니다/),
+      expect.stringMatching(/^PC 사본 폴더를 나만 열게 하지 못했습니다/),
+    ])
+  })
+
+  it('옛 서버(daily·warnings 없음): 지금 문구 그대로', () => {
+    render(<BackupLines backup={{ ...base, daily: undefined, keep: 7, premigrate: { count: 2, last_at: base.premigrate!.last_at }, offsite: { last_at: base.offsite!.last_at } }} now={NOW} />)
+    expect(screen.getByText(/^백업: 마지막/).textContent).toMatch(/· 9개 보관\(최대 7개\)$/)
+    expect(screen.getByText(/^업그레이드 직전 백업 2개/).textContent).toMatch(/\(위 개수에 들어 있습니다\)$/)
+    expect(screen.queryByRole('note')).toBeNull()
+  })
+})
+
 describe('진단의 백업 줄 (0.44.0 D0)', () => {
   const NOW = Date.parse('2026-10-16T12:00:00Z')
   const backup = (overrides: Partial<BackupStatus> = {}): BackupStatus => ({
@@ -429,7 +495,7 @@ describe('진단의 백업 줄 — 밖에 꺼낸 것 (0.45.0 A)', () => {
 
   it('꺼냈으면 그 시각(관리자 PC), 10일 넘으면 경고', () => {
     const { unmount } = render(<BackupLines backup={backup({ last_at: '2026-10-13T09:00:00+00:00' })} now={NOW} />)
-    expect(screen.getByText(/^밖에 꺼낸 것/).textContent).toBe(`밖에 꺼낸 것: 마지막 ${local('2026-10-13T09:00:00+00:00')} (관리자 PC)`)
+    expect(screen.getByText(/^밖에 꺼낸 것/).textContent).toBe(`밖에 꺼낸 것: 마지막 ${local('2026-10-13T09:00:00+00:00')} (관리자 PC — 최근 4개까지 남김)`)
     expect(screen.queryByRole('note')).toBeNull()
     unmount()
 
@@ -438,10 +504,10 @@ describe('진단의 백업 줄 — 밖에 꺼낸 것 (0.45.0 A)', () => {
     expect(screen.queryByRole('note')).toBeNull()
     u2()
     const { unmount: u3 } = render(<BackupLines backup={backup({ last_at: '2026-10-10T00:00:00+00:00' })} now={NOW} />)
-    expect(screen.getByRole('note').textContent).toBe('10일 동안 밖에 꺼내지 않았습니다 — PC 에서 server-backup-pull.bat 을 실행하세요.')
+    expect(screen.getByRole('note').textContent).toBe('10일 동안 밖에 꺼내지 않았습니다 — PC 의 Dashboard 폴더에서 server-backup-pull.bat 을 실행하세요.')
     u3()
     render(<BackupLines backup={backup({ last_at: '2026-10-09T11:00:00+00:00' })} now={NOW} />)
-    expect(screen.getByRole('note').textContent).toBe('11일 동안 밖에 꺼내지 않았습니다 — PC 에서 server-backup-pull.bat 을 실행하세요.')
+    expect(screen.getByRole('note').textContent).toBe('11일 동안 밖에 꺼내지 않았습니다 — PC 의 Dashboard 폴더에서 server-backup-pull.bat 을 실행하세요.')
   })
 
   it('옛 서버(칸 없음)면 그 줄이 없다', () => {

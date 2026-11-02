@@ -151,6 +151,17 @@ describe('받을 알림', () => {
     await userEvent.click(signup)
     expect(save).toHaveBeenCalledWith(['buy', 'signup'])
   })
+
+  it('화면이 모르는 종류(새 서버)가 와도 창이 넘어지지 않는다 — 기본 풀이로 (0.46.0 검토 조건 1)', async () => {
+    vi.spyOn(api, 'getPushSettings').mockResolvedValue({
+      kinds: ['buy'], available: ['buy', 'future-kind' as PushSettings['available'][number]], devices: 1,
+    })
+    renderModal()
+    const unknown = await screen.findByRole('checkbox', { name: /future-kind/ })
+    expect(unknown).not.toBeChecked()
+    expect(screen.getByText(/서버가 새로 더한 알림/)).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: /매수 시그널/ })).toBeChecked()
+  })
 })
 
 it('Esc·바깥·✕ 로 닫힌다', async () => {

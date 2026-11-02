@@ -324,6 +324,8 @@ export const api = {
   withdraw: () => request<void>('/auth/me', { method: 'DELETE' }),
   /** 관리자 — 사용자 목록과 가입 승인 */
   listUsers: () => request<AdminUser[]>('/admin/users'),
+  /** 승인 대기·거절·차단 계정과 그 기록을 지운다 (0.46.0 D) — 쓰는 중이면 409(먼저 차단) */
+  deleteUser: (userId: number) => request<void>(`/admin/users/${userId}`, { method: 'DELETE' }),
   setUserStatus: (userId: number, status: Exclude<UserStatus, 'pending'>) =>
     request<AdminUser>(`/admin/users/${userId}/status`, {
       method: 'PUT',

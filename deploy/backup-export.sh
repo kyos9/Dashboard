@@ -4,7 +4,7 @@
 #
 #   ~/Dashboard/deploy/backup-export.sh export   # 가장 새 매일 백업을 꺼낼 폴더로 → "이름 바이트수" 한 줄
 #   ~/Dashboard/deploy/backup-export.sh clean    # 꺼낼 폴더를 지운다 (받든 못 받든 끝에 늘)
-#   ~/Dashboard/deploy/backup-export.sh mark     # 밖에 꺼냈다고 적는다 (받은 크기를 확인한 뒤에만)
+#   ~/Dashboard/deploy/backup-export.sh mark     # 밖에 꺼냈다고 적는다 (받은 크기를 확인한 뒤에만). 뒤에 --warn onedrive 처럼 PC 폴더 경고를 붙일 수 있다
 #
 # 백업을 **새로 뜨지 않는다** — 매일 23:30·켤 때 뜬 것 중 가장 새것을 꺼낸다. 꺼내는 쪽이 뜨면 그것이 "매일 백업"으로
 # 세어져 스케줄러가 멈춘 것을 가린다. 업그레이드 직전 백업(-premigrate)·상태 파일은 고르지 않는다.
@@ -59,7 +59,9 @@ case "${1:-}" in
     rm -rf "$EXPORT_DIR"
     ;;
   mark)
-    $DOCKER compose exec -T app python -m app.tools.backup_pulled
+    # 뒤의 인자는 그대로 넘긴다 — bat 이 PC 사본 폴더의 경고를 붙인다(`--warn onedrive`, 0.46.0 A4)
+    shift
+    $DOCKER compose exec -T app python -m app.tools.backup_pulled "$@"
     ;;
   *)
     echo "쓰는 법: $0 export | clean | mark" >&2

@@ -48,7 +48,26 @@ def _refresh(market: Market | None, label: str) -> None:
         logger.info("%s refresh completed: %s", label, results)
     finally:
         db.close()
+    _record_refresh(results)
     _send_alerts()
+
+
+def _record_refresh(results: list[dict]) -> None:
+    """시장마다 받기 결과를 적고, 막힘으로 바뀐 시장이 있으면 관리자에게 (0.46.0 C, services/refresh_status.py).
+
+    넘어져도 갱신·알림은 그대로다.
+    """
+    from app.services import alerts, refresh_status
+
+    db = SessionLocal()
+    try:
+        blocked = refresh_status.record_run(db, results)
+        if blocked:
+            alerts.notify_refresh_blocked(db, blocked)
+    except Exception:
+        logger.warning("시세 받기 결과를 적지 못했습니다", exc_info=True)
+    finally:
+        db.close()
 
 
 def _send_alerts() -> None:
@@ -123,6 +142,9 @@ def _startup_refresh_job() -> None:
         results = {}
     finally:
         db.close()
+    # 따라잡기도 적는다 — 묵은 값 기준을 같이 봐서 "풀림"을 잘못 적지 않는다(refresh_status)
+    if results:
+        _record_refresh([row for rows in results.values() for row in rows])
     # 받아온 게 있을 때만. 서버를 다시 띄울 때마다 알림을 판정할 이유는 없다
     if results:
         _send_alerts()

@@ -205,7 +205,7 @@ def test_postgres_backup_hides_the_password_from_the_process_list(tmp_path, monk
     def fake_run(args, **kwargs):
         seen["args"] = args
         seen["env"] = kwargs["env"]
-        Path(args[args.index("--file") + 1]).write_text("-- dump", encoding="utf-8")
+        Path(args[args.index("--file") + 1]).write_text(f"-- dump\n{backup.DUMP_COMPLETE}\n", encoding="utf-8")
         return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
 
     monkeypatch.setattr(backup.shutil, "which", lambda name: "/usr/bin/pg_dump")
@@ -247,7 +247,9 @@ def test_status_tells_when_how_big_and_how_many_without_names(tmp_path, monkeypa
 
     status = backup.status(backup_dir=tmp_path / "b")
 
-    assert status["count"] == 3 and status["keep"] == backup.KEEP
+    assert status["count"] == 3 and status["daily"] == {"count": 3, "keep": backup.KEEP}
+    # 옛 화면의 "N개 보관(최대 M개)" — count 는 두 갈래를 합친 수라 keep 도 합친 최대 (0.46.0 A3)
+    assert status["keep"] == backup.KEEP + backup.KEEP_PREMIGRATE
     assert status["last_size"] == 1234
     # 이름에 찍힌 서버 시각(가장 최근)을 UTC 로
     newest = dt.datetime(2026, 9, 12, 3, 0, 0).astimezone(dt.timezone.utc)
@@ -260,9 +262,10 @@ def test_status_tells_when_how_big_and_how_many_without_names(tmp_path, monkeypa
 
 def test_status_with_no_backups(tmp_path, monkeypatch):
     assert backup.status(backup_dir=tmp_path / "없음") == {
-        "count": 0, "keep": backup.KEEP, "last_at": None, "last_size": None, "last_failure": None,
-        "premigrate": {"count": 0, "last_at": None},
-        "offsite": {"last_at": None},
+        "count": 0, "keep": backup.KEEP + backup.KEEP_PREMIGRATE, "daily": {"count": 0, "keep": backup.KEEP},
+        "last_at": None, "last_size": None, "last_failure": None,
+        "premigrate": {"count": 0, "last_at": None, "keep": backup.KEEP_PREMIGRATE},
+        "offsite": {"last_at": None, "warnings": []},
     }
 
 
@@ -312,6 +315,7 @@ def test_an_upgrade_backup_does_not_hide_a_stalled_daily_backup(tmp_path):
     assert status["count"] == 2
     assert status["premigrate"] == {
         "count": 1, "last_at": dt.datetime(2026, 10, 19, 9, 30, 0).astimezone(dt.timezone.utc).isoformat(),
+        "keep": backup.KEEP_PREMIGRATE,
     }
 
 
@@ -392,6 +396,7 @@ def test_the_newest_upgrade_backup_is_the_last_one(tmp_path):
     (directory / f"{backup.PREFIX}20261019-093000-premigrate.db").write_bytes(b"b")
     assert backup.status(backup_dir=directory)["premigrate"] == {
         "count": 2, "last_at": dt.datetime(2026, 10, 19, 9, 30, 0).astimezone(dt.timezone.utc).isoformat(),
+        "keep": backup.KEEP_PREMIGRATE,
     }
 
 
@@ -438,13 +443,13 @@ def test_marking_pulled_keeps_the_last_failure_and_back(tmp_path):
     backup._write_failure({"at": "2026-10-19T14:30:00+00:00", "reason": "디스크가 찼습니다"}, backup_dir=directory)
     assert backup.mark_pulled(now=NOW, backup_dir=directory) is True
     state = backup.status(backup_dir=directory)
-    assert state["offsite"] == {"last_at": "2026-10-20T12:00:00+00:00"}
+    assert state["offsite"]["last_at"] == "2026-10-20T12:00:00+00:00"
     assert state["last_failure"]["reason"] == "디스크가 찼습니다"
     # 다음 매일 백업이 성공해 실패 기록을 지워도 꺼낸 시각은 남는다
     backup._write_failure(None, backup_dir=directory)
     state = backup.status(backup_dir=directory)
     assert state["last_failure"] is None
-    assert state["offsite"] == {"last_at": "2026-10-20T12:00:00+00:00"}
+    assert state["offsite"]["last_at"] == "2026-10-20T12:00:00+00:00"
     # 남는 임시 파일이 없다
     assert sorted(p.name for p in directory.iterdir() if not p.name.endswith(".lock")) == [backup.STATUS_FILE]
 
@@ -453,7 +458,7 @@ def test_marking_pulled_says_false_when_it_cannot_write(tmp_path):
     directory = tmp_path / "backups"
     (directory / backup.STATUS_FILE).mkdir(parents=True)  # 그 자리에 폴더 — 파일로 바꿀 수 없다
     assert backup.mark_pulled(now=NOW, backup_dir=directory) is False
-    assert backup.status(backup_dir=directory)["offsite"] == {"last_at": None}
+    assert backup.status(backup_dir=directory)["offsite"]["last_at"] == None
 
 
 @pytest.mark.parametrize("saved", ['{"pulled_at": 5}', '{"pulled_at": "어제"}', "[1, 2]", "{망가짐"])
@@ -461,7 +466,7 @@ def test_a_broken_pulled_mark_reads_as_none(tmp_path, saved):
     directory = tmp_path / "backups"
     directory.mkdir()
     (directory / backup.STATUS_FILE).write_text(saved, encoding="utf-8")
-    assert backup.status(backup_dir=directory)["offsite"] == {"last_at": None}
+    assert backup.status(backup_dir=directory)["offsite"]["last_at"] == None
 
 
 def _daily(directory, when: dt.datetime) -> None:
@@ -499,7 +504,7 @@ def test_a_pulled_mark_without_a_time_zone_is_read_as_utc(tmp_path):
     directory = tmp_path / "backups"
     directory.mkdir()
     (directory / backup.STATUS_FILE).write_text('{"pulled_at": "2026-09-01T00:00:00"}', encoding="utf-8")
-    assert backup.status(backup_dir=directory)["offsite"] == {"last_at": "2026-09-01T00:00:00+00:00"}
+    assert backup.status(backup_dir=directory)["offsite"]["last_at"] == "2026-09-01T00:00:00+00:00"
     assert backup.attention(now=NOW, backup_dir=directory) is True  # 49일
 
 

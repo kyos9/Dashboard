@@ -63,6 +63,21 @@ for /f "tokens=1,2" %%A in ("%LINE%") do (
 )
 
 if not exist "%DEST%" mkdir "%DEST%"
+rem 받는 폴더를 내 계정만 열게 한다 (0.46.0 A4) — 사본에는 모든 사람의 보유 기록이 평문으로 있다. 암호화는 하지 않는다:
+rem 이 PC 에는 서버에 들어가는 키가 같이 있어 사본만 잠가서는 막는 것이 적고, 잊을 암호가 생긴다(DEPLOY.md 10-0).
+rem 못 걸면(USB·exFAT·네트워크 드라이브) 경고만 하고 받기는 계속한다. 경고는 진단 화면에도 남긴다(작업 스케줄러에서는 창이 안 보인다).
+set "WARN="
+icacls "%DEST%" /inheritance:r /grant:r "%USERNAME%:(OI)(CI)F" /T /C /Q >nul 2>&1
+if errorlevel 1 (
+    echo [주의] 받는 폴더를 나만 열게 하지 못했습니다 ^(USB·네트워크 드라이브일 수 있습니다^). 받기는 계속합니다.
+    set "WARN=!WARN! --warn noacl"
+)
+rem OneDrive 아래면 사본이 클라우드로 올라갈 수 있다 — 멈추지 않고 알린다(매주 받던 것이 조용히 멈추지 않게)
+powershell -NoProfile -Command "$d=[IO.Path]::GetFullPath($env:DEST).TrimEnd('\')+'\'; foreach($r in @($env:OneDrive,$env:OneDriveCommercial,$env:OneDriveConsumer)){ if($r){ $p=[IO.Path]::GetFullPath($r).TrimEnd('\')+'\'; if($d.StartsWith($p,[StringComparison]::OrdinalIgnoreCase)){ exit 1 } } }; exit 0"
+if errorlevel 1 (
+    echo [주의] 받는 폴더가 OneDrive 아래에 있습니다 — 사본이 클라우드로 올라갈 수 있습니다. backup-pull.local.txt 의 DEST 를 OneDrive 밖으로 옮기세요.
+    set "WARN=!WARN! --warn onedrive"
+)
 echo [2/4] 받습니다: !NAME! (!SIZE! 바이트)
 rem 서버 쪽 경로는 홈에서부터(앞에 ~ 를 붙이지 않는다 — scp 의 방식에 따라 펼쳐지지 않는다)
 %SCP% "%SERVER%:dashboard-backup-export/!NAME!" "%DEST%\!NAME!"
@@ -84,7 +99,7 @@ if not "!GOT!"=="!SIZE!" (
 )
 
 echo [4/4] 서버에 "밖에 꺼냈다"고 적습니다...
-%SSH% %SERVER% "%REPO%/deploy/backup-export.sh mark"
+%SSH% %SERVER% "%REPO%/deploy/backup-export.sh mark!WARN!"
 if errorlevel 1 (
     echo [주의] 백업은 받았지만 서버에 꺼낸 시각을 남기지 못했습니다 ^(서버가 0.45 보다 옛 버전이거나 디스크·권한^).
 )

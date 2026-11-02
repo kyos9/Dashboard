@@ -130,6 +130,30 @@ def find_user_stock(db: Session, user_id: int, ticker: str) -> UserStock | None:
     return user_stocks(db, user_id).filter(UserStock.ticker == ticker).first()
 
 
+def delete_user_records(db: Session, user: User) -> None:
+    """그 사람의 계정과 기록을 지우고 커밋한다 — 탈퇴(`DELETE /api/auth/me`)와 관리자의 지우기(0.46.0 D)가 같이 쓴다.
+    표 목록이 두 곳에서 갈라지지 않게 여기 한 곳에 둔다. 새 사용자별 표는 `test_isolation` 의 탈퇴·지우기 검사가 잡는다.
+
+    공용 데이터(시세·지표·매크로)는 남는다 — 거기엔 그 사람을 가리키는 게 없다.
+    """
+    from app.models import (
+        Holding,
+        PortfolioValueDaily,
+        PushState,
+        PushSubscription,
+        RebalanceSnapshot,
+        UserSettings,
+    )
+
+    # 보유가 내 종목 행을, 기록·설정이 계정 행을 가리키므로 그 순서로 지운다
+    for model in (
+        Holding, UserStock, RebalanceSnapshot, PortfolioValueDaily, UserSettings, PushSubscription, PushState,
+    ):
+        db.query(model).filter(model.user_id == user.id).delete(synchronize_session=False)
+    db.delete(user)
+    db.commit()
+
+
 def ensure_local_owner(db: Session) -> User:
     """1번 사용자를 돌려준다. 없으면 만든다 (동시에 불려도 안전하다).
 

@@ -10,19 +10,22 @@
 import logging
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models import User, UserStock
-from app.services import app_settings, auth, backup, pipeline, signal_recompute, signal_rules, value_record
+from app.services import (
+    app_settings, auth, backup, pipeline, refresh_status, signal_recompute, signal_rules, value_record,
+)
 from app.services.users import (
     STATUS_ACTIVE,
     STATUS_BLOCKED,
     STATUS_PENDING,
     STATUS_REJECTED,
+    delete_user_records,
     require_owner,
 )
 
@@ -68,6 +71,19 @@ def list_users(db: Session = Depends(get_db)) -> list[dict]:
     return [_row(user, counts.get(user.id, 0), pipeline.is_dormant(db, user)) for user in users]
 
 
+# DB 의 정수 칸 범위 — 넘는 id 는 SQLite 가 OverflowError(500)를 낸다 (0.46.0 검토 조건 3)
+_MAX_USER_ID = 2**31 - 1
+
+
+def _user_or_error(db: Session, user_id: int) -> User:
+    if not 1 <= user_id <= _MAX_USER_ID:
+        raise HTTPException(status_code=400, detail={"hint": "사용자 번호가 범위를 벗어났습니다.", "message": "user id out of range"})
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail={"hint": "없는 사용자입니다.", "message": "user not found"})
+    return user
+
+
 @router.put("/users/{user_id}/status")
 def change_status(user_id: int, payload: StatusChange, db: Session = Depends(get_db)) -> dict:
     """승인(`active`)·거절(`rejected`)·차단(`blocked`).
@@ -79,9 +95,7 @@ def change_status(user_id: int, payload: StatusChange, db: Session = Depends(get
     문지기가 막지만, 쪽지를 살려 두면 다시 승인하는 순간 예전 쪽지가 되살아난다.
     내 종목·보유 같은 기록은 지우지 않는다. 다시 승인하면 그대로 돌아온다.
     """
-    user = db.get(User, user_id)
-    if user is None:
-        raise HTTPException(status_code=404, detail={"hint": "없는 사용자입니다.", "message": "user not found"})
+    user = _user_or_error(db, user_id)
     if user.is_owner:
         raise HTTPException(
             status_code=403,
@@ -95,6 +109,34 @@ def change_status(user_id: int, payload: StatusChange, db: Session = Depends(get
         db.commit()
         logger.info("사용자 %s 상태를 %s(으)로 바꿨습니다", user.id, payload.status)
     return _row(user, _stock_counts(db).get(user.id, 0), pipeline.is_dormant(db, user))
+
+
+@router.delete("/users/{user_id}", status_code=204)
+def delete_user(user_id: int, db: Session = Depends(get_db)) -> Response:
+    """승인 대기·거절·차단인 계정과 그 기록을 지운다 (0.46.0 D). 되돌릴 수 없다.
+
+    방침은 "승인 대기·거절·차단된 계정은 탈퇴 버튼이 없으니 지우고 싶으면 관리자에게 문의"라고 하는데, 관리자에게 지우는 수단이
+    없었다(DB 를 손으로 고쳐야 했다). 지우는 것은 탈퇴와 같다(`delete_user_records`).
+
+    - **쓰는 중(`active`)인 계정은 409** — 먼저 차단한다. 실수로 지인의 기록을 지우지 않게 두 단계.
+    - 관리자 계정은 403.
+    - 지우면 같은 구글 계정으로 다시 신청할 수 있다(거절·차단이 막던 이유가 사라진다). 허용목록(`ALLOWED_GOOGLE_EMAILS`)에
+      있는 이메일이면 다시 오는 순간 바로 쓰는 상태다.
+    """
+    user = _user_or_error(db, user_id)
+    if user.is_owner:
+        raise HTTPException(
+            status_code=403,
+            detail={"hint": "관리자 계정은 지울 수 없습니다.", "message": "cannot delete the owner"},
+        )
+    if user.status == STATUS_ACTIVE:
+        raise HTTPException(
+            status_code=409,
+            detail={"hint": "쓰는 중인 계정은 지울 수 없습니다. 먼저 차단한 뒤 지우세요.", "message": "block first"},
+        )
+    delete_user_records(db, user)
+    logger.info("관리자가 사용자 %s 를 지웠습니다", user_id)
+    return Response(status_code=204)
 
 
 # ---------------------------------------------------------------------------
@@ -149,4 +191,5 @@ def records_status(db: Session = Depends(get_db)) -> dict:
     # ⋯ 의 점(`backup_attention`)과 같은 기준 (A 검토)
     if auth.mode() != auth.MODE_GOOGLE:
         state.pop("offsite", None)
-    return {"value_record": value_record.status(db), "backup": state}
+    # 시세 받기 — 시장마다 마지막 정해진 갱신의 결과 (0.46.0 C). 실패 종목 이름이 남의 것일 수 있어 관리자만
+    return {"value_record": value_record.status(db), "backup": state, "refresh": refresh_status.overview(db)}

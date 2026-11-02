@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { backupWarnings } from '../lib/backupWarnings'
 import { parseInstant, whenText } from '../lib/diagTime'
+import { refreshLine } from '../lib/refreshText'
 import { useBackToClose } from '../lib/backToClose'
 import { ErrorNotice } from './ErrorNotice'
-import type { BackupStatus, LogsResponse, RecordsStatus, SignalRulesStatus, SlowRequestsResponse } from '../types'
+import type { BackupStatus, LogsResponse, RecordsStatus, RefreshStatus, SignalRulesStatus, SlowRequestsResponse } from '../types'
 import { lockBodyScroll } from '../lib/scrollLock'
 
 /**
@@ -34,16 +35,17 @@ function sizeText(bytes: number): string {
  * 맨 위 한 줄. 무엇을 센 것인지("서버 로그")를 말에 넣고, 백업 칸에 경고가 있으면 끝에 붙인다 —
  * 로그만 세면서 "경고·오류가 없습니다"라고 하면 바로 아래 백업 경고와 어긋났다(0.45.1 C1).
  */
-export function summarize(logs: LogsResponse | null, backupWarn = false): string {
-  const { head, tail } = summaryParts(logs, backupWarn)
+export function summarize(logs: LogsResponse | null, backupWarn = false, refreshWarn = false): string {
+  const { head, tail } = summaryParts(logs, backupWarn, refreshWarn)
   return [head, tail].filter(Boolean).join(' · ')
 }
 
 /** 꼬리(백업)만 경고 모양으로 그리려고 둘로 나눈다 — 같은 작은 회색 글이라 눈에 띄지 않았다(0.45.2 B1) */
 const BACKUP_TAIL = '백업 확인 필요 — 아래 백업 칸'
+const REFRESH_TAIL = '시세 받기 막힘 — 아래 시세 받기 칸'
 
-function summaryParts(logs: LogsResponse | null, backupWarn: boolean): { head: string; tail: string } {
-  const tail = backupWarn ? BACKUP_TAIL : ''
+function summaryParts(logs: LogsResponse | null, backupWarn: boolean, refreshWarn = false): { head: string; tail: string } {
+  const tail = [backupWarn ? BACKUP_TAIL : '', refreshWarn ? REFRESH_TAIL : ''].filter(Boolean).join(' · ')
   if (!logs) return { head: '', tail }
   const bad = (logs.counts.ERROR ?? 0) + (logs.counts.CRITICAL ?? 0)
   const warn = logs.counts.WARNING ?? 0
@@ -55,8 +57,8 @@ function summaryParts(logs: LogsResponse | null, backupWarn: boolean): { head: s
   return { head, tail }
 }
 
-function SummaryLine({ logs, backupWarn }: { logs: LogsResponse | null; backupWarn: boolean }) {
-  const { head, tail } = summaryParts(logs, backupWarn)
+function SummaryLine({ logs, backupWarn, refreshWarn }: { logs: LogsResponse | null; backupWarn: boolean; refreshWarn: boolean }) {
+  const { head, tail } = summaryParts(logs, backupWarn, refreshWarn)
   return (
     <span className="hint diag-summary">
       {head}
@@ -182,12 +184,14 @@ export function BackupLines({ backup, now }: { backup: BackupStatus; now: number
     <>
       <p className="hint">
         {backup.last_at
-          ? `백업: 마지막 ${when(backup.last_at)}${backup.last_size !== null ? ` · ${bytes(backup.last_size)}` : ''} · ${backup.count}개 보관(최대 ${backup.keep}개)`
+          ? `백업: 마지막 ${when(backup.last_at)}${backup.last_size !== null ? ` · ${bytes(backup.last_size)}` : ''} · ${keptText(backup)}`
           : '백업: 아직 없습니다 — 매일 하나씩 서버 안에 뜹니다.'}
       </p>
       {backup.premigrate && backup.premigrate.count > 0 && backup.premigrate.last_at && (
         <p className="hint">
-          업그레이드 직전 백업 {backup.premigrate.count}개 · 마지막 {when(backup.premigrate.last_at)} (위 개수에 들어 있습니다)
+          {backup.premigrate.keep !== undefined
+            ? `업데이트 직전 백업 ${backup.premigrate.count}개(최대 ${backup.premigrate.keep}개, 7일 안) · 마지막 ${when(backup.premigrate.last_at)}`
+            : `업그레이드 직전 백업 ${backup.premigrate.count}개 · 마지막 ${when(backup.premigrate.last_at)} (위 개수에 들어 있습니다)`}
         </p>
       )}
       {stale && (
@@ -200,24 +204,62 @@ export function BackupLines({ backup, now }: { backup: BackupStatus; now: number
           마지막 실패: {when(backup.last_failure.at)} — {backup.last_failure.reason}
         </p>
       )}
-      {backup.offsite && <OffsiteLine lastAt={backup.offsite.last_at} staleDays={offsiteStaleDays} />}
+      {backup.offsite && (
+        <OffsiteLine lastAt={backup.offsite.last_at} staleDays={offsiteStaleDays} warnings={backup.offsite.warnings ?? []} />
+      )}
     </>
   )
 }
 
-function OffsiteLine({ lastAt, staleDays }: { lastAt: string | null; staleDays: number | null }) {
+/**
+ * 몇 개 남겨 두나 — 0.46.0 부터 서버가 매일 백업과 업데이트 직전 백업을 따로 센다(`daily`). 옛 서버는 둘을 합친 수만 보낸다.
+ */
+function keptText(backup: BackupStatus): string {
+  if (backup.daily) return `매일 백업 지금 ${backup.daily.count}개 · 최근 ${backup.daily.keep}개까지 남김`
+  return `${backup.count}개 보관(최대 ${backup.keep}개)`
+}
+
+/** PC 사본 폴더에 대한 경고 (0.46.0 A4) — bat 이 꺼낼 때 알려 준다. 작업 스케줄러로 돌면 창이 안 보여서 여기 남긴다 */
+const OFFSITE_WARNING_TEXT: Record<string, string> = {
+  onedrive: 'PC 사본 폴더가 OneDrive 아래에 있습니다 — 사본이 클라우드로 올라갈 수 있습니다. PC 의 Dashboard 폴더에 있는 backup-pull.local.txt 에서 받는 폴더(DEST)를 OneDrive 밖으로 옮기세요.',
+  noacl: 'PC 사본 폴더를 나만 열게 하지 못했습니다 — USB·네트워크 드라이브일 수 있습니다. 받기는 그대로 됩니다.',
+}
+
+function OffsiteLine({ lastAt, staleDays, warnings }: { lastAt: string | null; staleDays: number | null; warnings: string[] }) {
   if (!lastAt) {
     return <p className="hint">밖에 꺼낸 기록이 없습니다 — 서버가 사라지면 이 백업도 같이 사라집니다. 내 PC 로 가져오는 법은 PC 의 Dashboard 폴더 DEPLOY.md 10-0.</p>
   }
   return (
     <>
-      <p className="hint">밖에 꺼낸 것: 마지막 {when(lastAt)} (관리자 PC)</p>
+      <p className="hint">밖에 꺼낸 것: 마지막 {when(lastAt)} (관리자 PC — 최근 4개까지 남김)</p>
+      {warnings
+        .filter((w) => OFFSITE_WARNING_TEXT[w])
+        .map((w) => (
+          <p key={w} className="hint diag-warn" role="note">
+            {OFFSITE_WARNING_TEXT[w]}
+          </p>
+        ))}
       {staleDays !== null && (
         <p className="hint diag-warn" role="note">
-          {staleDays}일 동안 밖에 꺼내지 않았습니다 — PC 에서 server-backup-pull.bat 을 실행하세요.
+          {staleDays}일 동안 밖에 꺼내지 않았습니다 — PC 의 Dashboard 폴더에서 server-backup-pull.bat 을 실행하세요.
         </p>
       )}
     </>
+  )
+}
+
+/** 시세 받기 — 시장마다 마지막 정해진 갱신 (0.46.0 C). 막힌 줄만 경고 모양 */
+export function RefreshLines({ states }: { states: RefreshStatus[] }) {
+  return (
+    <section className="diag-slow" aria-labelledby="diag-refresh-title">
+      <h4 id="diag-refresh-title">시세 받기</h4>
+      {states.map((state) => (
+        <p key={state.market} className={state.blocked ? 'hint diag-warn' : 'hint'} role={state.blocked ? 'note' : undefined}>
+          {refreshLine(state)}
+        </p>
+      ))}
+      <p className="hint">정해진 시각(아침·오후)과 서버를 켤 때 받은 결과입니다. 막히면 관리자에게 한 번 알림이 갑니다.</p>
+    </section>
   )
 }
 
@@ -305,7 +347,11 @@ export function DiagnosticsModal({ onClose }: { onClose: () => void }) {
         <div className="modal-head">
           <div className="modal-title">
             <h3>진단</h3>
-            <SummaryLine logs={logs} backupWarn={records?.status.backup ? backupWarnings(records.status.backup, records.at).any : false} />
+            <SummaryLine
+              logs={logs}
+              backupWarn={records?.status.backup ? backupWarnings(records.status.backup, records.at).any : false}
+              refreshWarn={(records?.status.refresh ?? []).some((r) => r.blocked)}
+            />
           </div>
           <div className="chip-row">
             <button
@@ -331,6 +377,7 @@ export function DiagnosticsModal({ onClose }: { onClose: () => void }) {
         <div className="diag-body">
           {rules && <SignalRulesLine status={rules} />}
           {records && <RecordsLine status={records.status} now={records.at} />}
+          {records?.status.refresh && records.status.refresh.length > 0 && <RefreshLines states={records.status.refresh} />}
           {slow && <SlowRequests slow={slow} />}
           {loading && <p className="hint">불러오는 중…</p>}
           {!loading && logs?.available === false && (

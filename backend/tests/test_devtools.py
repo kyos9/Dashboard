@@ -244,6 +244,12 @@ def test_demo_has_daily_value_records(server):
     # 사흘 전에 밖에 꺼낸 것처럼 (0.45.0 A) — 점은 없다
     assert backup["offsite"]["last_at"]
     assert owner.get(server + "/api/auth/status").json()["backup_attention"] is False
+    # 시세 받기 (0.46.0 C) — 미국·한국은 받았고 일본은 막힘. 점은 시세 때문에 뜬다
+    refresh = {r["market"]: r for r in owner.get(server + "/api/admin/records").json()["refresh"]}
+    assert set(refresh) == {"US", "KR", "JP"}
+    assert refresh["JP"]["blocked"] is True and refresh["US"]["blocked"] is False and refresh["KR"]["blocked"] is False
+    assert refresh["JP"]["last_ok_at"] < refresh["JP"]["at"]  # 이틀 전에는 받았다 — "마지막으로 받은 때"가 보인다
+    assert owner.get(server + "/api/auth/status").json()["refresh_attention"] is True
     # 알림 설정 (0.45.0 B) — 오후만, SCHD 끔
     push = owner.get(server + "/api/push/settings").json()
     assert (push["slots"], push["muted"]) == (["afternoon"], ["SCHD"])
@@ -326,3 +332,4 @@ def test_demo_backup_warning_shows_the_warning(server):
         age = dt.datetime.now(dt.timezone.utc) - dt.datetime.fromisoformat(pulled)
         assert dt.timedelta(days=39) < age < dt.timedelta(days=41)
         assert owner.get(demo + "/api/auth/status").json()["backup_attention"] is True
+        assert owner.get(demo + "/api/admin/records").json()["backup"]["offsite"]["warnings"] == ["onedrive"]

@@ -487,6 +487,20 @@ export interface ValueRecord {
 }
 
 /** 진단 — 기록이 살아 있나 (0.44.0, 주인). 평가금액은 합계만 */
+/** 시세 받기 — 한 시장의 마지막 정해진 갱신 (0.46.0 C, 관리자만) */
+export interface RefreshStatus {
+  market: string
+  at: string
+  total: number
+  failed: number
+  failed_tickers: string[]
+  providers: string[]
+  latest_date: string | null
+  blocked: boolean
+  reason: 'failed' | 'stale' | null
+  last_ok_at: string | null
+}
+
 export interface RecordsStatus {
   value_record: {
     enabled: boolean
@@ -496,19 +510,24 @@ export interface RecordsStatus {
   }
   /** 0.44.0 D0 — 옛 서버는 보내지 않는다. 파일 이름·경로는 없다 */
   backup?: BackupStatus
+  /** 0.46.0 C — 시장마다 시세 받기. 옛 서버는 보내지 않는다 */
+  refresh?: RefreshStatus[]
 }
 
 export interface BackupStatus {
+  /** 모든 백업(매일 + 업데이트 직전)의 수와 그 합친 최대 */
   count: number
   keep: number
+  /** 매일 백업만 (0.46.0 — 업데이트 직전 백업과 따로 센다). 옛 서버는 없다 */
+  daily?: { count: number; keep: number }
   /** 마지막 백업 시각(UTC ISO) */
   last_at: string | null
   last_size: number | null
   last_failure: { at: string; reason: string } | null
   /** 업그레이드 직전 백업 — "마지막"(매일 백업)과 따로 센다. 옛 0.44 개발판은 보내지 않을 수 있다 */
-  premigrate?: { count: number; last_at: string | null }
+  premigrate?: { count: number; last_at: string | null; keep?: number }
   /** 서버 밖(관리자 PC)으로 마지막으로 꺼낸 때 (0.45.0) — `server-backup-pull.bat` 이 적는다. 옛 서버는 없다 */
-  offsite?: { last_at: string | null }
+  offsite?: { last_at: string | null; warnings?: string[] }
 }
 
 /** 리밸런싱 기록에 얼려둔 종목 한 줄 */
@@ -604,6 +623,8 @@ export interface AuthStatus {
   pending_count?: number
   /** 관리자가 진단의 백업 칸을 봐야 하나 — 헤더 ⋯ 의 점 (0.45.0). 구글 모드의 관리자에게만, 옛 서버는 없다 */
   backup_attention?: boolean
+  /** 시세 받기가 막힌 시장이 있나 (0.46.0 C, 관리자만). 옛 서버는 없다 */
+  refresh_attention?: boolean
   /** 관리자에게 연락할 곳 (`.env` 의 OPERATOR_CONTACT). 적지 않았으면 없다 */
   contact?: string
 }

@@ -15,23 +15,15 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 from starlette.concurrency import run_in_threadpool
 
 from app.db import get_db
-from app.models import (
-    Holding,
-    PortfolioValueDaily,
-    PushState,
-    PushSubscription,
-    RebalanceSnapshot,
-    User,
-    UserSettings,
-    UserStock,
-)
-from app.services import app_settings, auth, backup, pipeline
+from app.models import PushSubscription, User
+from app.services import app_settings, auth, backup, pipeline, refresh_status
 from app.services import google_login as google
-from app.services.users import LOCAL_USER_ID, STATUS_ACTIVE, STATUS_PENDING, current_user_id
+from app.services.users import LOCAL_USER_ID, STATUS_ACTIVE, STATUS_PENDING, current_user_id, delete_user_records
 
 logger = logging.getLogger(__name__)
 
@@ -201,6 +193,12 @@ def status(request: Request, db: Session = Depends(get_db)) -> dict:
                 body["backup_attention"] = backup.attention()
             except OSError:
                 logger.warning("백업 상태를 읽지 못했습니다 — 메뉴의 점을 건너뜁니다", exc_info=True)
+            # 시세 받기가 막혔나 (0.46.0 C) — 같은 ⋯ 의 점. 깨진 값·DB 오류면 점만 포기한다(로그인 응답이 넘어지지 않게)
+            try:
+                body["refresh_attention"] = refresh_status.attention(db)
+            except Exception:
+                logger.warning("시세 받기 상태를 읽지 못했습니다 — 메뉴의 점을 건너뜁니다", exc_info=True)
+                db.rollback()
         # 설정이 덜 됐으면 로그인 버튼을 누르기 **전에** 알려준다 — 누르고 나서야 안 되는
         # 것을 알면 구글 쪽 문제로 보인다.
         body["config_problem"] = google.config_problem()
@@ -417,13 +415,7 @@ def withdraw(
             detail={"hint": "관리자 계정은 탈퇴할 수 없습니다.", "message": "owner cannot withdraw"},
         )
 
-    # 보유가 내 종목 행을, 기록·설정이 계정 행을 가리키므로 그 순서로 지운다
-    for model in (
-        Holding, UserStock, RebalanceSnapshot, PortfolioValueDaily, UserSettings, PushSubscription, PushState,
-    ):
-        db.query(model).filter(model.user_id == user_id).delete(synchronize_session=False)
-    db.delete(user)
-    db.commit()
+    delete_user_records(db, user)
     response.delete_cookie(auth.COOKIE_NAME, path="/")
     logger.info("사용자 %s 탈퇴", user_id)
 
@@ -442,9 +434,17 @@ async def guard(request: Request, call_next):
     if path.startswith("/api/"):
         token = request.cookies.get(auth.COOKIE_NAME)
         # 구글 모드에서는 DB를 본다. 이벤트 루프를 붙잡지 않게 스레드로 넘긴다.
-        request.state.user_id = await run_in_threadpool(
-            resolve_user_id, _db_factory(request), token
-        )
+        try:
+            request.state.user_id = await run_in_threadpool(
+                resolve_user_id, _db_factory(request), token
+            )
+        except SQLAlchemyError:
+            # DB 가 죽은 날 — 헬스체크만은 손님으로 넘겨 "DB 가 안 된다"(503)에 닿게 한다 (0.46.0 B). 다른 주소는 지금처럼 넘어진다.
+            # user_id 를 꼭 넣는다 — 비워 두면 is_authenticated 가 DB 를 다시 봐서 또 넘어진다
+            if path != "/api/health":
+                raise
+            logger.warning("헬스체크: 쪽지를 확인하지 못했습니다(DB) — 손님으로 봅니다")
+            request.state.user_id = None
         if (
             request.state.user_id is None
             and path not in PUBLIC_PATHS

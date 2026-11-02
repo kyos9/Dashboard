@@ -6,6 +6,9 @@
 백업을 새로 뜨지 않는다 — 꺼내는 쪽이 뜬 백업이 "매일 백업"으로 세어지면 스케줄러가 멈춘 것을 가린다.
 `app.services.backup` 의 `main()` 에 인자로 달지 않은 것도 그래서다: 옛 이미지의 `main()` 은 인자를 모른 채 백업을
 한 벌 뜨고 0 으로 끝난다. 이 모듈이 없는 옛 이미지에서는 여기서 바로 실패(exit 1)한다.
+
+`--warn onedrive` · `--warn noacl` (0.46.0 A4) — PC 사본 폴더가 OneDrive 아래에 있다 / 나만 열게 하지 못했다. 진단의 "밖에 꺼낸 것" 줄에
+뜬다. 옛 이미지의 이 모듈은 인자를 보지 않으므로 그대로 시각만 남긴다. 모르는 값은 버린다.
 """
 
 from __future__ import annotations
@@ -16,7 +19,9 @@ import sys
 def main(argv: list[str] | None = None) -> int:
     from app.services import backup
 
-    if backup.mark_pulled():
+    args = list(sys.argv[1:] if argv is None else argv)
+    warnings = [args[i + 1] for i, arg in enumerate(args[:-1]) if arg == "--warn"]
+    if backup.mark_pulled(warnings=warnings):
         sys.stdout.write("밖에 꺼낸 시각을 남겼습니다.\n")
         return 0
     sys.stderr.write("밖에 꺼낸 시각을 남기지 못했습니다 — 서버의 백업 폴더에 쓸 수 없습니다(디스크·권한).\n")
