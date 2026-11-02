@@ -170,14 +170,44 @@ ENDPOINTS: dict[tuple[str, str], tuple[str, str]] = {
 }
 
 
+def api_routes(routes=None):
+    """앱의 API 라우트마다 (경로, 메서드, 의존성 트리) — 라우터 안쪽까지.
+
+    FastAPI 0.16x 부터 `include_router` 가 라우트를 펼쳐 넣지 않고 감싼 채(`_IncludedRouter`) 둔다. `app.routes` 만 훑으면
+    거의 아무것도 안 보여 아래 표 시험들이 **빈 목록으로 통과**했다(dependabot fastapi 0.162 PR 에서 찾음). 감싼 것은 그 안의
+    실제 라우트(접두어·라우터 의존성을 합친 것)를 꺼내 본다. 옛 판은 `APIRoute` 가 바로 나온다 — 둘 다 된다.
+    """
+    for route in main_module.app.routes if routes is None else routes:
+        if isinstance(route, APIRoute):
+            yield route.path, route.methods, route.dependant
+        elif hasattr(route, "effective_candidates"):
+            yield from api_routes(route.effective_candidates())
+        elif isinstance(getattr(route, "original_route", None), APIRoute):
+            yield route.path, route.methods, route.dependant
+
+
 def app_endpoints() -> set[tuple[str, str]]:
     """앱이 실제로 여는 API. 화면 파일을 내주는 마지막 경로(`/{full_path:path}`)는 뺀다."""
     found = set()
-    for route in main_module.app.routes:
-        if isinstance(route, APIRoute) and route.path.startswith("/api/"):
-            for method in route.methods:
-                found.add((method, route.path))
+    for path, methods, _ in api_routes():
+        if path.startswith("/api/"):
+            for method in methods:
+                found.add((method, path))
     return found
+
+
+def test_the_route_walk_sees_every_documented_api():
+    """위 걸음이 빈손으로 통과하지 않게 — 공개된 API 문서(`openapi`)의 경로·메서드와 같아야 한다.
+    문서에서 뺀 것(include_in_schema=False)은 걸음에만 있어도 된다."""
+    documented = {
+        (method.upper(), path)
+        for path, item in main_module.app.openapi()["paths"].items()
+        for method in item
+        if path.startswith("/api/")
+    }
+    walked = app_endpoints()
+    assert documented and documented <= walked, sorted(documented - walked)
+    assert len(walked) >= len(ENDPOINTS) - 1
 
 
 def test_every_api_is_in_the_table():
@@ -1005,9 +1035,10 @@ def test_owner_lock_matches_the_table():
     사용자 API에 잘못 붙으면 친구가 자기 종목을 못 바꾼다. 둘 다 여기서 걸린다.
     """
     locked = set()
-    for route in main_module.app.routes:
-        if isinstance(route, APIRoute) and require_owner in _dependency_calls(route.dependant):
-            locked |= {(method, route.path) for method in route.methods}
+    for path, methods, dependant in api_routes():
+        if require_owner in _dependency_calls(dependant):
+            locked |= {(method, path) for method in methods}
+    assert locked, "잠긴 API 가 하나도 안 보인다 — 라우트 걸음이 빈손이다"
     owner_only = {key for key, (_, who) in ENDPOINTS.items() if who == OWNER}
     assert sorted(owner_only - locked) == [], "주인 전용인데 잠기지 않았습니다"
     assert sorted(locked - owner_only) == [], "표에서는 주인 전용이 아닌데 잠겼습니다"
@@ -1016,9 +1047,9 @@ def test_owner_lock_matches_the_table():
 def test_advice_lock_matches_the_table():
     """표에 `열면`으로 적은 넷만, 전부 `require_ai_advice` 를 거친다 (그리고 주인 잠금은 거치지 않는다)."""
     gated = set()
-    for route in main_module.app.routes:
-        if isinstance(route, APIRoute) and require_ai_advice in _dependency_calls(route.dependant):
-            gated |= {(method, route.path) for method in route.methods}
+    for path, methods, dependant in api_routes():
+        if require_ai_advice in _dependency_calls(dependant):
+            gated |= {(method, path) for method in methods}
     assert gated == {key for key, (_, who) in ENDPOINTS.items() if who == ADVICE}
 
 
