@@ -124,7 +124,7 @@ select {
 
 /* 숫자칸 — 자릿수를 눈으로 맞출 수 있게 고정폭 + 오른쪽 정렬 */
 .num-input {
-  font-family: var(--font-mono);
+  font-family: var(--font-num);
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
@@ -316,7 +316,7 @@ button:disabled {
 
 .error-detail p {
   margin: 8px 0 0;
-  font-family: var(--font-mono);
+  font-family: var(--font-num);
   font-size: var(--fs-caption);
   line-height: 1.6;
   /* 긴 예외 메시지는 URL·경로가 섞여 있어 어절 단위로는 넘칠 수 있다 */

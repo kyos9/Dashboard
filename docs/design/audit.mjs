@@ -477,12 +477,24 @@ function measure(opts) {
     const ratio = (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05)
     if (ratio < 4.5) add('contrast', el, { ratio: +ratio.toFixed(2), color: cs.color, size: cs.fontSize })
   }
+  // 4차: 숫자 자릿수 폭 — 고정폭 글꼴 대신 tabular-nums 를 쓰므로, 글꼴 부분집합이 tnum 을 잃으면 표의 자리가 어긋난다
+  const probe = (text) => {
+    const s = document.createElement('span')
+    s.textContent = text
+    s.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap'
+    document.body.appendChild(s)
+    const w = s.getBoundingClientRect().width
+    s.remove()
+    return w
+  }
+  const w1 = probe('111,111'), w8 = probe('888,888')
+  if (Math.abs(w1 - w8) > 0.5) add('tnum-width', document.body, { w1: +w1.toFixed(1), w8: +w8.toFixed(1) })
   return out
 }
 
 /* ---------- 실행 ---------- */
 
-const CHECKS = ['page-overflow', 'clipped', 'orphan', 'num-split', 'folded3', 'folded2-360', 'touch', 'contrast', 'console', 'cond-missing', 'nowrap-split', 'sticky-left', 'fake-button', 'quiet-target', 'color-unread']
+const CHECKS = ['page-overflow', 'clipped', 'orphan', 'num-split', 'folded3', 'folded2-360', 'touch', 'contrast', 'console', 'cond-missing', 'nowrap-split', 'sticky-left', 'fake-button', 'quiet-target', 'color-unread', 'tnum-width']
 
 const XCOND = {
   key: 'audit_extra_condition',

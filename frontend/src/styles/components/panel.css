@@ -65,7 +65,7 @@
 
 .count-chip .num {
   display: block;
-  font-family: var(--font-mono);
+  font-family: var(--font-num);
   font-size: var(--fs-title);
   font-weight: 700;
   line-height: 1.2;
@@ -168,7 +168,7 @@ button.count-chip[aria-pressed='true'] .lbl {
 }
 
 .kpi-figure .big {
-  font-family: var(--font-mono);
+  font-family: var(--font-num);
   font-size: var(--fs-big);
   font-weight: 700;
   line-height: 1.15;

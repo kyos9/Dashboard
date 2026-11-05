@@ -46,7 +46,7 @@
 
 .diag-text pre {
   margin: 0;
-  font-family: var(--font-mono);
+  font-family: var(--font-code);
   font-size: var(--fs-caption);
   line-height: 1.5;
   white-space: pre-wrap;

@@ -128,7 +128,7 @@
 }
 
 .snapshot-total {
-  font-family: var(--font-mono);
+  font-family: var(--font-num);
   font-weight: 600;
 }
 

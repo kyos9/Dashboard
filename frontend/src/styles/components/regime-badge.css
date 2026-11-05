@@ -17,7 +17,7 @@
 }
 
 .regime-detail {
-  font-family: var(--font-mono);
+  font-family: var(--font-num);
   font-size: var(--fs-caption);
   font-weight: 500;
 }

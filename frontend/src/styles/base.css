@@ -11,6 +11,7 @@ body,
 body {
   margin: 0;
   font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums; /* 숫자는 자릿수 폭이 같게 — 표·카드의 자리가 맞는다 (4차) */
   font-size: var(--fs-body);
   line-height: 1.55;
   background: var(--bg);
@@ -42,7 +43,7 @@ dd,
 }
 
 .mono {
-  font-family: var(--font-mono);
+  font-family: var(--font-num);
   font-variant-numeric: tabular-nums;
 }
 

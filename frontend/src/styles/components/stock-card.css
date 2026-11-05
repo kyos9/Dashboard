@@ -34,7 +34,7 @@
 }
 
 .stock-card-price .big {
-  font-family: var(--font-mono);
+  font-family: var(--font-num);
   font-size: var(--fs-title);
   font-weight: 700;
   line-height: 1.2;
@@ -63,7 +63,7 @@
 
 .stat-box .v {
   display: block;
-  font-family: var(--font-mono);
+  font-family: var(--font-num);
   font-size: var(--fs-body);
   font-weight: 600;
   margin-top: 2px;
