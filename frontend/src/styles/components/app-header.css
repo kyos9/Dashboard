@@ -25,7 +25,7 @@
   display: grid;
   place-items: center;
   border-radius: 10px;
-  background: linear-gradient(135deg, var(--accent), var(--purple));
+  background: var(--accent);
   font-size: var(--fs-title);
 }
 
@@ -122,7 +122,7 @@
   align-items: flex-start;
   padding: 8px var(--gutter-right) 8px var(--gutter-left);
   background: var(--red-soft);
-  border-bottom: 1px solid rgba(240, 82, 82, 0.35);
+  border-bottom: 1px solid var(--red-line);
   color: var(--red);
   font-size: var(--fs-sub);
   line-height: 1.55;

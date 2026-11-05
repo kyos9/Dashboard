@@ -26,6 +26,6 @@
 .cond.met {
   color: var(--green);
   background: var(--green-soft);
-  border-color: rgba(34, 197, 94, 0.35);
+  border-color: var(--green-line);
 }
 

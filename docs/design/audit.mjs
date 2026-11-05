@@ -439,12 +439,17 @@ function measure(opts) {
     b: top.b * top.a + under.b * (1 - top.a),
     a: 1,
   })
+  // 4차: 못 읽은 색을 센다 — rgb() 밖의 표기(oklch·color(srgb …))를 조용히 건너뛰면 대비 0 이 "잰 것"이 아니다
   function background(el) {
     const layers = []
     for (let n = el; n; n = n.parentElement) {
       const cs = getComputedStyle(n)
       if (cs.backgroundImage && cs.backgroundImage !== 'none' && !/url\(/.test(cs.backgroundImage)) return null
       const c = parse(cs.backgroundColor)
+      if (!c && cs.backgroundColor && cs.backgroundColor !== 'transparent') {
+        add('color-unread', n, { value: cs.backgroundColor })
+        return null
+      }
       if (c && c.a > 0) {
         layers.push(c)
         if (c.a >= 1) break
@@ -462,6 +467,7 @@ function measure(opts) {
     if (el.closest(':disabled, [aria-disabled="true"]')) continue
     const cs = getComputedStyle(el)
     const fg0 = parse(cs.color)
+    if (!fg0) add('color-unread', el, { value: cs.color })
     const bg = background(el)
     if (!fg0 || !bg) continue
     let alpha = fg0.a
@@ -476,7 +482,7 @@ function measure(opts) {
 
 /* ---------- 실행 ---------- */
 
-const CHECKS = ['page-overflow', 'clipped', 'orphan', 'num-split', 'folded3', 'folded2-360', 'touch', 'contrast', 'console', 'cond-missing', 'nowrap-split', 'sticky-left', 'fake-button', 'quiet-target']
+const CHECKS = ['page-overflow', 'clipped', 'orphan', 'num-split', 'folded3', 'folded2-360', 'touch', 'contrast', 'console', 'cond-missing', 'nowrap-split', 'sticky-left', 'fake-button', 'quiet-target', 'color-unread']
 
 const XCOND = {
   key: 'audit_extra_condition',

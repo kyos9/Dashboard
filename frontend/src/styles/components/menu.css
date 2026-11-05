@@ -27,7 +27,7 @@ button.menu-btn {
   padding: 0 4px;
   border-radius: 999px;
   background: var(--amber);
-  color: #1a1203;
+  color: var(--on-amber);
   font-size: var(--fs-caption);
   font-weight: 700;
   line-height: 18px;
@@ -64,7 +64,7 @@ button.menu-btn {
   background: var(--bg-elevated);
   border: 1px solid var(--border-strong);
   border-radius: 12px;
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--shadow-pop);
 }
 
 button.menu-item {

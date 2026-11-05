@@ -98,28 +98,28 @@ table.data-table tfoot td {
 .metric-chip.green {
   color: var(--green);
   background: var(--green-soft);
-  border-color: rgba(34, 197, 94, 0.35);
+  border-color: var(--green-line);
 }
 .metric-chip.amber {
   color: var(--amber);
   background: var(--amber-soft);
-  border-color: rgba(240, 180, 41, 0.35);
+  border-color: var(--amber-line);
 }
 .metric-chip.red {
   color: var(--red);
   background: var(--red-soft);
-  border-color: rgba(240, 82, 82, 0.35);
+  border-color: var(--red-line);
 }
 /* 부호로 칠하는 칩(이격도·200일선·DI) — 오르내림 색을 따른다 (0.42.0) */
 .metric-chip.up {
   color: var(--up);
   background: var(--up-soft);
-  border-color: color-mix(in srgb, var(--up) 35%, transparent);
+  border-color: var(--up-line);
 }
 .metric-chip.down {
   color: var(--down);
   background: var(--down-soft);
-  border-color: color-mix(in srgb, var(--down) 35%, transparent);
+  border-color: var(--down-line);
 }
 /* "추세 형성"·"거래량 증가" 같은 눈여겨볼 값 (lib/display 의 tone 'blue'). 파랑이면 상승 색 빨강에서 하락(파랑)과
    같은 색이 되어 "내림"으로 읽혔다 (디자인 2차) — 오르내림·시그널 어느 색도 아닌 진한 중립 바탕 + 굵게.
@@ -127,7 +127,7 @@ table.data-table tfoot td {
    (배지·칩은 테두리를 쓰지 않는다 — 주인 결정 ②, 아래 "표시만 하는 배지" 규칙) */
 .metric-chip.blue {
   color: var(--text);
-  background: color-mix(in srgb, var(--text) 18%, transparent);
+  background: var(--text-line);
   font-weight: 800;
 }
 
@@ -187,15 +187,20 @@ table.data-table tfoot td {
 }
 
 /* 가격이 아닌 뜻의 색 — 상승 색을 바꿔도 그대로다 */
-.tone-buy,
 .tone-good {
   color: var(--green);
 }
-.tone-sell,
 .tone-bad {
   color: var(--red);
 }
+/* 시그널 뜻 — 상승 빨강 설정이면 따라간다 (tokens.css --signal-*) */
+.tone-buy {
+  color: var(--signal-buy);
+}
+.tone-sell {
+  color: var(--signal-sell);
+}
 .tone-rebalance {
-  color: var(--purple);
+  color: var(--signal-weight);
 }
 

@@ -12,7 +12,7 @@
   padding: 20px;
   padding: max(20px, env(safe-area-inset-top, 0px)) max(20px, env(safe-area-inset-right, 0px))
     max(20px, env(safe-area-inset-bottom, 0px)) max(20px, env(safe-area-inset-left, 0px));
-  background: rgba(4, 8, 14, 0.66);
+  background: var(--scrim);
   backdrop-filter: blur(2px);
 }
 
@@ -25,7 +25,7 @@
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--shadow-modal);
 }
 
 .modal-head {
@@ -176,10 +176,10 @@ table.data-table.fixed {
 button.danger {
   color: var(--red);
   background: var(--red-soft);
-  border: 1px solid rgba(240, 82, 82, 0.4);
+  border: 1px solid var(--red-line);
 }
 
 button.danger:hover:not(:disabled) {
-  background: rgba(240, 82, 82, 0.2);
+  background: var(--red-soft);
 }
 

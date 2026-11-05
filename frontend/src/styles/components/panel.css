@@ -79,35 +79,35 @@
 }
 
 .count-chip.green {
-  border-color: rgba(34, 197, 94, 0.4);
-  background: var(--green-soft);
+  border-color: var(--signal-buy-line);
+  background: var(--signal-buy-soft);
 }
 .count-chip.green .num {
-  color: var(--green);
+  color: var(--signal-buy);
 }
 .count-chip.amber {
-  border-color: rgba(240, 180, 41, 0.4);
+  border-color: var(--amber-line);
   background: var(--amber-soft);
 }
 .count-chip.amber .num {
   color: var(--amber);
 }
 .count-chip.red {
-  border-color: rgba(240, 82, 82, 0.4);
-  background: var(--red-soft);
+  border-color: var(--signal-sell-line);
+  background: var(--signal-sell-soft);
 }
 .count-chip.red .num {
-  color: var(--red);
+  color: var(--signal-sell);
 }
 .count-chip.purple {
-  border-color: rgba(168, 85, 247, 0.4);
-  background: var(--purple-soft);
+  border-color: var(--signal-weight-line);
+  background: var(--signal-weight-soft);
 }
 .count-chip.purple .num {
-  color: var(--purple);
+  color: var(--signal-weight);
 }
 .count-chip.blue {
-  border-color: rgba(59, 130, 246, 0.4);
+  border-color: var(--blue-line);
   background: var(--blue-soft);
 }
 .count-chip.blue .num {
@@ -135,26 +135,26 @@ button.count-chip:hover:not(:disabled) {
   filter: brightness(1.08);
 }
 button.count-chip.green:hover:not(:disabled) {
-  background: var(--green-soft);
+  background: var(--signal-buy-soft);
 }
 button.count-chip.red:hover:not(:disabled) {
-  background: var(--red-soft);
+  background: var(--signal-sell-soft);
 }
 button.count-chip.purple:hover:not(:disabled) {
-  background: var(--purple-soft);
+  background: var(--signal-weight-soft);
 }
 /* 거르기가 걸려 있는 칸 — 테두리를 굵게, 색만이 아니라 두께로 */
 button.count-chip[aria-pressed='true'] {
   box-shadow: inset 0 0 0 2px currentColor;
 }
 button.count-chip.green[aria-pressed='true'] {
-  color: var(--green);
+  color: var(--signal-buy);
 }
 button.count-chip.red[aria-pressed='true'] {
-  color: var(--red);
+  color: var(--signal-sell);
 }
 button.count-chip.purple[aria-pressed='true'] {
-  color: var(--purple);
+  color: var(--signal-weight);
 }
 button.count-chip[aria-pressed='true'] .lbl {
   color: var(--text);

@@ -9,6 +9,7 @@ import {
 } from 'lightweight-charts'
 import { chartDate, chartTick } from '../lib/chartFormat'
 import type { MacroHistory } from '../types'
+import { orUndefined, readChartPalette, useChartThemeKey } from './chartTheme'
 
 /**
  * 매크로 지표 차트.
@@ -21,28 +22,6 @@ import type { MacroHistory } from '../types'
  * 그래서 선형 스케일로 가고, 대신 **0선을 그린다.** 금리 4%가 3.9%가 되는 것과 물가가
  * +0.1%에서 −0.1%가 되는 것은 눈금상 같은 한 칸이지만 뜻이 전혀 다르다.
  */
-function palette(light: boolean) {
-  return light
-    ? { text: '#52627a', grid: '#e5eaf2', line: '#0369a1', bg: '#ffffff', zero: '#94a3b8' }
-    : { text: '#9fb0c3', grid: '#1c2736', line: '#38bdf8', bg: '#131b26', zero: '#64748b' }
-}
-
-/** 지금 테마를 구독한다 (PriceChart와 같은 이유 — 렌더 중 한 번만 읽으면 옛 색이 남는다) */
-function useThemeIsLight(): boolean {
-  const [light, setLight] = useState(
-    () => document.documentElement.getAttribute('data-theme') === 'light',
-  )
-  useEffect(() => {
-    const target = document.documentElement
-    const observer = new MutationObserver(() =>
-      setLight(target.getAttribute('data-theme') === 'light'),
-    )
-    observer.observe(target, { attributes: true, attributeFilter: ['data-theme'] })
-    return () => observer.disconnect()
-  }, [])
-  return light
-}
-
 /**
  * 0선을 그릴 것인가 — **음수가 한 번이라도 나오면** 그린다.
  *
@@ -67,29 +46,34 @@ export function MacroChart({ history, height = 340 }: Props) {
     series: ISeriesApi<'Line'>
     zero: ISeriesApi<'Line'>
   } | null>(null)
-  const light = useThemeIsLight()
+  const themeKey = useChartThemeKey()
 
   // 콜백 ref + state로 받는다. 모달로 띄우면 컨테이너가 나중에 나타나는데, useRef는
   // 채워져도 다시 렌더되지 않아 차트를 만드는 effect가 영영 안 돈다 (PriceChart와 같다).
   useEffect(() => {
     if (!container) return
-    const colors = palette(light)
+    const colors = readChartPalette()
     const chart = createChart(container, {
       height,
-      layout: { textColor: colors.text, background: { color: colors.bg }, attributionLogo: false },
+      layout: {
+        textColor: orUndefined(colors.text),
+        background: { color: orUndefined(colors.bg) },
+        fontFamily: orUndefined(colors.font),
+        attributionLogo: false,
+      },
       // 브라우저 언어 태그가 이상해도("en-US@posix") 넘어지지 않게 — PriceChart 와 같다
       localization: { locale: 'ko-KR', timeFormatter: chartDate },
-      grid: { vertLines: { color: colors.grid }, horzLines: { color: colors.grid } },
-      rightPriceScale: { borderColor: colors.grid },
-      timeScale: { borderColor: colors.grid, tickMarkFormatter: chartTick },
+      grid: { vertLines: { color: orUndefined(colors.grid) }, horzLines: { color: orUndefined(colors.grid) } },
+      rightPriceScale: { borderColor: orUndefined(colors.grid) },
+      timeScale: { borderColor: orUndefined(colors.grid), tickMarkFormatter: chartTick },
       crosshair: {
-        vertLine: { labelBackgroundColor: colors.line },
-        horzLine: { labelBackgroundColor: colors.line },
+        vertLine: { labelBackgroundColor: orUndefined(colors.line) },
+        horzLine: { labelBackgroundColor: orUndefined(colors.line) },
       },
     })
-    const series = chart.addSeries(LineSeries, { color: colors.line, lineWidth: 2 })
+    const series = chart.addSeries(LineSeries, { color: orUndefined(colors.line), lineWidth: 2 })
     const zero = chart.addSeries(LineSeries, {
-      color: colors.zero,
+      color: orUndefined(colors.zero),
       lineWidth: 1,
       lineStyle: LineStyle.Dashed,
       priceLineVisible: false,
@@ -107,7 +91,7 @@ export function MacroChart({ history, height = 340 }: Props) {
       chart.remove()
       setHandles(null)
     }
-  }, [container, light, height])
+  }, [container, themeKey, height])
 
   useEffect(() => {
     if (!handles) return

@@ -1,5 +1,5 @@
 /* ==========================================================================
-   자산관리 디자인 시스템 — 터미널형 다크 테마 (라이트 테마 토글 지원)
+   자산관리 디자인 시스템 — 디자인 4차: 청람 · Pretendard (라이트 테마 토글 지원)
 
    한국어 가독성 원칙:
    - `word-break: keep-all`로 어절 단위 줄바꿈 (단어 중간에서 끊지 않음)
@@ -29,34 +29,72 @@
   font-display: swap;
 }
 
+/*
+ * 색표 — 디자인 4차 (DESIGN_PROMPT v6 "만드는 법 다섯" 3: 색은 정해 준다). **이 파일 밖에서 색 값을 쓰지 않는다.**
+ *
+ * 메인 색은 청람 하나다 — IBM Carbon cyan 80(#00539a)의 채도를 높인 #0051a8 (목업 03e, 주인 고름).
+ * 진하기만 바꿔 쓴다: 라이트 머리줄·링크 #0051a8, 다크 머리줄 #002f67, 다크 글자·링크 #92b1db.
+ * 뜻 색은 정해진 자리에만: 매수 초록 · 매도 빨강 · 비중조절 청람(--signal-*), 가격 오르내림(--up/--down),
+ * 주의 호박, 오류 빨강. 회색은 청람으로 살짝 물들였다. 값은 hex — 자동 검사(audit.mjs)와 차트가 읽을 수 있게.
+ *
+ * 글자로 써도 되는 쌍 (대비, WCAG) — 다크: --text·--text-dim·--text-faint·--accent·--green·--red 는 --bg·--panel·
+ * --panel-soft 위에서 4.5 이상. --on-brand(#fff)는 --brand(#002f67) 위 13.1. 주 단추는 --accent 바탕 + --on-accent(어두운 글자).
+ * 라이트: 같은 이름들이 --bg(#eef2f6)·--panel(#fff) 위 4.5 이상(초록 #166534 5.9 · 빨강 #b91c1c 5.4 · 청람 #0051a8 6.4~7.7).
+ */
 :root {
   color-scheme: dark;
 
-  --bg: #0a0e14;
-  --bg-elevated: #10161f;
-  --panel: #131b26;
-  --panel-soft: #172231;
-  --border: #223044;
-  --border-strong: #2d3f57;
+  --bg: #0a0f18;
+  --bg-elevated: #0d1627;
+  --panel: #0d1627;
+  --panel-soft: #122036;
+  --border: #1d2a40;
+  --border-strong: #2a3a55;
 
-  --text: #e6edf3;
-  --text-dim: #9fb0c3;
-  --text-faint: #7b8b9e;  /* 글자색은 배경·패널·배지 바탕 어디서든 4.5:1 이상 (8-4 에서 잼) */
+  --text: #e6ebf2;
+  --text-dim: #c3cad5;
+  --text-faint: #909aab;
 
-  --green: #22c55e;
-  --green-soft: rgba(34, 197, 94, 0.14);
+  /* 청람 */
+  --brand: #002f67; /* 머리줄 바탕 */
+  --on-brand: #ffffff;
+  --accent: #92b1db; /* 글자·링크·고른 탭 — 다크에서 #0051a8 를 글자로 쓰면 2.4:1 이라 밝은 단계 */
+  --on-accent: #0b0f18; /* 강조색 바탕 위 글자 — 흰 글자는 2.2:1 */
+  --accent-soft: rgba(146, 177, 219, 0.14);
+  --accent-line: rgba(146, 177, 219, 0.4);
+
+  /* 뜻 색 */
+  --green: #3ccf71;
+  --green-soft: rgba(60, 207, 113, 0.14);
+  --green-line: rgba(60, 207, 113, 0.4);
   --amber: #f0b429;
   --amber-soft: rgba(240, 180, 41, 0.14);
-  --red: #f26a6a;
-  --red-soft: rgba(240, 82, 82, 0.14);
-  --blue: #5d98f8;
-  --blue-soft: rgba(59, 130, 246, 0.14);
-  --purple: #ba77f8;
-  --purple-soft: rgba(168, 85, 247, 0.14);
-  --slate-soft: rgba(159, 176, 195, 0.12);
+  --amber-line: rgba(240, 180, 41, 0.4);
+  --on-amber: #1a1203;
+  --red: #f47171;
+  --red-soft: rgba(244, 113, 113, 0.14);
+  --red-line: rgba(244, 113, 113, 0.4);
+  --grey-sig: #aab3c0; /* 상승 빨강 설정의 비중조절 (05c ③) */
+  --rise-down: #7aa7ff; /* 상승 빨강 설정의 하락 파랑 */
+  --rise-down-soft: rgba(122, 167, 255, 0.14);
+  --rise-down-line: rgba(122, 167, 255, 0.4);
+  --grey-sig-line: rgba(170, 179, 192, 0.4);
+  --slate-soft: rgba(195, 202, 213, 0.12);
+  --text-line: rgba(230, 235, 242, 0.18);
+  --amber-tint: #282927; /* 호박 12% 를 --panel 에 섞은 불투명 바탕 */
 
-  --accent: #38bdf8;
-  --on-accent: #05202b; /* 강조색 버튼 위 글자 */
+  /* 예전 이름 — 정보·링크의 파랑은 청람으로 모았다(메인 색 하나) */
+  --blue: var(--accent);
+  --blue-soft: var(--accent-soft);
+  --blue-line: var(--accent-line);
+
+  /* 그림자 · 막 */
+  --shadow-1: 0 4px 16px rgba(0, 0, 0, 0.25);
+  --shadow-2: 0 6px 18px rgba(0, 0, 0, 0.25);
+  --shadow-pop: 0 14px 34px rgba(0, 0, 0, 0.35);
+  --shadow-modal: 0 18px 48px rgba(0, 0, 0, 0.45);
+  --shadow-up: 0 -10px 30px rgba(0, 0, 0, 0.3);
+  --scrim: rgba(4, 8, 14, 0.66);
 
   --radius: 12px;
   --radius-sm: 8px;
@@ -94,49 +132,101 @@
 :root[data-theme='light'] {
   color-scheme: light;
 
-  --bg: #f4f6fa;
+  --bg: #eef2f6;
   --bg-elevated: #ffffff;
   --panel: #ffffff;
-  --panel-soft: #f6f8fc;
-  --border: #dde3ec;
-  --border-strong: #c6d0de;
+  --panel-soft: #f6f8fb;
+  --border: #dfe4ea;
+  --border-strong: #c5cdd8;
 
-  --text: #16202e;
-  --text-dim: #52627a;
-  --text-faint: #617186;
+  --text: #111827;
+  --text-dim: #374151;
+  --text-faint: #5b6472;
 
-  --green: #137538;
-  --green-soft: rgba(21, 128, 61, 0.1);
-  --amber: #a64d09;
-  --amber-soft: rgba(180, 83, 9, 0.1);
-  --red: #c41d1d;
-  --red-soft: rgba(200, 30, 30, 0.1);
-  --blue: #1d4ed8;
-  --blue-soft: rgba(29, 78, 216, 0.1);
-  --purple: #7e22ce;
-  --purple-soft: rgba(126, 34, 206, 0.1);
-  --slate-soft: rgba(82, 98, 122, 0.1);
-
-  --accent: #0369a1;
+  --brand: #0051a8;
+  --on-brand: #ffffff;
+  --accent: #0051a8;
   --on-accent: #ffffff;
+  --accent-soft: rgba(0, 81, 168, 0.08);
+  --accent-line: rgba(0, 81, 168, 0.35);
+
+  --green: #166534;
+  --green-soft: rgba(22, 101, 52, 0.09);
+  --green-line: rgba(22, 101, 52, 0.35);
+  --amber: #a64d09;
+  --amber-soft: rgba(166, 77, 9, 0.09);
+  --amber-line: rgba(166, 77, 9, 0.35);
+  --on-amber: #1a1203;
+  --red: #b91c1c;
+  --red-soft: rgba(185, 28, 28, 0.08);
+  --red-line: rgba(185, 28, 28, 0.35);
+  --grey-sig: #5b6472;
+  --rise-down: #1d4ed8;
+  --rise-down-soft: rgba(29, 78, 216, 0.08);
+  --rise-down-line: rgba(29, 78, 216, 0.35);
+  --grey-sig-line: rgba(91, 100, 114, 0.35);
+  --slate-soft: rgba(55, 65, 81, 0.1);
+  --text-line: rgba(17, 24, 39, 0.18);
+  --amber-tint: #f4eae1;
+
+  --shadow-1: 0 4px 16px rgba(17, 24, 39, 0.12);
+  --shadow-2: 0 6px 18px rgba(17, 24, 39, 0.12);
+  --shadow-pop: 0 14px 34px rgba(17, 24, 39, 0.16);
+  --shadow-modal: 0 18px 48px rgba(17, 24, 39, 0.2);
+  --shadow-up: 0 -10px 30px rgba(17, 24, 39, 0.1);
+  --scrim: rgba(10, 15, 24, 0.45);
 }
 
 /*
  * 오르내림 색 (ROADMAP 8-4). 가격 등락·수익률·평가손익만 이 둘을 쓴다.
- * 기본은 오르면 초록 · 내리면 빨강. 화면 설정에서 "빨강"을 고르면 오르면 빨강 · 내리면 파랑이다
- * (한국 증권 앱 방식). 시그널 색(매수 초록 · 매도 빨강)은 이것과 따로다 — .tone-buy / .tone-sell.
+ * 기본은 오르면 초록 · 내리면 빨강. 화면 설정에서 "빨강"을 고르면 오르면 빨강 · 내리면 파랑이다(한국 증권 앱 방식).
+ *
+ * 시그널 색 (--signal-*) — 매수 초록 · 매도 빨강 · 비중조절 청람. 디자인 4차에서 주인이 정한 것(목업 05c ③):
+ * "상승 빨강"을 고르면 시그널도 따라가 매수 빨강 · 매도 파랑이 되고, 비중조절은 매도 파랑과 붙지 않게 회색.
+ * 시그널은 색만으로 보이지 않는다 — ▲▼◆ 모양과 글자를 늘 같이 붙인다.
  */
 :root {
   --up: var(--green);
   --down: var(--red);
   --up-soft: var(--green-soft);
   --down-soft: var(--red-soft);
+  --up-line: var(--green-line);
+  --down-line: var(--red-line);
+
+  --signal-buy: var(--green);
+  --signal-buy-soft: var(--green-soft);
+  --signal-buy-line: var(--green-line);
+  --signal-sell: var(--red);
+  --signal-sell-soft: var(--red-soft);
+  --signal-sell-line: var(--red-line);
+  --signal-weight: var(--accent);
+  --signal-weight-soft: var(--accent-soft);
+  --signal-weight-line: var(--accent-line);
+
+  /* 차트(lightweight-charts) — components/chartTheme.ts 가 읽는다 */
+  --chart-text: var(--text-dim);
+  --chart-grid: var(--border);
+  --chart-line: var(--accent);
+  --chart-bg: var(--panel);
+  --chart-zero: var(--border-strong);
 }
 
 :root[data-rise='red'] {
   --up: var(--red);
-  --down: var(--blue);
+  --down: var(--rise-down);
   --up-soft: var(--red-soft);
-  --down-soft: var(--blue-soft);
+  --down-soft: var(--rise-down-soft);
+  --up-line: var(--red-line);
+  --down-line: var(--rise-down-line);
+
+  --signal-buy: var(--red);
+  --signal-buy-soft: var(--red-soft);
+  --signal-buy-line: var(--red-line);
+  --signal-sell: var(--rise-down);
+  --signal-sell-soft: var(--rise-down-soft);
+  --signal-sell-line: var(--rise-down-line);
+  --signal-weight: var(--grey-sig);
+  --signal-weight-soft: var(--slate-soft);
+  --signal-weight-line: var(--grey-sig-line);
 }
 

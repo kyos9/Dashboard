@@ -5,8 +5,8 @@
 }
 
 .review-panel.due {
-  border-color: var(--purple);
-  box-shadow: inset 3px 0 0 var(--purple);
+  border-color: var(--signal-weight);
+  box-shadow: inset 3px 0 0 var(--signal-weight);
 }
 
 .review-head {

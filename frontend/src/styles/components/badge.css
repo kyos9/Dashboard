@@ -42,27 +42,27 @@
 .badge-green {
   color: var(--green);
   background: var(--green-soft);
-  border-color: rgba(34, 197, 94, 0.35);
+  border-color: var(--green-line);
 }
 .badge-amber {
   color: var(--amber);
   background: var(--amber-soft);
-  border-color: rgba(240, 180, 41, 0.35);
+  border-color: var(--amber-line);
 }
 .badge-red {
   color: var(--red);
   background: var(--red-soft);
-  border-color: rgba(240, 82, 82, 0.35);
+  border-color: var(--red-line);
 }
 .badge-blue {
   color: var(--blue);
   background: var(--blue-soft);
-  border-color: rgba(59, 130, 246, 0.35);
+  border-color: var(--blue-line);
 }
 .badge-purple {
-  color: var(--purple);
-  background: var(--purple-soft);
-  border-color: rgba(168, 85, 247, 0.35);
+  color: var(--signal-weight);
+  background: var(--signal-weight-soft);
+  border-color: var(--signal-weight-line);
 }
 .badge-grey {
   color: var(--text-dim);
