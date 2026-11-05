@@ -2202,6 +2202,12 @@ button:disabled {
   font-size: var(--fs-strong);
 }
 
+/* 제목 옆 안내는 "짧은 안내"(맨 위 원칙) — balance. 폰에서 제목이 ✕ 와 한 줄을 나눠 쓰면서 좁아져
+   진단 요약이 "…시세 받기 / 칸"처럼 끝 두세 글자만 다음 줄로 갔다(3차 자동 검사 외톨이) */
+.modal-title .hint {
+  text-wrap: balance;
+}
+
 .modal-head .icon-btn {
   order: 99;
   margin-left: auto;
@@ -4899,6 +4905,11 @@ button.signal-line-go:hover:not(:disabled) {
 /* 폰(전체화면 팝업): 아래 붙은 저장 줄을 창의 안쪽 여백(안전영역 포함)만큼 넓혀 좌우·아래 끝에 맞춘다 (디자인 3차 검토 b).
    위 기본 규칙보다 뒤에 둬야 이긴다 */
 @media (max-width: 640px) {
+  /* 키보드 '다음'으로 아래 칸에 가도 붙은 저장 줄(안내 두 줄 포함 약 160) 밑에 숨지 않게 (3차 사용자 확인) */
+  .stock-edit-modal {
+    scroll-padding-bottom: calc(176px + env(safe-area-inset-bottom, 0px));
+  }
+
   .stock-edit-modal .stock-edit-foot {
     bottom: calc(-16px - env(safe-area-inset-bottom, 0px));
     margin: 12px calc(-16px - env(safe-area-inset-right, 0px)) calc(-16px - env(safe-area-inset-bottom, 0px))
