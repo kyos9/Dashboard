@@ -121,3 +121,29 @@ jobs:
       - name: 테스트
         run: npm test
         working-directory: frontend
+
+  audit:
+    # 의존성의 알려진 취약점 점검. 새 권고가 나올 때마다 상관없는 PR 이 빨갛게 막히지 않도록 **실패해도 막지 않는다**
+    # (continue-on-error) — 단계가 ✗ 로 표시되고 로그에 목록이 남는다. 합치기 전 주인이 눈으로 본다.
+    name: 의존성 점검 (참고용)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: pip-audit
+        run: |
+          pip install pip-audit
+          pip-audit -r backend/requirements.txt -r backend/requirements-postgres.txt
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+
+      - name: npm audit (배포에 들어가는 것만, high 이상)
+        run: npm audit --omit=dev --audit-level=high
+        working-directory: frontend
