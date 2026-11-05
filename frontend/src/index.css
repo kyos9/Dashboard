@@ -2940,6 +2940,25 @@ table.data-table tr.dirty:hover td {
     overscroll-behavior: contain;
   }
 
+  /*
+   * 머리줄: 제목과 ✕ 는 늘 윗줄 양끝, 필터 칩 같은 나머지는 아랫줄로. 전에는 ✕ 가 맨 뒤(order 99)라
+   * 칩이 한 줄을 차지하면 ✕ 만 혼자 셋째 줄로 밀려 내려갔다(진단·차트 팝업).
+   */
+  .modal-title {
+    order: 0;
+    flex: 1 1 0;
+    flex-wrap: wrap;
+  }
+
+  .modal-head .icon-btn {
+    order: 1;
+  }
+
+  .modal-head > :not(.modal-title, .icon-btn) {
+    order: 2;
+    flex: 1 1 100%;
+  }
+
   /* 알림 창의 고정 머리줄 — 늘어난 안쪽 여백만큼 같이 늘려, 스크롤해도 상태바 밑으로 올라가지 않게 */
   .push-modal {
     scroll-padding-top: calc(56px + env(safe-area-inset-top, 0px));
