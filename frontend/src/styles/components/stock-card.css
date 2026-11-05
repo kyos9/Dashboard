@@ -1,0 +1,255 @@
+/* ---------- 종목 카드 (좁은 화면 / 카드 보기) ---------- */
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: var(--gap);
+}
+
+.stock-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.stock-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.stock-card-price {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+  min-width: 0;
+}
+
+.stock-card-price .big {
+  font-family: var(--font-mono);
+  font-size: var(--fs-title);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.stat-box {
+  background: var(--panel-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 8px;
+  min-width: 0;
+}
+
+.stat-box .k {
+  display: block;
+  font-size: var(--fs-caption);
+  color: var(--text-faint);
+  word-break: keep-all;
+}
+
+.stat-box .v {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: var(--fs-body);
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.card-actions {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* 시그널 카드의 시그널 · 비중 · 매수 조건 — 왼쪽 이름표 열이 같은 줄들 (디자인 2차, 시안 v4).
+   격자 한 장에 줄마다 이름표 | 배지들. 줄 수는 조건·사유가 있을 때만 는다 */
+.signal-rows {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px 12px;
+  align-items: center;
+}
+.signal-row {
+  display: contents;
+}
+.signal-row-label {
+  font-size: var(--fs-caption);
+  color: var(--text-faint);
+}
+.signal-row-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+/* 차트 팝업의 오늘 매수 조건 한 줄 (디자인 2차) */
+.chart-conditions {
+  margin-bottom: 12px;
+}
+
+/* 표의 "그 밖의 조건" 칸 — 지표 칸이 없는 조건이 생겼을 때만 (디자인 2차) */
+.extra-cond {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-caption);
+  color: var(--text-dim);
+}
+
+/* 시그널 표를 옆으로 밀어도 순서·종목 칸은 그 자리에 — 어느 줄인지 놓치지 않게 (디자인 2차).
+   시그널 표에만. 바탕은 불투명해야 밀린 칸이 비치지 않는다 */
+table.signal-table th:nth-child(-n + 2),
+table.signal-table td:nth-child(-n + 2) {
+  position: sticky;
+  background: var(--panel);
+  z-index: 1;
+}
+table.signal-table th:nth-child(-n + 2) {
+  background: var(--panel-soft);
+  z-index: 3;
+}
+table.signal-table th:nth-child(1),
+table.signal-table td:nth-child(1) {
+  left: 0;
+}
+table.signal-table th:nth-child(2),
+table.signal-table td:nth-child(2) {
+  left: 44px;
+  /* 칸을 접어 그리는 표라 sticky 칸의 테두리가 사라진다 — 그림자로 경계를 */
+  box-shadow: inset -1px 0 0 var(--border);
+}
+table.signal-table tbody tr:hover td:nth-child(-n + 2) {
+  background: var(--panel-soft);
+}
+
+/* 종목 관리·리밸런싱의 넓은 표도 종목 칸(첫 칸)은 그 자리에 — 폰·확대 150% 에서 옆으로 밀면 이름이 사라졌다
+   (디자인 2차 사용자 확인, 주인 결정 ②). 붙일 표에만 sticky-first 를 단다 */
+table.sticky-first th:first-child,
+table.sticky-first td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--panel);
+  box-shadow: inset -1px 0 0 var(--border);
+}
+table.sticky-first th:first-child {
+  z-index: 3;
+  background: var(--panel-soft);
+}
+table.sticky-first tbody tr:hover td:first-child {
+  background: var(--panel-soft);
+}
+/* 폰에서는 붙은 칸을 좁게 — 표 머리의 너비(202px 등, 인라인)대로 붙으면 360 폭의 절반을 넘게 덮어 끝 칸 단추가
+   다 보이는 자리가 없었다 (디자인 2차 C 사용자 확인). 인라인 너비를 이기려면 !important 밖에 없다. 이름은 줄을 바꿔 다 보인다 */
+@media (max-width: 640px) {
+  table.sticky-first th:first-child,
+  table.sticky-first td:first-child {
+    width: 132px !important;
+    max-width: 132px;
+  }
+  table.sticky-first td:first-child .ticker-name,
+  table.sticky-first td:first-child .ticker-sub {
+    overflow-wrap: break-word;
+    /* 좁아진 칸에서 긴 이름의 끝줄이 "체나스닥"처럼 짧게 남지 않게 줄 길이를 고른다 */
+    text-wrap: balance;
+  }
+  /* 띄어쓰기 없는 긴 이름("미국필라델피아반도체나스닥", "東京海上ホールディングス")은 keep-all 이면 넘칠 때만 아무 데서나
+     잘려 balance 가 듣지 않는다 — 이 칸의 이름만 글자 사이에서 고르게 꺾는다 */
+  table.sticky-first td:first-child .ticker-name {
+    word-break: normal;
+  }
+}
+/* 폰에서 표를 끝까지 밀어도 끝 칸 단추들이 붙은 이름 칸 밑에 덮이지 않게 — 단추를 칸 오른쪽에 붙이고 칸 오른쪽 여백·단추 사이를 줄인다
+   (디자인 2차 C 재검토: 360 에서 "삭제"만 보였다. 오른쪽에 붙이기만 하면 첫 단추가 1px 덮였다) */
+@media (max-width: 640px) {
+  table.sticky-first td:last-child:has(> .btn-group) {
+    padding-right: 4px;
+  }
+  table.sticky-first td:last-child > .btn-group {
+    justify-content: flex-end;
+    gap: 4px;
+  }
+}
+/* 고친 줄(tr.dirty)의 바탕은 반투명이라 붙은 칸 밑으로 밀린 글이 비친다 — 같은 빛깔을 불투명하게 */
+table.sticky-first tr.dirty td:first-child,
+table.sticky-first tbody tr.dirty:hover td:first-child {
+  background: color-mix(in srgb, var(--amber) 12%, var(--panel));
+}
+
+/* 폰의 시그널 카드: 지표 상자 여섯(2열 × 3줄, 상자마다 네 줄) → 지표 한 줄씩의 목록 (디자인 2차, 시안 v4).
+   "이름 · 풀이 …… 값". 좁으면 풀이만 그 칸 안에서 꺾인다. 칸 수에 묶이지 않는다 — 지표가 늘면 줄이 는다.
+   PC 카드는 상자 그대로. 매크로 카드(.stock-card)에는 걸지 않는다 */
+@media (max-width: 640px) {
+  .signal-card .stat-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    border-top: 1px solid var(--border);
+  }
+  .signal-card .stat-box {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    column-gap: 12px;
+    row-gap: 2px;
+    align-items: baseline;
+    background: none;
+    border: 0;
+    border-bottom: 1px solid var(--border);
+    border-radius: 0;
+    padding: 6px 0;
+  }
+  .signal-card .stat-box:last-child {
+    border-bottom: 0;
+  }
+  .signal-card .stat-box > .stat-name {
+    grid-column: 1;
+    grid-row: 1;
+    font-size: var(--fs-sub);
+    color: var(--text-dim);
+  }
+  .signal-card .stat-box > .stat-note {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .signal-card .stat-box > .v {
+    grid-column: 3;
+    grid-row: 1;
+    margin: 0;
+    text-align: right;
+  }
+  /* 날짜·출처 풀이는 길어서 다음 줄 전체 */
+  .signal-card .stat-box-wide-note > .stat-note {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  /* 마지막 매수 시그널 · 날짜 · AI 분석을 한 줄에 */
+  .signal-card .card-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 8px;
+    padding-top: 8px;
+  }
+  .signal-card .card-actions .ai-open {
+    margin-left: auto;
+    align-self: center;
+  }
+}
+

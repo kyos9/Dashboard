@@ -1,0 +1,24 @@
+/* ---------- 설정(편집) 모드 ---------- */
+
+.edit-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel-soft);
+}
+
+/* 아직 저장하지 않은 행 */
+table.data-table tr.dirty td {
+  background: var(--amber-soft);
+}
+
+table.data-table tr.dirty:hover td {
+  background: var(--amber-soft);
+}
+

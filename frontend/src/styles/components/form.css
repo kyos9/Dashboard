@@ -1,0 +1,29 @@
+/* ---------- 폼 ---------- */
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.field > label {
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  color: var(--text-dim);
+  word-break: keep-all;
+}
+
+/* 종목 검색은 후보 목록이 붙으므로 다른 입력보다 넓게 잡는다 */
+.field-wide {
+  grid-column: span 2;
+  min-width: 240px;
+}
+

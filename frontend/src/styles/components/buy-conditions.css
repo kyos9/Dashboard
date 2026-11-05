@@ -1,0 +1,31 @@
+/* ---------- 매수 조건 표시 (지표 칸에 붙는다) ---------- */
+
+.cond {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 5px;
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  line-height: 1.45;
+  border: 1px solid var(--border);
+  background: var(--slate-soft);
+  /* 못 맞춘 조건도 읽혀야 한다 — 흐린 글자는 회색 바탕 위에서 4.5:1 이 안 나왔다 (8-4) */
+  color: var(--text-dim);
+  white-space: normal;
+  word-break: keep-all;
+  max-width: 100%;
+}
+
+.metric .cond,
+.stat-box .cond {
+  align-self: flex-start;
+}
+
+.cond.met {
+  color: var(--green);
+  background: var(--green-soft);
+  border-color: rgba(34, 197, 94, 0.35);
+}
+

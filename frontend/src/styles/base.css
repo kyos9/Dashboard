@@ -1,0 +1,54 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--fs-body);
+  line-height: 1.55;
+  background: var(--bg);
+  color: var(--text);
+  word-break: keep-all;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  word-break: keep-all;
+  line-height: 1.35;
+  text-wrap: balance;
+}
+
+p,
+li,
+dd,
+.hint,
+.callout {
+  text-wrap: pretty;
+}
+
+/* 떨어지면 안 되는 묶음 — 숫자+단위, 날짜, 조건식 (맨 위 원칙) */
+.nowrap {
+  white-space: nowrap;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 표의 숫자 칸은 "+59.8 / %" 처럼 갈라지지 않게 — 표는 넓으면 가로로 밀린다(스크롤 영역 안) */
+td.mono,
+td .mono {
+  white-space: nowrap;
+}
+

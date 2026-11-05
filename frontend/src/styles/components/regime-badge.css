@@ -1,0 +1,28 @@
+/* ---------- 국면 배지 ---------- */
+
+.regime-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: var(--gap);
+}
+
+/* 배지 이름 아래에 왜 떴는지가 같이 붙는다 — 이름만으로는 −0.02와 −1.5가 같아 보인다 */
+.regime-badge {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px 12px;
+  font-size: var(--fs-sub);
+}
+
+.regime-detail {
+  font-family: var(--font-mono);
+  font-size: var(--fs-caption);
+  font-weight: 500;
+}
+
+.regime-quiet {
+  margin: 0 0 var(--gap);
+}
+

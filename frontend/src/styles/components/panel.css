@@ -1,0 +1,176 @@
+/* ---------- 패널 / 카드 ---------- */
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  min-width: 0;
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: var(--gap);
+  margin-bottom: 16px;
+}
+
+.kpi {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 16px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.kpi-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.kpi-title {
+  font-size: var(--fs-sub);
+  font-weight: 700;
+  color: var(--text-dim);
+  letter-spacing: 0.01em;
+}
+
+.kpi-foot {
+  font-size: var(--fs-caption);
+  color: var(--text-faint);
+  margin: 0;
+}
+
+.kpi-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.count-chip {
+  flex: 1 1 auto;
+  min-width: 78px;
+  border-radius: var(--radius-sm);
+  padding: 8px 8px;
+  border: 1px solid var(--border);
+  background: var(--panel-soft);
+  text-align: center;
+}
+
+.count-chip .num {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: var(--fs-title);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.count-chip .lbl {
+  display: block;
+  font-size: var(--fs-caption);
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+.count-chip.green {
+  border-color: rgba(34, 197, 94, 0.4);
+  background: var(--green-soft);
+}
+.count-chip.green .num {
+  color: var(--green);
+}
+.count-chip.amber {
+  border-color: rgba(240, 180, 41, 0.4);
+  background: var(--amber-soft);
+}
+.count-chip.amber .num {
+  color: var(--amber);
+}
+.count-chip.red {
+  border-color: rgba(240, 82, 82, 0.4);
+  background: var(--red-soft);
+}
+.count-chip.red .num {
+  color: var(--red);
+}
+.count-chip.purple {
+  border-color: rgba(168, 85, 247, 0.4);
+  background: var(--purple-soft);
+}
+.count-chip.purple .num {
+  color: var(--purple);
+}
+.count-chip.blue {
+  border-color: rgba(59, 130, 246, 0.4);
+  background: var(--blue-soft);
+}
+.count-chip.blue .num {
+  color: var(--blue);
+}
+
+/* 신호 요약의 칸을 누르면 그 거르기 (디자인 2차). 단추 기본 꼴(hover 바탕·글자색)이 칸 색을 덮지 않게 */
+button.count-chip {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+/* 어포던스 (디자인 2차) — 누르는 칸에는 거르기로 가는 표시(›), 누르지 않는 관망 칸은 상자를 지운다.
+   넷이 같은 상자면 관망도 눌러 보게 되고, 눌러도 아무 일이 없었다 */
+button.count-chip .lbl::after {
+  content: ' ›';
+  color: var(--text-faint);
+}
+.kpi-counts span.count-chip {
+  background: transparent;
+  border-color: transparent;
+}
+button.count-chip:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  filter: brightness(1.08);
+}
+button.count-chip.green:hover:not(:disabled) {
+  background: var(--green-soft);
+}
+button.count-chip.red:hover:not(:disabled) {
+  background: var(--red-soft);
+}
+button.count-chip.purple:hover:not(:disabled) {
+  background: var(--purple-soft);
+}
+/* 거르기가 걸려 있는 칸 — 테두리를 굵게, 색만이 아니라 두께로 */
+button.count-chip[aria-pressed='true'] {
+  box-shadow: inset 0 0 0 2px currentColor;
+}
+button.count-chip.green[aria-pressed='true'] {
+  color: var(--green);
+}
+button.count-chip.red[aria-pressed='true'] {
+  color: var(--red);
+}
+button.count-chip.purple[aria-pressed='true'] {
+  color: var(--purple);
+}
+button.count-chip[aria-pressed='true'] .lbl {
+  color: var(--text);
+}
+
+.kpi-figure {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.kpi-figure .big {
+  font-family: var(--font-mono);
+  font-size: var(--fs-big);
+  font-weight: 700;
+  line-height: 1.15;
+}
+

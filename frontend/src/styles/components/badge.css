@@ -1,0 +1,86 @@
+/* ---------- 배지 ---------- */
+
+.badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* 이름표가 붙은 배지 묶음 — 리밸런싱의 "비중 ◆ 매수 검토", "참고 ▼ 기간 내 매도" (디자인 2차).
+   이름표와 배지가 떨어지지 않게 한 덩어리, 묶음끼리는 꺾일 수 있다 */
+.badge-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.badge-group-label {
+  font-size: var(--fs-caption);
+  color: var(--text-faint);
+  margin-right: 2px;
+}
+.signal-badges {
+  align-items: center;
+  column-gap: 12px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  line-height: 1.45;
+  white-space: normal;
+  word-break: keep-all;
+  max-width: 100%;
+  border: 1px solid transparent;
+}
+
+.badge-green {
+  color: var(--green);
+  background: var(--green-soft);
+  border-color: rgba(34, 197, 94, 0.35);
+}
+.badge-amber {
+  color: var(--amber);
+  background: var(--amber-soft);
+  border-color: rgba(240, 180, 41, 0.35);
+}
+.badge-red {
+  color: var(--red);
+  background: var(--red-soft);
+  border-color: rgba(240, 82, 82, 0.35);
+}
+.badge-blue {
+  color: var(--blue);
+  background: var(--blue-soft);
+  border-color: rgba(59, 130, 246, 0.35);
+}
+.badge-purple {
+  color: var(--purple);
+  background: var(--purple-soft);
+  border-color: rgba(168, 85, 247, 0.35);
+}
+.badge-grey {
+  color: var(--text-dim);
+  background: var(--slate-soft);
+  border-color: var(--border);
+}
+
+/* 종목 구분(카테고리) 태그 */
+.cat-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 5px;
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  background: var(--slate-soft);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  white-space: normal;
+  word-break: keep-all;
+}
+

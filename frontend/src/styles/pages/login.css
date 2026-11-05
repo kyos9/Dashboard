@@ -1,0 +1,167 @@
+/* ---------- 로그인 화면 (서버에 올렸을 때만 뜬다) ---------- */
+
+.login-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.login-panel {
+  width: 100%;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.login-brand span {
+  font-size: var(--fs-big);
+}
+
+.login-brand h1 {
+  margin: 0;
+  font-size: var(--fs-title);
+  letter-spacing: -0.01em;
+}
+
+.login-panel .hint {
+  margin: 0;
+}
+
+.login-panel button {
+  width: 100%;
+}
+
+/* ==========================================================================
+   손가락으로 쓰는 화면
+
+   마우스가 아니라 손가락이 닿는 기기(`pointer: coarse`)에만 적용한다. 폭으로
+   가르지 않는 이유는, 창을 좁힌 PC와 폰은 필요한 것이 다르기 때문이다 — 좁은
+   PC 창에 버튼만 커지면 어색하고, 넓은 태블릿에서 손가락이 빗나가는 건 여전하다.
+   ========================================================================== */
+
+@media (pointer: coarse) {
+  /*
+   * **글자 크기가 16px보다 작은 입력칸을 누르면 아이폰 사파리가 화면을 확대한다.**
+   * 그리고 되돌려주지 않는다 — 숫자 하나 고치고 나면 화면이 확대된 채 옆으로
+   * 밀려 있다. 막는 방법은 두 가지인데, viewport 에 maximum-scale=1 을 넣는 쪽은
+   * 두 손가락 확대까지 막아버리므로(눈이 불편한 사람에게서 확대를 뺏는다) 쓰지 않는다.
+   * 입력칸 글자를 16px로 키우는 쪽이 맞다.
+   */
+  input,
+  select,
+  textarea {
+    font-size: var(--fs-strong);
+  }
+
+
+  /* 길게 눌렀을 때 글자가 선택되며 파랗게 뜨는 것을 막는다 (누른 건 버튼이다) */
+  button,
+  .tab {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
+
+/*
+ * 화면 높이. 폰 브라우저의 100vh 는 주소창이 **접히기 전** 높이라, 실제로 보이는
+ * 것보다 길다 — 아래쪽이 잘린다. dvh 는 지금 실제로 보이는 높이다. 모르는
+ * 브라우저는 이 줄을 통째로 무시하고 위의 vh 를 쓴다.
+ */
+.login-shell {
+  min-height: 100dvh;
+}
+
+@media (max-width: 640px) {
+  .modal {
+    max-height: 100dvh;
+    /*
+     * 폰에서는 팝업이 화면 전체를 덮는다. viewport-fit=cover 라 상태바(시계·배터리)·노치 밑까지
+     * 그려지므로, 위·옆도 안전영역만큼 비워야 제목과 ✕ 가 상태바에 겹쳐 눌리지 않는다.
+     */
+    --modal-pad-top: calc(16px + env(safe-area-inset-top, 0px));
+    padding-top: var(--modal-pad-top);
+    padding-left: calc(16px + env(safe-area-inset-left, 0px));
+    padding-right: calc(16px + env(safe-area-inset-right, 0px));
+    /* 홈 인디케이터에 버튼이 가리지 않게 */
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    /* 팝업 안에서 끝까지 내렸을 때 뒤 화면이 따라 움직이지 않게 */
+    overscroll-behavior: contain;
+  }
+
+  /* 가운데 카드(확인창·설치 안내)는 상태바·노치에 닿지 않는다 — 안전영역 여백을 붙이지 않는다 (3차 검토 a) */
+  .modal.confirm-modal,
+  .modal.install-hint {
+    --modal-pad-top: 16px;
+    padding: 16px;
+    /* 바깥 여백 16 × 2 와 위·아래 안전영역을 뺀 높이 — 긴 확인 문구에도 상태바·홈 표시줄에 닿지 않게 */
+    max-height: calc(100dvh - 32px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  }
+
+  /*
+   * 머리줄: 제목과 ✕ 는 늘 윗줄 양끝, 필터 칩 같은 나머지는 아랫줄로. 전에는 ✕ 가 맨 뒤(order 99)라
+   * 칩이 한 줄을 차지하면 ✕ 만 혼자 셋째 줄로 밀려 내려갔다(진단·차트 팝업).
+   */
+  .modal-title {
+    order: 0;
+    flex: 1 1 0;
+    flex-wrap: wrap;
+  }
+
+  /* ✕ 는 위 끝에 — 제목 밑에 안내가 한 줄 더 있어도(진단) 다른 팝업과 같은 높이에서 누른다 */
+  .modal-head .icon-btn {
+    order: 1;
+    align-self: flex-start;
+  }
+
+  /* 아랫줄로 보내는 것은 칩 줄만 (머리줄 직속 자식은 제목·✕·칩 줄뿐이다 — 다른 것을 넣으면 여기도 본다) */
+  .modal-head > .chip-row {
+    order: 2;
+    flex: 1 1 100%;
+  }
+
+  /*
+   * 고정 머리줄 — 폰 전체화면 팝업은 내려도 제목·✕ 가 위에 남는다. 전에는 알림 창만 그랬고, 종목 한 번에 수정은
+   * 내리면 제목·✕ 가 올라가 사라지고 입력칸이 상태바 밑으로 들어갔다(3차 계획 검토 — 사용자).
+   * 늘어난 안쪽 여백(안전영역 포함)만큼 같이 늘린다. 차트 팝업은 뺀다 — 머리줄이 세 줄(제목·탭·기간)이라 붙이면
+   * 차트를 가린다. 가운데 카드(확인창·설치 안내)는 짧아서 내릴 일이 없다.
+   */
+  .modal:not(.chart-modal, .confirm-modal, .install-hint) {
+    /* 키보드로 오가면 포커스 받은 칸이 붙은 머리줄 밑에 숨지 않게 */
+    scroll-padding-top: calc(72px + env(safe-area-inset-top, 0px));
+  }
+
+  .modal:not(.chart-modal, .confirm-modal, .install-hint) > .modal-head {
+    position: sticky;
+    z-index: 1;
+    background: var(--panel);
+    top: calc(-1 * var(--modal-pad-top));
+    margin: calc(-1 * var(--modal-pad-top)) calc(-16px - env(safe-area-inset-right, 0px)) 16px
+      calc(-16px - env(safe-area-inset-left, 0px));
+    padding: var(--modal-pad-top) calc(16px + env(safe-area-inset-right, 0px)) 8px
+      calc(16px + env(safe-area-inset-left, 0px));
+  }
+
+  /* 진단은 머리줄이 세 겹(제목·요약·칩 줄, 아래 끝 약 190) — 포커스 받은 칸이 그 밑에 숨지 않게 더 띄운다 (3차 검토 보완 1) */
+  .modal.diag-modal {
+    scroll-padding-top: calc(160px + env(safe-area-inset-top, 0px));
+  }
+
+  .push-modal .modal-head {
+    /* 제목 줄과 ✕ 가 한 줄에 — 기기 수 안내는 제목 밑으로 내려 ✕ 를 밀어내지 않게 */
+    flex-wrap: nowrap;
+  }
+
+  .push-modal .modal-title {
+    flex-wrap: wrap;
+  }
+}
+

@@ -1,0 +1,86 @@
+/* ---------- 폰 아래 탭 (ROADMAP 8-2) ----------
+   엄지가 닿는 자리. 설치한 앱에는 주소창이 없어서 이것이 앱의 모양이 된다. */
+
+.bottom-tabs {
+  position: fixed;
+  z-index: 40;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  padding: 4px env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  background: var(--bg-elevated);
+  border-top: 1px solid var(--border);
+}
+
+/* 글자를 치는 동안은 비킨다 — 안드로이드는 키보드 위로 탭이 따라 올라와 입력칸을 가린다 */
+body:has(input:focus, textarea:focus) .bottom-tabs {
+  display: none;
+}
+
+.bottom-tab,
+button.bottom-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 100%;
+  min-width: 0;
+  min-height: 52px;
+  padding: 4px 2px;
+  background: transparent;
+  border: 0;
+  border-radius: 10px;
+  color: var(--text-faint);
+  text-decoration: none;
+  font-size: var(--fs-caption);
+  font-weight: 600;
+}
+
+button.bottom-tab:hover:not(:disabled) {
+  background: transparent;
+}
+
+.bottom-tab.active,
+button.bottom-tab.active {
+  color: var(--accent);
+}
+
+.bottom-tab-label {
+  max-width: 100%;
+  line-height: 1.2;
+  text-align: center;
+  overflow-wrap: break-word;
+}
+
+.bottom-more {
+  position: relative;
+  display: flex;
+  min-width: 0;
+}
+
+.more-sheet {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 6px;
+  display: flex;
+  flex-direction: column;
+  min-width: 170px;
+  padding: 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.more-sheet .tab {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: var(--fs-body);
+}
+

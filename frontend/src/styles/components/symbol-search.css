@@ -1,0 +1,326 @@
+/* ---------- 종목 검색 (이름 -> 티커) ---------- */
+
+.symbol-search {
+  position: relative;
+  min-width: 0;
+}
+
+.symbol-search > input {
+  width: 100%;
+}
+
+.symbol-options {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  max-height: 300px;
+  overflow-y: auto;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.35);
+}
+
+.symbol-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  /* 종목명이 길어도 잘리지 않고 자연스럽게 넘어가야 한다 */
+  white-space: normal;
+  word-break: keep-all;
+}
+
+.symbol-option.active,
+.symbol-option:hover {
+  background: var(--panel-soft);
+}
+
+.symbol-option-name {
+  font-size: var(--fs-sub);
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.35;
+}
+
+.symbol-option-meta {
+  font-size: var(--fs-caption);
+  color: var(--text-dim);
+}
+
+.symbol-search-status {
+  margin: 4px 0 0;
+  font-size: var(--fs-caption);
+  color: var(--text-dim);
+  word-break: keep-all;
+  line-height: 1.45;
+}
+
+/* 고른 종목 — 무엇이 등록될지 사용자가 확인하는 자리 */
+.symbol-picked {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 8px;
+  min-height: 38px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--blue-soft);
+}
+
+.symbol-picked-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.symbol-picked-name {
+  font-size: var(--fs-sub);
+  font-weight: 600;
+  word-break: keep-all;
+}
+
+.symbol-picked-meta {
+  font-size: var(--fs-caption);
+  color: var(--text-dim);
+}
+
+input,
+select,
+button,
+textarea {
+  font-family: inherit;
+  font-size: var(--fs-sub);
+  color: var(--text);
+}
+
+input[type='number'],
+input[type='text'],
+input[type='password'],
+input[type='date'],
+select {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text);
+}
+
+/* 숫자칸 — 자릿수를 눈으로 맞출 수 있게 고정폭 + 오른쪽 정렬 */
+.num-input {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* 숫자칸이 버린 것을 알리는 줄 (0.45.1 A) — 화면 위쪽 가운데 하나. 칸 옆에 두면 표·팝업 안에서 가리거나 잘렸다.
+   팝업(.modal-backdrop 50)·확인 창 위에 뜬다. 누르는 것이 없어 밑의 칸을 막지 않는다 */
+.num-notice {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 70;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--amber);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-size: var(--fs-body);
+  line-height: 1.45;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+}
+
+input:focus,
+select:focus,
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+input::placeholder {
+  color: var(--text-faint);
+}
+
+/* 종목 추가 칸의 "모르면 비움"(0.44.0 C3 — "모르면 비워두기"는 360 에서 잘렸다) — 숫자 칸의 고정폭 글꼴로 쓰면 글자 사이가 벌어진다 (디자인 2차). 이 폼에만 */
+.add-stock-form .num-input::placeholder {
+  font-family: var(--font-sans);
+}
+
+button {
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--panel-soft);
+  color: var(--text);
+  cursor: pointer;
+  font-weight: 600;
+  white-space: normal;
+  word-break: keep-all;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: var(--panel);
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+button.primary:hover:not(:disabled) {
+  filter: brightness(1.08);
+  background: var(--accent);
+}
+
+button.success {
+  background: var(--green-soft);
+  border-color: rgba(34, 197, 94, 0.45);
+  color: var(--green);
+}
+
+button.ghost {
+  background: transparent;
+}
+
+button.sm {
+  padding: 4px 8px;
+  font-size: var(--fs-caption);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+/* 표의 작업 칸 — 버튼이 둘째 줄로 내려가면 행 높이가 제각각이 된다 */
+.btn-group.tight {
+  flex-wrap: nowrap;
+}
+
+.btn-group.tight button {
+  white-space: nowrap;
+}
+
+/* 입력칸 + 단위/버튼 조합 — 숫자가 잘리지 않도록 최소폭 확보 */
+.input-with-button {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.input-with-button input {
+  width: 108px;
+  flex: 0 1 108px;
+}
+
+.input-with-button .unit {
+  font-size: var(--fs-caption);
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+/*
+ * 표 안에서 쓰는 변형. 줄바꿈을 막아 헤더와 입력칸이 한 줄에서 맞도록 한다 —
+ * 칸이 좁으면 입력칸이 줄어들 뿐, 단위나 선택박스가 아래로 떨어지지 않는다.
+ */
+.input-with-button.tight {
+  flex-wrap: nowrap;
+}
+
+.input-with-button.tight input {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 64px;
+}
+
+.input-with-button.tight select {
+  flex: 0 0 auto;
+  width: auto;
+}
+
+.hint {
+  color: var(--text-faint);
+  font-size: var(--fs-caption);
+  word-break: keep-all;
+}
+
+.error-text {
+  color: var(--red);
+  background: var(--red-soft);
+  border: 1px solid rgba(240, 82, 82, 0.35);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  margin: 0 0 16px;
+  font-size: var(--fs-sub);
+  word-break: keep-all;
+}
+
+.error-head {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  line-height: 1.55;
+}
+
+.error-dismiss {
+  margin-left: auto;
+  flex: none;
+  color: var(--red);
+  border-color: rgba(240, 82, 82, 0.35);
+}
+
+.error-detail {
+  margin-top: 8px;
+  border-top: 1px solid rgba(240, 82, 82, 0.25);
+  padding-top: 8px;
+}
+
+.error-detail summary {
+  cursor: pointer;
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+.error-detail p {
+  margin: 8px 0 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-caption);
+  line-height: 1.6;
+  /* 긴 예외 메시지는 URL·경로가 섞여 있어 어절 단위로는 넘칠 수 있다 */
+  overflow-wrap: break-word;
+  color: var(--text-dim);
+}
+

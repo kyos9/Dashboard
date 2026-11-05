@@ -1,0 +1,46 @@
+/* ---------- 끌어서 순서 바꾸기 ---------- */
+
+.drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  color: var(--text-faint);
+  font-size: var(--fs-strong);
+  line-height: 1;
+  cursor: grab;
+  user-select: none;
+}
+
+.drag-handle:hover,
+.drag-handle:focus-visible {
+  color: var(--text);
+  border-color: var(--border-strong);
+  background: var(--slate-soft);
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+/*
+ * 끌고 있는 행. 놓기 전에도 다른 행들이 비켜서 자리가 나므로, 따로 놓을 자리를
+ * 표시하지 않는다 — 지금 보이는 순서가 곧 저장될 순서다.
+ */
+tr.dragging,
+.stock-card.dragging {
+  opacity: 0.6;
+}
+
+tr.dragging td {
+  background: var(--blue-soft);
+}
+
+.stock-card.dragging {
+  border-color: var(--blue);
+}
+
+

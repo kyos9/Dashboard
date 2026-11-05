@@ -1,0 +1,133 @@
+/* ---------- ⋯ 메뉴 (ROADMAP 8-2) ----------
+   폰은 헤더 버튼을 전부, PC 는 관리자 도구(진단·사용자)만 여기에 모은다. */
+
+.header-menu {
+  position: relative;
+}
+
+button.menu-btn {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  min-width: 40px;
+  padding-inline: 8px;
+}
+
+.menu-glyph {
+  display: block;
+}
+
+/* 가입 신청 수 — 메뉴를 열지 않아도 보이게 */
+.menu-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--amber);
+  color: #1a1203;
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+
+/* 숫자 없이 봐야 할 것이 있다 — 가입 신청 숫자와 같은 자리·색의 작은 점 (0.45.0: 백업) */
+.menu-badge.menu-dot {
+  min-width: 10px;
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  top: -2px;
+  right: -2px;
+}
+
+/* 숫자 배지와 같이 뜰 때 — 숫자(오른쪽 위)에 붙으면 숫자의 일부로 읽혀 왼쪽 위로 비킨다 (0.45.2 B4) */
+.menu-badge.menu-dot.menu-dot-aside {
+  right: auto;
+  left: -2px;
+}
+
+.menu-panel {
+  position: absolute;
+  z-index: 45;
+  top: calc(100% + 6px);
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  width: max-content;
+  min-width: 210px;
+  max-width: min(300px, calc(100vw - 2 * var(--gutter)));
+  padding: 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.35);
+}
+
+button.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: var(--text);
+  font-size: var(--fs-body);
+}
+
+button.menu-item:hover:not(:disabled),
+button.menu-item:focus-visible {
+  background: var(--panel-soft);
+}
+
+button.menu-item.danger {
+  color: var(--red);
+}
+
+.menu-head {
+  padding: 8px 12px 8px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.menu-account {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* 메뉴 안에서는 이름을 줄이지 않는다 — 여기가 전체를 보는 자리다 */
+.menu-account .account-name {
+  font-weight: 700;
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+
+.menu-email {
+  font-size: var(--fs-caption);
+  color: var(--text-faint);
+  overflow-wrap: break-word;
+}
+
+.menu-account-badges {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.menu-foot {
+  padding: 8px 12px 4px;
+  margin-top: 4px;
+  border-top: 1px solid var(--border);
+  font-size: var(--fs-caption);
+  color: var(--text-faint);
+}
+

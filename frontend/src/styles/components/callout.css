@@ -1,0 +1,104 @@
+/* ---------- 알림/콜아웃 ---------- */
+
+.callout {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--panel-soft);
+  font-size: var(--fs-sub);
+  word-break: keep-all;
+}
+
+.callout .ico {
+  flex: none;
+  line-height: 1.5;
+}
+
+.callout .hint {
+  /* 색 바탕 위의 흐린 글자는 대비가 모자란다 — 한 단계 진하게 */
+  color: var(--text-dim);
+}
+
+.callout.amber {
+  border-color: rgba(240, 180, 41, 0.4);
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+.callout.red {
+  border-color: rgba(240, 82, 82, 0.4);
+  background: var(--red-soft);
+  color: var(--red);
+}
+.callout.green {
+  border-color: rgba(34, 197, 94, 0.4);
+  background: var(--green-soft);
+  color: var(--green);
+}
+.callout.blue {
+  border-color: rgba(59, 130, 246, 0.4);
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+
+.empty-state {
+  text-align: center;
+  padding: 56px 20px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--text-dim);
+}
+
+/* 빈 화면 안내 아래 단추 — 글에 붙지 않게 (디자인 2차, 빈 리밸런싱) */
+.empty-state p + .link-button {
+  margin-top: 12px;
+}
+
+.empty-state h3 {
+  margin: 0 0 8px;
+  font-size: var(--fs-strong);
+  color: var(--text);
+}
+
+.empty-state p {
+  margin: 0 auto;
+  max-width: 460px;
+  font-size: var(--fs-sub);
+}
+
+/* 손님에게 내 종목 화면 대신 보이는 안내 (components/LoginPrompt.tsx) */
+.login-prompt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 40px 20px;
+}
+
+.login-prompt h3 {
+  margin: 0;
+  overflow-wrap: break-word;
+}
+
+.guest-features {
+  margin: 0;
+  padding-left: 16px;
+  max-width: 460px;
+  text-align: left;
+  font-size: var(--fs-sub);
+  line-height: 1.6;
+}
+
+.guest-features b {
+  color: var(--text);
+}
+
+/* 안내 닫기 버튼은 글줄을 밀어내지 않고 오른쪽 끝에 붙는다 */
+.header-alert > button {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+

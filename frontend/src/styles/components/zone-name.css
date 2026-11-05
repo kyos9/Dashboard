@@ -1,0 +1,24 @@
+/* ---------- 구간 이름 (공포·탐욕) ---------- */
+
+/* 색은 `.badge-amber` / `.badge-grey` 가 준다 — 극단인지 아닌지만 말하고, 공포를 초록
+   탐욕을 빨강으로 칠하지 않는다 (그러면 화면이 사라/팔아라를 말하는 셈이다). */
+.macro-zone {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-self: flex-start;
+  margin: 0;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  font-size: var(--fs-sub);
+  font-weight: 700;
+}
+
+.macro-zone-range {
+  font-family: var(--font-mono);
+  font-size: var(--fs-caption);
+  font-weight: 500;
+}
+

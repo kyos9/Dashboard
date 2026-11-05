@@ -1,0 +1,20 @@
+/* ---------- 좁은 화면 ---------- */
+
+@media (max-width: 720px) {
+  /* 좌우 여백만 좁힌다. 헤더·탭·본문이 한꺼번에 따라오고, 노치 회피도 그대로 남는다 */
+  :root {
+    --gutter: 14px;
+  }
+  .app-header {
+    padding-top: calc(12px + env(safe-area-inset-top, 0px));
+    padding-bottom: 12px;
+  }
+  .page {
+    padding-top: 16px;
+    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+  }
+  .kpi-figure .big {
+    font-size: var(--fs-title);
+  }
+}
+

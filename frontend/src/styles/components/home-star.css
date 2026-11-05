@@ -1,0 +1,22 @@
+/* ---------- 홈에 올리는 ☆ ---------- */
+
+.pin-btn {
+  flex: 0 0 auto;
+  padding: 2px 4px;
+  min-width: 0;
+  border: none;
+  background: none;
+  font-size: var(--fs-strong);
+  line-height: 1;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+
+.pin-btn:hover {
+  color: var(--amber);
+}
+
+.pin-btn.on {
+  color: var(--amber);
+}
+

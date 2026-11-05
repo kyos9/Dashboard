@@ -1,0 +1,66 @@
+/* ---------- 종목 이름 줄 ----------
+   구분 태그와 이름을 한 줄에 둔다. 이름을 누르면 차트가 열린다.
+   앞으로 AI 종목분석 같은 버튼이 생기면 이 줄에 나란히 붙인다. */
+
+.stock-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.stock-name {
+  font-weight: 700;
+  font-size: var(--fs-body);
+  word-break: keep-all;
+  color: var(--text);
+}
+
+/* 누를 수 있는 이름만 링크처럼 보이게 (편집 모드에서는 그냥 글자다) */
+button.stock-name {
+  padding: 0;
+  font-family: inherit;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: 3px;
+}
+
+button.stock-name:hover {
+  color: var(--blue);
+  text-decoration-color: var(--blue);
+}
+
+/* 눌러서 펼치는 보유 줄(폰) — 줄 전체가 단추인데 단추로 안 보였다 (디자인 2차, 어포던스). 금액 옆에 ▾/▴ */
+.holding-toggle .holding-value::after {
+  content: ' ▾';
+  color: var(--text-faint);
+  font-family: var(--font-sans);
+  font-weight: 400;
+}
+.holding-toggle[aria-expanded='true'] .holding-value::after {
+  content: ' ▴';
+}
+
+/* 매크로 한 줄의 칩 — 누르면 매크로 탭으로 간다. 표시 칩과 갈리게 끝에 › (디자인 2차 사용자 확인, 어포던스) */
+.macro-chip::after {
+  content: '›';
+  color: var(--text-faint);
+  margin-left: 2px;
+}
+
+/* 재무 "PER 한눈에"의 줄 — 누르면 차트가 열린다. 다른 화면의 종목 이름처럼 밑줄 (디자인 2차, 어포던스) */
+.per-row .per-row-name {
+  text-decoration: underline;
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: 3px;
+}
+.per-row:hover .per-row-name {
+  color: var(--blue);
+  text-decoration-color: var(--blue);
+}
+

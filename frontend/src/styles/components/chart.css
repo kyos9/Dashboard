@@ -1,0 +1,24 @@
+/* ---------- 차트 ---------- */
+
+.chart-shell {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px;
+}
+
+.legend-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 12px;
+  font-size: var(--fs-caption);
+  color: var(--text-dim);
+}
+
+.legend-row > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+

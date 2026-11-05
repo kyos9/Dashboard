@@ -1,0 +1,62 @@
+/* ---------- 신호등 ---------- */
+
+.traffic {
+  display: inline-flex;
+  /* 플렉스 컬럼 안에서 가로로 늘어나지 않도록 */
+  align-self: flex-start;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel-soft);
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  white-space: normal;
+  word-break: keep-all;
+  max-width: 100%;
+}
+
+.traffic-lamp {
+  display: inline-flex;
+  gap: 4px;
+  flex: none;
+}
+
+.traffic-lamp i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--slate-soft);
+}
+
+.traffic.green {
+  border-color: rgba(34, 197, 94, 0.45);
+  background: var(--green-soft);
+  color: var(--green);
+}
+.traffic.green .traffic-lamp i:nth-child(1),
+.traffic.green .traffic-lamp i:nth-child(2) {
+  background: var(--green);
+}
+.traffic.amber {
+  border-color: rgba(240, 180, 41, 0.45);
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+.traffic.amber .traffic-lamp i:nth-child(1),
+.traffic.amber .traffic-lamp i:nth-child(2) {
+  background: var(--amber);
+}
+.traffic.red {
+  border-color: rgba(240, 82, 82, 0.45);
+  background: var(--red-soft);
+  color: var(--red);
+}
+.traffic.red .traffic-lamp i:nth-child(1) {
+  background: var(--red);
+}
+.traffic.grey {
+  color: var(--text-faint);
+}
+

@@ -1,0 +1,1068 @@
+/* ---------- 대시보드 — 포트폴리오 | 시그널 (ROADMAP 8-3) ---------- */
+
+.view-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+/* 보기 전환 옆의 한 가지 일 — 오른쪽 끝. 폰에서는 전환이 한 줄을 다 쓰므로 다음 줄 오른쪽으로 */
+.view-head-action {
+  margin-left: auto;
+}
+
+/* 두 칸 전환. 누르는 자리는 44px */
+.view-switch {
+  display: inline-flex;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel);
+}
+
+.view-switch button {
+  white-space: nowrap; /* "기기 설정"처럼 짧은 이름은 한 줄 — 칸이 좁아도 꺾지 않는다 */
+  min-height: 38px;
+  min-width: 96px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--text-dim);
+  font-size: var(--fs-sub);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.view-switch button[aria-pressed='true'] {
+  background: var(--panel-soft);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+/* 맨 위 — 확인할 신호 (디자인 1차). 아침에 "볼 것이 있나"를 먼저. 누르면 시그널 보기 */
+.signal-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
+  width: 100%;
+  min-height: 44px;
+  margin: 0 0 12px;
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+
+.signal-line.quiet {
+  border-left-color: var(--border-strong);
+  color: var(--text-dim);
+  font-size: var(--fs-sub);
+  cursor: default;
+}
+
+.signal-line-title {
+  font-size: var(--fs-sub);
+  font-weight: 700;
+  color: var(--text-dim);
+}
+
+.signal-line-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+
+.signal-line-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+/* 종류마다 누르는 단추 (디자인 2차, 주인 결정 ②) — 단추 기본 꼴 대신 글자 + 밑줄, 44px. 색은 종류 색 그대로 */
+button.signal-line-count,
+button.signal-line-go {
+  min-height: 44px;
+  padding: 0 4px;
+  background: none;
+  border: 0;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 40%, transparent);
+  text-underline-offset: 4px;
+}
+button.signal-line-count:hover:not(:disabled),
+button.signal-line-go:hover:not(:disabled) {
+  background: var(--panel-soft);
+}
+
+.signal-line-count b {
+  font-size: var(--fs-strong);
+}
+
+.signal-line-go {
+  margin-left: auto;
+  font-size: var(--fs-sub);
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+/* 시그널 보기 맨 위 — 신호 요약 한 장 */
+.signal-summary {
+  margin-bottom: 16px;
+}
+
+.signal-summary .count-chip {
+  flex: 0 1 132px;
+}
+
+.signal-summary .kpi-counts,
+.signal-summary .badge-row {
+  align-items: center;
+}
+
+/* PC 는 넓다 — 넷과 비중조절 갈래를 한 줄에 */
+@media (min-width: 721px) {
+  .signal-summary {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 16px;
+  }
+  .signal-summary .kpi-head,
+  .signal-summary .kpi-foot {
+    flex-basis: 100%;
+  }
+  /* 넷은 늘 한 줄 — 줄어들면 2×2 로 접혔다 */
+  .signal-summary .kpi-counts {
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+  }
+  .signal-summary .count-chip {
+    flex: 0 0 132px;
+  }
+}
+
+/* 맨 위 — 내 돈 한 줄 */
+.money-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 16px 28px;
+  padding: 16px 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.money-total {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.money-big {
+  font-size: var(--fs-big);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.money-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  margin: 0;
+  min-width: 0;
+}
+
+.money-facts div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.money-facts dt {
+  font-size: var(--fs-caption);
+  color: var(--text-faint);
+}
+
+.money-facts dd {
+  margin: 0;
+  font-size: var(--fs-strong);
+  font-weight: 700;
+}
+
+/* 금액과 % 는 각자 한 덩어리 — 좁으면 % 만 다음 줄로 */
+.money-facts dd .mono {
+  white-space: nowrap;
+}
+
+.money-note {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.portfolio-sub {
+  margin-top: 12px;
+}
+
+.portfolio-sub .macro-home {
+  margin-bottom: 0;
+}
+
+.review-line {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px 16px;
+  margin: 8px 2px 0;
+  font-size: var(--fs-sub);
+  color: var(--text-dim);
+}
+
+.review-line.due b {
+  color: var(--amber);
+}
+
+.sort-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  font-size: var(--fs-sub);
+  color: var(--text-dim);
+}
+
+.sort-pick select {
+  min-height: 44px;
+}
+
+/* 보유 종목 제목 오른쪽 — 정렬 · 손익 통화 · 수정. 폰에서는 다음 줄로 접힌다 */
+.holdings-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px 16px;
+  margin-left: auto;
+}
+
+.holdings-tools .sort-pick {
+  margin-left: 0;
+}
+
+/* "손익 통화"가 두 줄로 꺾이지 않게 */
+.holdings-tools .sort-pick > span {
+  white-space: nowrap;
+}
+
+.holdings-tools > button {
+  min-height: 44px;
+}
+
+/* 폰 보유 줄의 수량 — 이름 옆, 흐리지 않게 (ROADMAP 9-10) */
+.holding-qty {
+  font-weight: 500;
+  font-size: var(--fs-sub);
+  color: var(--text-dim);
+}
+
+.empty-state.compact {
+  padding: 24px 16px;
+}
+
+.holdings-table {
+  width: 100%;
+  min-width: 860px;
+}
+
+.holdings-table .num-head {
+  text-align: right;
+}
+
+.holdings-table .num-cell {
+  text-align: right;
+}
+
+.holdings-table .signal-head,
+.holdings-table .signal-cell {
+  width: 56px;
+  text-align: center;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+.stock-line .hint.mono {
+  font-size: var(--fs-caption);
+}
+
+.price-change {
+  white-space: nowrap;
+}
+
+.return-cell {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.fx-missing {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  font-size: var(--fs-caption);
+  font-family: var(--font-sans, inherit);
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+/* 글자처럼 보이는 버튼 — "평단가 입력" */
+.link-like {
+  min-height: 44px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--blue);
+  font: inherit;
+  font-size: var(--fs-sub);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  text-align: left;
+  white-space: normal;
+  word-break: keep-all;
+}
+
+/* 종목 관리의 보유 칸 — 보이기만 한다. 고치는 것은 "수정" 한 번 (ROADMAP 9-11) */
+.holding-cell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 8px;
+  min-width: 0;
+  font-size: var(--fs-sub);
+}
+
+/* 제목 줄 오른쪽 끝의 버튼 하나 (종목 관리의 "수정") */
+.section-action {
+  margin-left: auto;
+  min-height: 44px;
+}
+
+/* 종목 한 번에 수정 (ROADMAP 9-11) — 종목마다 한 묶음, 칸은 자리가 되는 만큼 한 줄에 */
+.stock-edit-modal {
+  width: min(1120px, 100%);
+}
+
+/* 목표 합계는 제목 아래 한 줄 — 제목 줄에 두면 폰에서 닫기(✕)가 혼자 다음 줄로 밀린다 */
+.stock-edit-sum {
+  margin: -8px 0 12px;
+}
+
+.stock-edit-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stock-edit-row {
+  margin: 0;
+  min-width: 0;
+  padding: 8px 12px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.stock-edit-row.dirty {
+  border-color: var(--amber);
+}
+
+.stock-edit-row.failed {
+  border-color: var(--red);
+}
+
+.stock-edit-row legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  padding: 0 4px;
+  max-width: 100%;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+.stock-edit-row .dirty-mark {
+  margin-left: 0;
+}
+
+.stock-edit-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 8px 12px;
+}
+
+.stock-edit-fields .field > span:first-child {
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  color: var(--text-dim);
+  word-break: keep-all;
+}
+
+.stock-edit-fields input[type='text'],
+.stock-edit-fields .num-input {
+  width: 100%;
+  min-width: 0;
+  /* 손가락으로 누르는 칸 — 44px (8-4) */
+  min-height: 44px;
+}
+
+.stock-edit-foot button {
+  min-height: 44px;
+}
+
+/* 저장 버튼은 목록이 길어도 늘 보이게 — 창의 아래 끝에 붙는다 */
+.stock-edit-foot {
+  position: sticky;
+  bottom: -16px;
+  margin: 12px -16px -16px;
+  padding: 12px 16px 16px;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+}
+
+/* 폰(전체화면 팝업): 아래 붙은 저장 줄을 창의 안쪽 여백(안전영역 포함)만큼 넓혀 좌우·아래 끝에 맞춘다 (디자인 3차 검토 b).
+   위 기본 규칙보다 뒤에 둬야 이긴다 */
+@media (max-width: 640px) {
+  /* 키보드 '다음'으로 아래 칸에 가도 붙은 저장 줄(안내 두 줄 포함 약 160) 밑에 숨지 않게 (3차 사용자 확인) */
+  .stock-edit-modal {
+    scroll-padding-bottom: calc(176px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .stock-edit-modal .stock-edit-foot {
+    bottom: calc(-16px - env(safe-area-inset-bottom, 0px));
+    margin: 12px calc(-16px - env(safe-area-inset-right, 0px)) calc(-16px - env(safe-area-inset-bottom, 0px))
+      calc(-16px - env(safe-area-inset-left, 0px));
+    padding: 12px calc(16px + env(safe-area-inset-right, 0px)) calc(16px + env(safe-area-inset-bottom, 0px))
+      calc(16px + env(safe-area-inset-left, 0px));
+  }
+}
+
+.stock-edit-foot .hint {
+  margin: 0 0 8px;
+  word-break: keep-all;
+}
+
+.stock-edit-foot .error-text {
+  margin-bottom: 8px;
+}
+
+/* 금액 가리기 (ROADMAP 9-3) — 총 평가금액 제목 옆 */
+.money-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 12px;
+}
+
+.money-hide {
+  font-size: var(--fs-caption);
+}
+
+/* 신호 점 — 보이는 점은 작아도 누르는 자리는 44px */
+.signal-slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  /* 빈칸(신호 없음)이 글자 기준선에 앉으면 그 줄만 5px 높아진다 (8-4 에서 잼) */
+  vertical-align: middle;
+}
+
+/* 시그널 표의 "신호" 칸 — 카드와 같은 이름표 두 줄 (0.44.0) */
+.signal-cell-rows {
+  gap: 4px 8px;
+}
+.signal-cell-rows .traffic {
+  align-self: center;
+}
+
+/* 관망 — 할 일이 없다는 뜻이라 흐린 "—" 하나 (0.44.0). 상자·바탕이 없어 누르는 것으로도, 신호로도 보이지 않는다 */
+.traffic-watch {
+  color: var(--text-faint);
+  font-weight: 700;
+  padding: 0 4px;
+}
+
+.signal-dot-btn {
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+}
+
+.signal-dot-btn:hover,
+.signal-dot-btn:focus-visible {
+  background: var(--panel-soft);
+}
+
+/* 시그널 모양 — 매수 ▲ 초록 · 매도 ▼ 빨강 · 비중조절 ◆ 보라 (8-4). 색은 상승 색 설정과 무관하다 */
+.signal-shape {
+  flex: none;
+}
+
+.signal-dot-btn {
+  gap: 4px;
+}
+
+.signal-shape.buy {
+  color: var(--green);
+}
+
+.signal-shape.sell {
+  color: var(--red);
+}
+
+.signal-shape.rebalance {
+  color: var(--purple);
+}
+
+.signal-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 12px 0 0;
+}
+
+.signal-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 짧은 배지는 안에서 꺾이지 않는다 — 좁아지면 배지째 다음 줄로 간다 */
+.badge-nowrap {
+  white-space: nowrap;
+}
+
+/* 관심 종목 — 한 줄에 이름·현재가·점 */
+.watch-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 4px 0 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.watch-list li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  border-bottom: 1px solid var(--border);
+}
+
+.watch-list li:last-child {
+  border-bottom: none;
+}
+
+.watch-list .stock-name {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* 폰 — 한 종목이 두 줄, 누르면 펼친다 */
+.holding-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.holding-item {
+  border-bottom: 1px solid var(--border);
+}
+
+.holding-item:last-child {
+  border-bottom: none;
+}
+
+.holding-main {
+  display: flex;
+  align-items: center;
+}
+
+.holding-toggle {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 0 8px 12px;
+  border: none;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.holding-top,
+.holding-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 4px 12px;
+  flex-wrap: wrap;
+}
+
+.holding-name {
+  font-weight: 700;
+  font-size: var(--fs-body);
+  word-break: keep-all;
+  min-width: 0;
+}
+
+.holding-value {
+  font-weight: 700;
+  font-size: var(--fs-body);
+}
+
+.holding-bottom {
+  font-size: var(--fs-sub);
+  color: var(--text-dim);
+}
+
+.holding-detail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 12px 12px;
+}
+
+.holding-detail dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 8px 16px;
+  margin: 0;
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.holding-detail dl div {
+  display: contents;
+}
+
+.holding-detail dt {
+  font-size: var(--fs-caption);
+  color: var(--text-faint);
+}
+
+.holding-detail dd {
+  margin: 0;
+  font-size: var(--fs-sub);
+  overflow-wrap: break-word;
+}
+
+.holding-detail .sm {
+  min-height: 44px;
+  min-width: 64px;
+}
+
+/* 점을 눌러 넘어온 종목을 잠깐 밝힌다 */
+.flash,
+.flash td {
+  animation: flash-row 2s ease-out;
+}
+
+@keyframes flash-row {
+  from {
+    background-color: var(--purple-soft);
+    box-shadow: inset 0 0 0 2px var(--accent);
+  }
+  to {
+    background-color: transparent;
+    box-shadow: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .money-line {
+    padding: 16px;
+    gap: 8px 20px;
+  }
+  .money-big {
+    font-size: var(--fs-big);
+  }
+  .money-facts {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+  }
+  /* 보기 전환과 AI 진단을 한 줄에 — 따로 한 줄을 쓰던 자리를 보유 목록에 준다 (디자인 1차) */
+  .view-head {
+    flex-wrap: nowrap;
+    margin-bottom: 12px;
+  }
+  .view-switch {
+    flex: 1 1 auto;
+    padding: 2px;
+  }
+  .view-switch button {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 40px;
+    padding: 0 12px;
+  }
+  .view-head-action {
+    flex: none;
+  }
+
+  /* 손익은 금액 옆에 % — 금액이 길면 % 만 다음 줄. 현금은 이름 옆에 한 줄 */
+  .money-facts {
+    gap: 12px 16px;
+  }
+  .money-facts dd {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    column-gap: 8px;
+  }
+  .money-facts dd .mono + .mono {
+    font-size: var(--fs-sub);
+    font-weight: 600;
+  }
+  .money-facts > div:nth-child(n + 3) {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .money-facts > div:nth-child(n + 3) dd {
+    font-size: var(--fs-body);
+  }
+
+  /* 보유 종목 도구: [정렬][손익 통화][수정] 한 줄, 이름표는 위에 작게 */
+  .holdings-tools {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 8px;
+  }
+  .holdings-tools .sort-pick {
+    display: grid;
+    gap: 2px;
+    font-size: var(--fs-caption);
+  }
+  .holdings-tools .sort-pick select {
+    width: 100%;
+    min-width: 0;
+  }
+  .holdings-tools > button {
+    align-self: end;
+  }
+
+  /* 신호 요약: 넷이 한 줄. 숫자와 이름을 낮게 */
+  .signal-summary {
+    margin-bottom: 12px;
+    padding: 12px 16px;
+  }
+  .signal-summary .count-chip {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 4px;
+  }
+  .signal-summary .count-chip .num {
+    font-size: var(--fs-strong);
+  }
+
+  /* 시그널 보기 필터: 이름표는 왼쪽 열, 칩은 그 옆에서 흐른다 */
+  .toolbar {
+    flex-wrap: nowrap;
+    align-items: flex-start;
+    margin-bottom: 8px;
+  }
+  .toolbar-label {
+    flex: none;
+    width: 32px;
+    padding-top: 12px;
+  }
+  .toolbar:has(.spacer) {
+    flex-wrap: wrap;
+  }
+  .toolbar .chip-row.spacer {
+    flex-basis: 100%;
+    margin-left: 0;
+    padding-left: 40px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flash,
+  .flash td {
+    animation: none;
+    outline: 2px solid var(--accent);
+  }
+}
+
+/* 폰의 "순서 편집" — 끌기 대신 44px ▲▼ (ROADMAP 8-3) */
+.move-buttons {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.move-buttons button {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--panel-soft);
+  color: var(--text);
+  font-size: var(--fs-body);
+  cursor: pointer;
+}
+
+.move-buttons button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* 리밸런싱 — 한 번에 저장 · 폰 카드 · 설정 접기 (ROADMAP 8-3) */
+.dirty-mark {
+  margin-left: 8px;
+  color: var(--amber);
+  font-size: var(--fs-caption);
+  vertical-align: middle;
+}
+
+tr.dirty td {
+  background: var(--amber-soft, rgba(240, 180, 41, 0.08));
+}
+
+.save-bar {
+  position: sticky;
+  bottom: 12px;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-top: 8px;
+  padding: 8px 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--amber);
+  border-radius: var(--radius);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+  font-size: var(--fs-sub);
+}
+
+.save-bar span {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.settings-fold > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 0;
+  cursor: pointer;
+  list-style: none;
+}
+
+.settings-fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+.settings-fold > summary h3 {
+  margin: 0;
+  font-size: var(--fs-strong);
+}
+
+.settings-fold > summary h3::before {
+  content: '▸ ';
+  color: var(--text-faint);
+}
+
+.settings-fold[open] > summary h3::before {
+  content: '▾ ';
+}
+
+.settings-fold .kpi-grid {
+  margin-top: 8px;
+}
+
+.toggle-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  font-size: var(--fs-sub);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.toggle-line input {
+  width: 20px;
+  height: 20px;
+}
+
+.toggle-line.disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.order-cards,
+.holding-edit-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.order-card {
+  padding: 12px 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+
+.order-card.buy {
+  border-left-color: var(--green);
+}
+
+.order-card.sell {
+  border-left-color: var(--red);
+}
+
+.order-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+
+.order-card-head b {
+  font-size: var(--fs-body);
+  word-break: keep-all;
+}
+
+.order-card-line {
+  margin: 4px 0 8px;
+  font-size: var(--fs-sub);
+  color: var(--text-dim);
+  overflow-wrap: break-word;
+}
+
+.order-card.cash .order-card-line {
+  margin-bottom: 0;
+}
+
+.holding-edit {
+  padding: 12px 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.holding-edit.dirty {
+  border-color: var(--amber);
+}
+
+.holding-edit-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  margin-bottom: 8px;
+}
+
+.holding-edit-pnl {
+  margin-left: auto;
+  text-align: right;
+}
+
+.holding-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+}
+
+.holding-edit-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  font-size: var(--fs-caption);
+  color: var(--text-faint);
+}
+
+.holding-edit-grid input {
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+}
+
+.holding-edit .trade-toggle {
+  margin-top: 8px;
+  min-height: 44px;
+}
+
+.holding-edit .trade-form {
+  margin-top: 8px;
+}
+
+/* 폰에서 누르는 자리는 44px (E2E 에서 잰 것) */
+@media (max-width: 720px) {
+  .view-switch button {
+    min-height: 44px;
+  }
+  .review-line a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+  .watch-list .stock-name {
+    min-height: 44px;
+  }
+  .record-row button {
+    min-height: 44px;
+  }
+}
+

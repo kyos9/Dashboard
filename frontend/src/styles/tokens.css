@@ -1,0 +1,142 @@
+/* ==========================================================================
+   자산관리 디자인 시스템 — 터미널형 다크 테마 (라이트 테마 토글 지원)
+
+   한국어 가독성 원칙:
+   - `word-break: keep-all`로 어절 단위 줄바꿈 (단어 중간에서 끊지 않음)
+   - `overflow-wrap: anywhere`는 쓰지 않는다. 표/플렉스의 min-content 폭 계산을
+     무너뜨려 "G/O/O/G"처럼 한 글자씩 세로로 쪼개지는 현상이 생긴다.
+   - 텍스트는 잘라내지(ellipsis) 않고 항상 줄바꿈으로 전부 보여준다.
+   - 긴 영문 토큰(이메일·모델 id·주소)이 들어가는 요소에만 `overflow-wrap: break-word`를 준다.
+     넘칠 때만 끊고, 폭 계산은 건드리지 않는다.
+   - 외톨이 줄: 제목·짧은 안내는 `text-wrap: balance`, 문단은 `pretty` (지원 안 하는 브라우저는
+     예전처럼 보인다). 큰 표 셀에는 걸지 않는다 — 느려진다.
+   - 떨어지면 안 되는 묶음(숫자+단위, 날짜, 조건식)은 `.nowrap`으로 감싼다. 묶음 하나가
+     폰 360 칸보다 넓어지면 묶음을 나눈다.
+   ========================================================================== */
+
+/*
+ * 글꼴 — Wanted Sans (SIL OFL 1.1, assets/fonts/OFL-WantedSans.txt). 디자인 1차에서 주인이 골랐다.
+ * 기기마다 글꼴이 다르면 줄이 바뀌는 자리도 달라진다. 그래서 직접 싣는다(바깥 CDN 은 쓰지 않는다 —
+ * 오프라인 PWA 이고, 사용자 IP 를 남에게 넘기지 않는다). 한글 2,350자 + 라틴만 남긴 부분집합이고
+ * (docs/design/font-subset.py), 빌드가 이름에 해시를 붙여 /assets/ 에 두므로 서비스 워커가 캐시한다.
+ * 받는 동안은 시스템 글꼴로 먼저 보인다(swap). 숫자는 지금처럼 고정폭 글꼴(--font-mono)이다.
+ */
+@font-face {
+  font-family: 'Wanted Sans';
+  src: url('../assets/fonts/WantedSansVariable-ko.woff2') format('woff2');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  color-scheme: dark;
+
+  --bg: #0a0e14;
+  --bg-elevated: #10161f;
+  --panel: #131b26;
+  --panel-soft: #172231;
+  --border: #223044;
+  --border-strong: #2d3f57;
+
+  --text: #e6edf3;
+  --text-dim: #9fb0c3;
+  --text-faint: #7b8b9e;  /* 글자색은 배경·패널·배지 바탕 어디서든 4.5:1 이상 (8-4 에서 잼) */
+
+  --green: #22c55e;
+  --green-soft: rgba(34, 197, 94, 0.14);
+  --amber: #f0b429;
+  --amber-soft: rgba(240, 180, 41, 0.14);
+  --red: #f26a6a;
+  --red-soft: rgba(240, 82, 82, 0.14);
+  --blue: #5d98f8;
+  --blue-soft: rgba(59, 130, 246, 0.14);
+  --purple: #ba77f8;
+  --purple-soft: rgba(168, 85, 247, 0.14);
+  --slate-soft: rgba(159, 176, 195, 0.12);
+
+  --accent: #38bdf8;
+  --on-accent: #05202b; /* 강조색 버튼 위 글자 */
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --gap: 16px;
+
+  /*
+   * 글자 크기는 이 여섯 개뿐이다 (ROADMAP 8-4). 새 크기를 만들지 말고 가까운 것을 쓴다.
+   * 폰에서도 12px 아래는 없다.
+   */
+  --fs-caption: 12px; /* 설명·단위·표 머리 */
+  --fs-sub: 13px; /* 보조 글·배지·버튼 */
+  --fs-body: 14px; /* 본문 */
+  --fs-strong: 16px; /* 강조 — 카드 숫자·소제목 */
+  --fs-title: 20px; /* 화면 제목 */
+  --fs-big: 26px; /* 큰 숫자 — 총 평가금액 */
+
+  /* 화면 좌우 여백. 헤더·탭·본문이 같은 선에서 시작하도록 한 군데서 정한다. */
+  --gutter: clamp(16px, 3vw, 28px);
+
+  /*
+   * 거기에 "가려지는 두께"를 더한 값. index.html 의 viewport-fit=cover 로 화면
+   * 구석까지 그릴 수 있게 되면 **가려지는 자리에도** 그리게 된다 — 아이폰 노치 옆,
+   * 홈 인디케이터 위, 가로로 눕혔을 때의 곡면. env() 는 그 두께이고 노치가 없는
+   * 기기에서는 0이라, PC에서도 그대로 안전하다.
+   */
+  --gutter-left: calc(var(--gutter) + env(safe-area-inset-left, 0px));
+  --gutter-right: calc(var(--gutter) + env(safe-area-inset-right, 0px));
+
+  --font-sans: 'Wanted Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans KR',
+    'Malgun Gothic', Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', 'Cascadia Mono', Consolas, 'D2Coding',
+    'Courier New', monospace;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --bg: #f4f6fa;
+  --bg-elevated: #ffffff;
+  --panel: #ffffff;
+  --panel-soft: #f6f8fc;
+  --border: #dde3ec;
+  --border-strong: #c6d0de;
+
+  --text: #16202e;
+  --text-dim: #52627a;
+  --text-faint: #617186;
+
+  --green: #137538;
+  --green-soft: rgba(21, 128, 61, 0.1);
+  --amber: #a64d09;
+  --amber-soft: rgba(180, 83, 9, 0.1);
+  --red: #c41d1d;
+  --red-soft: rgba(200, 30, 30, 0.1);
+  --blue: #1d4ed8;
+  --blue-soft: rgba(29, 78, 216, 0.1);
+  --purple: #7e22ce;
+  --purple-soft: rgba(126, 34, 206, 0.1);
+  --slate-soft: rgba(82, 98, 122, 0.1);
+
+  --accent: #0369a1;
+  --on-accent: #ffffff;
+}
+
+/*
+ * 오르내림 색 (ROADMAP 8-4). 가격 등락·수익률·평가손익만 이 둘을 쓴다.
+ * 기본은 오르면 초록 · 내리면 빨강. 화면 설정에서 "빨강"을 고르면 오르면 빨강 · 내리면 파랑이다
+ * (한국 증권 앱 방식). 시그널 색(매수 초록 · 매도 빨강)은 이것과 따로다 — .tone-buy / .tone-sell.
+ */
+:root {
+  --up: var(--green);
+  --down: var(--red);
+  --up-soft: var(--green-soft);
+  --down-soft: var(--red-soft);
+}
+
+:root[data-rise='red'] {
+  --up: var(--red);
+  --down: var(--blue);
+  --up-soft: var(--red-soft);
+  --down-soft: var(--blue-soft);
+}
+

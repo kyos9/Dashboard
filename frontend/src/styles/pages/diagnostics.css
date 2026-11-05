@@ -1,0 +1,158 @@
+/* ---------- 진단 (로그 보기) ----------
+   읽으라고 만든 화면이라 글자를 줄이지 않는다. 긴 줄은 접어서 보여주고,
+   트레이스백은 원래 줄바꿈을 살린다. */
+.diag-modal {
+  width: min(900px, 100%);
+}
+
+.diag-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: min(60vh, 520px);
+  overflow-y: auto;
+  padding: 4px 2px;
+}
+
+.diag-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.diag-row:last-child {
+  border-bottom: none;
+}
+
+.diag-time {
+  flex: 0 0 auto;
+  font-size: var(--fs-caption);
+  padding-top: 2px;
+}
+
+.diag-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.diag-text .hint {
+  font-size: var(--fs-caption);
+}
+
+.diag-text pre {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-caption);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text);
+}
+
+/* 느린 요청 (8-5) — 로그 위에 짧게 */
+.diag-slow {
+  padding: 8px 8px 12px;
+  border-bottom: 1px solid var(--border-strong);
+}
+
+.diag-slow h4 {
+  margin: 0 0 4px;
+  font-size: var(--fs-sub);
+}
+
+.diag-slow h4 .hint {
+  font-weight: normal;
+  font-size: var(--fs-caption);
+}
+
+.diag-slow ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.diag-slow-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 12px;
+  padding: 4px 0;
+  font-size: var(--fs-caption);
+}
+
+.diag-slow-route {
+  /* 경로 틀은 길다 — 폰에서는 줄을 바꾼다 */
+  word-break: break-all;
+  color: var(--text);
+}
+
+/* 관리자 — 사용자 목록 · 가입 승인 */
+.users-modal {
+  width: min(720px, 100%);
+}
+
+/* 사용자 모두에게 걸리는 스위치 (9-15) — 목록과 구분되게 칸으로 */
+.users-switch {
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  line-height: 1.55;
+}
+
+.users-intro {
+  margin: 0 0 8px;
+}
+
+.users-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.user-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.user-row:last-child {
+  border-bottom: none;
+}
+
+.user-who {
+  display: flex;
+  flex: 1 1 260px;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.user-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  overflow-wrap: break-word;
+}
+
+.user-email,
+.user-meta {
+  font-size: var(--fs-caption);
+  overflow-wrap: break-word;
+}
+
+.user-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+  margin-left: auto;
+}
+
