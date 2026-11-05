@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>4차 메인 색 목업 — 더 보기</title>
+<!--
+  디자인 4차 — 방향 고르기 목업 (DESIGN_PROMPT v6 "만드는 법 다섯" 1).
+  같은 가짜 데이터(가짜 서버 주인 계정과 같은 숫자)로 대시보드 첫 화면을 세 결로 그린다.
+    A · 숫자 먼저, 넓게   — 주인이 든 참고: 토스증권 결
+    B · 표 먼저, 촘촘하게 — 주인이 든 참고: 증권사 앱(키움·미래에셋) 결
+    C · 출근길 안내판     — 앱의 쓰임(출근길에 오늘 할 일 확인)에서 끌어온 결
+  색·글꼴은 아직 고르지 않았다. 여기 쓴 메인 색은 결을 보이기 위한 임시 값이고, 03-메인색 목업에서 고른다.
+  보는 법: 이 파일을 브라우저로 연다. ?theme=light 로 라이트.
+-->
+<link rel="stylesheet" href="../assets/fonts-02d/fonts.css">
+<style>
+@font-face{font-family:'Pretendard';src:url('../assets/PretendardVariable-ko.woff2') format('woff2');font-weight:400 700;font-display:swap}
+@font-face{font-family:'Wanted Sans';src:url('../../../../frontend/src/assets/fonts/WantedSansVariable-ko.woff2') format('woff2');font-weight:400 700;font-display:swap}
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:#6b7280}
+body{font-family:'Wanted Sans',system-ui,sans-serif;word-break:keep-all;padding:24px;display:flex;gap:28px;align-items:flex-start;justify-content:center;flex-wrap:wrap}
+.col{display:flex;flex-direction:column;gap:10px;align-items:center}
+.cap{font:600 15px/1.3 'Wanted Sans',sans-serif;color:#fff;text-align:center}
+.cap small{display:block;font-weight:400;font-size:12px;opacity:.85;margin-top:2px}
+.phone{width:390px;height:844px;overflow:hidden;position:relative;border-radius:28px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.num{font-variant-numeric:tabular-nums}
+.status{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;font-size:14px;font-weight:600}
+.tabbar{position:absolute;left:0;right:0;bottom:0;height:84px;display:flex;padding:8px 6px 26px}
+.tabbar a{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:12px;text-decoration:none}
+.tabbar svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.shape{display:inline-block;width:.7em;height:.7em;margin-right:3px;vertical-align:0}
+.tri-up{clip-path:polygon(50% 0,100% 100%,0 100%);background:currentColor}
+.tri-dn{clip-path:polygon(0 0,100% 0,50% 100%);background:currentColor}
+.dia{clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%);background:currentColor}
+.slot{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:7px;border:1.5px dashed currentColor;opacity:.55;font-size:10px}
+
+/* ============ B · 표 먼저, 촘촘하게 ============ */
+.B{--bg:#eef1f5;--surf:#fff;--head:#1e3a8a;--on-head:#fff;--text:#111827;--dim:#374151;--faint:#5b6472;--line:#dfe3ea;--main:#1e40af;--up:#15803d;--down:#dc2626;--buy:#15803d;--sell:#dc2626;--wt:#7e22ce;background:var(--bg);color:var(--text)}
+.dark .B{--bg:#0b0f17;--surf:#121826;--head:#16233f;--on-head:#e8eefc;--text:#e5e9f0;--dim:#c3cad5;--faint:#8e98a8;--line:#222b3b;--main:#7aa2f7;--up:#3ccf71;--down:#f47171;--buy:#3ccf71;--sell:#f47171;--wt:#c18cf5}
+.B .status{background:var(--head);color:var(--on-head)}
+.B .top{background:var(--head);color:var(--on-head);display:flex;align-items:center;justify-content:space-between;padding:4px 12px 8px 16px}
+.B .top b{font-size:17px;font-weight:700}
+.B .top .ic{display:flex;gap:2px}
+.B .top .ic span{width:44px;height:44px;display:grid;place-items:center}
+.B .tabs{display:flex;background:var(--surf);border-bottom:1px solid var(--line)}
+.B .tabs span{flex:1;text-align:center;font-size:14px;font-weight:600;padding:12px 0;color:var(--faint);border-bottom:2px solid transparent}
+.B .tabs .on{color:var(--main);border-color:var(--main)}
+.B .sum{background:var(--surf);padding:12px 16px;display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;border-bottom:1px solid var(--line)}
+.B .sum .k{font-size:12px;color:var(--faint)}
+.B .sum .v{font-size:16px;font-weight:700}
+.B .sum .wide{grid-column:1/-1;display:flex;justify-content:space-between;align-items:baseline}
+.B .sum .wide .v{font-size:22px}
+.B .alert{margin:8px;background:var(--surf);border:1px solid var(--line);border-radius:8px;display:flex}
+.B .alert div{flex:1;text-align:center;padding:8px 0;border-right:1px solid var(--line);font-size:12px;color:var(--faint)}
+.B .alert div:last-child{border-right:0}
+.B .alert b{display:block;font-size:17px;font-weight:700}
+.B table{width:100%;border-collapse:collapse;background:var(--surf);font-size:13px}
+.B th{font-size:12px;font-weight:500;color:var(--faint);text-align:right;padding:7px 10px;border-bottom:1px solid var(--line);background:var(--bg)}
+.B th:first-child,.B td:first-child{text-align:left}
+.B td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:right;vertical-align:top}
+.B td b{font-weight:600;display:block}
+.B td span{font-size:12px;color:var(--faint)}
+.B .sig{font-size:12px;font-weight:600}
+.B .tabbar{background:var(--surf);border-top:1px solid var(--line);color:var(--faint)}
+.B .tabbar .on{color:var(--main)}
+
+
+/* ---- B+A 공통: A 처럼 한눈에 들어오는 총액 ---- */
+.B .hero{background:var(--surf);padding:18px 16px 14px;border-bottom:1px solid var(--line)}
+.B .hero .k{font-size:13px;color:var(--faint)}
+.B .hero .big{font-size:32px;font-weight:700;letter-spacing:-.02em;margin:4px 0 2px}
+.B .hero .pl{font-size:15px;font-weight:600;color:var(--up)}
+.B .hero .sub{display:flex;gap:0;margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
+.B .hero .sub div{flex:1}
+.B .hero .sub .v{font-size:15px;font-weight:600;margin-top:2px}
+/* 2안: 총액이 머리줄 색 띠 안에 */
+.B.band .top{padding-bottom:4px}
+.B.band .hero{background:var(--head);color:var(--on-head);border:0;padding:6px 16px 16px}
+.B.band .hero .k{color:color-mix(in srgb,var(--on-head) 72%,transparent)}
+.B.band .hero .pl{color:#86efac}
+.B.band .hero .sub{border-top-color:rgba(255,255,255,.18)}
+.B.band .hero .sub .v{color:var(--on-head)!important}
+.B.band .hero .sub .v.up{color:#86efac!important}
+.B.band .tabs{border-top:0}
+
+/* 01c: B 의 요약 칸 그대로, 총액 숫자만 크게 */
+.B .sum .v.huge{font-size:32px;letter-spacing:-.02em}
+.B .sum .stack{grid-column:1/-1}
+.B .sum .stack .v.huge{display:block;margin-top:2px}
+.B .sum .v.huge small{font-size:18px;font-weight:600;margin-left:2px}
+
+.phone.f-w,.phone.f-w *{font-family:'Wanted Sans',sans-serif}
+.phone.f-p,.phone.f-p *{font-family:'Pretendard',sans-serif}
+.note{background:var(--surf);padding:10px 16px 12px;font-size:13px;line-height:1.55;color:var(--faint);border-bottom:1px solid var(--line);text-wrap:pretty}
+.note b{color:var(--text);font-weight:600}
+
+/* 크기별 자간 — 약하게: 16px −1% · 17~22px −2% · 26px 이상 −3% / 세게: −1.5% · −3% · −4.5% */
+.soft .sum .v,.soft td b,.soft .alert b{letter-spacing:-0.01em}
+.soft .top b{letter-spacing:-0.02em}
+.soft .sum .v.huge{letter-spacing:-0.03em}
+.hard .sum .v,.hard td b,.hard .alert b{letter-spacing:-0.015em}
+.hard .top b{letter-spacing:-0.03em}
+.hard .sum .v.huge{letter-spacing:-0.045em}
+
+.ff-suit,.ff-suit *{font-family:'SUIT',sans-serif}
+.ff-spoqa,.ff-spoqa *{font-family:'Spoqa Han Sans Neo',sans-serif}
+.ff-noto,.ff-noto *{font-family:'Noto Sans KR',sans-serif}
+.ff-plex,.ff-plex *{font-family:'IBM Plex Sans KR',sans-serif}
+.ff-gothic,.ff-gothic *{font-family:'Gothic A1',sans-serif}
+body{max-width:1340px;margin:0 auto}
+/* 02e: 앱 글꼴은 Pretendard, 위쪽 요약(총액·손익·수익률·전일 대비·다음 리뷰)만 Spoqa Han Sans Neo */
+.phone .sum,.phone .sum *{font-family:'Spoqa Han Sans Neo',sans-serif}
+/* 03: 색은 Tailwind 색표에서 한 계열씩 (tailwindcss.com/docs/colors) */
+.c-blue{--head:#1e40af;--main:#1d4ed8;--on-head:#fff;--bg:#eff3fa}
+.dark .c-blue{--head:#172554;--main:#60a5fa;--on-head:#e8eefc;--bg:#0b1020;--surf:#111a2e;--line:#1f2a44}
+.c-sky{--head:#075985;--main:#0369a1;--on-head:#fff;--bg:#eef5f9}
+.dark .c-sky{--head:#082f49;--main:#38bdf8;--on-head:#e6f4fb;--bg:#071019;--surf:#0e1b27;--line:#1b2d3d}
+.c-gray{--head:#ffffff;--main:#2563eb;--on-head:#0f172a;--bg:#f1f5f9;--line:#e2e8f0}
+.dark .c-gray{--head:#0f172a;--main:#60a5fa;--on-head:#e2e8f0;--bg:#020617;--surf:#0f172a;--line:#1e293b}
+.c-indigo{--head:#3730a3;--main:#4338ca;--on-head:#fff;--bg:#f0f0fa}
+.dark .c-indigo{--head:#1e1b4b;--main:#818cf8;--on-head:#e8e8fc;--bg:#0b0a1a;--surf:#13122a;--line:#25234a}
+.c-teal{--head:#115e59;--main:#0f766e;--on-head:#fff;--bg:#eef6f5}
+.dark .c-teal{--head:#042f2e;--main:#2dd4bf;--on-head:#e6f7f5;--bg:#06100f;--surf:#0d1c1b;--line:#1a3332}
+.c-cyan{--head:#155e75;--main:#0e7490;--on-head:#fff;--bg:#eef6f8}
+.dark .c-cyan{--head:#083344;--main:#22d3ee;--on-head:#e6f8fc;--bg:#061014;--surf:#0d1b21;--line:#1a3139}
+.c-zinc{--head:#18181b;--main:#18181b;--on-head:#fafafa;--bg:#f4f4f5;--line:#e4e4e7}
+.dark .c-zinc{--head:#27272a;--main:#e4e4e7;--on-head:#fafafa;--bg:#09090b;--surf:#18181b;--line:#27272a}
+.c-stone{--head:#44403c;--main:#57534e;--on-head:#fafaf9;--bg:#f5f5f4;--line:#e7e5e4}
+.dark .c-stone{--head:#292524;--main:#d6d3d1;--on-head:#fafaf9;--bg:#0c0a09;--surf:#1c1917;--line:#292524}
+.c-gray .status,.c-gray .top{border-bottom:1px solid var(--line)}
+.c-gray .top .ic span{color:var(--faint)}
+.l0 .sum .v{letter-spacing:0}.l0 .sum .v.huge{letter-spacing:-0.01em}
+.l1 .sum .v{letter-spacing:0}.l1 .sum .v.huge{letter-spacing:-0.02em}
+.phone .sum .v.huge{letter-spacing:-0.02em}
+.l2 .sum .v{letter-spacing:-0.01em}.l2 .sum .v.huge{letter-spacing:-0.03em}
+</style>
+</head>
+<body>
+<script>
+const light = new URLSearchParams(location.search).get('theme') === 'light'
+if (!light) document.documentElement.classList.add('dark')
+
+const ICON = {
+  refresh: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg>',
+  more: '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>',
+}
+const TABS = [
+  ['대시보드', '<path d="M12 3a9 9 0 1 0 9 9h-9z"/><path d="M15 3.5A9 9 0 0 1 20.5 9H15z"/>'],
+  ['재무', '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/>'],
+  ['리밸런싱', '<path d="M12 4v16M5 20h14M6 8h12M6 8l-3 6h6zM18 8l-3 6h6z"/>'],
+  ['매크로', '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>'],
+  ['더보기', '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>'],
+]
+const tabbar = () => `<nav class="tabbar">${TABS.map(([n, d], i) => `<a class="${i ? '' : 'on'}"><svg viewBox="0 0 24 24">${d}</svg>${n}</a>`).join('')}</nav>`
+const status = () => `<div class="status"><span class="num">8:12</span><span>●●● ▮</span></div>`
+
+const HOLD = [
+  ['TIGER 미국필라델피아반도체나스닥', '2,000주', '₩38,420,000', '+11.6%', 'up', 'TI'],
+  ['VOO', '40주', '₩30,120,551', '+21.9%', 'up', 'VO'],
+  ['삼성전자', '1,500주', '₩83,250,000', '−7.4%', 'down', '삼성'],
+  ['NVDA', '45주', '₩8,962,310', '+66.7%', 'up', 'NV'],
+  ['トヨタ自動車', '300주', '₩7,812,004', '−9.1%', 'down', 'トヨ'],
+]
+
+
+const SIGB = [['buy','tri-up','매수'], null, ['buy','tri-up','매수'], ['buy','tri-up','매수'], ['wt','dia','초과']]
+const sigB = i => SIGB[i] ? `<span style="color:var(--${SIGB[i][0]})"><i class="shape ${SIGB[i][1]}"></i>${SIGB[i][2]}</span>` : '<span>—</span>'
+const hero = () => `<div class="hero">
+    <div class="k">총 평가금액 · 현금 포함</div>
+    <div class="big num">525,114,227원</div>
+    <div class="pl num">+58,154,466원 (+12.5%)</div>
+    <div class="sub"><div><div class="k">어제보다</div><div class="v num up" style="color:var(--up)">+2,733,187원</div></div><div><div class="k">다음 리뷰</div><div class="v num">55일 뒤</div></div></div>
+  </div>`
+const alertRow = () => `<div class="alert">
+    <div><b class="num" style="color:var(--buy)">3</b><i class="shape tri-up" style="color:var(--buy)"></i>매수</div>
+    <div><b class="num" style="color:var(--sell)">4</b><i class="shape tri-dn" style="color:var(--sell)"></i>매도</div>
+    <div><b class="num" style="color:var(--wt)">5</b><i class="shape dia" style="color:var(--wt)"></i>비중</div>
+    <div><b class="num">8</b>관망</div>
+  </div>`
+const table = n => `<table>
+    <tr><th>종목 · 수량</th><th>평가금액</th><th>손익률</th><th>신호</th></tr>
+    ${HOLD.slice(0, n).map((h, i) => `<tr><td><b>${h[0]}</b><span class="num">${h[1]}</span></td><td class="num">${h[2].slice(1)}</td><td class="num" style="color:var(--${h[4]})">${h[3]}</td><td class="sig">${sigB(i)}</td></tr>`).join('')}
+  </table>`
+const tabs = () => `<div class="tabs"><span class="on">포트폴리오</span><span>시그널</span><span>AI 진단</span></div>`
+const topBar = () => `<div class="top"><b>자산관리</b><div class="ic"><span>${ICON.refresh}</span><span>${ICON.more}</span></div></div>`
+
+const cells = `<div><div class="k">평가손익</div><div class="v num" style="color:var(--up)">+58,154,466</div></div>
+    <div><div class="k">수익률</div><div class="v num" style="color:var(--up)">+12.50%</div></div>
+    <div><div class="k">전일 대비</div><div class="v num" style="color:var(--up)">+2,733,187</div></div>
+    <div><div class="k">다음 리뷰</div><div class="v num">D-55</div></div>`
+const sum1 = `<div class="sum"><div class="stack"><span class="k">총 평가금액</span><span class="v num huge">525,114,227<small>원</small></span></div>${cells}</div>`
+const sum2 = `<div class="sum"><div class="wide"><span class="k">총 평가금액</span><span class="v num huge">525,114,227<small>원</small></span></div>${cells}</div>`
+const note = `<div class="note"><b>무릎매수</b>는 오르는 흐름에서 잠깐 쉬어 갈 때를 알려 줍니다. 시그널은 참고용이며 투자 권유가 아닙니다.</div>`
+const screen = cls => `<div class="phone B ${cls}">${status()}${topBar()}${tabs()}${sum1}${alertRow()}${note}${table(4)}${tabbar()}</div>`
+document.body.innerHTML = [
+  ['c-blue', '① 파랑 (비교 기준)', 'Tailwind blue'],
+  ['c-indigo', '④ 남보라 (인디고)', 'Tailwind indigo · 비중 보라와 가까움'],
+  ['c-cyan', '⑤ 청록 (시안)', 'Tailwind cyan · 하늘보다 푸르고 깊음'],
+  ['c-teal', '⑥ 짙은 청록 (틸)', 'Tailwind teal · 매수 초록과 가까움'],
+  ['c-zinc', '⑦ 먹색 (무채색)', 'Tailwind zinc · 색 없이 검정·회색만'],
+  ['c-stone', '⑧ 따뜻한 회색 (스톤)', 'Tailwind stone · 종이·가죽 같은 무채색'],
+].map(([c, n, d]) => `<div class="col"><div class="cap">${n}<small>${d}</small></div>${screen('f-p l1 ' + c)}</div>`).join('')
+</script>
+</body>
+</html>
