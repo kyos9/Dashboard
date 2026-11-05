@@ -2926,10 +2926,37 @@ table.data-table tr.dirty:hover td {
 @media (max-width: 640px) {
   .modal {
     max-height: 100dvh;
+    /*
+     * 폰에서는 팝업이 화면 전체를 덮는다. viewport-fit=cover 라 상태바(시계·배터리)·노치 밑까지
+     * 그려지므로, 위·옆도 안전영역만큼 비워야 제목과 ✕ 가 상태바에 겹쳐 눌리지 않는다.
+     */
+    --modal-pad-top: calc(16px + env(safe-area-inset-top, 0px));
+    padding-top: var(--modal-pad-top);
+    padding-left: calc(16px + env(safe-area-inset-left, 0px));
+    padding-right: calc(16px + env(safe-area-inset-right, 0px));
     /* 홈 인디케이터에 버튼이 가리지 않게 */
     padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
     /* 팝업 안에서 끝까지 내렸을 때 뒤 화면이 따라 움직이지 않게 */
     overscroll-behavior: contain;
+  }
+
+  /* 알림 창의 고정 머리줄 — 늘어난 안쪽 여백만큼 같이 늘려, 스크롤해도 상태바 밑으로 올라가지 않게 */
+  .push-modal {
+    scroll-padding-top: calc(56px + env(safe-area-inset-top, 0px));
+  }
+
+  .push-modal .modal-head {
+    top: calc(-1 * var(--modal-pad-top));
+    margin: calc(-1 * var(--modal-pad-top)) calc(-16px - env(safe-area-inset-right, 0px)) 16px
+      calc(-16px - env(safe-area-inset-left, 0px));
+    padding: var(--modal-pad-top) calc(16px + env(safe-area-inset-right, 0px)) 8px
+      calc(16px + env(safe-area-inset-left, 0px));
+    /* 제목 줄과 ✕ 가 한 줄에 — 기기 수 안내는 제목 밑으로 내려 ✕ 를 밀어내지 않게 */
+    flex-wrap: nowrap;
+  }
+
+  .push-modal .modal-title {
+    flex-wrap: wrap;
   }
 }
 
