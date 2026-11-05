@@ -2141,14 +2141,17 @@ button:disabled {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  /* 가운데 카드로 뜨는 폭(가로로 든 폰 포함) — 노치·홈 표시줄 쪽은 그만큼 더 띄운다 (디자인 3차) */
+  padding: max(20px, env(safe-area-inset-top, 0px)) max(20px, env(safe-area-inset-right, 0px))
+    max(20px, env(safe-area-inset-bottom, 0px)) max(20px, env(safe-area-inset-left, 0px));
   background: rgba(4, 8, 14, 0.66);
   backdrop-filter: blur(2px);
 }
 
 .modal {
   width: min(1040px, 100%);
-  max-height: calc(100vh - 40px);
+  /* 바깥 여백(안전영역 포함)을 뺀 높이 — 고정된 바깥 상자의 안쪽 높이에 맞춘다 */
+  max-height: 100%;
   overflow-y: auto;
   padding: 16px;
   background: var(--panel);
@@ -2938,6 +2941,13 @@ table.data-table tr.dirty:hover td {
     padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
     /* 팝업 안에서 끝까지 내렸을 때 뒤 화면이 따라 움직이지 않게 */
     overscroll-behavior: contain;
+  }
+
+  /* 가운데 카드(확인창·설치 안내)는 상태바·노치에 닿지 않는다 — 안전영역 여백을 붙이지 않는다 (3차 검토 a) */
+  .confirm-modal,
+  .install-hint {
+    --modal-pad-top: 16px;
+    padding: 16px;
   }
 
   /*
@@ -4847,6 +4857,18 @@ button.signal-line-go:hover:not(:disabled) {
   padding: 12px 16px 16px;
   background: var(--panel);
   border-top: 1px solid var(--border);
+}
+
+/* 폰(전체화면 팝업): 아래 붙은 저장 줄을 창의 안쪽 여백(안전영역 포함)만큼 넓혀 좌우·아래 끝에 맞춘다 (디자인 3차 검토 b).
+   위 기본 규칙보다 뒤에 둬야 이긴다 */
+@media (max-width: 640px) {
+  .stock-edit-foot {
+    bottom: calc(-16px - env(safe-area-inset-bottom, 0px));
+    margin: 12px calc(-16px - env(safe-area-inset-right, 0px)) calc(-16px - env(safe-area-inset-bottom, 0px))
+      calc(-16px - env(safe-area-inset-left, 0px));
+    padding: 12px calc(16px + env(safe-area-inset-right, 0px)) calc(16px + env(safe-area-inset-bottom, 0px))
+      calc(16px + env(safe-area-inset-left, 0px));
+  }
 }
 
 .stock-edit-foot .hint {
