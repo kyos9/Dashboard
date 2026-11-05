@@ -158,8 +158,23 @@ def config_problem() -> str | None:
 
 def redirect_uri(request_base: str) -> str:
     """구글이 돌려보낼 주소. 콘솔에 등록한 것과 **한 글자도 다르면** 구글이 거절한다."""
-    base = os.environ.get(PUBLIC_URL_ENV, "").strip() or request_base
+    configured = os.environ.get(PUBLIC_URL_ENV, "").strip()
+    if not configured:
+        _warn_public_url_unset()
+    base = configured or request_base
     return base.rstrip("/") + CALLBACK_PATH
+
+
+_public_url_warned = False
+
+
+def _warn_public_url_unset() -> None:
+    """PUBLIC_URL 이 없으면 돌아올 주소를 요청의 Host 헤더로 만든다. 구글이 콘솔에 등록 안 된 주소는 거절하므로
+    뚫리는 것은 아니지만, 주소를 우리가 정하는 쪽이 안전하다 — 로그에 한 번 알린다(로그인은 막지 않는다)."""
+    global _public_url_warned
+    if not _public_url_warned:
+        _public_url_warned = True
+        logger.warning("%s 가 비어 있어 구글 로그인 돌아올 주소를 요청 헤더로 만듭니다 — .env 에 적어 주세요", PUBLIC_URL_ENV)
 
 
 # ---------------------------------------------------------------------------

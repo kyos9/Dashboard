@@ -66,13 +66,22 @@ app = FastAPI(
 # "왜 401인지 모를 네트워크 오류"로 보이지 않게).
 app.middleware("http")(auth.guard)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# CORS 는 **기본으로 끈다.** 화면은 이 서버가 같은 주소로 내보내고, 개발 서버(5173)도 Vite 프록시로 같은 출처처럼
+# 부른다(frontend/vite.config.ts) — 다른 출처가 쿠키를 들고 부를 일이 없다. 전에는 운영에서도 localhost:5173 을
+# 자격증명 포함으로 허용했다. 정말 필요할 때만 `.env` 의 SIGNAL_DASHBOARD_CORS_ORIGINS(쉼표로 여러 개)로 연다.
+_cors_origins = [
+    origin.strip()
+    for origin in os.environ.get("SIGNAL_DASHBOARD_CORS_ORIGINS", "").split(",")
+    if origin.strip() and origin.strip() != "*"  # 자격증명과 * 는 같이 쓰지 않는다
+]
+if _cors_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 # 느린 요청 기록은 바깥에 — 문지기(세션 확인)에 든 시간까지 잰다 (ROADMAP 8-5)
 app.add_middleware(SlowRequestLog)
