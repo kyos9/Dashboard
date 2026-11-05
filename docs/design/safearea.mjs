@@ -20,7 +20,9 @@
 //   close-in-view    ✕ 가 화면과 옆 안전영역 안에 다 들어오나
 //   title-in-side    제목이 왼쪽 안전영역 밖(노치 밑)으로 나가지 않았나
 //   title-overlap    제목 글자가 ✕ 와 겹치거나 팝업 밖으로 넘치지 않나(긴 종목명)
-//   sticky-head      (알림) 펼쳐 끝까지 내려도 제목이 위쪽 안전영역 밑에 남나. 내릴 거리가 200 안 되면 sticky-untested
+//   sticky-head      (폰 전체화면 팝업, 차트 빼고) 끝까지 내려도 제목·✕ 가 위쪽 안전영역 밑에 남나.
+//                    알림은 종목별 알림을 펼쳐 내릴 거리를 만든다. 내릴 거리가 40 안 되면 sticky-untested(참고)
+//   status-strip     (일반 화면 — 종목 관리·리밸런싱) 내린 뒤 화면 위에 안전영역 높이의 띠가 헤더 바탕색으로 있나
 //   foot-aligned     (종목 한 번에 수정) 아래 붙은 저장 줄이 창 폭과 정확히 맞고, 저장 단추가 홈 표시줄 위에 있나
 //   card-gap         (가운데 카드 — 확인창) 카드 위 끝에서 제목까지 24 이하, 카드가 위·아래 안전영역 안
 //   modal-in-view    (카드로 뜨는 폭) 팝업이 화면 세로 안, 위아래 20 이상 띄워져 있나
@@ -100,7 +102,19 @@ const SCREENS = [
   { name: 'menu-display', act: (p) => openMenu(p, '화면 설정', '화면') },
   { name: 'menu-diagnostics', act: (p) => openMenu(p, '진단') },
   { name: 'menu-users', act: (p) => openMenu(p, /사용자/) },
-  { name: 'menu-confirm-logout-all', act: (p) => openMenu(p, '모든 기기에서 나가기'), card: true },
+  {
+    name: 'menu-confirm-logout-all',
+    // 폰은 ⋯ 메뉴 안, PC 폭은 이름 단추(.account-btn)를 누르면 뜨는 메뉴 안
+    act: async (p) => {
+      const account = p.locator('button.account-btn')
+      if (await account.first().isVisible().catch(() => false)) await account.first().click()
+      else await p.getByRole('button', { name: /^메뉴/ }).first().click()
+      await p.locator('.menu-item', { hasText: '모든 기기에서 나가기' }).first().click()
+    },
+    card: true,
+  },
+  { name: 'page-stocks', path: '/stocks', page: true },
+  { name: 'page-rebalance', path: '/rebalance', page: true },
   { name: 'modal-stock-edit', view: 'portfolio', act: clickText(/종목 한 번에 수정/), foot: true },
   { name: 'modal-chart-longest', view: 'signal', act: openLongestChart },
   {
@@ -126,6 +140,26 @@ async function loginState(browser, who) {
   return state
 }
 
+function measurePage({ inset }) {
+  const out = []
+  window.scrollTo(0, document.body.scrollHeight)
+  const strip = getComputedStyle(document.body, '::before')
+  const h = parseFloat(strip.height) || 0
+  if (inset.top > 0 && (strip.position !== 'fixed' || h < inset.top - 0.5))
+    out.push({ check: 'status-strip', detail: `띠 ${strip.position} 높이 ${h} < ${inset.top}` })
+  const header = document.querySelector('.app-header')
+  if (inset.top > 0 && header) {
+    const want = getComputedStyle(document.documentElement).getPropertyValue('--bg-elevated').trim()
+    const probe = document.createElement('div')
+    probe.style.color = want
+    document.body.appendChild(probe)
+    const wantRgb = getComputedStyle(probe).color
+    probe.remove()
+    if (strip.backgroundColor !== wantRgb) out.push({ check: 'status-strip', detail: `띠 색 ${strip.backgroundColor} ≠ ${wantRgb}` })
+  }
+  return out
+}
+
 function measure({ inset, sticky, foot, card }) {
   const out = []
   const modal = [...document.querySelectorAll('.modal')].pop()
@@ -133,7 +167,8 @@ function measure({ inset, sticky, foot, card }) {
   const vw = innerWidth
   const vh = innerHeight
   const m = modal.getBoundingClientRect()
-  const fullscreen = Math.abs(m.width - vw) < 2 && m.top < 2
+  // 폰 폭에서는 위아래를 다 채운다(폭은 팝업마다 상한이 있어 640 에선 가운데 560 일 수 있다)
+  const fullscreen = m.top < 2 && m.bottom > vh - 2
 
   // 제목 글자는 h3 를 먼저 — querySelector 에 여럿을 쉼표로 주면 문서 순서로 고르므로 따로 찾는다
   const title = modal.querySelector('.modal-title h3') ?? modal.querySelector('.modal-head h3, h3')
@@ -164,13 +199,15 @@ function measure({ inset, sticky, foot, card }) {
     if (overlapX > 0 && overlapY > 0) out.push({ check: 'title-overlap', detail: '제목 글자가 ✕ 와 겹침' })
   } else out.push({ check: 'close-in-view', detail: '✕ 없음' })
 
-  if (sticky) {
+  if (fullscreen && !modal.classList.contains('chart-modal')) {
     const room = modal.scrollHeight - modal.clientHeight
-    if (room < 200) out.push({ check: 'sticky-untested', detail: `내릴 거리 ${room}` })
-    else {
+    if (room < 40) {
+      if (sticky) out.push({ check: 'sticky-untested', detail: `내릴 거리 ${room}` })
+    } else {
       modal.scrollTop = modal.scrollHeight
       const t2 = title.getBoundingClientRect()
       if (t2.top < inset.top) out.push({ check: 'sticky-head', detail: `내린 뒤 제목 위 ${t2.top.toFixed(0)}` })
+      if (close && close.getBoundingClientRect().top < inset.top) out.push({ check: 'sticky-head', detail: '내린 뒤 ✕ 가 상태바 밑' })
       modal.scrollTop = 0
     }
   }
@@ -196,7 +233,7 @@ function measure({ inset, sticky, foot, card }) {
 
 const CHECKS = [
   'head-under-bar', 'close-first-row', 'close-in-view', 'title-in-side', 'title-overlap', 'sticky-head',
-  'sticky-untested', 'foot-aligned', 'card-gap', 'modal-in-view', 'sim-missing', 'failed', 'no-modal', 'no-title',
+  'sticky-untested', 'foot-aligned', 'card-gap', 'modal-in-view', 'status-strip', 'sim-missing', 'failed', 'no-modal', 'no-title',
 ]
 
 async function main() {
@@ -244,10 +281,15 @@ async function main() {
         let issues
         try {
           await page.goto(BASE + (s.path || '/'), { waitUntil: 'networkidle' })
-          await s.act(page)
-          await page.waitForSelector('.modal', { timeout: 10000 })
-          await page.waitForTimeout(500)
-          issues = await page.evaluate(measure, { inset: cond.inset, sticky: !!s.sticky, foot: !!s.foot, card: !!s.card })
+          if (s.page) {
+            await page.waitForTimeout(500)
+            issues = await page.evaluate(measurePage, { inset: cond.inset })
+          } else {
+            await s.act(page)
+            await page.waitForSelector('.modal', { timeout: 10000 })
+            await page.waitForTimeout(500)
+            issues = await page.evaluate(measure, { inset: cond.inset, sticky: !!s.sticky, foot: !!s.foot, card: !!s.card })
+          }
           if (replaced === 0) issues.push({ check: 'sim-missing', detail: 'CSS 의 env() 를 하나도 바꿔 끼우지 못함' })
           if (SHOTS) await page.screenshot({ path: join(OUT, 'shots', `${tag}-${s.name}.png`) })
         } catch (e) {

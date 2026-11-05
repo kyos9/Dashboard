@@ -493,6 +493,24 @@ button.menu-item.danger {
 /* ---------- 폰 헤더 한 줄 (ROADMAP 8-2) ----------
    로고 · 상태 · 새로고침 · 메뉴. 본문이 첫 화면에 보이게. */
 
+/*
+ * 상태바 밑 띠 — 홈 화면 앱은 상태바가 비쳐 보이는 설정(black-translucent)이라, 헤더가 위로 지나간 뒤
+ * 내린 내용(종목 관리·리밸런싱 표 등)이 시계·배터리 밑으로 들어가 잘려 보였다(3차 계획 검토 — 사용자).
+ * 안전영역 높이만큼 헤더와 같은 바탕을 화면 위에 붙여 둔다. 안전영역이 없는 PC·일반 브라우저에서는 높이 0.
+ * 팝업 바깥 상자(50)보다 아래, 본문보다 위. 누르는 것이 없어 밑을 막지 않는다.
+ */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  height: env(safe-area-inset-top, 0px);
+  background: var(--bg-elevated);
+  pointer-events: none;
+}
+
 .app-header.narrow {
   flex-wrap: nowrap;
   gap: 8px;
@@ -2141,7 +2159,9 @@ button:disabled {
   display: flex;
   align-items: center;
   justify-content: center;
-  /* 가운데 카드로 뜨는 폭(가로로 든 폰 포함) — 노치·홈 표시줄 쪽은 그만큼 더 띄운다 (디자인 3차) */
+  /* 가운데 카드로 뜨는 폭(가로로 든 폰 포함) — 노치·홈 표시줄 쪽은 그만큼 더 띄운다 (디자인 3차).
+     앞 줄은 max() 를 모르는 브라우저의 대체값 */
+  padding: 20px;
   padding: max(20px, env(safe-area-inset-top, 0px)) max(20px, env(safe-area-inset-right, 0px))
     max(20px, env(safe-area-inset-bottom, 0px)) max(20px, env(safe-area-inset-left, 0px));
   background: rgba(4, 8, 14, 0.66);
@@ -2944,10 +2964,12 @@ table.data-table tr.dirty:hover td {
   }
 
   /* 가운데 카드(확인창·설치 안내)는 상태바·노치에 닿지 않는다 — 안전영역 여백을 붙이지 않는다 (3차 검토 a) */
-  .confirm-modal,
-  .install-hint {
+  .modal.confirm-modal,
+  .modal.install-hint {
     --modal-pad-top: 16px;
     padding: 16px;
+    /* 바깥 여백 16 × 2 와 위·아래 안전영역을 뺀 높이 — 긴 확인 문구에도 상태바·홈 표시줄에 닿지 않게 */
+    max-height: calc(100dvh - 32px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
   }
 
   /*
@@ -2960,26 +2982,41 @@ table.data-table tr.dirty:hover td {
     flex-wrap: wrap;
   }
 
+  /* ✕ 는 위 끝에 — 제목 밑에 안내가 한 줄 더 있어도(진단) 다른 팝업과 같은 높이에서 누른다 */
   .modal-head .icon-btn {
     order: 1;
+    align-self: flex-start;
   }
 
-  .modal-head > :not(.modal-title, .icon-btn) {
+  /* 아랫줄로 보내는 것은 칩 줄만 (머리줄 직속 자식은 제목·✕·칩 줄뿐이다 — 다른 것을 넣으면 여기도 본다) */
+  .modal-head > .chip-row {
     order: 2;
     flex: 1 1 100%;
   }
 
-  /* 알림 창의 고정 머리줄 — 늘어난 안쪽 여백만큼 같이 늘려, 스크롤해도 상태바 밑으로 올라가지 않게 */
-  .push-modal {
-    scroll-padding-top: calc(56px + env(safe-area-inset-top, 0px));
+  /*
+   * 고정 머리줄 — 폰 전체화면 팝업은 내려도 제목·✕ 가 위에 남는다. 전에는 알림 창만 그랬고, 종목 한 번에 수정은
+   * 내리면 제목·✕ 가 올라가 사라지고 입력칸이 상태바 밑으로 들어갔다(3차 계획 검토 — 사용자).
+   * 늘어난 안쪽 여백(안전영역 포함)만큼 같이 늘린다. 차트 팝업은 뺀다 — 머리줄이 세 줄(제목·탭·기간)이라 붙이면
+   * 차트를 가린다. 가운데 카드(확인창·설치 안내)는 짧아서 내릴 일이 없다.
+   */
+  .modal:not(.chart-modal, .confirm-modal, .install-hint) {
+    /* 키보드로 오가면 포커스 받은 칸이 붙은 머리줄 밑에 숨지 않게 */
+    scroll-padding-top: calc(72px + env(safe-area-inset-top, 0px));
   }
 
-  .push-modal .modal-head {
+  .modal:not(.chart-modal, .confirm-modal, .install-hint) > .modal-head {
+    position: sticky;
+    z-index: 1;
+    background: var(--panel);
     top: calc(-1 * var(--modal-pad-top));
     margin: calc(-1 * var(--modal-pad-top)) calc(-16px - env(safe-area-inset-right, 0px)) 16px
       calc(-16px - env(safe-area-inset-left, 0px));
     padding: var(--modal-pad-top) calc(16px + env(safe-area-inset-right, 0px)) 8px
       calc(16px + env(safe-area-inset-left, 0px));
+  }
+
+  .push-modal .modal-head {
     /* 제목 줄과 ✕ 가 한 줄에 — 기기 수 안내는 제목 밑으로 내려 ✕ 를 밀어내지 않게 */
     flex-wrap: nowrap;
   }
@@ -4862,7 +4899,7 @@ button.signal-line-go:hover:not(:disabled) {
 /* 폰(전체화면 팝업): 아래 붙은 저장 줄을 창의 안쪽 여백(안전영역 포함)만큼 넓혀 좌우·아래 끝에 맞춘다 (디자인 3차 검토 b).
    위 기본 규칙보다 뒤에 둬야 이긴다 */
 @media (max-width: 640px) {
-  .stock-edit-foot {
+  .stock-edit-modal .stock-edit-foot {
     bottom: calc(-16px - env(safe-area-inset-bottom, 0px));
     margin: 12px calc(-16px - env(safe-area-inset-right, 0px)) calc(-16px - env(safe-area-inset-bottom, 0px))
       calc(-16px - env(safe-area-inset-left, 0px));
