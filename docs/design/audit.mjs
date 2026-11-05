@@ -75,7 +75,9 @@ async function openMenu(page, label, pcLabel = label) {
     if (await direct.first().isVisible().catch(() => false)) return direct.first().click()
   }
   await page.getByRole('button', { name: /^메뉴/ }).first().click()
-  await page.getByRole('button', { name: label }).first().click()
+  // 메뉴 안에서는 .menu-item 으로만 찾는다 — 메뉴 단추 자신의 이름("메뉴 — 진단을 확인하세요")에도 '진단'이 들어 있어
+  // 전에는 메뉴를 다시 눌러 닫아 버렸다(진단 팝업이 기준선에서 늘 "열지 못함", 디자인 3차에서 찾음)
+  await page.locator('.menu-item', { hasText: label }).first().click()
 }
 
 const SCREENS = [
