@@ -121,3 +121,32 @@ jobs:
       - name: 테스트
         run: npm test
         working-directory: frontend
+
+  audit:
+    # 의존성의 알려진 취약점 점검. 새 권고가 나올 때마다 상관없는 PR 의 합치기가 막히지 않도록 **실패해도 막지 않는다**
+    # (continue-on-error). 다만 이 job 은 ✗ 로 남는다 — **✗ 가 보이면 그냥 넘기지 말고 로그의 목록을 본다**(고친 판으로 올리는 PR).
+    # 처음 돌았을 때 starlette 0.49.3 의 권고 5건을 찾아 1.10.0 으로 올렸다.
+    name: 의존성 점검 (참고용)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: pip-audit
+        run: |
+          pip install pip-audit
+          pip-audit -r backend/requirements.txt -r backend/requirements-postgres.txt
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+
+      - name: npm audit (배포에 들어가는 것만, high 이상)
+        # pip 쪽이 걸려도 npm 쪽은 따로 본다 — 앞 단계가 실패하면 기본으로 건너뛰어 한쪽만 보게 됐다
+        if: ${{ !cancelled() }}
+        run: npm audit --omit=dev --audit-level=high
+        working-directory: frontend
