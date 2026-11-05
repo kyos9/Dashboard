@@ -3022,6 +3022,11 @@ table.data-table tr.dirty:hover td {
       calc(16px + env(safe-area-inset-left, 0px));
   }
 
+  /* 진단은 머리줄이 세 겹(제목·요약·칩 줄, 아래 끝 약 190) — 포커스 받은 칸이 그 밑에 숨지 않게 더 띄운다 (3차 검토 보완 1) */
+  .modal.diag-modal {
+    scroll-padding-top: calc(160px + env(safe-area-inset-top, 0px));
+  }
+
   .push-modal .modal-head {
     /* 제목 줄과 ✕ 가 한 줄에 — 기기 수 안내는 제목 밑으로 내려 ✕ 를 밀어내지 않게 */
     flex-wrap: nowrap;

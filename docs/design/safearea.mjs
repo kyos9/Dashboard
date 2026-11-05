@@ -94,7 +94,15 @@ const SCREENS = [
       await openMenu(p, '알림 설정')
       // 끝까지 내릴 거리를 만든다 — 종목별 알림을 펼친다
       const fold = p.locator('.push-stocks > summary')
-      if (await fold.count().catch(() => 0)) await fold.first().click().catch(() => {})
+      if (await fold.count().catch(() => 0)) {
+        await p.waitForSelector('.modal')
+        const before = await p.evaluate(() => document.querySelector('.modal').scrollHeight)
+        await fold.first().click().catch(() => {})
+        // 펼친 목록이 그려져 내릴 거리가 늘 때까지 기다린다(3차 검토 보완 4 — 두 번에 한 번 펼치기 전에 쟀다)
+        await p
+          .waitForFunction((h) => document.querySelector('.modal').scrollHeight > h, before, { timeout: 5000 })
+          .catch(() => {})
+      }
     },
     sticky: true,
   },
