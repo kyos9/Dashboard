@@ -5,17 +5,25 @@
 //   # 작업 폴더(저장소 밖)에서:
 //   node <저장소>/docs/design/safearea.mjs --out <작업 폴더>/safearea [--base http://127.0.0.1:8150] [--shots]
 //
-// 흉내 내는 법: CSS 응답의 env(safe-area-inset-*) 를 아이폰 값으로 바꿔 끼운다(서비스 워커는 막는다 — 막지 않으면
-// 두 번째 화면부터 바꾸기 전 CSS 를 캐시에서 꺼내 검사가 헛돈다).
-//   세로 390·360: 위 47 · 아래 34      가로 844×390: 왼쪽·오른쪽 47 · 아래 21
+// 흉내 내는 법: CSS 응답의 env(safe-area-inset-*) 를 아이폰 값으로 바꿔 끼운다. 서비스 워커는 막는다 — 막지 않으면
+// 두 번째 화면부터 바꾸기 전 CSS 를 캐시에서 꺼내 검사가 헛돈다. 바꿔 끼운 곳이 0이면 그 조합은 실패(sim-missing).
+//
+// 조건:
+//   ph390 · ph360   세로 폰 — 위 47 · 아래 34
+//   ph640side       폭 640 이하인데 옆 안전영역이 있는 경우(작은 가로 폰) — 옆 47 · 아래 21. 저장 줄 계산을 실제로 재려고
+//   land844         가로 폰(카드로 뜨는 폭) — 옆 47 · 아래 21
+//   pc1400 · zoom150  안전영역 없음 — 카드 팝업이 화면 세로 안에 들어오나(바깥 여백 계산을 바꿨다)
 //
 // 재는 것(팝업마다):
-//   head-under-bar   제목 글자의 위가 위쪽 안전영역보다 아래인가
-//   close-first-row  ✕ 가 제목과 같은 줄(세로로 겹침)에 있나 — 칩 줄에 밀려 혼자 다음 줄로 가지 않았나
+//   head-under-bar   제목 글자(h3)의 위가 위쪽 안전영역보다 아래인가
+//   close-first-row  ✕ 가 제목 글자와 같은 줄(세로로 겹침)에 있나 — 칩 줄에 밀려 혼자 다음 줄로 가지 않았나
 //   close-in-view    ✕ 가 화면과 옆 안전영역 안에 다 들어오나
 //   title-in-side    제목이 왼쪽 안전영역 밖(노치 밑)으로 나가지 않았나
-//   sticky-head      (알림) 끝까지 내려도 제목이 위쪽 안전영역 밑에 남나
-//   foot-aligned     (종목 한 번에 수정) 아래 붙은 저장 줄이 창 폭과 정확히 맞나(좌우가 비거나 넘치지 않나)
+//   title-overlap    제목 글자가 ✕ 와 겹치거나 팝업 밖으로 넘치지 않나(긴 종목명)
+//   sticky-head      (알림) 펼쳐 끝까지 내려도 제목이 위쪽 안전영역 밑에 남나. 내릴 거리가 200 안 되면 sticky-untested
+//   foot-aligned     (종목 한 번에 수정) 아래 붙은 저장 줄이 창 폭과 정확히 맞고, 저장 단추가 홈 표시줄 위에 있나
+//   card-gap         (가운데 카드 — 확인창) 카드 위 끝에서 제목까지 24 이하, 카드가 위·아래 안전영역 안
+//   modal-in-view    (카드로 뜨는 폭) 팝업이 화면 세로 안, 위아래 20 이상 띄워져 있나
 import { createRequire } from 'node:module'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -33,13 +41,17 @@ const BASE = arg('--base', 'http://127.0.0.1:8150')
 const SHOTS = args.includes('--shots')
 const EXEC = process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium'
 
+const NONE = { top: 0, right: 0, bottom: 0, left: 0 }
 const CONDS = [
-  { name: 'ph390', width: 390, height: 844, inset: { top: 47, right: 0, bottom: 34, left: 0 } },
-  { name: 'ph360', width: 360, height: 780, inset: { top: 47, right: 0, bottom: 34, left: 0 } },
-  { name: 'land844', width: 844, height: 390, inset: { top: 0, right: 47, bottom: 21, left: 47 } },
+  { name: 'ph390', width: 390, height: 844, dsf: 2, mobile: true, inset: { top: 47, right: 0, bottom: 34, left: 0 } },
+  { name: 'ph360', width: 360, height: 780, dsf: 2, mobile: true, inset: { top: 47, right: 0, bottom: 34, left: 0 } },
+  { name: 'ph640side', width: 640, height: 360, dsf: 2, mobile: true, inset: { top: 0, right: 47, bottom: 21, left: 47 } },
+  { name: 'land844', width: 844, height: 390, dsf: 2, mobile: true, inset: { top: 0, right: 47, bottom: 21, left: 47 } },
+  { name: 'pc1400', width: 1400, height: 900, dsf: 1, mobile: false, inset: NONE },
+  { name: 'zoom150', width: 933, height: 600, dsf: 1.5, mobile: false, inset: NONE },
 ]
 
-// 폰은 ⋯ 메뉴 안, PC 폭(가로 844)은 헤더 단추(이름이 짧을 수 있다: pcLabel).
+// 폰은 ⋯ 메뉴 안, PC 폭은 헤더 단추(이름이 짧을 수 있다: pcLabel).
 // 메뉴 안에서는 .menu-item 으로만 찾는다 — 메뉴 단추 자신의 이름("메뉴 — 진단을 확인하세요")에도 '진단'이 들어 있다
 async function openMenu(page, label, pcLabel = label) {
   for (const name of [label, pcLabel]) {
@@ -60,18 +72,42 @@ async function clickViewTool(page, name) {
   await page.getByRole('button', { name }).first().click()
 }
 
+// 데모 종목 중 이름이 가장 긴 것의 차트 — 제목이 ✕ 와 한 줄을 나눠 쓰므로 긴 이름이 넘치지 않는지 본다
+async function openLongestChart(page) {
+  const names = page.locator('button.stock-name')
+  await names.first().waitFor({ timeout: 10000 })
+  const texts = await names.allInnerTexts()
+  let best = 0
+  texts.forEach((t, i) => {
+    if (t.trim().length > texts[best].trim().length) best = i
+  })
+  await names.nth(best).click()
+  await page.waitForSelector('canvas', { timeout: 15000 }).catch(() => {})
+}
+
 const SCREENS = [
-  { name: 'menu-push', act: (p) => openMenu(p, '알림 설정'), sticky: true },
+  {
+    name: 'menu-push',
+    act: async (p) => {
+      await openMenu(p, '알림 설정')
+      // 끝까지 내릴 거리를 만든다 — 종목별 알림을 펼친다
+      const fold = p.locator('.push-stocks > summary')
+      if (await fold.count().catch(() => 0)) await fold.first().click().catch(() => {})
+    },
+    sticky: true,
+  },
   { name: 'menu-ai-key', act: (p) => openMenu(p, 'AI 키 설정') },
   { name: 'menu-display', act: (p) => openMenu(p, '화면 설정', '화면') },
   { name: 'menu-diagnostics', act: (p) => openMenu(p, '진단') },
   { name: 'menu-users', act: (p) => openMenu(p, /사용자/) },
+  { name: 'menu-confirm-logout-all', act: (p) => openMenu(p, '모든 기기에서 나가기'), card: true },
   { name: 'modal-stock-edit', view: 'portfolio', act: clickText(/종목 한 번에 수정/), foot: true },
+  { name: 'modal-chart-longest', view: 'signal', act: openLongestChart },
   {
-    name: 'modal-chart',
-    view: 'signal',
+    name: 'modal-macro-chart',
+    path: '/macro',
     act: async (p) => {
-      await p.locator('button.stock-name').first().click()
+      await p.locator('button.macro-title').first().click()
       await p.waitForSelector('canvas', { timeout: 15000 }).catch(() => {})
     },
   },
@@ -90,43 +126,78 @@ async function loginState(browser, who) {
   return state
 }
 
-function measure({ inset, sticky, foot }) {
+function measure({ inset, sticky, foot, card }) {
   const out = []
   const modal = [...document.querySelectorAll('.modal')].pop()
   if (!modal) return [{ check: 'no-modal' }]
   const vw = innerWidth
-  const title = modal.querySelector('.modal-title h3, .modal-title, h3')
-  const close = modal.querySelector('.modal-head .icon-btn')
+  const vh = innerHeight
+  const m = modal.getBoundingClientRect()
+  const fullscreen = Math.abs(m.width - vw) < 2 && m.top < 2
+
+  // 제목 글자는 h3 를 먼저 — querySelector 에 여럿을 쉼표로 주면 문서 순서로 고르므로 따로 찾는다
+  const title = modal.querySelector('.modal-title h3') ?? modal.querySelector('.modal-head h3, h3')
+  if (!title) return [{ check: 'no-title' }]
   const t = title.getBoundingClientRect()
+  const close = modal.querySelector('.modal-head .icon-btn')
+
+  if (card) {
+    if (t.top - m.top > 24) out.push({ check: 'card-gap', detail: `카드 위에서 제목까지 ${(t.top - m.top).toFixed(0)}` })
+    if (m.top < inset.top || m.bottom > vh - inset.bottom)
+      out.push({ check: 'card-gap', detail: `카드 ${m.top.toFixed(0)}~${m.bottom.toFixed(0)} · 안전 ${inset.top}~${vh - inset.bottom}` })
+    return out
+  }
+
+  if (!fullscreen && (m.top < 19 || m.bottom > vh - 19))
+    out.push({ check: 'modal-in-view', detail: `팝업 ${m.top.toFixed(0)}~${m.bottom.toFixed(0)} · 화면 ${vh}` })
   if (t.top < inset.top) out.push({ check: 'head-under-bar', detail: `제목 위 ${t.top.toFixed(0)} < ${inset.top}` })
   if (t.left < inset.left) out.push({ check: 'title-in-side', detail: `제목 왼쪽 ${t.left.toFixed(0)} < ${inset.left}` })
+  if (t.right > m.right) out.push({ check: 'title-overlap', detail: `제목 오른쪽 ${t.right.toFixed(0)} > 팝업 ${m.right.toFixed(0)}` })
   if (close) {
     const c = close.getBoundingClientRect()
     if (c.top > t.bottom || c.bottom < t.top)
       out.push({ check: 'close-first-row', detail: `✕ ${c.top.toFixed(0)}~${c.bottom.toFixed(0)} · 제목 ${t.top.toFixed(0)}~${t.bottom.toFixed(0)}` })
     if (c.right > vw - inset.right || c.left < inset.left || c.top < inset.top)
       out.push({ check: 'close-in-view', detail: `✕ 오른쪽 ${c.right.toFixed(0)} · 위 ${c.top.toFixed(0)}` })
+    const overlapX = Math.min(t.right, c.right) - Math.max(t.left, c.left)
+    const overlapY = Math.min(t.bottom, c.bottom) - Math.max(t.top, c.top)
+    if (overlapX > 0 && overlapY > 0) out.push({ check: 'title-overlap', detail: '제목 글자가 ✕ 와 겹침' })
   } else out.push({ check: 'close-in-view', detail: '✕ 없음' })
+
   if (sticky) {
-    modal.scrollTop = modal.scrollHeight
-    const t2 = title.getBoundingClientRect()
-    if (t2.top < inset.top) out.push({ check: 'sticky-head', detail: `내린 뒤 제목 위 ${t2.top.toFixed(0)}` })
-    modal.scrollTop = 0
+    const room = modal.scrollHeight - modal.clientHeight
+    if (room < 200) out.push({ check: 'sticky-untested', detail: `내릴 거리 ${room}` })
+    else {
+      modal.scrollTop = modal.scrollHeight
+      const t2 = title.getBoundingClientRect()
+      if (t2.top < inset.top) out.push({ check: 'sticky-head', detail: `내린 뒤 제목 위 ${t2.top.toFixed(0)}` })
+      modal.scrollTop = 0
+    }
   }
   if (foot) {
     const f = modal.querySelector('.stock-edit-foot')
     if (f) {
-      const m = modal.getBoundingClientRect()
       const r = f.getBoundingClientRect()
       const innerLeft = m.left + modal.clientLeft
       const innerRight = innerLeft + modal.clientWidth
       if (Math.abs(r.left - innerLeft) > 1 || Math.abs(r.right - innerRight) > 1)
         out.push({ check: 'foot-aligned', detail: `저장 줄 ${r.left.toFixed(0)}~${r.right.toFixed(0)} · 창 안쪽 ${innerLeft.toFixed(0)}~${innerRight.toFixed(0)}` })
-      if (r.bottom > innerHeight + 1) out.push({ check: 'foot-aligned', detail: `저장 줄 아래 ${r.bottom.toFixed(0)} > 화면 ${innerHeight}` })
+      const buttons = [...f.querySelectorAll('button')]
+      const lowest = Math.max(...buttons.map((b) => b.getBoundingClientRect().bottom))
+      const rightmost = Math.max(...buttons.map((b) => b.getBoundingClientRect().right))
+      const leftmost = Math.min(...buttons.map((b) => b.getBoundingClientRect().left))
+      if (lowest > vh - inset.bottom + 1) out.push({ check: 'foot-aligned', detail: `저장 단추 아래 ${lowest.toFixed(0)} > 홈 표시줄 위 ${vh - inset.bottom}` })
+      if (rightmost > vw - inset.right + 1 || leftmost < inset.left - 1)
+        out.push({ check: 'foot-aligned', detail: `저장 단추 ${leftmost.toFixed(0)}~${rightmost.toFixed(0)} · 옆 안전 ${inset.left}~${vw - inset.right}` })
     } else out.push({ check: 'foot-aligned', detail: '저장 줄 없음' })
   }
   return out
 }
+
+const CHECKS = [
+  'head-under-bar', 'close-first-row', 'close-in-view', 'title-in-side', 'title-overlap', 'sticky-head',
+  'sticky-untested', 'foot-aligned', 'card-gap', 'modal-in-view', 'sim-missing', 'failed', 'no-modal', 'no-title',
+]
 
 async function main() {
   mkdirSync(OUT, { recursive: true })
@@ -140,9 +211,9 @@ async function main() {
         const ctx = await browser.newContext({
           storageState: state,
           viewport: { width: cond.width, height: cond.height },
-          deviceScaleFactor: 2,
-          isMobile: true,
-          hasTouch: true,
+          deviceScaleFactor: cond.dsf,
+          isMobile: cond.mobile,
+          hasTouch: cond.mobile,
           colorScheme: theme,
           reducedMotion: 'reduce',
           serviceWorkers: 'block',
@@ -158,21 +229,26 @@ async function main() {
           [theme, s.view || null],
         )
         const page = await ctx.newPage()
+        let replaced = 0
         await page.route('**/assets/*.css', async (route) => {
           const res = await route.fetch()
           let css = await res.text()
           for (const side of ['top', 'right', 'bottom', 'left'])
-            css = css.replace(new RegExp(`env\\(safe-area-inset-${side}(,\\s*0(px)?)?\\)`, 'g'), `${cond.inset[side]}px`)
+            css = css.replace(new RegExp(`env\\(safe-area-inset-${side}(,\\s*0(px)?)?\\)`, 'g'), () => {
+              replaced++
+              return `${cond.inset[side]}px`
+            })
           await route.fulfill({ response: res, body: css })
         })
         const tag = `${cond.name}-${theme}`
         let issues
         try {
-          await page.goto(BASE + '/', { waitUntil: 'networkidle' })
+          await page.goto(BASE + (s.path || '/'), { waitUntil: 'networkidle' })
           await s.act(page)
           await page.waitForSelector('.modal', { timeout: 10000 })
           await page.waitForTimeout(500)
-          issues = await page.evaluate(measure, { inset: cond.inset, sticky: !!s.sticky, foot: !!s.foot })
+          issues = await page.evaluate(measure, { inset: cond.inset, sticky: !!s.sticky, foot: !!s.foot, card: !!s.card })
+          if (replaced === 0) issues.push({ check: 'sim-missing', detail: 'CSS 의 env() 를 하나도 바꿔 끼우지 못함' })
           if (SHOTS) await page.screenshot({ path: join(OUT, 'shots', `${tag}-${s.name}.png`) })
         } catch (e) {
           issues = [{ check: 'failed', detail: String(e.message || e).split('\n')[0] }]
@@ -183,13 +259,13 @@ async function main() {
       }
   await browser.close()
   writeFileSync(join(OUT, 'results.json'), JSON.stringify(rows, null, 2))
-  const checks = ['head-under-bar', 'close-first-row', 'close-in-view', 'title-in-side', 'sticky-head', 'foot-aligned', 'failed', 'no-modal']
-  const lines = ['| 조건 · 화면 | ' + checks.join(' | ') + ' |', '|' + ' --- |'.repeat(checks.length + 1)]
-  for (const r of rows) lines.push(`| ${r.cond} ${r.screen} | ` + checks.map((c) => r.issues.filter((i) => i.check === c).length || '').join(' | ') + ' |')
+  const lines = ['| 조건 · 화면 | ' + CHECKS.join(' | ') + ' |', '|' + ' --- |'.repeat(CHECKS.length + 1)]
+  for (const r of rows) lines.push(`| ${r.cond} ${r.screen} | ` + CHECKS.map((c) => r.issues.filter((i) => i.check === c).length || '').join(' | ') + ' |')
   const total = rows.reduce((n, r) => n + r.issues.length, 0)
-  lines.push('', `문제 합계: ${total} (${rows.length} 조합)`)
+  const byCheck = CHECKS.map((c) => `${c} ${rows.reduce((n, r) => n + r.issues.filter((i) => i.check === c).length, 0)}`).join(' · ')
+  lines.push('', `문제 합계: ${total} (${rows.length} 조합) — ${byCheck}`)
   writeFileSync(join(OUT, 'summary.md'), lines.join('\n') + '\n')
-  console.log(`문제 합계: ${total} (${rows.length} 조합)`)
+  console.log(`문제 합계: ${total} (${rows.length} 조합) — ${byCheck}`)
 }
 
 main()
