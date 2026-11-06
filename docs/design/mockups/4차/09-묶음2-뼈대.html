@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>4차 묶음 2 뼈대</title>
+<!--
+  디자인 4차 목업 09 — 묶음 2 뼈대(plan.md 9-2). 고른 것: 탭 B · 아이콘 1 둥근 선 + 08b 추천 그림 · 대시보드 다(탭 없이) · 비중 청록(상승 빨강).
+  홈 · 시그널 목록 · AI 진단 화면 · 설정 탭 · PC.
+  설정 메뉴 그림은 토스페이스 원본 SVG(고치지 않음, assets/tossface/LICENSE).
+  ?theme=light 로 라이트.
+-->
+<style>
+@font-face{font-family:'Pretendard';src:url('../assets/PretendardVariable-ko.woff2') format('woff2');font-weight:400 700;font-display:swap}
+</style>
+<link rel="stylesheet" href="../assets/fonts-02d/fonts.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:#6b7280}
+body{font-family:'Pretendard',system-ui,sans-serif;word-break:keep-all;padding:24px;display:flex;gap:24px;align-items:flex-start;justify-content:center;flex-wrap:wrap;max-width:1400px;margin:0 auto}
+.col{display:flex;flex-direction:column;gap:10px;align-items:center}
+.cap{font-weight:600;font-size:15px;color:#fff;text-align:center;line-height:1.35}
+.cap small{display:block;font-weight:400;font-size:12px;opacity:.85}
+.num{font-variant-numeric:tabular-nums}
+.phone{width:390px;min-height:844px;position:relative;border-radius:28px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.35);padding-bottom:84px;
+  --brand:#0051a8;--on-brand:#fff;--bg:#eef2f6;--surf:#fff;--text:#111827;--dim:#374151;--faint:#5b6472;--line:#dfe4ea;
+  --buy:#166534;--sell:#b91c1c;--wt:#0051a8;--up:#15803d;--down:#dc2626;--link:#0051a8;--warn-bg:#fff7e6;--warn:#8a4b00;
+  background:var(--bg);color:var(--text)}
+.phone.red{--up:#dc2626;--down:#1d4ed8}
+.dark .phone.red{--up:#f47171;--down:#7aa7ff}
+/* 05c: 시그널도 설정을 따른다 — 매수 빨강 · 매도 파랑. 비중은 청람이면 매도 파랑과 붙으므로 둘째 안은 비중을 회색으로 */
+.phone.follow{--buy:#b91c1c;--sell:#1d4ed8}
+.dark .phone.follow{--buy:#f47171;--sell:#7aa7ff}
+.phone.follow.wgray{--wt:#5b6472} .dark .phone.follow.wgray{--wt:#aab3c0}
+.dark .phone{--brand:#002f67;--bg:#0a0f18;--surf:#0d1627;--text:#e6ebf2;--dim:#c3cad5;--faint:#909aab;--line:#1d2a40;
+  --buy:#3ccf71;--sell:#f47171;--wt:#92b1db;--up:#3ccf71;--down:#f47171;--link:#92b1db;--warn-bg:#2a2210;--warn:#f0c46b}
+.status{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;font-size:14px;font-weight:600;background:var(--brand);color:var(--on-brand)}
+.top{background:var(--brand);color:var(--on-brand);display:flex;align-items:center;gap:4px;padding:2px 8px 8px 16px}
+.top b{font-size:17px;font-weight:700;flex:1}
+.top .fresh{font-size:12px;opacity:.85;margin-right:4px}
+.top .ic{width:44px;height:44px;display:grid;place-items:center}
+.top .login{background:#fff;color:#0051a8;font-weight:700;font-size:14px;border-radius:8px;padding:9px 14px}
+.dark .top .login{background:#92b1db;color:#0b0f18}
+.tabs{display:flex;background:var(--surf);border-bottom:1px solid var(--line);align-items:stretch}
+.tabs span{flex:1;text-align:center;font-size:14px;font-weight:600;padding:13px 0;color:var(--faint);border-bottom:2px solid transparent}
+.tabs .on{color:var(--link);border-color:var(--link)}
+.tabs .act{flex:none;align-self:center;margin:0 10px;font-size:13px;font-weight:600;color:var(--link);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.sum{background:var(--surf);padding:14px 16px 12px;display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;border-bottom:1px solid var(--line)}
+.sum .v,.sum .v *{font-family:'Spoqa Han Sans Neo',sans-serif}
+.sum .k{font-size:12px;color:var(--faint)}
+.sum .v{font-size:16px;font-weight:700}
+.sum .stack{grid-column:1/-1}
+.sum .stack .head{display:flex;justify-content:space-between;align-items:baseline}
+.sum .hide{font-family:'Pretendard',sans-serif;font-size:13px;color:var(--link);text-decoration:underline;text-underline-offset:3px;padding:12px 0 12px 12px;margin:-12px 0}
+.sum .huge{display:block;font-size:32px;letter-spacing:-.02em;margin-top:2px}
+.sum a.v{color:inherit;text-decoration:none}
+.sum .rv small{font-family:'Pretendard',sans-serif;font-size:12px;font-weight:500;color:var(--link);text-decoration:underline;text-underline-offset:3px;margin-left:6px}
+.note{background:var(--surf);padding:0 16px 12px;font-size:12px;color:var(--faint);border-bottom:1px solid var(--line);margin-top:-1px}
+.macro{background:var(--surf);border-bottom:1px solid var(--line);display:flex;gap:16px;padding:10px 16px;font-size:13px;color:var(--dim)}
+.macro b{font-weight:700;color:var(--text);margin-left:4px}
+.macro span::after{content:' ›';color:var(--faint)}
+.sig{display:flex;margin:8px;background:var(--surf);border:1px solid var(--line);border-radius:8px}
+.sig div{flex:1;text-align:center;padding:8px 0 7px;border-right:1px solid var(--line);font-size:12px;color:var(--faint)}
+.sig div:last-child{border-right:0}
+.sig b{display:block;font-size:18px;font-weight:700}
+.sig div::after{content:' ›'}
+.shape{display:inline-block;width:.7em;height:.7em;margin-right:3px;vertical-align:0;background:currentColor}
+.up{clip-path:polygon(50% 0,100% 100%,0 100%)}.dn{clip-path:polygon(0 0,100% 0,50% 100%)}.dia{clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)}
+.tools{display:flex;gap:6px;padding:4px 8px 8px;align-items:center}
+.tools .sel{border:1px solid var(--line);background:var(--surf);border-radius:8px;padding:9px 10px;font-size:13px;color:var(--text)}
+.tools .sp{flex:1}
+.tools .btn{border:1px solid var(--line);background:var(--surf);border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;color:var(--text)}
+table{width:100%;border-collapse:collapse;background:var(--surf);font-size:13px}
+th{font-size:12px;font-weight:500;color:var(--faint);text-align:right;padding:7px 10px;border-bottom:1px solid var(--line);background:var(--bg)}
+th:first-child,td:first-child{text-align:left}
+td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:right;vertical-align:top}
+td b{font-weight:600;display:block}
+td small{display:block;font-size:12px;color:var(--faint);margin-top:2px}
+.badge{display:inline-block;font-size:12px;font-weight:600;white-space:nowrap}
+.badge.wt{background:color-mix(in srgb,var(--wt) 12%,transparent);border-radius:6px;padding:1px 5px;margin-top:3px}
+.sigs{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.sigs .badge.wt{margin-top:0}
+.legend{font-size:12px;color:var(--faint);padding:10px 16px 14px}
+.tabbar{position:absolute;left:0;right:0;bottom:0;height:84px;display:flex;padding:8px 6px 26px;background:var(--surf);border-top:1px solid var(--line);color:var(--faint)}
+.tabbar a{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:12px}
+.tabbar svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.tabbar .on{color:var(--link)}
+/* 상태 화면 */
+.page{padding:16px}
+.panel{background:var(--surf);border:1px solid var(--line);border-radius:12px;padding:18px 16px}
+.panel h3{font-size:17px;font-weight:700;margin-bottom:10px;text-wrap:balance}
+.panel p,.panel li{font-size:14px;line-height:1.6;color:var(--dim);text-wrap:pretty}
+.panel ol{padding-left:20px;margin:6px 0 14px}
+.panel .primary{display:inline-block;background:#0051a8;color:#fff;font-weight:700;font-size:15px;border-radius:10px;padding:12px 18px;margin-top:6px}
+.dark .panel .primary{background:#92b1db;color:#0b0f18}
+.panel .hint{font-size:12px;color:var(--faint);margin-top:12px}
+.mchips{display:flex;gap:8px;margin-bottom:12px}
+.mchips span{background:var(--surf);border:1px solid var(--line);border-radius:8px;padding:9px 12px;font-size:13px;color:var(--dim)}
+.mchips b{color:var(--text);margin-left:4px;font-variant-numeric:tabular-nums}
+.icon-slot{display:inline-grid;place-items:center;width:40px;height:40px;border-radius:12px;border:1.5px dashed var(--faint);color:var(--faint);font-size:10px;margin-bottom:10px}
+
+.phone{min-height:760px}
+.tabs.full span{padding:13px 0}
+.tabs.sticky{position:relative}
+.tabs.sticky::after{content:'내려도 붙어 있음';position:absolute;right:8px;top:-9px;font-size:10px;background:var(--warn-bg);color:var(--warn);border-radius:4px;padding:1px 5px}
+.btabs{background:var(--brand);display:flex;padding:0 8px}
+.btabs span{flex:1;text-align:center;font-size:14px;font-weight:600;padding:11px 0 12px;color:var(--on-brand);opacity:.7;border-bottom:3px solid transparent}
+.btabs .on{opacity:1;border-color:var(--on-brand)}
+.ai-row{display:flex;align-items:center;gap:10px;margin:0 8px 8px;background:var(--surf);border:1px solid var(--line);border-radius:8px;padding:12px 14px;font-size:14px;color:var(--text)}
+.ai-row small{display:block;font-size:12px;color:var(--faint);margin-top:2px}
+.ai-row::after{content:'›';margin-left:auto;color:var(--faint);font-size:18px}
+.ai-row i{font-style:normal;color:var(--link);font-size:18px}
+.sig.go div{padding:10px 0 9px}
+.back{display:flex;align-items:center;gap:6px;background:var(--surf);border-bottom:1px solid var(--line);padding:0 8px;height:48px;font-size:16px;font-weight:700}
+.back span{font-size:22px;font-weight:400;width:32px;text-align:center;color:var(--link)}
+.filt{display:flex;gap:6px;padding:10px 8px}
+.filt span{border:1px solid var(--line);background:var(--surf);border-radius:999px;padding:7px 12px;font-size:13px;color:var(--dim)}
+.filt .on{border-color:var(--link);color:var(--link);font-weight:600}
+.card{background:var(--surf);border-top:1px solid var(--line);padding:12px 16px;display:flex;justify-content:space-between;align-items:center}
+.card b{font-size:15px;font-weight:600}
+.card small{display:block;font-size:12px;color:var(--faint);margin-top:3px}
+.pick{font-size:11px;color:#fff;background:#111827;border-radius:6px;padding:2px 6px;margin-left:6px}
+
+.tabbar2{position:absolute;left:0;right:0;bottom:0;height:84px;display:flex;padding:6px 6px 24px;background:var(--surf);border-top:1px solid var(--line);color:var(--faint)}
+.tabbar2 a{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:13px;font-weight:500}
+.tabbar2 svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.tabbar2 .ico{width:56px;height:30px;border-radius:999px;display:grid;place-items:center}
+.tabbar2 .on{color:var(--link);font-weight:700}
+.tabbar2 .on .ico{background:color-mix(in srgb,var(--link) 14%,transparent)}
+.ai-row{display:flex;align-items:center;gap:10px;margin:0 8px 8px;background:var(--surf);border:1px solid var(--line);border-radius:8px;padding:12px 14px;font-size:14px;color:var(--text)}
+.ai-row small{display:block;font-size:12px;color:var(--faint);margin-top:2px}
+.ai-row::after{content:'›';margin-left:auto;color:var(--faint);font-size:18px}
+.ai-row i{font-style:normal;color:var(--link);font-size:18px}
+.h2{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 8px;font-size:17px;font-weight:700}
+.h2 small{font-size:13px;font-weight:600;color:var(--link)}
+.search{margin:0 8px 8px;background:var(--surf);border:1px solid var(--line);border-radius:10px;padding:11px 12px;font-size:14px;color:var(--faint)}
+.li{background:var(--surf);border-top:1px solid var(--line);padding:11px 16px;display:flex;justify-content:space-between;align-items:center;font-size:13px}
+.li b{font-size:15px;font-weight:600;display:block}
+.li small{display:block;font-size:12px;color:var(--faint);margin-top:2px}
+.li .r{text-align:right}
+.back{display:flex;align-items:center;gap:6px;background:var(--surf);border-bottom:1px solid var(--line);padding:0 8px;height:48px;font-size:16px;font-weight:700}
+.back span{font-size:22px;font-weight:400;width:32px;text-align:center;color:var(--link)}
+.seg{display:flex;margin:10px 8px;background:var(--surf);border:1px solid var(--line);border-radius:10px;padding:3px}
+.seg span{flex:1;text-align:center;padding:8px 0;font-size:14px;font-weight:600;color:var(--faint);border-radius:8px}
+.seg .on{background:color-mix(in srgb,var(--link) 14%,transparent);color:var(--link)}
+.price{background:var(--surf);padding:14px 16px}
+.price b{font-size:24px;font-weight:700}
+.chart{height:170px;margin-top:10px;border-radius:8px;background:linear-gradient(180deg,color-mix(in srgb,var(--up) 14%,transparent),transparent);position:relative;overflow:hidden}
+.chart svg{position:absolute;inset:0;width:100%;height:100%}
+.kv{display:grid;grid-template-columns:1fr 1fr;gap:10px 16px;background:var(--surf);padding:12px 16px;border-top:1px solid var(--line)}
+.kv div{font-size:12px;color:var(--faint)} .kv b{display:block;font-size:15px;color:var(--text);margin-top:2px}
+.grp{margin:12px 8px 0;background:var(--surf);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.grp div{padding:14px 14px;border-top:1px solid var(--line);font-size:15px;display:flex;justify-content:space-between}
+.grp div:first-child{border-top:0}
+.grp div::after{content:'›';color:var(--faint)}
+.grp small{color:var(--faint);font-size:13px;margin-left:auto;margin-right:8px}
+.gt{font-size:12px;color:var(--faint);padding:14px 16px 0}
+.pick{font-size:11px;color:#111827;background:#fff;border-radius:6px;padding:2px 6px;margin-left:6px}
+.phone{min-height:760px}
+
+.tabbar2 .ico svg{width:24px;height:24px}
+.filt{display:flex;gap:6px;padding:10px 8px;overflow:hidden}
+.filt span{border:1px solid var(--line);background:var(--surf);border-radius:999px;padding:7px 12px;font-size:13px;color:var(--dim);white-space:nowrap}
+.filt .on{border-color:var(--link);color:var(--link);font-weight:600;background:color-mix(in srgb,var(--link) 8%,var(--surf))}
+.scard{background:var(--surf);border-top:1px solid var(--line);padding:12px 16px}
+.scard .t{display:flex;justify-content:space-between;align-items:baseline}
+.scard b{font-size:15px;font-weight:600}
+.scard .why{font-size:13px;color:var(--dim);margin-top:6px;line-height:1.5}
+.scard .meta{font-size:12px;color:var(--faint);margin-top:4px}
+.btnP{display:flex;align-items:center;justify-content:center;gap:8px;margin:14px 16px;background:var(--link);color:var(--surf);border-radius:10px;padding:13px;font-size:15px;font-weight:700}
+.ai-body{background:var(--surf);padding:16px;font-size:14px;line-height:1.7;color:var(--text);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.ai-body h4{font-size:15px;margin:10px 0 4px}
+.ai-body h4:first-child{margin-top:0}
+.ai-meta{font-size:12px;color:var(--faint);padding:10px 16px}
+.lead{padding:14px 16px 4px;font-size:14px;color:var(--dim);line-height:1.6}
+.grp div{align-items:center;gap:12px}
+.grp img{width:24px;height:24px}
+.grp div span{flex:1}
+.grp small{margin-left:0}
+.pc{width:1180px;min-height:640px;border-radius:14px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.35);position:relative;
+  --brand:#0051a8;--on-brand:#fff;--bg:#eef2f6;--surf:#fff;--text:#111827;--dim:#374151;--faint:#5b6472;--line:#dfe4ea;
+  --buy:#166534;--sell:#b91c1c;--wt:#0051a8;--up:#15803d;--down:#dc2626;--link:#0051a8;background:var(--bg);color:var(--text)}
+.dark .pc{--brand:#002f67;--bg:#0a0f18;--surf:#0d1627;--text:#e6ebf2;--dim:#c3cad5;--faint:#909aab;--line:#1d2a40;--buy:#3ccf71;--sell:#f47171;--wt:#92b1db;--up:#3ccf71;--down:#f47171;--link:#92b1db}
+.pc .top{padding:10px 24px}
+.pcnav{display:flex;gap:4px;background:var(--brand);padding:0 16px}
+.pcnav a{display:flex;align-items:center;gap:8px;color:var(--on-brand);opacity:.75;font-size:15px;font-weight:600;padding:10px 14px 12px;border-bottom:3px solid transparent}
+.pcnav a.on{opacity:1;border-color:var(--on-brand)}
+.pcnav svg{width:20px;height:20px}
+.pcbody{display:grid;grid-template-columns:380px 1fr;gap:16px;padding:16px 24px}
+.pcbody .sum{border:1px solid var(--line);border-radius:12px}
+.pcbody table{border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.wide{flex-basis:100%;display:flex;justify-content:center}
+</style>
+</head>
+<body>
+<script>
+if (new URLSearchParams(location.search).get('theme') !== 'light') document.documentElement.classList.add('dark')
+const I = {
+  r: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg>',
+  m: '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>',
+}
+const TABS = [['대시보드','<path d="M12 3a9 9 0 1 0 9 9h-9z"/><path d="M15 3.5A9 9 0 0 1 20.5 9H15z"/>'],['재무','<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/>'],['리밸런싱','<path d="M12 4v16M5 20h14M6 8h12M6 8l-3 6h6zM18 8l-3 6h6z"/>'],['매크로','<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>'],['더보기','<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>']]
+const tabbar = (on = 0) => `<nav class="tabbar">${TABS.map(([n, d], i) => `<a class="${i === on ? 'on' : ''}"><svg viewBox="0 0 24 24">${d}</svg>${n}</a>`).join('')}</nav>`
+const status = () => `<div class="status"><span class="num">8:12</span><span>●●● ▮</span></div>`
+const topBar = (right = `<span class="fresh">방금 받음</span><span class="ic">${I.r}</span><span class="ic">${I.m}</span>`) => `<div class="top"><b>자산관리</b>${right}</div>`
+const sum = (macroIn) => `<div class="sum">
+  <div class="stack"><div class="head"><span class="k">총 평가금액</span><span class="hide">금액 가리기</span></div><span class="v num huge">₩525,114,227</span></div>
+  <div><div class="k">평가손익</div><div class="v num" style="color:var(--up)">+₩58,154,466</div></div>
+  <div><div class="k">수익률</div><div class="v num" style="color:var(--up)">+12.5%</div></div>
+  <div><div class="k">최근 거래일 대비</div><div class="v num" style="color:var(--up)">+₩2,733,187</div></div>
+  <div class="rv"><div class="k">다음 리뷰 · 분기</div><a class="v num">55일 뒤<small>리밸런싱</small></a></div>
+</div><div class="note">현금 ₩0 · 현금 포함 · 원화 기준</div>${macroIn ? macro() : ''}`
+const macro = () => `<div class="macro"><span>VIX<b class="num">21.0</b></span><span>장단기 금리차<b class="num">0.36%</b></span></div>`
+const sig = () => `<div class="sig"><div><b class="num" style="color:var(--buy)">3</b><i class="shape up" style="color:var(--buy)"></i>매수</div><div><b class="num" style="color:var(--sell)">4</b><i class="shape dn" style="color:var(--sell)"></i>매도</div><div><b class="num" style="color:var(--wt)">5</b><i class="shape dia" style="color:var(--wt)"></i>비중조절</div></div>`
+const tools = () => `<div class="tools"><span class="sel">평가금액순 ▾</span><span class="sel">종목별 통화 ▾</span><span class="sp"></span><span class="btn">✎ 수정</span></div>`
+const H = [
+  ['TIGER 미국필라델피아반도체나스닥', '2,000주', '₩38,420,000', '+11.6%', 'up', '7.3%', '₩19,210', '+1.2%', ['buy'], '+₩3,993,103'],
+  ['VOO', '40주', '₩30,120,551', '+21.9%', 'up', '5.7%', '$542.11', '+0.4%', [], '+₩5,411,612'],
+  ['삼성전자', '1,500주', '₩83,250,000', '−7.4%', 'down', '15.9%', '₩55,500', '−0.9%', ['buy'], '−₩6,652,700'],
+  ['NVDA', '45주', '₩8,962,310', '+66.7%', 'up', '1.7%', '$143.20', '+2.8%', ['buy', 'wt'], '+₩3,585,820'],
+  ['トヨタ自動車', '300주', '₩7,812,004', '−9.1%', 'down', '1.5%', '¥2,612', '−0.3%', ['wt'], '−₩782,140'],
+]
+const sigCell = s => s.length ? s.map(k => k === 'buy' ? `<span class="badge" style="color:var(--buy)"><i class="shape up"></i>매수</span>` : `<span class="badge wt" style="color:var(--wt)"><i class="shape dia"></i>비중 초과</span>`).join(' ') : ''
+const table = (full) => `<table style="table-layout:fixed"><colgroup><col><col style="width:33%"><col style="width:28%"></colgroup><tr><th>종목 · 수량 · 신호</th><th>평가금액</th><th>수익률</th></tr>
+  ${H.map(h => `<tr><td><b>${h[0]}</b><small class="num">${h[1]} · 비중 ${h[5]}</small>${h[8].length ? `<div class="sigs">${sigCell(h[8])}</div>` : ''}</td><td class="num">${h[2]}${full ? `<small class="num">${h[6]} <span style="color:var(--${h[7].startsWith('+') ? 'up' : 'down'})">${h[7]}</span></small>` : ''}</td><td class="num" style="color:var(--${h[4]})">${h[3]}<small class="num" style="color:var(--${h[4]})">${h[9]}</small></td></tr>`).join('')}
+</table><div class="legend">▲ 매수 · ▼ 매도(참고) · ◆ 비중조절 — 시그널은 참고용이며 투자 권유가 아닙니다.</div>`
+
+
+
+
+const gear = (() => { let d = ''; for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2, w = Math.PI / 6, p = (r, g) => `${(12 + r * Math.cos(g)).toFixed(2)} ${(12 + r * Math.sin(g)).toFixed(2)}`; d += (i ? 'L' : 'M') + p(7, a - w * 0.6) + `L${p(8.7, a - w * 0.36)}Q${p(9.6, a)} ${p(8.7, a + w * 0.36)}L${p(7, a + w * 0.6)}` } return d + 'Z' })()
+const IC = {
+  홈: [['M3.8 11.2 10.7 5a2 2 0 0 1 2.6 0l6.9 6.2V19a1.5 1.5 0 0 1-1.5 1.5H5.3A1.5 1.5 0 0 1 3.8 19z', 1], ['M12 14.5v3', 0, 1]],
+  종목: [['M7 3.5v3M7 15.5v4M17 4.5v4M17 15.5v4', 0], ['M5 6.5h4v9H5z', 1], ['M15 8.5h4v7h-4z', 1]],
+  리밸런싱: [['M20.5 12A8.5 8.5 0 1 1 12 3.5M17 12a5 5 0 1 1-5-5', 0], ['M12 3.5A8.5 8.5 0 0 1 20.5 12H17a5 5 0 0 0-5-5z', 1]],
+  매크로: [['M3.5 16.5a8.5 8.5 0 1 1 17 0z', 1], ['M12 16.5l3.5-5', 0, 1], ['M3.5 16.5h17', 0]],
+  설정: [[gear, 1], ['M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z', 0, 1]],
+  뒤로: [['M15 5l-7 7 7 7', 0]],
+  AI: [['M12 3.5c.7 5 3.5 7.8 8.5 8.5-5 .7-7.8 3.5-8.5 8.5-.7-5-3.5-7.8-8.5-8.5 5-.7 7.8-3.5 8.5-8.5z', 1]],
+  새로고침: [['M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4', 0]],
+}
+const ico = (n, on = false, size = 24) => `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${IC[n].map(([d, c, k]) => on ? (c ? `<path d="${d}" fill="currentColor"/>` : `<path d="${d}"${k ? ' stroke="var(--surf)"' : ''}/>`) : `<path d="${d}"/>`).join('')}</svg>`
+const TAB5 = ['홈', '종목', '리밸런싱', '매크로', '설정']
+const nav = (on) => `<nav class="tabbar2">${TAB5.map((n, i) => `<a class="${i === on ? 'on' : ''}"><span class="ico">${ico(n, i === on)}</span>${n}</a>`).join('')}</nav>`
+const topR = () => topBar(`<span class="fresh">방금 받음</span><span class="ic">${ico('새로고침', false, 22)}</span>`)
+const back = (t) => `<div class="back"><span style="display:grid;place-items:center">${ico('뒤로', false, 22)}</span>${t}</div>`
+const aiRow = (t, sub) => `<div class="ai-row"><i style="display:grid">${ico('AI', false, 22)}</i><div>${t}<small>${sub}</small></div></div>`
+const home = `<div class="phone">${status()}${topR()}${sum(false)}${sig()}${aiRow('AI 포트폴리오 진단', '내 비중 · 수익률로 전체를 점검')}${tools()}${table(false)}${nav(0)}</div>`
+const sigs = `<div class="phone">${status()}${topR()}${back('시그널 12')}
+  <div class="filt"><span class="on">전체 12</span><span>▲ 매수 3</span><span>▼ 매도 4</span><span>◆ 비중 5</span></div>
+  ${aiRow('AI 전체 정리', '담은 종목 전체를 한 장으로')}
+  ${[['삼성전자','buy','<i class="shape up"></i>매수','20일선을 거래량과 함께 넘었습니다','오늘 · 3일째'],['NVDA','buy','<i class="shape up"></i>매수','눌림 뒤 반등 — 조건 3개 중 3개','어제부터'],['VOO','sell','<i class="shape dn"></i>매도(참고)','목표가를 넘었습니다','오늘'],['トヨタ自動車','wt','<i class="shape dia"></i>비중 초과','목표 1.0% → 지금 1.5%','리밸런싱에서 보기'],['TIGER 미국필라델피아반도체나스닥','sell','<i class="shape dn"></i>매도(참고)','과열 구간 — RSI 78','오늘']].map(c=>`<div class="scard"><div class="t"><b>${c[0]}</b><span class="badge" style="color:var(--${c[1]})">${c[2]}</span></div><div class="why">${c[3]}</div><div class="meta">${c[4]}</div></div>`).join('')}
+  ${nav(0)}</div>`
+const ai = `<div class="phone">${status()}${topR()}${back('AI 포트폴리오 진단')}
+  <div class="lead">담은 종목의 비중과 수익률(%)만 AI 에 보냅니다. 금액은 보내지 않습니다.</div>
+  <div class="ai-meta">마지막 진단 · 11월 5일 15:42</div>
+  <div class="ai-body"><h4>한 줄</h4>반도체 비중이 목표보다 9%p 높고, 나머지는 목표 근처입니다.<h4>눈여겨볼 것</h4>삼성전자 · TIGER 반도체 · NVDA 가 모두 같은 업종이라 함께 움직입니다. 업종이 겹치면 한쪽이 떨어질 때 같이 떨어집니다.<h4>다음 리뷰까지</h4>새로 사기보다 겹친 비중을 덜어 목표에 가깝게 맞추는 쪽이 리밸런싱 규칙과 맞습니다.</div>
+  <div class="btnP">${ico('AI', false, 20)}다시 진단하기</div>
+  <div class="ai-meta">AI 의 글은 참고용이며 투자 권유가 아닙니다.</div>
+  ${nav(0)}</div>`
+const tf = (c) => `<img src="../assets/tossface/${c}.svg" alt="">`
+const settings = `<div class="phone">${status()}${topR()}<div class="h2">설정</div>
+  <div class="gt">보기</div><div class="grp"><div>${tf('u1F5A5')}<span>화면</span><small>다크 · 상승 초록</small></div><div>${tf('u1F514')}<span>알림</span><small>켜짐</small></div></div>
+  <div class="gt">AI · 계정</div><div class="grp"><div>${tf('u1F511')}<span>AI 키</span><small>등록됨</small></div><div>${tf('u1FA7A')}<span>진단</span></div><div>${tf('u1F465')}<span>사용자 관리</span><small>신청 1</small></div><div>${tf('u1F6AA')}<span>로그아웃</span></div></div>
+  <div class="gt">정보</div><div class="grp"><div>${tf('u1F4C4')}<span>개인정보 처리방침</span></div><div>${tf('u1F4DC')}<span>만든 것들 · 글꼴 · 토스페이스</span></div></div>
+  ${nav(4)}</div>`
+const pc = `<div class="pc"><div class="top"><b>자산관리</b><span class="fresh">방금 받음</span><span class="ic">${ico('새로고침', false, 22)}</span></div>
+  <nav class="pcnav">${TAB5.map((n, i) => `<a class="${i === 0 ? 'on' : ''}">${ico(n, i === 0, 20)}${n}</a>`).join('')}</nav>
+  <div class="pcbody"><div>${sum(false)}${sig()}${aiRow('AI 포트폴리오 진단', '내 비중 · 수익률로 전체를 점검')}</div><div>${tools()}${table(true)}</div></div></div>`
+document.body.innerHTML = `
+  <div class="col"><div class="cap">홈<small>위 탭 없음 · 시그널 칸 → 시그널 목록 · AI 진단 한 줄</small></div>${home}</div>
+  <div class="col"><div class="cap">시그널 목록<small>‹ 홈으로 · 종류별 거르기 · AI 전체 정리</small></div>${sigs}</div>
+  <div class="col"><div class="cap">AI 포트폴리오 진단<small>창이 아니라 화면 하나 · 긴 글 읽기</small></div>${ai}</div>
+  <div class="col"><div class="cap">설정 탭<small>머리 ⋯ 메뉴가 여기로 · 토스페이스</small></div>${settings}</div>
+  <div class="col wide"><div><div class="cap">PC — 같은 다섯을 머리 띠 아래 한 줄 · 홈은 두 칸</div>${pc}</div></div>`
+</script>
+</body>
+</html>
