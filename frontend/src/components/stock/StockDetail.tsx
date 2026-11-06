@@ -1,11 +1,15 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import { Link, useInRouterContext } from 'react-router-dom'
+import { useBackToClose } from '../../lib/backToClose'
 import { api } from '../../api/client'
-import type { DashboardCard, FundamentalsResponse, HistoryResponse } from '../../types'
+import type { DashboardCard, FundamentalsResponse, HistoryResponse, RebalanceCurrent } from '../../types'
+import { useAppState } from '../../AppState'
+import { useCachedLoad } from '../../lib/cache'
 import { useNarrow } from '../../lib/narrow'
-import { showsSellConditions } from '../../lib/signalRules'
+import { showsSellConditions, useSignalRules } from '../../lib/signalRules'
 import { emptyReason, type ChartTab } from '../../lib/fundamentals'
 import { cardSignals, tone as toneOf } from '../../lib/portfolio'
-import { MARKET_LABEL, price, signed } from '../../lib/display'
+import { MARKET_LABEL, num, price, signed, trafficLight } from '../../lib/display'
 import { pushAccount } from '../../lib/push'
 import { BuyConditions, SellConditions } from '../BuyConditions'
 import { useAuth } from '../AuthGate'
@@ -19,6 +23,27 @@ import { Icon } from '../icons/Icon'
 import { ChartCoverage } from './ChartCoverage'
 import { RANGE_OPTIONS, type Range } from '../../lib/chartRange'
 import { HoldingTab } from './HoldingTab'
+
+/**
+ * 이 종목의 평가금액 · 수익률 · 지금 비중 — 홈·리밸런싱과 같은 응답(새 계산 없음). 못 받으면 그 칸만 빈다.
+ * 신호·보유 탭에서만 그린다 — 차트만 보는 팝업은 돈 응답을 기다릴 까닭이 없다.
+ */
+function CurrentLoader({ onLoad }: { onLoad: (value: RebalanceCurrent | null) => void }) {
+  const { refreshKey } = useAppState()
+  useCachedLoad('page:stocks:current', api.getRebalanceCurrent, onLoad, () => onLoad(null), [refreshKey])
+  return null
+}
+
+/** AI 분석 보기 — 뒤로가기로 닫히면 차트로 돌아간다(종목 목록으로 나가지 않게, 사용자 확인 찾지 못한 것 1) */
+function AiView({ onBack, children }: { onBack: () => void; children: ReactNode }) {
+  useBackToClose(onBack)
+  return (
+    <section className="stock-ai" aria-label="AI 분석">
+      <h3 className="detail-card-title">AI 분석</h3>
+      {children}
+    </section>
+  )
+}
 
 const TAB_LABEL: Record<Exclude<ChartTab, 'ai'>, string> = {
   chart: '차트',
@@ -72,8 +97,8 @@ export function StockDetail({ ticker, name, card, initialTab = 'chart', lead, tr
 
   // 재무는 한 번만 — 차트 기간을 바꿀 때마다 다시 물을 이유가 없다. 못 받아도 차트는 그대로다.
   useEffect(() => {
+    // 종목이 바뀌면 부품을 새로 만든다(key) — 실패 표시는 처음 값(false)에서 시작한다
     let alive = true
-    setFundFailed(false)
     api
       .getFundamentals(ticker)
       .then((data) => alive && setFundamentals(data))
@@ -90,15 +115,22 @@ export function StockDetail({ ticker, name, card, initialTab = 'chart', lead, tr
   const { user, guest, pending, canAdvise } = useAuth()
   // 보유 · AI 분석은 들어와 쓰는 사람만 — 손님·승인 대기는 담은 종목이 없다
   const member = !guest && !pending
+  // 이 종목의 평가금액 · 수익률 · 지금 비중 — 신호·보유 탭을 열 때 받는다(CurrentLoader)
+  const [current, setCurrent] = useState<RebalanceCurrent | null>(null)
+  const row = current?.rows.find((r) => r.ticker === ticker) ?? null
   const tabs = (['chart', 'signal', 'fundamentals', ...(member ? (['holding'] as const) : [])] as const).map((key) => ({
     key,
     label: TAB_LABEL[key],
   }))
   const activeTab: ChartTab = (tab === 'ai' || tab === 'holding') && !member ? 'chart' : tab
 
+  const rules = useSignalRules()
+  const inRouter = useInRouterContext()
   const label = name ?? card?.name ?? ticker
   const signals = card ? cardSignals(card) : []
   const ind = card?.indicators
+  const state = card ? trafficLight(card, rules).state : null
+  const quiet = state === 'watch'
   const change = ind?.change_pct ?? null
 
   return (
@@ -106,6 +138,13 @@ export function StockDetail({ ticker, name, card, initialTab = 'chart', lead, tr
       <div className="stock-detail-bar">
         {lead}
         <h2 className="stock-detail-name">{label}</h2>
+        {/* AI 분석은 머리 오른쪽 작은 한 줄 — 첫 화면에서 보이게(사용자 확인 찾지 못한 것 1). 시그널 목록 머리의 "AI 종목 정리"와 같은 모양 */}
+        {member && (
+          <button type="button" className={`ai-mini${activeTab === 'ai' ? ' active' : ''}`} aria-pressed={activeTab === 'ai'} onClick={() => setTab('ai')}>
+            <Icon name="ai" size={16} />
+            AI 분석
+          </button>
+        )}
         {trail}
       </div>
       <div className="stock-hero">
@@ -126,6 +165,8 @@ export function StockDetail({ ticker, name, card, initialTab = 'chart', lead, tr
           </p>
         )}
         <SignalBadges signals={signals} className="stock-hero-badges" />
+        {/* 오늘 매수·매도가 아니면 한 줄로 — 아래 "매수 조건 n/4"가 사라는 뜻으로 읽혔다(사용자 확인 헷갈린 말 1) */}
+        {card && quiet && <p className="hint stock-hero-state">오늘은 매수·매도 신호가 없습니다. 아래 조건 줄은 몇 개가 맞는지만 보입니다.</p>}
       </div>
 
       <div className="stock-tabs" role="tablist" aria-label={`${label} 보기`}>
@@ -144,6 +185,7 @@ export function StockDetail({ ticker, name, card, initialTab = 'chart', lead, tr
         ))}
       </div>
 
+      {member && (activeTab === 'signal' || activeTab === 'holding') && <CurrentLoader onLoad={setCurrent} />}
       <div className="stock-detail-body">
         {activeTab === 'chart' && (
           <>
@@ -191,6 +233,12 @@ export function StockDetail({ ticker, name, card, initialTab = 'chart', lead, tr
               </section>
               <section className="detail-card">
                 <h3 className="detail-card-title">비중조절</h3>
+                {row && (
+                  <p className="detail-weight">
+                    지금 <b className="mono">{num(row.actual_weight_pct, 1)}%</b> · 목표 <span className="mono">{num(row.target_weight_pct, 1)}%</span>{' '}
+                    <span className="hint nowrap">(허용 ±{num(row.band_pct, 1)}%p)</span>
+                  </p>
+                )}
                 {(card.rebalance_signal?.reasons.length ?? 0) > 0 ? (
                   <div className="badge-row">
                     {card.rebalance_signal.reasons.map((r) => (
@@ -218,31 +266,26 @@ export function StockDetail({ ticker, name, card, initialTab = 'chart', lead, tr
             <p className="hint detail-empty">{fundFailed ? '재무를 불러오지 못했습니다. 잠시 뒤 다시 열어 보세요.' : '재무를 불러오는 중…'}</p>
           ))}
 
-        {activeTab === 'holding' && <HoldingTab ticker={ticker} onPurged={onPurged} />}
+        {/* 여러 종목 비교로 가는 길 — 재무 탭에서 바로(사용자 확인 찾지 못한 것 2) */}
+        {activeTab === 'fundamentals' && inRouter && member && (
+          <Link to="/fundamentals" className="detail-link">
+            여러 종목 재무 한눈에 ›
+          </Link>
+        )}
+
+        {activeTab === 'holding' && <HoldingTab ticker={ticker} row={row} baseCurrency={current?.base_currency ?? 'KRW'} onPurged={onPurged} />}
 
         {activeTab === 'ai' && (
-          <section className="stock-ai" aria-label="AI 분석">
-            <h3 className="detail-card-title">AI 분석</h3>
+          <AiView onBack={() => setTab('chart')}>
             <AiPanel
               // AI 분석은 하나 (9-13) — 웹을 찾아보는 종목 분석(내 비중 % 포함, 9-8). 관리자가 사용자에게 닫아 두면(9-15)
               // 그 사용자는 공용 숫자만 보내는 종목 정리를 받는다.
               target={canAdvise ? { kind: 'research', ticker } : { kind: 'stock', ticker }}
               account={pushAccount(user)}
             />
-          </section>
+          </AiView>
         )}
 
-        {member && activeTab !== 'ai' && activeTab !== 'holding' && (
-          <div className="detail-row">
-            <button type="button" className="detail-row-link" onClick={() => setTab('ai')}>
-              <span className="detail-row-icon">
-                <Icon name="ai" />
-              </span>
-              <span className="detail-row-text">AI 분석</span>
-            </button>
-            <p className="hint detail-row-hint">신호 근거와 소식을 글로 정리합니다 · AI 키 필요</p>
-          </div>
-        )}
       </div>
     </div>
   )

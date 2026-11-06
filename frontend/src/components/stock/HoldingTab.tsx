@@ -2,20 +2,32 @@ import { useState } from 'react'
 import { api } from '../../api/client'
 import { useAppState } from '../../AppState'
 import { useCachedLoad } from '../../lib/cache'
-import { avgPrice, num, qty, savedStocksText, stockLabel } from '../../lib/display'
+import { amount, avgPrice, num, qty, savedStocksText, signed, signedAmount, stockLabel } from '../../lib/display'
+import { tone } from '../../lib/portfolio'
 import { fxUnitLabel } from '../../lib/fxInput'
-import type { Holding, Stock } from '../../types'
+import type { Currency, Holding, RebalanceRow, Stock } from '../../types'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { ErrorNotice } from '../ErrorNotice'
 import { StockEditModal } from '../StockEditModal'
 import { Icon } from '../icons/Icon'
 
 /**
- * 종목 안 "보유" 탭 — 수량 · 평단가 · 구분 · 목표 비중 · 밴드를 보이고, 고치기는 "종목 한 번에 수정" 팝업을
- * 이 종목 칸에 커서를 둔 채로 연다(같은 팝업 — 고치는 곳이 둘이 되지 않게, ROADMAP 9-11).
+ * 종목 안 "보유" 탭 — 수량 · 평단가 · 평가금액 · 수익률 · 지금 비중과 구분 · 목표 · 밴드를 보이고, 고치기는 "종목 한 번에 수정"
+ * 팝업을 이 종목 칸만으로 연다(같은 팝업 — 고치는 곳이 둘이 되지 않게, ROADMAP 9-11).
  * 예전 종목 관리 표의 줄마다 있던 일(시세 갱신 · 비활성화 · 삭제)도 여기로 왔다 — 그 종목에만 하는 일이다.
  */
-export function HoldingTab({ ticker, onPurged }: { ticker: string; onPurged?: () => void }) {
+export function HoldingTab({
+  ticker,
+  row = null,
+  baseCurrency = 'KRW',
+  onPurged,
+}: {
+  ticker: string
+  /** 홈·리밸런싱과 같은 응답의 이 종목 줄 — 평가금액 · 수익률 · 지금 비중. 없으면 그 칸을 그리지 않는다 */
+  row?: RebalanceRow | null
+  baseCurrency?: Currency
+  onPurged?: () => void
+}) {
   const { refreshKey, notifyDataChanged } = useAppState()
   const [stocks, setStocks] = useState<Stock[] | null>(null)
   const [holdings, setHoldings] = useState<Map<string, Holding>>(new Map())
@@ -123,13 +135,33 @@ export function HoldingTab({ ticker, onPurged }: { ticker: string; onPurged?: ()
               </dd>
             </div>
           )}
+          {held && row && (
+            <>
+              <div>
+                <dt>평가금액</dt>
+                <dd className="mono">{amount(row.current_value_base, baseCurrency)}</dd>
+              </div>
+              <div>
+                <dt>수익률</dt>
+                <dd className={`mono ${tone(row.shown_return_pct ?? row.return_pct)}`}>
+                  {row.avg_cost === null ? <span className="hint">평단가 없음</span> : signed(row.shown_return_pct ?? row.return_pct, 1, '%')}
+                  {row.avg_cost !== null && (
+                    <span className="detail-kv-sub">{signedAmount(row.shown_pnl ?? row.unrealized_pnl, row.shown_currency ?? row.currency)}</span>
+                  )}
+                </dd>
+              </div>
+            </>
+          )}
           <div>
             <dt>구분</dt>
             <dd>{stock.category ?? <span className="hint">없음</span>}</dd>
           </div>
           <div>
-            <dt>목표 비중</dt>
-            <dd className="mono">{num(stock.target_weight_pct, 1)}%</dd>
+            <dt>{row ? '비중 지금 / 목표' : '목표 비중'}</dt>
+            <dd className="mono">
+              {row && `${num(row.actual_weight_pct, 1)}% / `}
+              {num(stock.target_weight_pct, 1)}%
+            </dd>
           </div>
           <div>
             <dt>밴드</dt>
@@ -164,6 +196,7 @@ export function HoldingTab({ ticker, onPurged }: { ticker: string; onPurged?: ()
           holdings={holdings}
           cashTargetPct={cashTarget}
           focus={{ ticker, field: 'quantity' }}
+          only
           onClose={() => setEditing(false)}
           onSaved={(labels) => {
             setNotice(savedStocksText(labels))

@@ -148,6 +148,15 @@
   font-size: var(--fs-strong);
   font-weight: 700;
 }
+.detail-kv-sub {
+  display: block;
+  font-size: var(--fs-caption);
+  font-weight: 500;
+}
+.detail-weight {
+  margin: 0 0 8px;
+  font-size: var(--fs-body);
+}
 .detail-actions {
   margin-top: 10px;
   flex-wrap: wrap;
@@ -160,41 +169,29 @@
   text-wrap: pretty;
 }
 
-/* AI 분석으로 들어가는 한 줄 — 단추는 이름만(좁은 폭에서 꺾이지 않게), 풀이는 아래 한 줄 */
-.detail-row {
-  margin-top: 12px;
-  padding: 4px 14px 10px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+.stock-detail-bar .ai-mini {
+  flex: none;
 }
-button.detail-row-link {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  min-height: 44px;
-  padding: 0;
-  text-align: left;
+.ai-mini.active {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+button.ai-mini {
   background: none;
   border: 0;
-  color: var(--text);
-  font-size: var(--fs-body);
-  font-weight: 600;
 }
-button.detail-row-link::after {
-  content: '›';
-  margin-left: auto;
-  color: var(--text-faint);
-  font-size: var(--fs-strong);
+.stock-hero-state {
+  margin: 6px 0 0;
+  text-wrap: pretty;
 }
-.detail-row-icon {
-  color: var(--accent);
+.detail-link {
   display: inline-flex;
-}
-.detail-row-hint {
-  margin: 0 0 0 32px;
-  text-wrap: balance; /* 짧은 안내 — 130% 글자에서 "필요"만 떨어지던 외톨이 */
+  align-items: center;
+  min-height: 44px;
+  margin-top: 8px;
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
 }
 
 /* 머리의 배지는 바탕(--bg) 위에 있다 — 옅은 칠을 판(--panel) 위에 얹어 표의 배지와 같은 대비로 (상승 빨강 라이트 청록 4.5) */

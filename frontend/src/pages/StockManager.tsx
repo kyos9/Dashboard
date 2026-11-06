@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useAppState } from '../AppState'
 import { ApiError, api } from '../api/client'
@@ -97,7 +97,11 @@ export function StockManager() {
   const [form, setForm] = useState<NewStockForm>(emptyForm)
   const [cashTarget, setCashTarget] = useState(0)
   const [error, setError] = useState<unknown>(null)
-  const [notice, setNotice] = useState<{ tone: 'green' | 'amber'; text: string; detail?: string } | null>(null)
+  // 종목 안에서 지우고 돌아오면 한 줄 — 줄만 사라지던 것(사용자 확인 찾지 못한 것 4)
+  const purged = (useLocation().state as { purged?: string } | null)?.purged
+  const [notice, setNotice] = useState<{ tone: 'green' | 'amber'; text: string; detail?: string } | null>(() =>
+    purged ? { tone: 'green', text: `${purged}을(를) 지웠습니다.` } : null,
+  )
   // 목표 비중을 비운 채 수량을 넣고 추가했을 때 (0.45.4 C) — 위 알림은 시세를 다 받으면 바뀌어 사라지므로 따로,
   // 사람이 닫을 때까지 남긴다. 이어서 또 넣으면 마지막 것 하나만
   const [zeroTarget, setZeroTarget] = useState<string | null>(null)
@@ -117,6 +121,8 @@ export function StockManager() {
   const [editing, setEditing] = useState(false)
   // 일괄 수정을 닫은 뒤 한 줄 — 수정을 다시 열 때까지 (0.45.2 A3)
   const [savedNote, setSavedNote] = useState('')
+  // 순서 — 방금 옮긴 종목. 그 종목의 단추에 포커스를 두고 줄을 잠깐 표시한다(같은 자리를 다시 눌러 되돌아가던 것, 사용자 확인 막힌 곳 3)
+  const [moved, setMoved] = useState<{ ticker: string; direction: 'up' | 'down' } | null>(null)
 
   const sheetOpen = picked !== null || rawTicker !== null
   // 산 환율은 목록에서 고른 외화 종목만 받는다
@@ -300,9 +306,11 @@ export function StockManager() {
     const previous = stocks
     const byTicker = new Map(stocks.map((s) => [s.ticker, s]))
     setStocks(next.map((t) => byTicker.get(t)!))
+    setMoved({ ticker, direction })
     setOrderBusy(true)
     try {
       await api.updateStockOrder(next)
+      setSavedNote('순서를 저장했습니다 — 홈 표와 시그널 목록도 이 순서입니다.')
       notifyDataChanged()
     } catch (e) {
       setStocks(previous)
@@ -322,7 +330,7 @@ export function StockManager() {
       <div className="page-head stocks-head">
         <div>
           <h2>
-            종목 <span className="sub-count">{stocks.length}종목</span>
+            종목 <span className="sub-count">{stocks.length}개</span>
           </h2>
           <PageIntro line="찾아서 담으면 지난 시세를 받아 지표·시그널을 계산합니다." firstVisit={stocksLoading ? null : stocks.length === 0}>
             국내주식은 종목명(삼성전자)이나 종목코드(005930)로, 미국주식은 티커(VOO)나 영문 이름(Agilent)으로 찾을 수
@@ -407,7 +415,15 @@ export function StockManager() {
               <button type="button" className={`chip${view === 'card' && !ordering ? ' active' : ''}`} aria-pressed={view === 'card'} onClick={() => setView('card')}>
                 카드 보기
               </button>
-              <button type="button" className={`chip${ordering ? ' active' : ''}`} aria-pressed={ordering} onClick={() => setOrdering((o) => !o)}>
+              <button
+                type="button"
+                className={`chip${ordering ? ' active' : ''}`}
+                aria-pressed={ordering}
+                onClick={() => {
+                  setMoved(null)
+                  setOrdering((o) => !o)
+                }}
+              >
                 {ordering ? '순서 바꾸기 끝' : '↕ 순서 바꾸기'}
               </button>
               <button
@@ -422,7 +438,7 @@ export function StockManager() {
                 ✎ 한 번에 수정
               </button>
               <Link to="/fundamentals" className="chip">
-                PER 한눈에
+                재무 한눈에
               </Link>
             </div>
           )}
@@ -459,19 +475,30 @@ export function StockManager() {
       ) : ordering ? (
         <ol className="stock-list stock-order" aria-label="종목 순서">
           {visible.map((s, i) => (
-            <li key={s.ticker} className="stock-row" data-ticker={s.ticker}>
+            <li key={s.ticker} className={`stock-row${moved?.ticker === s.ticker ? ' just-moved' : ''}`} data-ticker={s.ticker}>
               <span className="stock-row-name">
                 <span className="stock-row-title">{stockLabel(s)}</span>
                 <span className="stock-row-sub hint">{subLine(s)}</span>
               </span>
               <span className="move-buttons">
-                <button type="button" aria-label={`${stockLabel(s)} 위로`} disabled={orderBusy || i === 0} onClick={() => void move(s.ticker, 'up')}>
+                <button
+                  type="button"
+                  aria-label={`${stockLabel(s)} 위로`}
+                  disabled={orderBusy || i === 0}
+                  ref={(el) => {
+                    if (el && !orderBusy && moved?.ticker === s.ticker && moved.direction === 'up' && document.activeElement !== el) el.focus()
+                  }}
+                  onClick={() => void move(s.ticker, 'up')}
+                >
                   ▲
                 </button>
                 <button
                   type="button"
                   aria-label={`${stockLabel(s)} 아래로`}
                   disabled={orderBusy || i === visible.length - 1}
+                  ref={(el) => {
+                    if (el && !orderBusy && moved?.ticker === s.ticker && moved.direction === 'down' && document.activeElement !== el) el.focus()
+                  }}
                   onClick={() => void move(s.ticker, 'down')}
                 >
                   ▼
@@ -490,6 +517,8 @@ export function StockManager() {
                   <span className="stock-row-title">{stockLabel(s)}</span>
                   <span className="stock-row-sub hint">{subLine(s)}</span>
                   <Sparkline values={spark.get(s.ticker) ?? []} />
+                  {/* 선은 석 달, 아래 %는 하루 — 색이 달라도 헷갈리지 않게 이름을 붙인다(검토 참고 2 · 사용자 확인 8) */}
+                  <span className="stock-tile-span hint">3개월</span>
                   <PriceBlock stock={s} card={card} />
                   <span className="stock-tile-badges">
                     {card && <SignalBadges signals={cardSignals(card)} />}

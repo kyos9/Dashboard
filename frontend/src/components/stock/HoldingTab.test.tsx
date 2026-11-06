@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppStateProvider } from '../../AppState'
 import { api } from '../../api/client'
 import { clearCache } from '../../lib/cache'
-import type { Holding, Stock } from '../../types'
+import type { Holding, RebalanceRow, Stock } from '../../types'
 import { HoldingTab } from './HoldingTab'
 
 function stock(overrides: Partial<Stock> & { ticker: string }): Stock {
@@ -38,11 +38,11 @@ function mockApi(stocks: Stock[], holdings: Holding[] = []) {
   } as never)
 }
 
-function renderTab(ticker: string, onPurged = vi.fn()) {
+function renderTab(ticker: string, onPurged = vi.fn(), row: RebalanceRow | null = null) {
   render(
     <MemoryRouter>
       <AppStateProvider>
-        <HoldingTab ticker={ticker} onPurged={onPurged} />
+        <HoldingTab ticker={ticker} onPurged={onPurged} row={row} />
       </AppStateProvider>
     </MemoryRouter>,
   )
@@ -82,7 +82,23 @@ describe('종목 안 · 보유 탭 (묶음 3 — 종목 관리 표의 줄이 여
     expect(screen.getByText('±3.0%p')).toBeInTheDocument()
   })
 
-  it('고치기는 "종목 한 번에 수정"을 이 종목 수량 칸에 커서를 둔 채로 연다', async () => {
+  it('들고 있으면 평가금액 · 수익률(+수익금) · 지금 비중도 — 홈과 같은 응답의 줄 (사용자 확인 찾지 못한 것 5)', async () => {
+    mockApi(
+      [stock({ ticker: 'VOO', target_weight_pct: 18 })],
+      [{ ticker: 'VOO', quantity: 40, avg_cost: 80.65, avg_fx: null, updated_at: '2026-09-01T00:00:00' }],
+    )
+    const row = {
+      ticker: 'VOO', currency: 'USD', quantity: 40, avg_cost: 80.65, current_value_base: 5284212,
+      return_pct: 21.9, unrealized_pnl: 707.6, actual_weight_pct: 17.2, target_weight_pct: 18,
+    } as unknown as RebalanceRow
+    renderTab('VOO', vi.fn(), row)
+    expect(await screen.findByText('₩5,284,212')).toBeInTheDocument()
+    expect(screen.getByText('+21.9%')).toBeInTheDocument()
+    expect(screen.getByText('+$707.60')).toBeInTheDocument()
+    expect(screen.getByText('17.2% / 18.0%')).toBeInTheDocument()
+  })
+
+  it('고치기는 이 종목 칸만 연다 — 다른 종목 칸이 없고, 수량 칸에 커서 (사용자 확인 막힌 곳 2)', async () => {
     mockApi(
       [stock({ ticker: 'VOO' }), stock({ ticker: 'QQQ' })],
       [{ ticker: 'QQQ', quantity: 3, avg_cost: null, avg_fx: null, updated_at: '2026-09-01T00:00:00' }],
@@ -90,8 +106,10 @@ describe('종목 안 · 보유 탭 (묶음 3 — 종목 관리 표의 줄이 여
     const user = userEvent.setup()
     renderTab('QQQ')
     await user.click(await screen.findByRole('button', { name: 'QQQ 보유 고치기' }))
-    const dialog = await screen.findByRole('dialog', { name: '종목 한 번에 수정' })
+    const dialog = await screen.findByRole('dialog', { name: 'QQQ 수정' })
     await waitFor(() => expect(within(dialog).getByRole('textbox', { name: 'QQQ 보유수량' })).toHaveFocus())
+    expect(within(dialog).queryByRole('textbox', { name: 'VOO 보유수량' })).toBeNull()
+    expect(within(dialog).queryByText('2종목')).toBeNull()
   })
 
   it('종목을 지울 수 있다 — 되돌릴 수 없으니 한 번 더 묻고, 지우면 알린다', async () => {

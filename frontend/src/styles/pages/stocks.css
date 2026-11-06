@@ -121,9 +121,12 @@ a.stock-row::after {
   gap: 4px;
 }
 
-/* 순서 바꾸기 — 줄마다 ▲▼ (홈 시그널 목록의 순서 편집과 같은 단추) */
+/* 순서 바꾸기 — 줄마다 ▲▼ (홈 시그널 목록의 순서 편집과 같은 단추). 방금 옮긴 줄은 잠깐 표시 */
 .stock-order .stock-row {
   padding-right: 8px;
+}
+.stock-order .stock-row.just-moved {
+  background: var(--accent-soft);
 }
 
 /* 카드 — 두 줄(폰) · 넓으면 더 */
@@ -164,6 +167,15 @@ a.stock-tile:hover {
   gap: 4px;
   min-height: 20px;
   margin-top: 4px;
+}
+.stock-tile-span {
+  align-self: flex-end;
+  margin-top: -4px;
+  font-size: var(--fs-caption);
+}
+.add-sheet-warn {
+  margin: 4px 0 0;
+  color: var(--text-dim);
 }
 .sparkline {
   display: block;

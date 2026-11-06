@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 import { useBackToClose } from '../../lib/backToClose'
 import { lockBodyScroll } from '../../lib/scrollLock'
+import { useFocusTrap } from '../../lib/focusTrap'
 import { HOLDING_MINUS_HINT } from '../../lib/numberDropped'
 import { fxUnitLabel } from '../../lib/fxInput'
 import type { Currency } from '../../types'
@@ -35,12 +36,13 @@ interface Props {
 export function AddStockSheet({ title, sub, form, onChange, currency, currencySymbol, currencyLabel, busy, onSubmit, onClose }: Props) {
   useBackToClose(onClose)
   const ref = useRef<HTMLDivElement>(null)
+  // Tab 은 시트 안에서만 돈다(검토 조건 3). 첫 칸(구분)이 아니라 목표 비중에 — 구분은 비워 둬도 되고, 목표가 가장 자주 넣는 값이다.
+  // 닫으면 연 자리(찾기 칸·후보)로 돌아간다
+  useFocusTrap(ref, () => ref.current?.querySelector<HTMLInputElement>('#new-weight'))
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
     document.addEventListener('keydown', onKey)
     const release = lockBodyScroll()
-    // 첫 칸(구분)이 아니라 목표 비중에 — 구분은 비워 둬도 되고, 목표가 가장 자주 넣는 값이다
-    ref.current?.querySelector<HTMLInputElement>('#new-weight')?.focus({ preventScroll: true })
     return () => {
       document.removeEventListener('keydown', onKey)
       release()
@@ -95,6 +97,10 @@ export function AddStockSheet({ title, sub, form, onChange, currency, currencySy
           <div className="field">
             <label htmlFor="new-weight">목표 비중 (%)</label>
             <NumberInput id="new-weight" placeholder="0" value={form.targetWeight} onChange={(v) => onChange({ ...form, targetWeight: v })} />
+            {/* 담자마자 "전부 파는 계산" 경고가 떠 놀랐다 — 넣기 전에 같은 말을 한 줄 (사용자 확인 헷갈린 말 4) */}
+            {form.targetWeight === '' && form.quantity !== '' && Number(form.quantity) > 0 && (
+              <p className="hint add-sheet-warn">비워 두면 0% — 리밸런싱에서 이 종목을 전부 파는 계산이 됩니다.</p>
+            )}
           </div>
           <div className="add-sheet-two">
             <div className="field">

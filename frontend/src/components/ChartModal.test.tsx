@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { api } from '../api/client'
 import type { HistoryResponse } from '../types'
 import { AuthGate } from './AuthGate'
+import { AppStateProvider } from '../AppState'
 import { ChartModal } from './ChartModal'
 import { needsBackfill } from '../lib/chartRange'
 import { FUNDAMENTALS } from '../test/fundamentalsFixture'
@@ -535,6 +536,35 @@ describe('차트 팝업 · 재무 탭', () => {
 })
 
 describe('차트 팝업 · 키보드 (디자인 2차 검토)', () => {
+  it('팝업 위 팝업 — 보유 탭의 "수정"에서 Esc 는 수정만 닫고 차트 팝업은 남는다 (묶음 3 검토 조건 2)', async () => {
+    vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
+    vi.spyOn(api, 'getFundamentals').mockResolvedValue(FUNDAMENTALS)
+    vi.spyOn(api, 'listStocks').mockResolvedValue([
+      { ticker: 'GOOG', name: null, category: null, market: 'US', currency: 'USD', active: true, added_at: '2026-01-01T00:00:00', target_weight_pct: 5, rebalance_band_pct: null, sort_order: 0 },
+    ])
+    vi.spyOn(api, 'listHoldings').mockResolvedValue([])
+    vi.spyOn(api, 'getSettings').mockRejectedValue(new Error('x'))
+    vi.spyOn(api, 'getRebalanceCurrent').mockRejectedValue(new Error('x'))
+    const onClose = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter>
+        <AppStateProvider>
+          <ChartModal ticker="GOOG" name="GOOG" initialTab="holding" onClose={onClose} />
+        </AppStateProvider>
+      </MemoryRouter>,
+    )
+    await user.click(await screen.findByRole('button', { name: /보유 고치기/ }))
+    expect(await screen.findByRole('dialog', { name: 'GOOG 수정' })).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'GOOG 수정' })).toBeNull())
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog', { name: 'GOOG 차트' })).toBeInTheDocument()
+    // 한 번 더 누르면 그때 차트 팝업이 닫힌다
+    await user.keyboard('{Escape}')
+    expect(onClose).toHaveBeenCalled()
+  })
+
   it('닫으면 포커스가 연 단추로 돌아간다', async () => {
     vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
     const opener = document.createElement('button')

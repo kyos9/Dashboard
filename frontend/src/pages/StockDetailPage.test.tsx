@@ -10,6 +10,23 @@ import { FUNDAMENTALS } from '../test/fundamentalsFixture'
 import { cardSignals } from '../lib/portfolio'
 import { Sparkline } from '../components/stock/Sparkline'
 import { StockDetailPage } from './StockDetailPage'
+import type { Stock } from '../types'
+import { ApiError } from '../api/client'
+
+function stock(ticker: string, name: string | null = null, active = true): Stock {
+  return {
+    ticker,
+    name,
+    category: null,
+    market: ticker.endsWith('.KS') ? 'KR' : 'US',
+    currency: ticker.endsWith('.KS') ? 'KRW' : 'USD',
+    active,
+    added_at: '2026-01-01T00:00:00',
+    target_weight_pct: 0,
+    rebalance_band_pct: null,
+    sort_order: 0,
+  }
+}
 
 vi.mock('lightweight-charts', () => ({
   createChart: () => ({
@@ -60,7 +77,7 @@ beforeEach(() => {
     coverage: { first_date: '2021-09-16', last_date: '2026-09-16', rows: 1250 },
   })
   vi.spyOn(api, 'getFundamentals').mockResolvedValue(FUNDAMENTALS)
-  vi.spyOn(api, 'listStocks').mockResolvedValue([])
+  vi.spyOn(api, 'listStocks').mockResolvedValue([stock('VOO'), stock('QQQ'), stock('GOOG'), stock('NEW')])
   vi.spyOn(api, 'listHoldings').mockResolvedValue([])
 })
 
@@ -115,6 +132,114 @@ describe('종목 안 화면 (/stocks/:ticker — 묶음 3, 목업 11 가)', () =
     expect(await screen.findByRole('heading', { name: 'NEW' })).toBeInTheDocument()
     await user.click(screen.getByRole('tab', { name: '신호' }))
     expect(screen.getByText(/시세를 받으면 이 종목의 매수·매도 조건이/)).toBeInTheDocument()
+  })
+})
+
+describe('종목 안 · 사용자 확인 보완 (묶음 3)', () => {
+  it('오늘 매수·매도가 아니면 머리에 한 줄 — "매수 조건 n/4"가 사라는 뜻으로 읽히지 않게', async () => {
+    vi.spyOn(api, 'getDashboard').mockResolvedValue([dashCard({ ticker: 'VOO' })])
+    renderAt('/stocks/VOO')
+    expect(await screen.findByText(/오늘은 매수·매도 신호가 없습니다/)).toBeInTheDocument()
+  })
+
+  it('매수 신호가 뜬 날은 그 한 줄이 없다', async () => {
+    vi.spyOn(api, 'getDashboard').mockResolvedValue([dashCard({ ticker: 'VOO', knee_buy_v2: true })])
+    renderAt('/stocks/VOO')
+    await screen.findByText('$100.00')
+    expect(screen.queryByText(/오늘은 매수·매도 신호가 없습니다/)).toBeNull()
+  })
+
+  it('AI 분석은 머리의 단추 — 첫 화면에 있고, 뒤로가기는 AI 만 닫아 차트로 (사용자 확인 찾지 못한 것 1)', async () => {
+    vi.spyOn(api, 'getDashboard').mockResolvedValue([dashCard({ ticker: 'VOO' })])
+    const user = userEvent.setup()
+    renderAt('/stocks/VOO')
+    await screen.findByText('$100.00')
+    const ai = screen.getByRole('button', { name: 'AI 분석' })
+    expect(ai.closest('.stock-detail-bar')).not.toBeNull()
+    await user.click(ai)
+    expect(screen.getByRole('region', { name: 'AI 분석' })).toBeInTheDocument()
+    expect(ai).toHaveAttribute('aria-pressed', 'true')
+    window.history.back()
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'AI 분석' })).toBeNull())
+    expect(screen.getByRole('tab', { name: '차트' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByTestId('where')).toHaveTextContent('/stocks/VOO')
+  })
+
+  it('재무 탭에서 여러 종목 재무로 가는 길이 있다 (사용자 확인 찾지 못한 것 2)', async () => {
+    vi.spyOn(api, 'getDashboard').mockResolvedValue([dashCard({ ticker: 'GOOG' })])
+    renderAt('/stocks/GOOG?tab=fundamentals')
+    await screen.findByText('28.1배')
+    expect(screen.getByRole('link', { name: /여러 종목 재무 한눈에/ })).toHaveAttribute('href', '/fundamentals')
+  })
+
+  it('신호 탭의 비중조절 — 지금 · 목표 · 허용 폭 숫자 (목업 11 의 비중 줄)', async () => {
+    vi.spyOn(api, 'getDashboard').mockResolvedValue([dashCard({ ticker: 'VOO' })])
+    vi.spyOn(api, 'getRebalanceCurrent').mockResolvedValue({
+      base_currency: 'KRW',
+      rows: [{ ticker: 'VOO', actual_weight_pct: 17.2, target_weight_pct: 18, band_pct: 3 }],
+    } as never)
+    const user = userEvent.setup()
+    renderAt('/stocks/VOO')
+    await screen.findByText('$100.00')
+    await user.click(screen.getByRole('tab', { name: /^신호/ }))
+    expect(await screen.findByText('17.2%')).toBeInTheDocument()
+    expect(screen.getByText('(허용 ±3.0%p)')).toBeInTheDocument()
+  })
+})
+
+describe('주소의 종목 — 옛 차트 화면(0.45.1 B2·BCD)이 하던 일을 종목 안이 잇는다 (묶음 3 검토 조건 1)', () => {
+  it('담은 종목에 없는 티커면 영어 오류·빈 범례 대신 한 줄로 말하고, 종목 탭으로 가는 길을 준다', async () => {
+    vi.spyOn(api, 'listStocks').mockResolvedValue([stock('005930.KS', '삼성전자')])
+    vi.spyOn(api, 'getDashboard').mockResolvedValue([])
+    vi.spyOn(api, 'getHistory').mockRejectedValue(new ApiError(404, null, 'stock not found'))
+    renderAt('/stocks/NOPE')
+    expect(await screen.findByRole('heading', { name: '‘NOPE’ 은 담은 종목에 없습니다' })).toBeInTheDocument()
+    expect(screen.queryByText(/stock not found/)).toBeNull()
+    expect(screen.queryByText(/매수 0일/)).toBeNull()
+    expect(screen.getByRole('link', { name: '종목 탭으로' })).toHaveAttribute('href', '/stocks')
+    // 담을 길이 없는 종목에 AI 분석 단추를 두지 않는다(사용자 확인 막힌 곳 1)
+    expect(screen.queryByRole('button', { name: /AI 분석/ })).toBeNull()
+  })
+
+  it('없는 티커의 시세는 부르지 않는다 — 목록을 받기 전에도', async () => {
+    vi.spyOn(api, 'listStocks').mockResolvedValue([stock('005930.KS', '삼성전자')])
+    vi.spyOn(api, 'getDashboard').mockResolvedValue([])
+    const history = vi.spyOn(api, 'getHistory')
+    renderAt('/stocks/NOPE')
+    await screen.findByText(/담은 종목에 없습니다/)
+    expect(history).not.toHaveBeenCalled()
+  })
+
+  it('종목 목록을 못 받아도 주소의 종목 차트는 전처럼 연다 — 오류 줄과 함께', async () => {
+    vi.spyOn(api, 'listStocks').mockRejectedValue(new Error('목록 실패'))
+    vi.spyOn(api, 'getDashboard').mockResolvedValue([])
+    const history = vi.spyOn(api, 'getHistory')
+    renderAt('/stocks/005930.KS')
+    await waitFor(() => expect(history).toHaveBeenCalledWith('005930.KS', '1y'))
+    expect(screen.getByText(/목록 실패/)).toBeInTheDocument()
+    expect(screen.queryByText(/담은 종목에 없습니다/)).toBeNull()
+  })
+
+  it('소문자·이름 주소는 담은 종목의 티커로 — 시세도 그 티커로 한 번만, 비활성 종목도 연다', async () => {
+    vi.spyOn(api, 'listStocks').mockResolvedValue([stock('005930.KS', '삼성전자'), stock('TSLA', '테슬라', false)])
+    vi.spyOn(api, 'getDashboard').mockResolvedValue([dashCard({ ticker: '005930.KS', name: '삼성전자', market: 'KR', currency: 'KRW' })])
+    const history = vi.spyOn(api, 'getHistory')
+
+    const lower = renderAt('/stocks/005930.ks')
+    await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent('/stocks/005930.KS'))
+    await waitFor(() => expect(history).toHaveBeenCalledWith('005930.KS', '1y'))
+    expect(history).not.toHaveBeenCalledWith('005930.ks', '1y')
+    expect(history.mock.calls.filter((c) => c[0] === '005930.KS')).toHaveLength(1)
+    lower.unmount()
+
+    const byName = renderAt('/stocks/삼성전자')
+    await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent('/stocks/005930.KS'))
+    expect(screen.getByRole('heading', { name: '삼성전자' })).toBeInTheDocument()
+    byName.unmount()
+
+    renderAt('/stocks/TSLA')
+    await waitFor(() => expect(history).toHaveBeenCalledWith('TSLA', '1y'))
+    expect(screen.queryByText(/담은 종목에 없습니다/)).toBeNull()
   })
 })
 

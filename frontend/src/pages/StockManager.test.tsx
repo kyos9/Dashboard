@@ -720,6 +720,8 @@ describe('종목 탭 · 줄 / 카드 (묶음 3 — 주인: 사용자가 골라 �
     await screen.findByText(/미국 · \$USD/)
     expect(document.querySelector('.stock-tiles')).not.toBeNull()
     expect(screen.getByRole('button', { name: '카드 보기' })).toHaveAttribute('aria-pressed', 'true')
+    // 선은 석 달 — 하루 등락과 색이 달라도 헷갈리지 않게 이름이 붙는다
+    expect(screen.getByText('3개월')).toBeInTheDocument()
   })
 
   it('거르기 칩 — 신호 뜬 종목만, 고른 칩은 눌린 상태', async () => {
@@ -756,6 +758,51 @@ describe('종목 탭 · 줄 / 카드 (묶음 3 — 주인: 사용자가 골라 �
     await waitFor(() => expect(order).toHaveBeenCalledWith(['QQQ', 'VOO']))
     const items = within(screen.getByRole('list', { name: '종목 순서' })).getAllByRole('listitem')
     expect(items.map((li) => li.getAttribute('data-ticker'))).toEqual(['QQQ', 'VOO'])
+    // 저장했다는 말 · 포커스는 옮긴 종목의 ▲ 에 — 같은 자리를 다시 눌러 되돌아가지 않게 (사용자 확인 막힌 곳 3)
+    expect(await screen.findByText(/순서를 저장했습니다/)).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('button', { name: 'QQQ 위로' })).toHaveFocus())
+  })
+
+  it('담는 시트 — 수량을 넣고 목표를 비우면 넣기 전에 "전부 파는 계산" 한 줄 (사용자 확인 헷갈린 말 4)', async () => {
+    mockApi()
+    vi.spyOn(api, 'searchSymbols').mockResolvedValue([])
+    const user = userEvent.setup()
+    renderManager()
+    await user.type(symbolInput(), 'VOO{Enter}')
+    await screen.findByRole('dialog', { name: 'VOO 추가' })
+    expect(screen.queryByText(/비워 두면 0%/)).toBeNull()
+    await user.type(screen.getByLabelText('보유 수량'), '3')
+    expect(screen.getByText(/비워 두면 0% — 리밸런싱에서 이 종목을 전부 파는 계산/)).toBeInTheDocument()
+    await user.type(screen.getByLabelText('목표 비중 (%)'), '5')
+    expect(screen.queryByText(/비워 두면 0%/)).toBeNull()
+  })
+
+  it('종목 안에서 지우고 돌아오면 "지웠습니다" 한 줄 (사용자 확인 찾지 못한 것 4)', async () => {
+    mockApi([stock({ ticker: 'VOO' })])
+    render(
+      <MemoryRouter initialEntries={[{ pathname: '/stocks', state: { purged: '東京海上' } }]}>
+        <AppStateProvider>
+          <StockManager />
+        </AppStateProvider>
+      </MemoryRouter>,
+    )
+    expect(await screen.findByText('東京海上을(를) 지웠습니다.')).toBeInTheDocument()
+  })
+
+  it('추가 시트에서 Tab 은 시트 안에서만 돈다 — 뒤 화면으로 새지 않는다 (묶음 3 검토 조건 3)', async () => {
+    mockApi()
+    vi.spyOn(api, 'searchSymbols').mockResolvedValue([])
+    const user = userEvent.setup()
+    renderManager()
+    await user.type(symbolInput(), 'VOO{Enter}')
+    const sheet = await screen.findByRole('dialog', { name: 'VOO 추가' })
+    expect(screen.getByLabelText('목표 비중 (%)')).toHaveFocus()
+    for (let i = 0; i < 8; i++) {
+      await user.tab()
+      expect(sheet.contains(document.activeElement)).toBe(true)
+    }
+    await user.tab({ shift: true })
+    expect(sheet.contains(document.activeElement)).toBe(true)
   })
 
   it('찾은 후보 중 이미 담은 종목에는 "담음"', async () => {

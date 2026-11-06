@@ -239,7 +239,7 @@ describe('리밸런싱 · 통화 표기', () => {
     renderPanel()
 
     expect(await screen.findByText('리밸런싱할 종목이 없습니다')).toBeInTheDocument()
-    expect(screen.getByText('종목 관리에서 종목을 담으면 여기에 목표 비중과 지금 비중이 보입니다.')).toBeInTheDocument()
+    expect(screen.getByText('종목 탭에서 종목을 담으면 여기에 목표 비중과 지금 비중이 보입니다.')).toBeInTheDocument()
     // 누를 곳이 있다 — 폰은 종목 관리가 "더보기" 안이다 (디자인 2차)
     expect(screen.getByRole('link', { name: '종목 추가하러 가기' })).toHaveAttribute('href', '/stocks')
   })

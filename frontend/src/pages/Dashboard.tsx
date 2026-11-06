@@ -743,11 +743,11 @@ export function Dashboard() {
         <h3>아직 담은 종목이 없습니다 — 세 단계면 시작합니다</h3>
         <ol>
           <li>
-            <b>종목 담기</b> — <Link to="/stocks">종목 관리</Link>에서 이름이나 티커로 찾아 추가합니다 (예:
+            <b>종목 담기</b> — <Link to="/stocks">종목 탭</Link>의 찾기 칸에서 이름이나 티커로 찾아 추가합니다 (예:
             삼성전자, VOO). 시세와 지표는 알아서 받습니다.
           </li>
           <li>
-            <b>보유수량 적기</b> — 추가할 때나 <Link to="/rebalance">리밸런싱</Link>에서 수량·평단가·목표 비중을
+            <b>보유수량 적기</b> — 추가할 때나 종목 안의 '보유'에서 수량·평단가·목표 비중을
             적으면 비중이 얼마나 벗어났는지 알려줍니다.
           </li>
           <li>
@@ -1044,7 +1044,7 @@ export function Dashboard() {
 
       {/* "—" 의 풀이가 툴팁에만 있으면 폰·키보드로는 볼 수 없다(B 검토·사용자) — 화면에 한 줄로 */}
       <p className="hint signal-key" style={{ marginTop: 14 }}>
-        <strong>시그널</strong> 줄은 지표로 본 매수·매도이고, 흐린 <span className="traffic-watch" aria-hidden="true">—</span>는 관망(매수·매도 조건 미충족)입니다.{' '}
+        <strong>시그널</strong> 줄은 지표로 본 매수·매도이고, 흐린 줄표<span className="traffic-watch" aria-hidden="true"> —</span>는 관망(매수·매도 조건 미충족)입니다.{' '}
         <strong>비중</strong> 줄은 지표와 따로, 목표 비중에서 벗어났는지(비중 초과·비중 미달)를 말합니다.
       </p>
       <p className="hint" style={{ marginTop: 6 }}>
@@ -1471,8 +1471,8 @@ function SettingsTable({
       )}
 
       <p className="hint" style={{ marginTop: 12 }}>
-        <strong>감추기</strong>는 홈에서만 내리고 시세·기록은 그대로 둡니다 (종목 관리 화면에서 다시
-        켤 수 있습니다). 새 종목 추가와 시세 갱신은 <Link to="/stocks">종목 관리</Link>에서 합니다.
+        <strong>감추기</strong>는 홈에서만 내리고 시세·기록은 그대로 둡니다 (종목 탭에서 다시
+        켤 수 있습니다). 새 종목 추가는 <Link to="/stocks">종목 탭</Link>, 시세 갱신은 종목 안의 '보유'에서 합니다.
       </p>
     </>
   )

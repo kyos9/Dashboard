@@ -4,6 +4,7 @@ import type { DashboardCard } from '../types'
 import type { ChartTab } from '../lib/fundamentals'
 import { lockBodyScroll } from '../lib/scrollLock'
 import { StockDetail } from './stock/StockDetail'
+import { isCovered, useFocusTrap } from '../lib/focusTrap'
 
 interface Props {
   ticker: string
@@ -26,44 +27,17 @@ export function ChartModal({ ticker, name, card, initialTab = 'chart', onClose }
   // 폰의 뒤로가기로도 닫힌다
   useBackToClose(onClose)
 
-  // ESC로 닫기 + 뒤 화면이 같이 스크롤되지 않게.
-  // Tab 은 팝업 안에서만 돈다 — 밖으로 새면 키보드로 뒤 화면을 누르게 된다 (디자인 2차 검토, DESIGN_PROMPT 3-1)
+  // Tab 은 팝업 안에서만 돈다 · 열면 포커스를 팝업으로, 닫으면 연 단추로 (디자인 2차 검토)
   const dialogRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    const focusables = () =>
-      Array.from(
-        dialogRef.current?.querySelectorAll<HTMLElement>(
-          'button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
-        ) ?? [],
-      ).filter((el) => !el.closest('[hidden], [aria-hidden="true"]'))
-    const onTab = (e: KeyboardEvent) => {
-      if (e.key !== 'Tab' || !dialogRef.current) return
-      const items = focusables()
-      if (items.length === 0) return
-      const first = items[0]
-      const last = items[items.length - 1]
-      const active = document.activeElement as HTMLElement | null
-      const inside = !!active && dialogRef.current.contains(active)
-      if (e.shiftKey && (!inside || active === first)) {
-        e.preventDefault()
-        last.focus()
-      } else if (!e.shiftKey && (!inside || active === last)) {
-        e.preventDefault()
-        first.focus()
-      }
-    }
-    // 열면 포커스를 팝업으로, 닫으면 연 단추로 돌려준다 (디자인 2차 재검토)
-    const opener = document.activeElement as HTMLElement | null
-    dialogRef.current?.focus()
-    document.addEventListener('keydown', onTab)
-    return () => {
-      document.removeEventListener('keydown', onTab)
-      opener?.focus?.()
-    }
-  }, [])
+  useFocusTrap(dialogRef)
 
+  // ESC로 닫기 + 뒤 화면이 같이 스크롤되지 않게. 안쪽에 연 팝업(보유 탭의 수정·삭제 확인)이 있으면 그쪽만 닫힌다
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      if (dialogRef.current && isCovered(dialogRef.current)) return
+      onClose()
+    }
     document.addEventListener('keydown', onKey)
     const release = lockBodyScroll()
     return () => {
