@@ -159,9 +159,10 @@ function mockApi(cards = CARDS, rebalance = REBALANCE) {
 }
 
 function renderDashboard() {
-  // 이 파일은 시그널 목록을 본다 — 위 탭이 없어져(디자인 4차 묶음 2) 주소로 연다
+  // 이 파일은 시그널 목록을 본다 — 위 탭이 없어져(디자인 4차 묶음 2) 주소로 연다.
+  // 처음 목록은 신호 뜬 종목만이라(주인 답), 카드 그리기를 보는 테스트는 "전체"로 연다 — 홈에서 종류를 골라 넘어오는 길과 같은 state
   return render(
-    <MemoryRouter initialEntries={['/?view=signal']}>
+    <MemoryRouter initialEntries={[{ pathname: '/', search: '?view=signal', state: { quick: 'all' } }]}>
       <AppStateProvider>
         <Dashboard />
       </AppStateProvider>
@@ -416,6 +417,39 @@ describe('대시보드 · 신호 칸은 짧게, 모양으로도 (ROADMAP 8-4)', 
     }
   })
 
+  it('처음 목록은 신호 뜬 종목만 — 머리 수 = "신호" 칩 수, 끝의 "전체"는 신호 없는 종목까지 (주인 답 "신호 뜬 것만")', async () => {
+    mockApi([card({ ticker: 'VOO', knee_buy_v2: true }), card({ ticker: 'QQQ' })])
+    render(
+      <MemoryRouter initialEntries={['/?view=signal']}>
+        <AppStateProvider>
+          <Dashboard />
+        </AppStateProvider>
+      </MemoryRouter>,
+    )
+    const signal = await screen.findByRole('button', { name: '신호 1' })
+    const chips = document.querySelector('.filter-chips') as HTMLElement
+    expect(signal).toHaveAttribute('aria-pressed', 'true')
+    expect(document.querySelector('.sub-count')).toHaveTextContent('1종목')
+    await waitFor(() => expect(document.querySelector('[data-ticker="VOO"]')).not.toBeNull())
+    expect(document.querySelector('[data-ticker="QQQ"]')).toBeNull()
+    await userEvent.click(within(chips).getByRole('button', { name: '전체 2' }))
+    expect(document.querySelector('[data-ticker="QQQ"]')).not.toBeNull()
+  })
+
+  it('신호가 하나도 없으면 빈 목록 대신 그렇다고 말하고 전체로 가는 단추', async () => {
+    mockApi([card({ ticker: 'VOO' }), card({ ticker: 'QQQ' })])
+    render(
+      <MemoryRouter initialEntries={['/?view=signal']}>
+        <AppStateProvider>
+          <Dashboard />
+        </AppStateProvider>
+      </MemoryRouter>,
+    )
+    expect(await screen.findByRole('heading', { name: '오늘은 신호가 뜬 종목이 없습니다' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: '전체 2종목 보기' }))
+    await waitFor(() => expect(document.querySelector('[data-ticker="QQQ"]')).not.toBeNull())
+  })
+
   it('홈의 신호 배지에서 넘어오면 그 종목 카드가 펼쳐져 있다 (묶음 2 재검토 조건 6)', async () => {
     vi.stubGlobal('innerWidth', 390)
     pretendPhone()
@@ -483,8 +517,8 @@ describe('대시보드 · 신호 칸은 짧게, 모양으로도 (ROADMAP 8-4)', 
     const qqq = await cardRow('QQQ')
     expect(within(qqq).getByText('갱신 필요').closest('.traffic')).not.toBeNull()
     expect(qqq.querySelector('.traffic-watch')).toBeNull()
-    // 수는 그대로 센다 — 거르기 칩 아래 작은 줄 (목업 10)
-    expect(document.querySelector('.signal-notes')?.textContent).toMatch(/^관망 1/)
+    // "관망 N" 은 칩 아래 줄에서 뺐다 — "신호 N" · "전체 N" 과 셋째 수로 읽혔다 (묶음 2 재검토 조건 5)
+    expect(document.querySelector('.signal-notes')?.textContent ?? '').not.toMatch(/관망/)
   })
 
   it('거르기 칩도 같은 모양 — 매수 ▲ · 매도 ▼ · 비중조절 ◆. 비중조절을 켜면 초과·미달 갈래 칩', async () => {
@@ -548,9 +582,13 @@ describe('대시보드 · 비중 초과·미달 칩을 누르면 그 종목만 (
     await userEvent.click(within(chips()).getByRole('button', { name: '미달 1' }))
     expect(await shownRows()).toEqual(allWeight)
 
-    // 키보드로도 — 진짜 단추다. 비중조절을 다시 누르면 전체
+    // 키보드로도 — 진짜 단추다. 비중조절을 다시 누르면 처음 목록(신호 뜬 종목)
     within(chips()).getByRole('button', { name: /비중조절 \d/ }).focus()
     await userEvent.keyboard('{Enter}')
+    expect(within(chips()).getByRole('button', { name: /^신호 \d/ })).toHaveAttribute('aria-pressed', 'true')
+    expect(await shownRows()).toEqual(['VOO', 'QQQ', 'SCHD', 'GOOG'])
+    // 끝의 "전체"는 신호 없는 종목까지
+    await userEvent.click(within(chips()).getByRole('button', { name: /^전체 \d/ }))
     expect(await shownRows()).toEqual(['VOO', 'QQQ', 'SCHD', 'GOOG', 'MSFT'])
   })
 
@@ -561,7 +599,7 @@ describe('대시보드 · 비중 초과·미달 칩을 누르면 그 종목만 (
       return <button onClick={() => navigate('/?view=signal', { state: { focus: 'MSFT' } })}>넘어오기</button>
     }
     render(
-      <MemoryRouter initialEntries={['/?view=signal']}>
+      <MemoryRouter initialEntries={[{ pathname: '/', search: '?view=signal', state: { quick: 'all' } }]}>
         <AppStateProvider>
           <Jump />
           <Dashboard />

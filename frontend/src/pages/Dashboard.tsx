@@ -59,7 +59,8 @@ import {
 import type { DashboardCard, RebalanceCurrent, RebalanceRow, SignalRules, Stock, StockUpdateInput } from '../types'
 
 // over·under — 신호 요약의 "비중 초과·미달" 칩 (0.45.3 A). 눌러도 아무 일이 없었다(0.44.0 사용자 확인)
-type QuickFilter = 'all' | 'knee' | 'sell' | 'rebalance' | 'over' | 'under'
+// signal = 신호가 뜬 종목 — 처음 보는 목록(목업 10, 주인 답 "신호 뜬 것만"). all = 신호 없는 종목까지 전부
+type QuickFilter = 'signal' | 'all' | 'knee' | 'sell' | 'rebalance' | 'over' | 'under'
 /** 표 / 카드 / 설정(편집) — 같은 목록을 다른 형태로 보는 것이라 한 자리에서 고른다 */
 type ViewMode = 'table' | 'card' | 'edit'
 
@@ -69,8 +70,15 @@ const WATCH_HINT = '관망(매수·매도 조건 미충족)'
 /** 신호등 — 매수 ▲ · 매도 ▼ 는 모양이 붙는다. 색만으로 가리지 않는다 (8-4).
     관망은 할 일이 없다는 뜻이라 눈에 띄지 않게 흐린 "—" 만 (0.44.0). 빈칸으로 두면 "시세 없음"과 같아 보이고,
     매수·매도만 남아 할 일 목록처럼 읽힌다(계획 검토). 수는 그대로 센다 — 신호 요약의 "관망 N" */
+/** 신호(매수 · 매도 · 비중조절)가 하나라도 뜬 종목 — 시그널 목록 머리의 수 · "전체" 칩 · 기본 목록이 같은 판정 */
+function hasAnySignal(card: DashboardCard, rules: SignalRules): boolean {
+  const state = trafficLight(card, rules).state
+  return state === 'buy' || state === 'hot' || hasWeightSignal(card)
+}
+
 /** 신호 거르기 하나 — 목록·넘어온 종목 풀기·칩 수가 같은 판정을 쓴다 (0.45.3 A) */
 function matchesQuick(card: DashboardCard, quick: QuickFilter, rules: SignalRules): boolean {
+  if (quick === 'signal') return hasAnySignal(card, rules)
   if (quick === 'knee') return !!card.knee_buy_v2
   // 매도는 신호 요약의 "매도" 수와 같은 것 — 신호등이 매도인 종목 (디자인 2차, 주인 결정)
   if (quick === 'sell') return trafficLight(card, rules).state === 'hot'
@@ -436,7 +444,7 @@ export function Dashboard() {
   const [confirmingPurge, setConfirmingPurge] = useState<string | null>(null)
 
   const [category, setCategory] = useState<string>('전체')
-  const [quick, setQuick] = useState<QuickFilter>('all')
+  const [quick, setQuick] = useState<QuickFilter>('signal')
   // 폰: 보기·설정 단추 다섯(표·카드·종목 설정·시그널 기준·순서 편집)을 접어 둔다 — 필터가 네 줄이라 첫 카드가
   // 첫 화면 밖이었다 (디자인 2차, 주인 결정). 순서 편집·종목 설정 중에는 접지 않는다(끝내는 단추가 거기 있다)
   const [viewToolsOpen, setViewToolsOpen] = useState(false)
@@ -578,20 +586,12 @@ export function Dashboard() {
   }
 
   // 시그널 목록 머리의 수 — 신호(매수 · 매도 · 비중조절)가 하나라도 뜬 종목 (사용자 확인: "13"이 무엇의 수인지 몰랐다)
-  const signalTickerCount = useMemo(
-    () =>
-      cards.filter((c) => {
-        const state = trafficLight(c, rules).state
-        return state === 'buy' || state === 'hot' || hasWeightSignal(c)
-      }).length,
-    [cards, rules],
-  )
+  const signalTickerCount = useMemo(() => cards.filter((c) => hasAnySignal(c, rules)).length, [cards, rules])
   const summary = useMemo(() => {
     const lights = cards.map((card) => trafficLight(card, rules))
     const reasons = cards.flatMap((c) => (c.rebalance_signal.active ? c.rebalance_signal.reasons : []))
     return {
       buy: lights.filter((l) => l.state === 'buy').length,
-      watch: lights.filter((l) => l.state === 'watch').length,
       hot: lights.filter((l) => l.state === 'hot').length,
       stale: lights.filter((l) => l.state === 'stale').length,
       rebalanceCount: cards.filter(hasWeightSignal).length,
@@ -624,14 +624,15 @@ export function Dashboard() {
   const visible = useMemo(() => {
     const shown = cards.filter((c) => {
       if (category !== '전체' && categoryOf(c.category) !== category) return false
-      if (!matchesQuick(c, quick, rules)) return false
+      // 순서 편집 · 설정 보기는 모든 종목 — 일부만 보며 순서를 바꾸면 숨은 종목 자리를 모른다
+      if (!ordering && view !== 'edit' && !matchesQuick(c, quick, rules)) return false
       return true
     })
     if (!preview) return shown
     // 끄는 동안에는 임시 순서로 보여준다 (저장은 놓을 때 한 번만 한다)
     const rank = new Map(preview.map((ticker, index) => [ticker, index]))
     return [...shown].sort((a, b) => (rank.get(a.ticker) ?? 0) - (rank.get(b.ticker) ?? 0))
-  }, [cards, category, quick, preview, rules])
+  }, [cards, category, quick, preview, rules, ordering, view])
 
   // 순서가 바뀐 렌더에서만 각 행을 새 자리로 미끄러뜨린다.
   // 끄는 동안에는 자리만 즉시 바꾼다 (미끄러뜨리면 크롬이 끌기를 취소한다 — flip.ts 참고)
@@ -687,7 +688,7 @@ export function Dashboard() {
   // 종류를 눌렀으면 그 종류로 걸러서 연다 (디자인 2차, 주인 결정 ②)
   const openSignals = (kind?: SignalFilter) => {
     portfolioScroll.current = window.scrollY
-    navigate({ search: '?view=signal' }, { state: { fromDot: true, quick: kind ?? 'all' } })
+    navigate({ search: '?view=signal' }, { state: { fromDot: true, quick: kind ?? 'signal' } })
   }
   const askedQuick = mode === 'signal' ? ((location.state as { quick?: QuickFilter } | null)?.quick ?? null) : null
   useEffect(() => {
@@ -704,7 +705,7 @@ export function Dashboard() {
     const target = cards.find((c) => c.ticker === focus)
     if (!target) return
     if (category !== '전체' && categoryOf(target.category) !== category) setCategory('전체')
-    if (!matchesQuick(target, quick, rules)) setQuick('all')
+    if (!matchesQuick(target, quick, rules)) setQuick(hasAnySignal(target, rules) ? 'signal' : 'all')
     if (view === 'edit') setView(narrow ? 'card' : 'table')
     setOpenCard(focus)
     // 필터를 고른 뒤의 화면에서 찾는다 — 한 번만 (같은 칸으로 다시 오면 다시)
@@ -837,14 +838,15 @@ export function Dashboard() {
           칩이 수를 겸한다. 누르면 그 종류만, 다시 누르면 전체 (사용자 확인: 폰 첫 화면에 카드가 안 보였다 · 거르기가 두 번) */}
       <section className="signal-filter" aria-label="신호 요약">
         <div className="chip-row filter-chips">
-          <button type="button" className={`chip${quick === 'all' ? ' active' : ''}`} aria-pressed={quick === 'all'} onClick={() => setQuick('all')}>
-            전체 {cards.length}
+          {/* 처음에는 신호가 뜬 종목만 — 머리의 "시그널 N종목"과 같은 수 (주인 답 "신호 뜬 것만") */}
+          <button type="button" className={`chip${quick === 'signal' ? ' active' : ''}`} aria-pressed={quick === 'signal'} onClick={() => setQuick('signal')}>
+            신호 {signalTickerCount}
           </button>
           <button
             type="button"
             className={`chip tone-buy${quick === 'knee' ? ' active' : ''}`}
             aria-pressed={quick === 'knee'}
-            onClick={() => setQuick(quick === 'knee' ? 'all' : 'knee')}
+            onClick={() => setQuick(quick === 'knee' ? 'signal' : 'knee')}
           >
             <SignalShape kind="buy" size={9} /> 매수 {summary.buy}
           </button>
@@ -852,7 +854,7 @@ export function Dashboard() {
             type="button"
             className={`chip tone-sell${quick === 'sell' ? ' active' : ''}`}
             aria-pressed={quick === 'sell'}
-            onClick={() => setQuick(quick === 'sell' ? 'all' : 'sell')}
+            onClick={() => setQuick(quick === 'sell' ? 'signal' : 'sell')}
           >
             <SignalShape kind="sell" size={9} /> 매도 {summary.hot}
           </button>
@@ -860,7 +862,7 @@ export function Dashboard() {
             type="button"
             className={`chip tone-weight${quick === 'rebalance' || quick === 'over' || quick === 'under' ? ' active' : ''}`}
             aria-pressed={quick === 'rebalance' || quick === 'over' || quick === 'under'}
-            onClick={() => setQuick(quick === 'rebalance' ? 'all' : 'rebalance')}
+            onClick={() => setQuick(quick === 'rebalance' ? 'signal' : 'rebalance')}
           >
             <SignalShape kind="rebalance" size={9} /> 비중조절 {summary.rebalanceCount}
           </button>
@@ -885,6 +887,17 @@ export function Dashboard() {
               미달 {summary.buyReview}
             </button>
           )}
+          {/* 신호 없는 종목까지 보려면 — 끝의 "전체" */}
+          {cards.length > signalTickerCount && (
+            <button
+              type="button"
+              className={`chip${quick === 'all' ? ' active' : ''}`}
+              aria-pressed={quick === 'all'}
+              onClick={() => setQuick(quick === 'all' ? 'signal' : 'all')}
+            >
+              전체 {cards.length}
+            </button>
+          )}
           {categories.length > 1 && (
             <label className="category-pick">
               <span className="sr-only">구분</span>
@@ -900,12 +913,18 @@ export function Dashboard() {
           )}
         </div>
         {/* 판정에 붙는 말 — 칩 아래 작은 한 줄씩 */}
-        <p className="signal-notes hint">
-          관망 {summary.watch}
-          {summary.periodicReview > 0 && ` · 정기 리뷰 ${summary.periodicReview}`}
-          {summary.rebalanceCount === 0 && ' · 비중 모두 밴드 이내'}
-          {summary.stale > 0 && ` · ${summary.stale}종목은 시세가 오래되어 판정에서 제외됐습니다.`}
-        </p>
+        {/* "관망 N"(지표 판정)은 뺐다 — 비중 신호가 있는 관망도 세어 "신호 N" · "전체 N" 과 셋째 수로 읽혔다(묶음 2 재검토 조건 5) */}
+        {(summary.periodicReview > 0 || summary.rebalanceCount === 0 || summary.stale > 0) && (
+          <p className="signal-notes hint">
+            {[
+              summary.periodicReview > 0 && `정기 리뷰 ${summary.periodicReview}`,
+              summary.rebalanceCount === 0 && '비중 모두 밴드 이내',
+              summary.stale > 0 && `${summary.stale}종목은 시세가 오래되어 판정에서 제외됐습니다.`,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+          </p>
+        )}
         {/* 내 기준을 쓰는 사람에게만 (0.42.0) — 저장이 됐는지, 지금 어느 기준으로 보는지 */}
         {rules.custom && (
           <p className="signal-notes hint mine-note" role="note">
@@ -972,10 +991,20 @@ export function Dashboard() {
 
       <div ref={listRef}>
       {visible.length === 0 ? (
-        <div className="empty-state">
-          <h3>조건에 맞는 종목이 없습니다</h3>
-          <p>필터를 바꾸거나 "모두 보기"를 선택해주세요.</p>
-        </div>
+        quick === 'signal' && category === '전체' && cards.length > 0 ? (
+          <div className="empty-state">
+            <h3>오늘은 신호가 뜬 종목이 없습니다</h3>
+            <p>매수 · 매도 · 비중조절 모두 조용합니다.</p>
+            <button type="button" className="btn" onClick={() => setQuick('all')}>
+              전체 {cards.length}종목 보기
+            </button>
+          </div>
+        ) : (
+          <div className="empty-state">
+            <h3>조건에 맞는 종목이 없습니다</h3>
+            <p>칩이나 구분을 바꿔 보세요.</p>
+          </div>
+        )
       ) : view === 'edit' ? (
         <SettingsTable
           cards={visible}

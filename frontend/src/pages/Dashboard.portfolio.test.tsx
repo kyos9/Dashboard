@@ -765,7 +765,7 @@ describe('신호 점', () => {
     await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent('/stocks'))
   })
 
-  it('필터가 그 종목을 가리고 있으면 "전체"로 돌린다', async () => {
+  it('필터가 그 종목을 가리고 있으면 "신호"(처음 목록)로 돌린다', async () => {
     mockApi()
     renderDashboard()
     // 시그널 목록에서 비중조절 신호만 보이게 걸어 둔다 — NVDA(매도 시그널만)는 가려진다
@@ -777,7 +777,7 @@ describe('신호 점', () => {
     const watch = await screen.findByRole('region', { name: /관심 종목/ })
     await userEvent.click(within(watch).getByRole('button', { name: /NVDA 신호/ }))
     await waitFor(() => expect(document.querySelector('[data-ticker="NVDA"]')).not.toBeNull())
-    expect(within(document.querySelector('.filter-chips') as HTMLElement).getByRole('button', { name: /^전체/ })).toHaveAttribute('aria-pressed', 'true')
+    expect(within(document.querySelector('.filter-chips') as HTMLElement).getByRole('button', { name: /^신호 \d/ })).toHaveAttribute('aria-pressed', 'true')
   })
 })
 

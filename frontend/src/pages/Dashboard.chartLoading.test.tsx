@@ -55,7 +55,7 @@ function mockApi() {
 
 function renderDashboard() {
   return render(
-    <MemoryRouter initialEntries={['/?view=signal']}>
+    <MemoryRouter initialEntries={[{ pathname: '/', search: '?view=signal', state: { quick: 'all' } }]}>
       <AppStateProvider>
         <Dashboard />
       </AppStateProvider>
