@@ -480,6 +480,30 @@ function measure(opts) {
     const ratio = (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05)
     if (ratio < 4.5) add('contrast', el, { ratio: +ratio.toFixed(2), color: cs.color, size: cs.fontSize })
   }
+  // 4차: 머리줄 안 포커스 테두리 — 청람 바탕과 같은 색이면 키보드로 어디 있는지 모른다(라이트 기본 테두리가 그랬다)
+  const head = document.querySelector('.app-header')
+  if (head) {
+    const headBg = parse(getComputedStyle(head).backgroundColor)
+    const before = document.activeElement
+    for (const el of head.querySelectorAll('button, a[href]')) {
+      if (!visible(el)) continue
+      el.focus({ focusVisible: true })
+      if (document.activeElement !== el) continue
+      const cs = getComputedStyle(el)
+      const ring = parse(cs.outlineColor)
+      const width = parseFloat(cs.outlineWidth) || 0
+      if (cs.outlineStyle === 'none' || width < 1 || !ring || !headBg) {
+        add('focus-ring', el, { style: cs.outlineStyle, width })
+        continue
+      }
+      const L1 = lum(ring), L2 = lum(headBg)
+      const ratio = (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05)
+      if (ratio < 3) add('focus-ring', el, { ratio: +ratio.toFixed(2), color: cs.outlineColor })
+    }
+    if (before && before.focus) before.focus()
+    else document.activeElement?.blur?.()
+  }
+
   // 4차: 글자 겹침 — 한 상자 안의 이웃 칸끼리 글자가 겹친다(긴 종목 이름이 옆 금액 위로). 요소 상자가 아니라 글자 상자를 잰다
   const shown = new Set(textEls)
   // 보이는 글자만 — 접힌 "자세히"·넘침을 감춘 상자 안의 글은 상자를 그려도 화면에 없다
@@ -543,7 +567,7 @@ function measure(opts) {
 
 /* ---------- 실행 ---------- */
 
-const CHECKS = ['page-overflow', 'clipped', 'orphan', 'num-split', 'folded3', 'folded2-360', 'touch', 'contrast', 'console', 'cond-missing', 'nowrap-split', 'sticky-left', 'fake-button', 'quiet-target', 'color-unread', 'tnum-width', 'text-overlap']
+const CHECKS = ['page-overflow', 'clipped', 'orphan', 'num-split', 'folded3', 'folded2-360', 'touch', 'contrast', 'console', 'cond-missing', 'nowrap-split', 'sticky-left', 'fake-button', 'quiet-target', 'color-unread', 'tnum-width', 'text-overlap', 'focus-ring']
 
 const XCOND = {
   key: 'audit_extra_condition',

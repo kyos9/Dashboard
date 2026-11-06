@@ -211,7 +211,7 @@ export function AppHeader() {
       title="이 화면이 서버에서 마지막으로 값을 받은 때입니다. 시세는 장 마감 뒤 서버가 매일 받고, 앱으로 돌아왔을 때 5분이 지났으면 다시 받습니다."
     >
       <span className={`status-dot ${status.dot}`} aria-hidden="true" />
-      {status.text}
+      <span className="status-text">{status.text}</span>
       {lastSync && !narrow && <span className="mono">갱신 {lastSync.toLocaleTimeString('ko-KR')}</span>}
     </span>
   )

@@ -371,6 +371,24 @@ button.signal-count:hover:not(:disabled) {
   padding-right: 4px;
 }
 
+/* 신호 칸은 오른쪽 끝에 붙여 둔다 — PC 확대 150% 에서 표를 옆으로 밀어야 신호가 보였다 (4차 사용자 확인·재검토).
+   종목 칸(왼쪽)이 붙어 있는 것과 짝 */
+.holdings-table .signal-head,
+.holdings-table .signal-cell {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+}
+
+.holdings-table .signal-head {
+  background: var(--panel-soft);
+}
+
+.holdings-table .signal-cell {
+  background: var(--panel);
+  box-shadow: -1px 0 0 var(--border);
+}
+
 .stock-line .hint.mono {
   font-size: var(--fs-caption);
 }

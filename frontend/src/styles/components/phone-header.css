@@ -84,3 +84,20 @@ button.icon-action {
   }
 }
 
+
+/* 상태 글("방금 받음")은 한 덩어리 — 글자를 키운 좁은 폰에서 세 줄로 접혔다(4차 재검토, 폰 글자 130%).
+   그보다 좁으면 점만 남기고 글은 화면 읽기에만 — 점의 색과 title 이 같은 뜻을 말한다 */
+.status-pill.compact .status-text {
+  white-space: nowrap;
+}
+
+@media (max-width: 340px) {
+  .status-pill.compact .status-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
