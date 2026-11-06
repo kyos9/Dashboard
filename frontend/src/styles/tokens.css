@@ -93,11 +93,12 @@
   --red: #f47171;
   --red-soft: rgba(244, 113, 113, 0.14);
   --red-line: rgba(244, 113, 113, 0.4);
-  --grey-sig: #aab3c0; /* 상승 빨강 설정의 비중조절 (05c ③) */
+  --teal-sig: #2dd4bf; /* 상승 빨강 설정의 비중조절 (06b 청록) */
+  --teal-sig-soft: rgba(45, 212, 191, 0.14);
   --rise-down: #7aa7ff; /* 상승 빨강 설정의 하락 파랑 */
   --rise-down-soft: rgba(122, 167, 255, 0.14);
   --rise-down-line: rgba(122, 167, 255, 0.4);
-  --grey-sig-line: rgba(170, 179, 192, 0.4);
+  --teal-sig-line: rgba(45, 212, 191, 0.4);
   --slate-soft: rgba(195, 202, 213, 0.12);
   --text-line: rgba(230, 235, 242, 0.18);
   --amber-tint: #282927; /* 호박 12% 를 --panel 에 섞은 불투명 바탕 */
@@ -188,11 +189,12 @@
   --red: #b91c1c;
   --red-soft: rgba(185, 28, 28, 0.08);
   --red-line: rgba(185, 28, 28, 0.35);
-  --grey-sig: #5b6472;
+  --teal-sig: #0f766e;
+  --teal-sig-soft: rgba(15, 118, 110, 0.08);
   --rise-down: #1d4ed8;
   --rise-down-soft: rgba(29, 78, 216, 0.08);
   --rise-down-line: rgba(29, 78, 216, 0.35);
-  --grey-sig-line: rgba(91, 100, 114, 0.35);
+  --teal-sig-line: rgba(15, 118, 110, 0.35);
   --slate-soft: rgba(55, 65, 81, 0.1);
   --text-line: rgba(17, 24, 39, 0.18);
   --amber-tint: #f4eae1;
@@ -253,8 +255,8 @@
   --signal-sell: var(--rise-down);
   --signal-sell-soft: var(--rise-down-soft);
   --signal-sell-line: var(--rise-down-line);
-  --signal-weight: var(--grey-sig);
-  --signal-weight-soft: var(--slate-soft);
-  --signal-weight-line: var(--grey-sig-line);
+  --signal-weight: var(--teal-sig);
+  --signal-weight-soft: var(--teal-sig-soft);
+  --signal-weight-line: var(--teal-sig-line);
 }
 
