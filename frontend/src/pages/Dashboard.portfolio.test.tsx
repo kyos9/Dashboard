@@ -765,19 +765,19 @@ describe('신호 점', () => {
     await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent('/stocks'))
   })
 
-  it('필터가 그 종목을 가리고 있으면 "모두 보기"로 돌린다', async () => {
+  it('필터가 그 종목을 가리고 있으면 "전체"로 돌린다', async () => {
     mockApi()
     renderDashboard()
     // 시그널 목록에서 비중조절 신호만 보이게 걸어 둔다 — NVDA(매도 시그널만)는 가려진다
     await userEvent.click(within(await holdingRow('SCHD')).getByRole('button', { name: /SCHD 신호/ }))
-    await userEvent.click(await screen.findByRole('button', { name: /^비중조절 \d+$/ }))
+    await userEvent.click(within(document.querySelector('.filter-chips') as HTMLElement).getByRole('button', { name: /비중조절 \d+/ }))
     expect(document.querySelector('[data-ticker="NVDA"]')).toBeNull()
     await userEvent.click(screen.getByRole('button', { name: '홈으로' }))
 
     const watch = await screen.findByRole('region', { name: /관심 종목/ })
     await userEvent.click(within(watch).getByRole('button', { name: /NVDA 신호/ }))
     await waitFor(() => expect(document.querySelector('[data-ticker="NVDA"]')).not.toBeNull())
-    expect(screen.getByRole('button', { name: '모두 보기' })).toHaveClass('active')
+    expect(within(document.querySelector('.filter-chips') as HTMLElement).getByRole('button', { name: /^전체/ })).toHaveAttribute('aria-pressed', 'true')
   })
 })
 

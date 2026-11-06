@@ -432,3 +432,150 @@ button.rail-name {
 .holdings-table td .holding-sub {
   color: var(--text-dim);
 }
+
+/* ---------- 시그널 목록 (목업 10) ---------- */
+
+.sub-head .ai-mini {
+  margin-left: auto;
+}
+
+.ai-mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  padding: 0 4px;
+  color: var(--accent);
+  font-size: var(--fs-sub);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+button.sub-more {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-dim);
+}
+
+button.sub-more.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.signal-filter {
+  margin-bottom: 8px;
+}
+
+.filter-chips {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+
+.filter-chips .chip {
+  flex: none;
+}
+
+.category-pick select {
+  min-height: 40px;
+  border-radius: 999px;
+  padding: 0 28px 0 12px;
+  font-size: var(--fs-sub);
+}
+
+.signal-notes {
+  margin: 6px 2px 0;
+}
+
+.view-tools {
+  margin: 0 0 12px;
+}
+
+/* 폰 카드 — 접혀 있고 누르면 하나만 펼친다 */
+button.signal-card-toggle {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'badges chev'
+    'why chev';
+  gap: 4px 8px;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 6px;
+  padding: 4px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  font: inherit;
+}
+
+.signal-card-badges {
+  grid-area: badges;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.signal-card-why {
+  grid-area: why;
+  font-size: var(--fs-sub);
+  color: var(--text-dim);
+}
+
+.signal-card-chev {
+  grid-area: chev;
+  color: var(--text-faint);
+  transition: transform 0.15s;
+}
+
+button.signal-card-toggle[aria-expanded='true'] .signal-card-chev {
+  transform: rotate(180deg);
+}
+
+.signal-card-body {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+/* ---------- PC 홈 요약 다섯 칸 (목업 10) ---------- */
+@media (min-width: 1100px) {
+  .portfolio > .money-line {
+    grid-template-columns: minmax(0, 1.6fr) repeat(4, minmax(0, 1fr));
+    grid-template-rows: auto auto;
+    align-items: stretch;
+    column-gap: 0;
+    row-gap: 0;
+    padding: 0;
+  }
+  .portfolio > .money-line .money-total {
+    grid-column: 1;
+    grid-row: 1;
+    padding: 18px 22px 4px;
+  }
+  .portfolio > .money-line .money-facts {
+    display: contents;
+  }
+  .portfolio > .money-line .money-facts > div {
+    grid-row: 1 / span 2;
+    padding: 18px 20px;
+    border-left: 1px solid var(--border);
+  }
+  .portfolio > .money-line .money-note {
+    grid-column: 1;
+    grid-row: 2;
+    padding: 0 22px 16px;
+  }
+}

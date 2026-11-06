@@ -440,6 +440,8 @@ export function Dashboard() {
   // 폰: 보기·설정 단추 다섯(표·카드·종목 설정·시그널 기준·순서 편집)을 접어 둔다 — 필터가 네 줄이라 첫 카드가
   // 첫 화면 밖이었다 (디자인 2차, 주인 결정). 순서 편집·종목 설정 중에는 접지 않는다(끝내는 단추가 거기 있다)
   const [viewToolsOpen, setViewToolsOpen] = useState(false)
+  // 폰 시그널 카드 — 펼친 하나 (한 번에 하나만, 목업 10)
+  const [openCard, setOpenCard] = useState<string | null>(null)
   const [view, setView] = useState<ViewMode>(() =>
     typeof window !== 'undefined' && window.innerWidth < 1100 ? 'card' : 'table',
   )
@@ -575,6 +577,15 @@ export function Dashboard() {
     }
   }
 
+  // 시그널 목록 머리의 수 — 신호(매수 · 매도 · 비중조절)가 하나라도 뜬 종목 (사용자 확인: "13"이 무엇의 수인지 몰랐다)
+  const signalTickerCount = useMemo(
+    () =>
+      cards.filter((c) => {
+        const state = trafficLight(c, rules).state
+        return state === 'buy' || state === 'hot' || hasWeightSignal(c)
+      }).length,
+    [cards, rules],
+  )
   const summary = useMemo(() => {
     const lights = cards.map((card) => trafficLight(card, rules))
     const reasons = cards.flatMap((c) => (c.rebalance_signal.active ? c.rebalance_signal.reasons : []))
@@ -695,6 +706,7 @@ export function Dashboard() {
     if (category !== '전체' && categoryOf(target.category) !== category) setCategory('전체')
     if (!matchesQuick(target, quick, rules)) setQuick('all')
     if (view === 'edit') setView(narrow ? 'card' : 'table')
+    setOpenCard(focus)
     // 필터를 고른 뒤의 화면에서 찾는다 — 한 번만 (같은 칸으로 다시 오면 다시)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusKey, cards.length])
@@ -763,17 +775,26 @@ export function Dashboard() {
               <Icon name="back" size={22} />
             </button>
             <h2>
-              시그널 <span className="sub-count">{summary.buy + summary.hot + summary.rebalanceCount}</span>
+              시그널 <span className="sub-count">{signalTickerCount}종목</span>
             </h2>
-          </div>
-          <Link to="/ai/watchlist" className="ai-row">
-            <Icon name="ai" size={22} className="ai-row-mark" />
-            <span className="ai-row-text">
+            {narrow && (
+              <button
+                type="button"
+                className={`sub-more${viewToolsOpen || ordering || view === 'edit' ? ' active' : ''}`}
+                aria-label="보기·설정"
+                aria-expanded={viewToolsOpen || ordering || view === 'edit'}
+                aria-controls="signal-view-tools"
+                onClick={() => setViewToolsOpen((o) => !o)}
+              >
+                <Icon name="more" size={20} />
+              </button>
+            )}
+            {/* AI 는 작은 한 줄 링크 — 카드가 첫 화면에 들어오게 (목업 10) */}
+            <Link to="/ai/watchlist" className="ai-mini">
+              <Icon name="ai" size={16} />
               AI 종목 정리
-              <span className="hint">담은 종목 전체를 한 장으로</span>
-            </span>
-            <Icon name="forward" size={18} className="ai-row-go" />
-          </Link>
+            </Link>
+          </div>
         </>
       )}
 
@@ -812,90 +833,82 @@ export function Dashboard() {
 
       {/* 매크로 줄은 대시보드에서 뺐다 — 매크로 탭·손님 화면에 있다 (디자인 4차, 주인 답 ㉡) */}
 
-      {/* 신호 요약 한 장 (디자인 1차) — 시그널 넷(매수·관망·매도·비중조절)을 한 줄에, 비중조절의 갈래는 그 아래.
-          예전에는 "종합 신호등"과 "비중조절" 두 장이라 폰 첫 화면을 다 썼다. */}
-      <section className="kpi signal-summary" aria-label="신호 요약">
-        <div className="kpi-head">
-          <span className="kpi-title">신호 요약</span>
-          <span className="hint mono">{cards.length}종목</span>
-        </div>
-        {/* 칸이 단추처럼 생겨 누르게 된다 — 누르면 아래 "신호" 거르기가 그 종류로 (디자인 2차, 주인 결정).
-            관망은 거르기가 없어 누르지 않는 칸이다 */}
-        <div className="kpi-counts">
+      {/* 거르기 한 줄 (디자인 4차 묶음 2 · 목업 10) — 예전의 신호 요약 상자와 "구분"·"신호" 두 줄을 하나로.
+          칩이 수를 겸한다. 누르면 그 종류만, 다시 누르면 전체 (사용자 확인: 폰 첫 화면에 카드가 안 보였다 · 거르기가 두 번) */}
+      <section className="signal-filter" aria-label="신호 요약">
+        <div className="chip-row filter-chips">
+          <button type="button" className={`chip${quick === 'all' ? ' active' : ''}`} aria-pressed={quick === 'all'} onClick={() => setQuick('all')}>
+            전체 {cards.length}
+          </button>
           <button
             type="button"
-            className="count-chip green"
+            className={`chip tone-buy${quick === 'knee' ? ' active' : ''}`}
             aria-pressed={quick === 'knee'}
             onClick={() => setQuick(quick === 'knee' ? 'all' : 'knee')}
           >
-            <span className="num">{summary.buy}</span>
-            <span className="lbl">
-              <SignalShape kind="buy" size={9} /> 매수
-            </span>
+            <SignalShape kind="buy" size={9} /> 매수 {summary.buy}
           </button>
-          <span className="count-chip amber">
-            <span className="num">{summary.watch}</span>
-            <span className="lbl">관망</span>
-          </span>
           <button
             type="button"
-            className="count-chip red"
+            className={`chip tone-sell${quick === 'sell' ? ' active' : ''}`}
             aria-pressed={quick === 'sell'}
             onClick={() => setQuick(quick === 'sell' ? 'all' : 'sell')}
           >
-            <span className="num">{summary.hot}</span>
-            <span className="lbl">
-              <SignalShape kind="sell" size={9} /> 매도
-            </span>
+            <SignalShape kind="sell" size={9} /> 매도 {summary.hot}
           </button>
           <button
             type="button"
-            className="count-chip purple"
-            aria-pressed={quick === 'rebalance'}
+            className={`chip tone-weight${quick === 'rebalance' || quick === 'over' || quick === 'under' ? ' active' : ''}`}
+            aria-pressed={quick === 'rebalance' || quick === 'over' || quick === 'under'}
             onClick={() => setQuick(quick === 'rebalance' ? 'all' : 'rebalance')}
           >
-            <span className="num">{summary.rebalanceCount}</span>
-            <span className="lbl">
-              <SignalShape kind="rebalance" size={9} /> 비중조절
-            </span>
+            <SignalShape kind="rebalance" size={9} /> 비중조절 {summary.rebalanceCount}
           </button>
-        </div>
-        <div className="badge-row">
-          {/* 비중조절은 보라 ◆ — 매도·매수 시그널(빨강·초록)이나 오르내림 색과 섞이지 않게 (8-4).
-              초과·미달은 누르면 그 종목만 — 테두리 있는 칩(누르는 것), 정기 리뷰·밴드 이내는 그대로 배지(표시만) (0.45.3 A) */}
-          {summary.sellReview > 0 && (
+          {/* 비중조절을 켜면 갈래(초과 · 미달)가 그 옆에 — 늘 있으면 줄이 넘친다 */}
+          {(quick === 'rebalance' || quick === 'over' || quick === 'under') && summary.sellReview > 0 && (
             <button
               type="button"
               className={`chip weight-chip${quick === 'over' ? ' active' : ''}`}
               aria-pressed={quick === 'over'}
-              onClick={() => setQuick(quick === 'over' ? 'all' : 'over')}
+              onClick={() => setQuick(quick === 'over' ? 'rebalance' : 'over')}
             >
-              <SignalShape kind="rebalance" size={9} /> 비중 초과 {summary.sellReview}
+              초과 {summary.sellReview}
             </button>
           )}
-          {summary.buyReview > 0 && (
+          {(quick === 'rebalance' || quick === 'over' || quick === 'under') && summary.buyReview > 0 && (
             <button
               type="button"
               className={`chip weight-chip${quick === 'under' ? ' active' : ''}`}
               aria-pressed={quick === 'under'}
-              onClick={() => setQuick(quick === 'under' ? 'all' : 'under')}
+              onClick={() => setQuick(quick === 'under' ? 'rebalance' : 'under')}
             >
-              <SignalShape kind="rebalance" size={9} /> 비중 미달 {summary.buyReview}
+              미달 {summary.buyReview}
             </button>
           )}
-          {summary.periodicReview > 0 && (
-            <span className="badge badge-purple">정기 리뷰 {summary.periodicReview}</span>
+          {categories.length > 1 && (
+            <label className="category-pick">
+              <span className="sr-only">구분</span>
+              <select value={category} onChange={(e) => setCategory(e.target.value)} aria-label="구분">
+                <option value="전체">구분: 전체</option>
+                {categories.map(([name, count]) => (
+                  <option key={name} value={name}>
+                    {name} {count}
+                  </option>
+                ))}
+              </select>
+            </label>
           )}
-          {summary.rebalanceCount === 0 && <span className="badge badge-grey">비중 모두 밴드 이내</span>}
         </div>
-        <p className="kpi-foot">
-          {summary.stale > 0
-            ? `${summary.stale}종목은 시세가 오래되어 판정에서 제외됐습니다.`
-            : '모든 종목의 시세가 최신 상태입니다.'}
+        {/* 판정에 붙는 말 — 칩 아래 작은 한 줄씩 */}
+        <p className="signal-notes hint">
+          관망 {summary.watch}
+          {summary.periodicReview > 0 && ` · 정기 리뷰 ${summary.periodicReview}`}
+          {summary.rebalanceCount === 0 && ' · 비중 모두 밴드 이내'}
+          {summary.stale > 0 && ` · ${summary.stale}종목은 시세가 오래되어 판정에서 제외됐습니다.`}
         </p>
         {/* 내 기준을 쓰는 사람에게만 (0.42.0) — 저장이 됐는지, 지금 어느 기준으로 보는지 */}
         {rules.custom && (
-          <p className="kpi-foot mine-note" role="note">
+          <p className="signal-notes hint mine-note" role="note">
             <strong>내 기준</strong>으로 본 판정 · 오늘 매수 {summary.buy}개
             {summary.buyDefault === summary.buy ? ' · 기본 기준과 같습니다' : ` (기본 기준이면 ${summary.buyDefault}개)`}
             {/* 어느 종목이 달라졌는지 — 숫자만으로는 찾을 수 없었다 (0.42.0 사용자 확인) */}
@@ -908,66 +921,15 @@ export function Dashboard() {
         )}
         {/* 정의를 바꾼 뒤 30일 — 지난 차트의 점이 왜 달라졌는지 알 수 있게 (주인 결정, 0.41.0) */}
         {rules.change_notice && (
-          <p className="kpi-foot" role="note">
+          <p className="signal-notes hint" role="note">
             {rules.change_notice}
           </p>
         )}
       </section>
 
-      <div className="toolbar">
-        <span className="toolbar-label">구분</span>
-        <div className="chip-row">
-          <button className={`chip${category === '전체' ? ' active' : ''}`} onClick={() => setCategory('전체')}>
-            전체 {cards.length}
-          </button>
-          {categories.map(([name, count]) => (
-            <button
-              key={name}
-              className={`chip${category === name ? ' active' : ''}`}
-              onClick={() => setCategory(name)}
-            >
-              {name} {count}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="toolbar">
-        <span className="toolbar-label">신호</span>
-        <div className="chip-row">
-          <button className={`chip${quick === 'all' ? ' active' : ''}`} onClick={() => setQuick('all')}>
-            모두 보기
-          </button>
-          {/* 이름은 짧게 — 모양이 종류를 말한다 (8-4 배지와 같은 규칙) */}
-          <button className={`chip${quick === 'knee' ? ' active' : ''}`} onClick={() => setQuick('knee')}>
-            <SignalShape kind="buy" size={9} /> 매수 {summary.buy}
-          </button>
-          <button className={`chip${quick === 'sell' ? ' active' : ''}`} onClick={() => setQuick('sell')}>
-            <SignalShape kind="sell" size={9} /> 매도 {summary.hot}
-          </button>
-          {/* 위 요약의 초과·미달을 켜면 여기서는 비중조절 칩이 켜져 그 갈래를 말한다 — 아무것도 안 켜진 줄이 됐다(계획 검토).
-              칩을 따로 더하면 폰에서 이 줄이 한 줄 늘어 첫 카드가 640 화면 끝까지 밀렸다(다시 보기) */}
-          <button
-            className={`chip${quick === 'rebalance' || quick === 'over' || quick === 'under' ? ' active' : ''}`}
-            onClick={() => setQuick('rebalance')}
-          >
-            <SignalShape kind="rebalance" size={9} /> 비중조절{' '}
-            {quick === 'over' ? `· 초과 ${summary.sellReview}` : quick === 'under' ? `· 미달 ${summary.buyReview}` : summary.rebalanceCount}
-          </button>
-          {narrow && (
-            <button
-              className={`chip${viewToolsOpen || ordering || view === 'edit' ? ' active' : ''}`}
-              aria-expanded={viewToolsOpen || ordering || view === 'edit'}
-              aria-controls="signal-view-tools"
-              onClick={() => setViewToolsOpen((o) => !o)}
-            >
-              {/* ▾/▴ = 눌러서 펼친다/접는다 (용어 사전 · 어포던스). ⋯ 는 폰 메뉴의 기호라 쓰지 않는다 */}
-              보기·설정 {viewToolsOpen || ordering || view === 'edit' ? '▴' : '▾'}
-            </button>
-          )}
-        </div>
-        {(!narrow || viewToolsOpen || ordering || view === 'edit') && (
-        <div className="chip-row spacer" id="signal-view-tools">
+      {/* 보기 · 설정 — PC 는 늘 한 줄, 폰은 머리의 ⋯ 로 편다 */}
+      {(!narrow || viewToolsOpen || ordering || view === 'edit') && (
+        <div className="chip-row view-tools" id="signal-view-tools" aria-label="보기·설정" role="group">
           <button className={`chip${view === 'table' ? ' active' : ''}`} onClick={() => setView('table')}>
             표 보기
           </button>
@@ -1000,8 +962,7 @@ export function Dashboard() {
             </button>
           )}
         </div>
-        )}
-      </div>
+      )}
 
       {thresholdsNote && (
         <p className="hint saved-note" role="status">
@@ -1045,6 +1006,9 @@ export function Dashboard() {
           onChart={openChart}
           onAi={openAi}
           controls={rowControls}
+          collapsible={narrow && !ordering}
+          openTicker={openCard}
+          onToggle={(ticker) => setOpenCard((t) => (t === ticker ? null : ticker))}
         />
       )}
       </div>
@@ -1485,18 +1449,52 @@ function SettingsTable({
   )
 }
 
+/** 접힌 카드의 한 줄 이유 (목업 10) — 왜 이 신호인지 숫자 하나 둘로 */
+function reasonLine(card: DashboardCard, rules: SignalRules, numbers?: WeightNumbers): string {
+  const ind = card.indicators
+  const state = trafficLight(card, rules).state
+  const disparity = ind.disparity == null ? null : `이격도 ${signed(ind.disparity, 1, '%')}`
+  const parts: string[] = []
+  if (state === 'buy') {
+    const values = Object.values(card.knee_conditions)
+    parts.push(`매수 조건 ${values.filter((v) => v === true).length}/${values.length}`)
+    if (disparity) parts.push(disparity)
+    if (ind.adx != null) parts.push(`ADX ${num(ind.adx, 0)}`)
+  } else if (state === 'hot') {
+    parts.push('매도(참고)')
+    if (disparity) parts.push(disparity)
+    const ma200 = readMa200(ind.close, ind.ma200)
+    if (ma200.pct != null) parts.push(`200일선 ${signed(ma200.pct, 0, '%')}`)
+  } else if (state === 'stale') {
+    parts.push('시세가 오래되어 판정 제외')
+  } else if (disparity) {
+    parts.push(disparity)
+  }
+  if (hasWeightSignal(card) && numbers) {
+    parts.push(`비중 ${num(numbers.actual_weight_pct, 1)}% · 목표 ${pctText(numbers.target_weight_pct)}%`)
+  }
+  return parts.join(' · ')
+}
+
 function SignalCards({
   cards,
   weights,
   onChart,
   onAi,
   controls,
+  collapsible = false,
+  openTicker = null,
+  onToggle,
 }: {
   cards: DashboardCard[]
   weights?: Map<string, WeightNumbers>
   onChart: (card: DashboardCard) => void
   onAi: (card: DashboardCard) => void
   controls: RowControlProps
+  /** 폰 — 카드는 접혀 있고 누르면 하나만 펼친다 (디자인 4차 묶음 2 · 목업 10, 주인: "하나씩만 열리는 거 맞지?") */
+  collapsible?: boolean
+  openTicker?: string | null
+  onToggle?: (ticker: string) => void
 }) {
   const rules = useSignalRules()
   return (
@@ -1510,6 +1508,8 @@ function SignalCards({
         const ma200 = readMa200(ind.close, ind.ma200)
         const change = ind.change_pct
         const drag = dragProps(card.ticker, controls)
+        const folded = collapsible && openTicker !== card.ticker
+        const weightReasons = card.rebalance_signal.active ? card.rebalance_signal.reasons.filter(isWeightReason) : []
 
         return (
           <article
@@ -1539,6 +1539,26 @@ function SignalCards({
               </div>
             </div>
 
+            {collapsible && (
+              <button
+                type="button"
+                className="signal-card-toggle"
+                aria-expanded={!folded}
+                aria-controls={`signal-card-${card.ticker}`}
+                onClick={() => onToggle?.(card.ticker)}
+              >
+                <span className="signal-card-badges">
+                  <TrafficBadge traffic={trafficLight(card, rules)} />
+                  {weightReasons.map((r) => (
+                    <ReasonTag key={r} reason={r} />
+                  ))}
+                </span>
+                <span className="signal-card-why">{reasonLine(card, rules, weights?.get(card.ticker))}</span>
+                <Icon name="chevronDown" size={18} className="signal-card-chev" />
+              </button>
+            )}
+            {!folded && (
+            <div id={`signal-card-${card.ticker}`} className="signal-card-body">
             {/* 시그널 · 비중 · 매수 조건 — 왼쪽 이름표로 종류를 가른다 (디자인 2차, 주인 결정 시안 v4).
                 "▼ 매도"와 "◆ 매수 검토"가 이름표 없이 붙어 있으면 "팔라는데 사라고도?"로 읽혔다 */}
             <div className="signal-rows">
@@ -1603,6 +1623,8 @@ function SignalCards({
               <LastBuySignal card={card} />
               <AiButton card={card} onAi={onAi} />
             </div>
+            </div>
+            )}
           </article>
         )
       })}
