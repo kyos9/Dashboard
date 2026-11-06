@@ -37,6 +37,8 @@ function bgOf(selector: string): string {
 
 // 색 값 — hex, rgb()/hsl()/oklch(), color-mix(). currentColor 를 섞는 것만 허용(색표의 색이 아니라 글자색의 옅은 꼴)
 const COLOR = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|oklch|oklab)\(|color-mix\((?![^)]*currentColor)/
+// CSS 속성 값 안의 이름 색(white·black …) — 변수 이름(--red)은 빼고
+const NAMED = /^\s*[a-z-]+\s*:[^;{]*(?<![-\w])(?:white|black|red|blue|green|gray|grey|orange|purple|yellow|navy|silver)\b/
 
 describe('색표 (tokens.css)', () => {
   it('index.html 과 manifest 의 바탕색이 tokens.css 의 --bg 와 같다', () => {
@@ -51,7 +53,7 @@ describe('색표 (tokens.css)', () => {
   })
 
   it('tokens.css 밖의 스타일과 화면 코드에 색 값을 직접 쓰지 않는다', () => {
-    const css = files('src/styles', /\.css$/).filter((f) => !f.endsWith('/tokens.css'))
+    const css = [...files('src/styles', /\.css$/).filter((f) => !f.endsWith('/tokens.css')), 'src/index.css']
     const code = files('src', /\.tsx?$/).filter((f) => !/\.test\.tsx?$/.test(f) && !f.startsWith('src/test/'))
     expect(css.length).toBeGreaterThan(30)
     expect(code.length).toBeGreaterThan(50)
@@ -59,7 +61,7 @@ describe('색표 (tokens.css)', () => {
       read(f)
         .split('\n')
         .map((line, i) => ({ f, n: i + 1, line }))
-        .filter(({ line }) => COLOR.test(line)),
+        .filter(({ f, line }) => COLOR.test(line) || (f.endsWith('.css') && !/white-space/.test(line) && NAMED.test(line))),
     )
     expect(found.map(({ f, n, line }) => `${f}:${n} ${line.trim()}`)).toEqual([])
   })

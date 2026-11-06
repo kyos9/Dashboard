@@ -44,7 +44,7 @@ DESIGN_PROMPT 자체를 고칠지(다음 차수에도 남길지)는 ③ 끝 보�
 2. **토큰 도입** — 값은 그대로 이름만(`--color-*`, `--signal-*`, `--surface-*`). 색 쓰는 곳을 토큰으로 바꾼다. rgba 38곳·차트 hex 포함.
 3. **색 값 교체** — 아래 4장의 색표. **값은 hex**(OKLCH 는 만드는 법으로 주석에만 — audit 와 lightweight-charts 가 읽게, 검토자 B1·개발자 2). 차트는 차트 파일 안에서 `getComputedStyle`로 토큰을 읽는다(lib 무변경). audit `parse()`는 그대로 두되 "못 읽은 색 수"를 결과에 더해 0 을 확인한다.
 4. **글꼴** — Pretendard 부분집합(400~700, KS 2,350+라틴, `tnum` 유지)을 Wanted Sans 자리에. Spoqa Han Sans Neo 는 요약 칸에만(㉣ 답대로 숫자만 / 이름표까지). `.mono`는 `tabular-nums` + 본문 글꼴로, `--font-mono`는 진단 로그용으로 남김. 차트 축 글꼴 `layout.fontFamily`. 숫자 폭 같음 테스트(`111,111` vs `888,888`) 추가.
-5. **표시 부품** — `components/ui/`: `SummaryGrid`(요약 칸) · `SignalCounts`(신호 칸) · `SignalMark`(▲▼◆). 단추·칩·배지·탭은 **CSS 클래스 체계 먼저**(React 부품으로 갈아 끼우지 않음 — tsx diff 를 작게). 보기 전환은 `role=group`+`aria-pressed` 단추 그대로, 밑줄 모양만 CSS(개발자 4 — 테스트 7곳·role 삭제 금지).
+5. **표시 부품** — (묶음 1 검토 뒤: 묶음 2로 미룸 — 묶음 1은 CSS 클래스로) `components/ui/`: `SummaryGrid`(요약 칸) · `SignalCounts`(신호 칸) · `SignalMark`(▲▼◆). 단추·칩·배지·탭은 **CSS 클래스 체계 먼저**(React 부품으로 갈아 끼우지 않음 — tsx diff 를 작게). 보기 전환은 `role=group`+`aria-pressed` 단추 그대로, 밑줄 모양만 CSS(개발자 4 — 테스트 7곳·role 삭제 금지).
 6. **대시보드 포트폴리오 보기 = B** (5장). `MoneyLine`을 리밸런싱도 쓰므로 **리밸런싱 위 요약도 같이 바뀐다**(같은 데이터·같은 부품 — 범위에 넣음).
 7. **시그널 보기·다른 화면** — 머리줄·탭·색·글꼴이 퍼진 것만. 배치는 다음 묶음.
 

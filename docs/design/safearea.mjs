@@ -157,12 +157,8 @@ function measurePage({ inset }) {
     out.push({ check: 'status-strip', detail: `띠 ${strip.position} 높이 ${h} < ${inset.top}` })
   const header = document.querySelector('.app-header')
   if (inset.top > 0 && header) {
-    const want = getComputedStyle(document.documentElement).getPropertyValue('--bg-elevated').trim()
-    const probe = document.createElement('div')
-    probe.style.color = want
-    document.body.appendChild(probe)
-    const wantRgb = getComputedStyle(probe).color
-    probe.remove()
+    // 4차: 띠는 머리줄과 같은 색이어야 한다(머리줄이 청람이 됐다) — 이름 붙은 토큰 대신 머리줄의 실제 바탕과 비교
+    const wantRgb = getComputedStyle(header).backgroundColor
     if (strip.backgroundColor !== wantRgb) out.push({ check: 'status-strip', detail: `띠 색 ${strip.backgroundColor} ≠ ${wantRgb}` })
   }
   return out

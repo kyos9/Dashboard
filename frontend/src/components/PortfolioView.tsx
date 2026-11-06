@@ -366,10 +366,11 @@ export function MoneyLine({ current, signalCount, review = false }: { current: R
               다음 리뷰 · {REVIEW_PERIOD_LABEL[next.period]}
             </dt>
             <dd>
-              <span className="summary-num" title={next.next_date}>{next.due ? '리뷰할 때' : reviewCountdown(next)}</span>{' '}
+              <span className="summary-num">{next.due ? '리뷰할 때' : reviewCountdown(next)}</span>{' '}
               <Link to="/rebalance" className="money-link">
                 리밸런싱
               </Link>
+              <span className="money-date summary-num">{next.next_date}</span>
             </dd>
           </div>
         ) : (
@@ -431,6 +432,7 @@ function SignalBadges({ label, signals, onSignal, ticker }: {
   const text = signals.map((s) => s.label).join(' · ')
   return (
     <button
+      type="button"
       className="holding-signals"
       onClick={() => onSignal(ticker)}
       title={`${text} — 눌러서 시그널 보기`}

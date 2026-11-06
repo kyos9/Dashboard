@@ -270,6 +270,14 @@ button.signal-count:hover:not(:disabled) {
   white-space: nowrap;
 }
 
+/* 다음 리뷰 날짜 — 폰에서도 보이게 칸 안에 작게 (4차 검토: title 에만 있었다) */
+.money-date {
+  flex-basis: 100%;
+  font-size: var(--fs-caption);
+  font-weight: 500;
+  color: var(--text-faint);
+}
+
 .review-due dd .summary-num {
   color: var(--amber);
 }

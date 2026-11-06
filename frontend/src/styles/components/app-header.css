@@ -179,3 +179,9 @@
   background: var(--on-brand-warn);
   color: var(--on-brand-warn-ink);
 }
+
+/* 머리줄 안의 포커스 테두리 — 브라우저 기본 색이 청람과 같아 라이트에서 안 보였다 (4차 검토) */
+.app-header :focus-visible {
+  outline: 2px solid var(--on-brand);
+  outline-offset: 2px;
+}

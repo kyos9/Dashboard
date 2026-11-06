@@ -37,6 +37,8 @@ const VIEWPORTS = [
 ]
 // PC 브라우저 확대 150% = 창 폭 1400/1.5 ≈ 933 에 배율 1.5
 const ZOOM150 = { name: 'pc-zoom150', width: 933, height: 600, dsf: 1.5, phone: false }
+// 4차: 폰 390 에서 글자 130% — 브라우저로 글자만 키울 수 없어 폭 390/1.3 = 300 에 배율 3 × 1.3 으로 흉내 낸다
+const TEXT130 = { name: 'ph390-text130', width: 300, height: 650, dsf: 3.9, phone: true }
 
 function conditions() {
   if (QUICK)
@@ -49,6 +51,7 @@ function conditions() {
   out.push({ vp: VIEWPORTS[1], theme: 'dark', rise: 'red' })
   out.push({ vp: VIEWPORTS[1], theme: 'light', rise: 'red' }) // 2차: 빨강 + 라이트 대비
   out.push({ vp: ZOOM150, theme: 'dark', rise: 'green' })
+  out.push({ vp: TEXT130, theme: 'dark', rise: 'green' })
   return out
 }
 
@@ -477,6 +480,34 @@ function measure(opts) {
     const ratio = (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05)
     if (ratio < 4.5) add('contrast', el, { ratio: +ratio.toFixed(2), color: cs.color, size: cs.fontSize })
   }
+  // 4차: 글자 겹침 — 한 상자 안의 이웃 칸끼리 글자가 겹친다(긴 종목 이름이 옆 금액 위로). 요소 상자가 아니라 글자 상자를 잰다
+  const textRects = (el) => {
+    const rects = []
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      if (!n.textContent.trim()) continue
+      const r = document.createRange()
+      r.selectNodeContents(n)
+      for (const b of r.getClientRects()) if (b.width > 0 && b.height > 0) rects.push(b)
+    }
+    return rects
+  }
+  const cut = (a, b) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > 2 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 2
+  const seen = new Set()
+  for (const parent of root.querySelectorAll('*')) {
+    const kids = [...parent.children].filter((c) => visible(c) && !['absolute', 'fixed'].includes(getComputedStyle(c).position))
+    if (kids.length < 2 || kids.length > 30) continue
+    const boxes = kids.map(textRects)
+    for (let i = 0; i < kids.length; i++)
+      for (let j = i + 1; j < kids.length; j++)
+        if (boxes[i].some((a) => boxes[j].some((b) => cut(a, b)))) {
+          const key = kids[i].textContent.slice(0, 20) + '|' + kids[j].textContent.slice(0, 20)
+          if (seen.has(key)) continue
+          seen.add(key)
+          add('text-overlap', kids[i], { other: kids[j].textContent.trim().slice(0, 30) })
+        }
+  }
+
   // 4차: 숫자 자릿수 폭 — 고정폭 글꼴 대신 tabular-nums 를 쓰므로, 글꼴 부분집합이 tnum 을 잃으면 표의 자리가 어긋난다
   const probe = (text) => {
     const s = document.createElement('span')
@@ -494,7 +525,7 @@ function measure(opts) {
 
 /* ---------- 실행 ---------- */
 
-const CHECKS = ['page-overflow', 'clipped', 'orphan', 'num-split', 'folded3', 'folded2-360', 'touch', 'contrast', 'console', 'cond-missing', 'nowrap-split', 'sticky-left', 'fake-button', 'quiet-target', 'color-unread', 'tnum-width']
+const CHECKS = ['page-overflow', 'clipped', 'orphan', 'num-split', 'folded3', 'folded2-360', 'touch', 'contrast', 'console', 'cond-missing', 'nowrap-split', 'sticky-left', 'fake-button', 'quiet-target', 'color-unread', 'tnum-width', 'text-overlap']
 
 const XCOND = {
   key: 'audit_extra_condition',
