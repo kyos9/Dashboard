@@ -440,7 +440,7 @@ export function MacroPanel() {
           {/* 지표를 AI 가 글로 (3c-2). 손님·승인 대기는 AI 를 쓰지 않는다 — 키도 계정에 묶여 있다 */}
           {!guest && !pending && series.length > 0 && (
             <button className="ghost" onClick={() => setAiOpen(true)}>
-              ✦ AI 정리
+              ✦ AI 매크로 정리
             </button>
           )}
           {isAdmin && (

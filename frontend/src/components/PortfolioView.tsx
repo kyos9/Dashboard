@@ -57,7 +57,7 @@ interface Props {
   onSignal: (ticker: string) => void
   /** 맨 위 "확인할 신호" — 종류를 누르면 그 종류만 걸러진 시그널 보기로, "시그널 보기"는 모두 (디자인 2차, 주인 결정 ②) */
   onOpenSignals: (kind?: SignalFilter) => void
-  /** AI 포트폴리오 진단을 쓸 수 있나 — 관리자는 늘, 사용자는 관리자가 열어 둔 동안 (9-15) */
+  /** AI 포트폴리오 점검을 쓸 수 있나 — 관리자는 늘, 사용자는 관리자가 열어 둔 동안 (9-15) */
   canAdvise?: boolean
   onSaved: () => void
 }
@@ -183,7 +183,7 @@ export function PortfolioView({ current, cards, stocks, narrow, onChart, onSigna
           <Link to="/ai/portfolio" className="ai-row">
             <Icon name="ai" size={22} className="ai-row-mark" />
             <span className="ai-row-text">
-              AI 포트폴리오 진단
+              AI 포트폴리오 점검
               <span className="hint">내 비중 · 수익률로 전체를 점검</span>
             </span>
             <Icon name="forward" size={18} className="ai-row-go" />
@@ -299,7 +299,7 @@ function SignalLine({
   ]
   if (parts.every((p) => p.n === 0)) {
     return (
-      // 신호가 없어도 시그널 목록(지표 표 · AI 전체 정리 · 시그널 기준 · 종목 설정)으로 갈 길은 남긴다 (묶음 2 검토 조건 1)
+      // 신호가 없어도 시그널 목록(지표 표 · AI 종목 정리 · 시그널 기준 · 종목 설정)으로 갈 길은 남긴다 (묶음 2 검토 조건 1)
       <p className="signal-line quiet">
         확인할 신호가 없습니다
         <button type="button" className="link-like signal-line-go" onClick={() => onOpen()}>

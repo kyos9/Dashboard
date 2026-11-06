@@ -25,7 +25,7 @@ export function TabBar() {
         </span>
       )}
       {diag && (
-        <span className={`tab-dot${count > 0 ? ' tab-dot-aside' : ''}`} aria-label={`진단을 확인하세요 — ${diag}`} role="img" />
+        <span className={`tab-dot${count > 0 ? ' tab-dot-aside' : ''}`} aria-label={`서버 상태를 확인하세요 — ${diag}`} role="img" />
       )}
     </>
   )

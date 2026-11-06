@@ -232,6 +232,8 @@ describe('헤더', () => {
       return { locked: true, authenticated: false }
     })
     await userEvent.click(await screen.findByRole('button', { name: '나가기' }))
+    // 설정의 나가기는 한 번 묻는다 (주인 답)
+    await userEvent.click(within(await screen.findByRole('alertdialog', { name: '이 기기에서 나갈까요?' })).getByRole('button', { name: '나가기' }))
     await waitFor(() => expect(order).toEqual(['disable', 'logout']))
   })
 
@@ -240,6 +242,8 @@ describe('헤더', () => {
     renderApp(FRIEND)
     const logout = vi.spyOn(api, 'logout').mockResolvedValue({ locked: true, authenticated: false })
     await userEvent.click(await screen.findByRole('button', { name: '나가기' }))
+    // 설정의 나가기는 한 번 묻는다 (주인 답)
+    await userEvent.click(within(await screen.findByRole('alertdialog', { name: '이 기기에서 나갈까요?' })).getByRole('button', { name: '나가기' }))
     await waitFor(() => expect(logout).toHaveBeenCalled())
   })
 

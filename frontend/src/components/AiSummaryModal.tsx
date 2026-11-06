@@ -6,8 +6,8 @@ import { lockBodyScroll } from '../lib/scrollLock'
 
 
 /**
- * 종목 하나가 아닌 AI 정리를 띄우는 창 (ROADMAP 3c-2) — 대시보드의 "AI 전체 정리", 매크로의 "AI 정리",
- * 포트폴리오 보기의 "AI 포트폴리오 진단"(9-7 — 관리자가 사용자에게 열고 닫는다, 9-15).
+ * 종목 하나가 아닌 AI 정리를 띄우는 창 (ROADMAP 3c-2) — 대시보드의 "AI 종목 정리", 매크로의 "AI 정리",
+ * 포트폴리오 보기의 "AI 포트폴리오 점검"(9-7 — 관리자가 사용자에게 열고 닫는다, 9-15).
  * 창을 닫으면 받던 글도 멈춘다 (`AiPanel`).
  */
 export function AiSummaryModal({

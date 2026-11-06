@@ -188,7 +188,7 @@ const SCREENS = [
   { name: 'menu-display', who: 'owner@example.com', path: '/settings', act: (p) => openMenu(p, '화면') },
   { name: 'menu-ai-key', who: 'owner@example.com', path: '/settings', act: (p) => openMenu(p, 'AI 키') },
   { name: 'menu-push', who: 'owner@example.com', path: '/settings', act: (p) => openMenu(p, '알림') },
-  { name: 'menu-diagnostics', who: 'owner@example.com', path: '/settings', act: (p) => openMenu(p, '진단') },
+  { name: 'menu-diagnostics', who: 'owner@example.com', path: '/settings', act: (p) => openMenu(p, '서버 상태') },
   { name: 'menu-users', who: 'owner@example.com', path: '/settings', act: (p) => openMenu(p, '사용자') },
 ]
 

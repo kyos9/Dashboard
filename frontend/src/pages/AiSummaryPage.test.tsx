@@ -29,7 +29,7 @@ describe('AI 정리 화면', () => {
   it('포트폴리오 진단 — 비중·수익률(%)만 보낸다고 먼저 적고, 들어오기만으로는 부르지 않는다', async () => {
     const stream = vi.spyOn(api, 'aiAnalyzeStream')
     renderAt('/ai/portfolio')
-    expect(screen.getByRole('heading', { name: 'AI 포트폴리오 진단' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'AI 포트폴리오 점검' })).toBeInTheDocument()
     expect(screen.getByText(/금액은 보내지 않습니다/)).toBeInTheDocument()
     expect(await screen.findByText(/평가금액·수량·평단가·현금 액수는 보내지 않습니다/)).toBeInTheDocument()
     expect(stream).not.toHaveBeenCalled()
@@ -37,7 +37,7 @@ describe('AI 정리 화면', () => {
 
   it('전체 정리 — 보유는 보내지 않는다', async () => {
     renderAt('/ai/watchlist')
-    expect(screen.getByRole('heading', { name: 'AI 전체 정리' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'AI 종목 정리' })).toBeInTheDocument()
     expect(await screen.findByText(/보유수량·비중·평단가는 보내지 않습니다/)).toBeInTheDocument()
   })
 

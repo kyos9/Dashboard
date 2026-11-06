@@ -213,7 +213,7 @@ describe('구글 계정', () => {
     expect(screen.queryByRole('button', { name: '탈퇴' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '전체 새로고침' })).toBeInTheDocument()
     // 진단은 설정 탭에 (디자인 4차 묶음 2 — 숨은 메뉴 없음)
-    expect(screen.getByRole('button', { name: /^진단/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^서버 상태/ })).toBeInTheDocument()
   })
 
   it('사용자에게는 관리자 버튼이 없다 — 전원의 시세 갱신·남의 로그', async () => {
@@ -221,7 +221,7 @@ describe('구글 계정', () => {
     await screen.findByText('친구')
     expect(screen.queryByText('관리자')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '전체 새로고침' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /^진단/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^서버 상태/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^사용자/ })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '나가기' })).toBeInTheDocument()
   })
@@ -254,7 +254,7 @@ describe('구글 계정', () => {
     expect(logins).toHaveLength(2)
     await userEvent.click(logins[0])
     expect(go).toHaveBeenCalledWith(GOOGLE_LOGIN_URL)
-    for (const name of ['나가기', '탈퇴', '전체 새로고침', '진단', 'AI 키', '알림']) {
+    for (const name of ['나가기', '탈퇴', '전체 새로고침', '서버 상태', 'AI 키', '알림']) {
       expect(screen.queryByRole('button', { name })).not.toBeInTheDocument()
     }
     // 화면 설정은 손님도

@@ -16,7 +16,7 @@ const LEADS: Record<Kind, string> = {
 
 /**
  * AI 정리 화면 (디자인 4차 묶음 2, 목업 09) — 예전에는 창(팝업)이었다. 긴 글이라 화면 하나가 읽기 좋다(①㉠).
- * 홈의 "AI 포트폴리오 진단" 줄, 시그널 목록의 "AI 전체 정리" 줄에서 들어온다. ‹ 는 온 곳으로.
+ * 홈의 "AI 포트폴리오 점검" 줄, 시그널 목록의 "AI 종목 정리" 줄에서 들어온다. ‹ 는 온 곳으로.
  */
 export function AiSummaryPage() {
   const { kind: raw } = useParams()

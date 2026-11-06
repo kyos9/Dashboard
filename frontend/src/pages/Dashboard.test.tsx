@@ -653,11 +653,11 @@ describe('대시보드 · 차트 열기', () => {
     expect(analyze).not.toHaveBeenCalled()
   })
 
-  it('"AI 전체 정리"는 AI 정리 화면으로 가는 한 줄 — 누르기만으로 부르지 않는다 (디자인 4차 묶음 2)', async () => {
+  it('"AI 종목 정리"는 AI 정리 화면으로 가는 한 줄 — 누르기만으로 부르지 않는다 (디자인 4차 묶음 2)', async () => {
     mockApi()
     const analyze = vi.spyOn(api, 'aiAnalyzeStream')
     renderDashboard()
-    const link = await screen.findByRole('link', { name: /AI 전체 정리/ })
+    const link = await screen.findByRole('link', { name: /AI 종목 정리/ })
     expect(link).toHaveAttribute('href', '/ai/watchlist')
     expect(analyze).not.toHaveBeenCalled()
   })

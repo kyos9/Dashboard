@@ -427,3 +427,8 @@ button.rail-name {
 .signal-line-go {
   margin-left: 8px;
 }
+
+/* 수량 · 평단가 — 회색이 옅어 안 보였다(9-10). 한 단계 진하게 (주인 답: 종목 아래 줄 유지) */
+.holdings-table td .holding-sub {
+  color: var(--text-dim);
+}

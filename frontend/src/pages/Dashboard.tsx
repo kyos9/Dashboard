@@ -769,7 +769,7 @@ export function Dashboard() {
           <Link to="/ai/watchlist" className="ai-row">
             <Icon name="ai" size={22} className="ai-row-mark" />
             <span className="ai-row-text">
-              AI 전체 정리
+              AI 종목 정리
               <span className="hint">담은 종목 전체를 한 장으로</span>
             </span>
             <Icon name="forward" size={18} className="ai-row-go" />

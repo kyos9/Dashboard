@@ -791,13 +791,13 @@ describe('위 탭 없음 (디자인 4차 묶음 2 — 보기 전환 "다")', () 
     expect(screen.queryByRole('button', { name: '시그널' })).toBeNull()
   })
 
-  it('신호 칸을 누르면 시그널 목록 — 머리에 ‹ 와 "시그널", AI 전체 정리 한 줄', async () => {
+  it('신호 칸을 누르면 시그널 목록 — 머리에 ‹ 와 "시그널", AI 종목 정리 한 줄', async () => {
     mockApi()
     renderDashboard()
     await userEvent.click(await screen.findByRole('button', { name: /비중조절/ }))
     expect(screen.getByTestId('where')).toHaveTextContent('/?view=signal')
     expect(screen.getByRole('heading', { name: /^시그널/ })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /AI 전체 정리/ })).toHaveAttribute('href', '/ai/watchlist')
+    expect(screen.getByRole('link', { name: /AI 종목 정리/ })).toHaveAttribute('href', '/ai/watchlist')
   })
 
   it('신호가 하나도 없어도 시그널 목록으로 갈 길이 있다 (묶음 2 검토 조건 1)', async () => {
@@ -882,13 +882,13 @@ describe('폰 — 한 종목이 두 줄', () => {
   })
 })
 
-describe('AI 포트폴리오 진단 (9-7) — 관리자는 늘, 사용자는 관리자가 열어 둔 동안 (9-15)', () => {
+describe('AI 포트폴리오 점검 (9-7) — 관리자는 늘, 사용자는 관리자가 열어 둔 동안 (9-15)', () => {
   it('관리자에게는 홈에 AI 진단 한 줄 — AI 진단 화면으로 가는 링크, 누르기만으로 부르지 않는다', async () => {
     localStorage.clear()
     mockApi()
     const stream = vi.spyOn(api, 'aiAnalyzeStream')
     renderDashboard()
-    expect(await screen.findByRole('link', { name: /AI 포트폴리오 진단/ })).toHaveAttribute('href', '/ai/portfolio')
+    expect(await screen.findByRole('link', { name: /AI 포트폴리오 점검/ })).toHaveAttribute('href', '/ai/portfolio')
     expect(stream).not.toHaveBeenCalled()
   })
 
@@ -896,8 +896,8 @@ describe('AI 포트폴리오 진단 (9-7) — 관리자는 늘, 사용자는 관
     mockApi()
     renderDashboard()
     await userEvent.click(within(await holdingRow('SCHD')).getByRole('button', { name: /SCHD 신호/ }))
-    expect(await screen.findByRole('link', { name: /AI 전체 정리/ })).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /AI 포트폴리오 진단/ })).toBeNull()
+    expect(await screen.findByRole('link', { name: /AI 종목 정리/ })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /AI 포트폴리오 점검/ })).toBeNull()
   })
 
   it.each([
@@ -920,7 +920,7 @@ describe('AI 포트폴리오 진단 (9-7) — 관리자는 늘, 사용자는 관
       </MemoryRouter>,
     )
     expect(await screen.findByText('총 평가금액')).toBeInTheDocument()
-    expect(screen.queryAllByRole('link', { name: /AI 포트폴리오 진단/ })).toHaveLength(open ? 1 : 0)
+    expect(screen.queryAllByRole('link', { name: /AI 포트폴리오 점검/ })).toHaveLength(open ? 1 : 0)
   })
 
   it('옛 서버(ai_advice 를 안 보냄)면 사용자에게는 없다', async () => {
@@ -940,6 +940,6 @@ describe('AI 포트폴리오 진단 (9-7) — 관리자는 늘, 사용자는 관
       </MemoryRouter>,
     )
     expect(await screen.findByText('총 평가금액')).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /AI 포트폴리오 진단/ })).toBeNull()
+    expect(screen.queryByRole('link', { name: /AI 포트폴리오 점검/ })).toBeNull()
   })
 })

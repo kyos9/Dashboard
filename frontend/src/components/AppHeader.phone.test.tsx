@@ -112,28 +112,28 @@ describe('폰 머리줄은 한 줄 — 메뉴 없음', () => {
     expect(await screen.findByLabelText('가입 신청 2건', { selector: '.tab-badge' })).toHaveTextContent('2')
     expect(headerButtons()).toEqual(['전체 새로고침'])
     expect(document.querySelector('.status-pill')).not.toBeNull()
-    expect(settingsRows()).toEqual(['화면', '알림', 'AI 키', '진단', '사용자', '나가기', '모든 기기에서 나가기', '개인정보처리방침 · 이용약관', '만든 것들 · 글꼴 · 그림'])
+    expect(settingsRows()).toEqual(['화면', '알림', 'AI 키', '서버 상태', '사용자', '나가기', '모든 기기에서 나가기', '개인정보처리방침 · 이용약관', '만든 것들 · 글꼴 · 그림'])
     expect(within(screen.getByRole('button', { name: /^사용자/ })).getByLabelText('가입 신청 2건')).toBeInTheDocument()
   })
 
   it('관리자: 백업을 봐야 하면 설정 탭에 점, 진단 줄에 표시 (0.45.0)', async () => {
     renderAs({ ...OWNER, pending_count: 0, backup_attention: true })
-    expect(await screen.findByLabelText('진단을 확인하세요 — 백업', { selector: '.tab-dot' })).toBeInTheDocument()
-    const diag = screen.getByRole('button', { name: /^진단/ })
-    expect(within(diag).getByLabelText('진단을 확인하세요 — 백업')).toBeInTheDocument()
-    expect(diag).toHaveAttribute('title', '진단을 확인하세요 — 백업')
+    expect(await screen.findByLabelText('서버 상태를 확인하세요 — 백업', { selector: '.tab-dot' })).toBeInTheDocument()
+    const diag = screen.getByRole('button', { name: /^서버 상태/ })
+    expect(within(diag).getByLabelText('서버 상태를 확인하세요 — 백업')).toBeInTheDocument()
+    expect(diag).toHaveAttribute('title', '서버 상태를 확인하세요 — 백업')
   })
 
   it('관리자: 시세 받기가 막혔으면 같은 점, 풀이에 까닭 (0.46.0 C) · 둘 다면 까닭도 둘', async () => {
     renderAs({ ...OWNER, pending_count: 0, backup_attention: true, refresh_attention: true })
-    expect(await screen.findByLabelText('진단을 확인하세요 — 백업 · 시세 받기', { selector: '.tab-dot' })).toBeInTheDocument()
+    expect(await screen.findByLabelText('서버 상태를 확인하세요 — 백업 · 시세 받기', { selector: '.tab-dot' })).toBeInTheDocument()
   })
 
   it('관리자: 신청도 있고 백업도 봐야 하면 탭에 숫자와 점을 같이 — 숫자가 점을 가리지 않는다 (0.45.2 B4)', async () => {
     renderAs({ ...OWNER, backup_attention: true })
     expect(await screen.findByLabelText('가입 신청 2건', { selector: '.tab-badge' })).toBeInTheDocument()
-    expect(screen.getByLabelText('진단을 확인하세요 — 백업', { selector: '.tab-dot' })).toBeInTheDocument()
-    expect(within(screen.getByRole('button', { name: /^진단/ })).getByLabelText('진단을 확인하세요 — 백업')).toBeInTheDocument()
+    expect(screen.getByLabelText('서버 상태를 확인하세요 — 백업', { selector: '.tab-dot' })).toBeInTheDocument()
+    expect(within(screen.getByRole('button', { name: /^서버 상태/ })).getByLabelText('서버 상태를 확인하세요 — 백업')).toBeInTheDocument()
   })
 
   it('관리자: 옛 서버(칸 없음)·문제 없음이면 점도 숫자도 없다', async () => {

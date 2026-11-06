@@ -99,6 +99,7 @@ export function SettingsPage() {
   const [showPush, setShowPush] = useState(false)
   const [showAi, setShowAi] = useState(false)
   const [showDisplay, setShowDisplay] = useState(false)
+  const [confirmLogout, setConfirmLogout] = useState(false)
   const [confirmWithdraw, setConfirmWithdraw] = useState(false)
   const [withdrawing, setWithdrawing] = useState(false)
   const [withdrawError, setWithdrawError] = useState<string | null>(null)
@@ -152,7 +153,7 @@ export function SettingsPage() {
   // 모든 기기에서 나가기 (0.45.4) — 구글 로그인으로 들어와 쓰는 사람만. 승인 대기는 서버가 401 이다
   const canLogoutAll = mode === 'google' && !!user && !pending && !guest
   const diagReason = diagnosticsReason(backupAttention, refreshAttention)
-  const diagDot = diagReason ? `진단을 확인하세요 — ${diagReason}` : undefined
+  const diagDot = diagReason ? `서버 상태를 확인하세요 — ${diagReason}` : undefined
   const version = health?.version
     ? `v${health.version}${buildLabel(health.built_at) ? ` · ${buildLabel(health.built_at)}` : ''}`
     : null
@@ -207,7 +208,7 @@ export function SettingsPage() {
           {isAdmin && (
             <Row
               face={tfDiag}
-              label="진단"
+              label="서버 상태"
               title={diagDot ?? '서버가 남긴 경고·오류 보기'}
               badge={diagDot && <span className="badge badge-amber count-badge" aria-label={diagDot}>!</span>}
               onClick={() => setShowDiagnostics(true)}
@@ -228,7 +229,7 @@ export function SettingsPage() {
               onClick={() => setShowUsers(true)}
             />
           )}
-          {canLogout && <Row face={tfDoor} label="나가기" title="이 기기에서 나가기" onClick={() => void logout()} />}
+          {canLogout && <Row face={tfDoor} label="나가기" title="이 기기에서 나가기" onClick={() => setConfirmLogout(true)} />}
           {canLogoutAll && <Row label="모든 기기에서 나가기" onClick={() => setConfirmEverywhere(true)} />}
           {canWithdraw && <Row label="탈퇴" danger onClick={() => setConfirmWithdraw(true)} />}
         </Group>
@@ -265,7 +266,7 @@ export function SettingsPage() {
 
       {/* 팝업 코드는 누를 때 받는다(8-5) — 받는 동안 제목과 닫기 버튼이 있는 틀을 먼저 띄운다 */}
       {showDiagnostics && (
-        <Suspense fallback={<ModalLoading plain title="진단" onClose={() => setShowDiagnostics(false)} />}>
+        <Suspense fallback={<ModalLoading plain title="서버 상태" onClose={() => setShowDiagnostics(false)} />}>
           <DiagnosticsModal onClose={() => setShowDiagnostics(false)} />
         </Suspense>
       )}
@@ -289,6 +290,20 @@ export function SettingsPage() {
         <Suspense fallback={<ModalLoading plain title="사용자" onClose={() => setShowUsers(false)} />}>
           <UsersModal onClose={() => setShowUsers(false)} onChanged={recountPending} />
         </Suspense>
+      )}
+
+      {/* 설정 줄은 잘못 누르기 쉽다 — 한 번 묻는다 (주인 답, 2026-11-06) */}
+      {confirmLogout && (
+        <ConfirmDialog
+          title="이 기기에서 나갈까요?"
+          confirmLabel="나가기"
+          busyLabel="나가는 중…"
+          busy={false}
+          onConfirm={() => void logout()}
+          onCancel={() => setConfirmLogout(false)}
+        >
+          <p>다시 쓰려면 로그인해야 합니다. 내 종목과 기록은 그대로 있습니다.</p>
+        </ConfirmDialog>
       )}
 
       {confirmEverywhere && (

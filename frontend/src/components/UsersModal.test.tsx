@@ -87,7 +87,7 @@ describe('승인을 기다리는 사람', () => {
     const name = await screen.findByText('새 사람', { selector: '.settings-account .account-name' })
     expect(within(name.closest('.settings-account') as HTMLElement).getByText('승인 대기')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '나가기' })).toBeInTheDocument()
-    for (const name of ['탈퇴', '전체 새로고침', '진단', '사용자']) {
+    for (const name of ['탈퇴', '전체 새로고침', '서버 상태', '사용자']) {
       expect(screen.queryByRole('button', { name })).not.toBeInTheDocument()
     }
   })
@@ -117,7 +117,7 @@ describe('관리자 헤더', () => {
 
   it('비밀번호 문(혼자 쓰는 서버)에는 사용자 버튼이 없다 — 계정이 하나다', async () => {
     renderApp({ locked: true, authenticated: true, mode: 'password' })
-    expect(await screen.findByRole('button', { name: '진단' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: '서버 상태' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /사용자/ })).not.toBeInTheDocument()
   })
 
@@ -281,7 +281,7 @@ describe('사용자에게 AI 진단·종목 분석 열기 (9-15)', () => {
       .mockImplementation(async (settings) => settings)
     const user = userEvent.setup()
     render(<UsersModal onClose={() => {}} onChanged={() => {}} />)
-    const box = await screen.findByRole('checkbox', { name: /사용자에게 AI 포트폴리오 진단·종목 분석 열기/ })
+    const box = await screen.findByRole('checkbox', { name: /사용자에게 AI 포트폴리오 점검·종목 분석 열기/ })
     expect(box).toBeChecked()
     await user.click(box)
     expect(save).toHaveBeenLastCalledWith({ ai_advice_for_users: false })

@@ -17,7 +17,7 @@ import { lockBodyScroll } from '../lib/scrollLock'
  * - 쓰는 중 → 차단 (확인을 한 번 더 받는다 — 그 사람이 바로 로그아웃된다)
  * - 거절·차단 → 다시 승인. 기록은 지우지 않았으므로 그대로 돌아온다
  *
- * 맨 위에는 사용자 모두에게 걸리는 스위치 (9-15) — AI 포트폴리오 진단·종목 분석을 사용자에게도 열지.
+ * 맨 위에는 사용자 모두에게 걸리는 스위치 (9-15) — AI 포트폴리오 점검·종목 분석을 사용자에게도 열지.
  * 바꾸면 바로 저장되고, 사용자의 다음 요청부터 적용된다(버튼은 그 사람이 앱을 다시 열 때 사라진다).
  */
 
@@ -140,7 +140,7 @@ export function UsersModal({ onClose, onChanged }: { onClose: () => void; onChan
                   onChange={(e) => void toggleAdvice(e.target.checked)}
                 />
                 <span>
-                  <b>사용자에게 AI 포트폴리오 진단·종목 분석 열기</b>
+                  <b>사용자에게 AI 포트폴리오 점검·종목 분석 열기</b>
                   <span className="hint">
                     {' '}
                     — 각자 자기 키로, 자기 비중(%)만 AI 에게 갑니다. 끄면 사용자의 다음 요청부터 막히고, 종목 팝업의
