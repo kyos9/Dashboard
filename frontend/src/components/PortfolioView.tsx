@@ -152,7 +152,10 @@ export function PortfolioView({ current, cards, stocks, narrow, onChart, onSigna
         {!narrow && signalCount > 0 && (
           // PC 만 — 신호가 뜬 종목 몇 개를 미리. 폰은 칸 셋으로 충분하다(첫 화면이 길어진다)
           <div className="rail-signals">
-            <h3 className="rail-title">신호가 뜬 종목</h3>
+            {/* 다섯까지만 — 몇 중 몇인지 제목에 적는다 (사용자 확인: 전부처럼 읽혔다) */}
+            <h3 className="rail-title">
+              신호가 뜬 종목 <span className="hint">{Math.min(5, signalCount)} / {signalCount}</span>
+            </h3>
             <ul>
               {held
                 .concat(watching)
@@ -160,13 +163,19 @@ export function PortfolioView({ current, cards, stocks, narrow, onChart, onSigna
                 .slice(0, 5)
                 .map((item) => (
                   <li key={item.row.ticker}>
-                    <span className="rail-name">{labelOf(item)}</span>
+                    {item.card ? (
+                      <button type="button" className="rail-name stock-name" onClick={() => onChart(item.card!)}>
+                        {labelOf(item)}
+                      </button>
+                    ) : (
+                      <span className="rail-name">{labelOf(item)}</span>
+                    )}
                     <SignalBadges label={labelOf(item)} signals={signalsOf(item)} ticker={item.row.ticker} onSignal={onSignal} />
                   </li>
                 ))}
             </ul>
             <button type="button" className="rail-more" onClick={() => onOpenSignals()}>
-              시그널 모두 보기 <Icon name="forward" size={16} />
+              시그널 {signalCount}종목 모두 보기 <Icon name="forward" size={16} />
             </button>
           </div>
         )}

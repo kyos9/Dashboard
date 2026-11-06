@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { useCallback, useRef, useState } from 'react'
 import { useAppState } from '../AppState'
 import { ApiError, api } from '../api/client'
@@ -365,9 +366,18 @@ export function StockManager() {
           <h2>종목 관리</h2>
           <PageIntro line="종목을 추가하면 전체 히스토리를 받아 지표·시그널을 계산합니다." firstVisit={stocksLoading ? null : stocks.length === 0}>
             국내주식은 종목명(삼성전자)이나 종목코드(005930)로, 미국주식은 티커(VOO)나 영문 이름(Agilent)으로 찾을 수
-            있습니다. 구분(지수/알파/안전자산 등)은 자유 입력이며 대시보드 필터로 쓰입니다.
+            있습니다. 구분(지수/알파/안전자산 등)은 자유 입력이며 시그널 목록의 거르기로 쓰입니다.
           </PageIntro>
         </div>
+        {/* 차트 · 재무는 묶음 3에서 종목 안으로 들어간다 — 그때까지 종목 탭 맨 위에서 간다 (사용자 확인: 종목 탭에서 찾았다) */}
+        <nav className="stock-subnav" aria-label="종목 보기">
+          <Link to="/history" className="chip">
+            차트
+          </Link>
+          <Link to="/fundamentals" className="chip">
+            재무
+          </Link>
+        </nav>
       </div>
 
       <ErrorNotice error={error} onDismiss={() => setError(null)} />
@@ -483,7 +493,7 @@ export function StockManager() {
         {/* 다섯 줄이던 도움말을 세 줄로 — "추가" 단추가 아래로 밀렸다 (디자인 2차) */}
         <p className="hint" style={{ marginTop: 10 }}>
           목표 비중은 <b>현금을 포함한 전체 자금</b> 중 이 종목의 비중입니다. 이미 들고 있으면 수량·평단가도 적으세요 —
-          평단가({newCurrencyMeta ? `${newCurrencyMeta.label} 기준` : '그 종목을 거래하는 통화 기준'})는 손익에만 쓰이고 비중에는 영향이 없습니다. 둘 다 나중에 목록·대시보드·리밸런싱에서 고칠 수 있습니다. 시세를
+          평단가({newCurrencyMeta ? `${newCurrencyMeta.label} 기준` : '그 종목을 거래하는 통화 기준'})는 손익에만 쓰이고 비중에는 영향이 없습니다. 둘 다 나중에 목록·홈·리밸런싱에서 고칠 수 있습니다. 시세를
           못 받아도 종목은 남고 나중에 다시 받습니다.
         </p>
       </div>

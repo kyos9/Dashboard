@@ -94,8 +94,9 @@ export function AppHeader() {
         // 폰: 로고 · 상태 · 새로고침 한 줄. 본문이 첫 화면에 보이게 (ROADMAP 8-2)
         <header className="app-header narrow">
           <div className="brand">
+            {/* PC 왼쪽 메뉴의 로고와 같은 표 (사용자 확인: 폰 📈 · PC ₩ 로 갈렸다) */}
             <span className="brand-mark" aria-hidden="true">
-              📈
+              ₩
             </span>
             <h1 className="brand-title">자산관리</h1>
           </div>

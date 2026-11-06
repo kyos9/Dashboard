@@ -1,5 +1,6 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppStateProvider } from '../AppState'
 import { api, ApiError } from '../api/client'
@@ -88,9 +89,11 @@ function symbolInput() {
 
 function renderManager() {
   return render(
-    <AppStateProvider>
-      <StockManager />
-    </AppStateProvider>,
+    <MemoryRouter>
+      <AppStateProvider>
+        <StockManager />
+      </AppStateProvider>
+    </MemoryRouter>,
   )
 }
 

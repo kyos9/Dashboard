@@ -167,7 +167,7 @@ export function SettingsPage() {
     ]
       .filter(Boolean)
       .join('\n') || undefined
-  const displayValue = `${prefs.choice === 'dark' ? '다크' : prefs.choice === 'light' ? '라이트' : '기기 설정'} · 상승 ${prefs.rise === 'red' ? '빨강' : '초록'}`
+  const displayValue = `${prefs.choice === 'dark' ? '어둡게' : prefs.choice === 'light' ? '밝게' : '기기 설정'} · 상승 ${prefs.rise === 'red' ? '빨강' : '초록'}`
 
   return (
     <div className="settings-page">

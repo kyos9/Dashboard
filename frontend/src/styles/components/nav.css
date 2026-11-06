@@ -157,3 +157,9 @@ body:has(.side-nav) #root {
   top: 2px;
   right: 12px;
 }
+
+/* PC — 숫자는 톱니 오른쪽 위 바깥에 (사용자 확인: 톱니를 가렸다) */
+.side-tab .tab-badge {
+  top: -8px;
+  right: -14px;
+}
