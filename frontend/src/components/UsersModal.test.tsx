@@ -6,6 +6,8 @@ import { AppStateProvider } from '../AppState'
 import { ApiError, api } from '../api/client'
 import type { AdminUser, AuthStatus } from '../types'
 import { AppHeader } from './AppHeader'
+import { TabBar } from './TabBar'
+import { SettingsPage } from '../pages/SettingsPage'
 import { AuthGate, browser } from './AuthGate'
 import { RequireLogin } from './LoginPrompt'
 import { UsersModal } from './UsersModal'
@@ -40,6 +42,8 @@ function renderApp(status: AuthStatus, body: React.ReactNode = null) {
       <AuthGate>
         <AppStateProvider>
           <AppHeader />
+          <TabBar />
+          <SettingsPage />
           {body}
         </AppStateProvider>
       </AuthGate>
@@ -78,16 +82,14 @@ describe('승인을 기다리는 사람', () => {
     expect(go).toHaveBeenCalledWith('/')
   })
 
-  it('헤더에 승인 대기 표시와 나가기가 있고, 탈퇴·관리자 버튼은 없다', async () => {
+  it('설정 탭에 승인 대기 표시와 나가기가 있고, 탈퇴·관리자 줄은 없다', async () => {
     renderApp(pending)
-    const chip = await screen.findByText('새 사람')
-    expect(within(chip.closest('.account-chip') as HTMLElement).getByText('승인 대기')).toBeInTheDocument()
+    const name = await screen.findByText('새 사람')
+    expect(within(name.closest('.settings-account') as HTMLElement).getByText('승인 대기')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '나가기' })).toBeInTheDocument()
     for (const name of ['탈퇴', '전체 새로고침', '진단', '사용자']) {
       expect(screen.queryByRole('button', { name })).not.toBeInTheDocument()
     }
-    // PC 메뉴에는 관리자 도구만 있다 — 관리자가 아니면 메뉴 자체가 없다
-    expect(screen.queryByRole('button', { name: /메뉴/ })).not.toBeInTheDocument()
   })
 })
 
@@ -97,11 +99,9 @@ describe('관리자 헤더', () => {
       locked: true, authenticated: true, mode: 'google', config_problem: null, pending_count: 2,
       user: { email: 'me@example.com', name: '나', is_owner: true, status: 'active' },
     })
-    // 메뉴를 열지 않아도 보인다 — 메뉴 버튼에 수를 붙인다 (ROADMAP 8-2)
-    const menu = await screen.findByRole('button', { name: '메뉴 — 가입 신청 2건' })
-    expect(menu).toHaveTextContent('2')
-    await userEvent.click(menu)
-    const button = screen.getByRole('button', { name: /사용자/ })
+    // 설정 탭을 열지 않아도 보인다 — 탭 아이콘에 수를 붙인다 (예전 메뉴 단추의 수)
+    expect(await screen.findByLabelText('가입 신청 2건', { selector: '.tab-badge' })).toHaveTextContent('2')
+    const button = screen.getByRole('button', { name: /^사용자/ })
     expect(within(button).getByLabelText('가입 신청 2건')).toHaveTextContent('2')
   })
 
@@ -110,17 +110,14 @@ describe('관리자 헤더', () => {
       locked: true, authenticated: true, mode: 'google', config_problem: null, pending_count: 0,
       user: { email: 'me@example.com', name: '나', is_owner: true, status: 'active' },
     })
-    const menu = await screen.findByRole('button', { name: '메뉴' })
-    expect(menu).not.toHaveTextContent('0')
-    await userEvent.click(menu)
-    const button = screen.getByRole('button', { name: '사용자' })
+    const button = await screen.findByRole('button', { name: '사용자' })
+    expect(document.querySelector('.tab-badge')).toBeNull()
     expect(within(button).queryByText('0')).not.toBeInTheDocument()
   })
 
   it('비밀번호 문(혼자 쓰는 서버)에는 사용자 버튼이 없다 — 계정이 하나다', async () => {
     renderApp({ locked: true, authenticated: true, mode: 'password' })
-    await userEvent.click(await screen.findByRole('button', { name: '메뉴' }))
-    expect(screen.getByRole('button', { name: '진단' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: '진단' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /사용자/ })).not.toBeInTheDocument()
   })
 
@@ -140,19 +137,21 @@ describe('관리자 헤더', () => {
         <AuthGate>
           <AppStateProvider>
             <AppHeader />
+            <TabBar />
+            <SettingsPage />
           </AppStateProvider>
         </AuthGate>
       </MemoryRouter>,
     )
 
-    await userEvent.click(await screen.findByRole('button', { name: '메뉴 — 가입 신청 1건' }))
-    await userEvent.click(screen.getByRole('button', { name: /사용자/ }))
+    await screen.findByLabelText('가입 신청 1건', { selector: '.tab-badge' })
+    await userEvent.click(screen.getByRole('button', { name: /^사용자/ }))
     const row = await screen.findByTestId('user-7')
     await userEvent.click(within(row).getByRole('button', { name: '승인' }))
 
     expect(api.setUserStatus).toHaveBeenCalledWith(7, 'active')
     await waitFor(() => expect(within(row).getByText('사용 중')).toBeInTheDocument())
-    await waitFor(() => expect(screen.getByRole('button', { name: '메뉴' })).not.toHaveTextContent('1'))
+    await waitFor(() => expect(document.querySelector('.tab-badge')).toBeNull())
   })
 })
 

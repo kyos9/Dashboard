@@ -2,6 +2,7 @@ import { Suspense, useEffect, type ReactNode } from 'react'
 import { BrowserRouter, Link, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AppStateProvider } from './AppState'
 import { AppHeader } from './components/AppHeader'
+import { TabBar } from './components/TabBar'
 import { AuthGate, useAuth } from './components/AuthGate'
 import { RequireLogin } from './components/LoginPrompt'
 import { PageBoundary } from './components/PageBoundary'
@@ -9,7 +10,7 @@ import { PageSkeleton } from './components/Skeleton'
 import { Dashboard } from './pages/Dashboard'
 import { GuestHome } from './pages/GuestHome'
 import { lazyChunk } from './lib/lazyChunk'
-import { FundamentalsPage, MacroPanel, Policy, RebalancePanel, StockManager, preloadPages } from './lib/pageChunks'
+import { AiSummaryPage, FundamentalsPage, MacroPanel, Policy, RebalancePanel, SettingsPage, StockManager, preloadPages } from './lib/pageChunks'
 import { POLICY_PATH } from './lib/policy'
 
 // 차트 라이브러리(lightweight-charts)는 번들의 3분의 1이다. 차트를 열 때만 받는다 —
@@ -69,6 +70,7 @@ function App() {
       <AppStateProvider>
         <BrowserRouter>
           <AppHeader />
+          <TabBar />
           <PreloadTabs />
           <main className="page">
             {/* 탭은 손님에게도 다 보인다 — 무엇이 있는지는 보여주고, 내 종목이 필요한
@@ -128,6 +130,25 @@ function App() {
                   <RequireLogin title="로그인하면 종목을 담을 수 있습니다">
                     <Tab>
                       <StockManager />
+                    </Tab>
+                  </RequireLogin>
+                }
+              />
+              <Route
+                path="/settings"
+                element={
+                  <Tab>
+                    <SettingsPage />
+                  </Tab>
+                }
+              />
+              {/* AI 정리는 창이 아니라 화면 하나 (디자인 4차 묶음 2 — 긴 글 읽기) */}
+              <Route
+                path="/ai/:kind"
+                element={
+                  <RequireLogin title="로그인하면 AI 정리를 볼 수 있습니다">
+                    <Tab>
+                      <AiSummaryPage />
                     </Tab>
                   </RequireLogin>
                 }

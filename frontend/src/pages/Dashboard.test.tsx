@@ -159,8 +159,9 @@ function mockApi(cards = CARDS, rebalance = REBALANCE) {
 }
 
 function renderDashboard() {
+  // 이 파일은 시그널 목록을 본다 — 위 탭이 없어져(디자인 4차 묶음 2) 주소로 연다
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={['/?view=signal']}>
       <AppStateProvider>
         <Dashboard />
       </AppStateProvider>
@@ -652,14 +653,12 @@ describe('대시보드 · 차트 열기', () => {
     expect(analyze).not.toHaveBeenCalled()
   })
 
-  it('"AI 전체 정리"는 창만 연다 — 보유는 보내지 않는다고 적고, 부르는 것은 창에서 한 번 더', async () => {
+  it('"AI 전체 정리"는 AI 정리 화면으로 가는 한 줄 — 누르기만으로 부르지 않는다 (디자인 4차 묶음 2)', async () => {
     mockApi()
     const analyze = vi.spyOn(api, 'aiAnalyzeStream')
-    const user = userEvent.setup()
     renderDashboard()
-    await user.click(await screen.findByRole('button', { name: '✦ AI 전체 정리' }))
-    const dialog = await screen.findByRole('dialog', { name: 'AI 전체 정리' })
-    expect(within(dialog).getByText(/보유수량·비중·평단가는 보내지 않습니다/)).toBeInTheDocument()
+    const link = await screen.findByRole('link', { name: /AI 전체 정리/ })
+    expect(link).toHaveAttribute('href', '/ai/watchlist')
     expect(analyze).not.toHaveBeenCalled()
   })
 

@@ -14,6 +14,7 @@
 @import './styles/components/menu.css';
 @import './styles/components/phone-header.css';
 @import './styles/components/tab-bar.css';
+@import './styles/components/nav.css';
 @import './styles/components/page.css';
 @import './styles/components/panel.css';
 @import './styles/components/weight-bar.css';
@@ -49,4 +50,5 @@
 @import './styles/pages/dashboard.css';
 @import './styles/pages/display-settings.css';
 @import './styles/pages/signal-thresholds.css';
+@import './styles/pages/shell.css';
 @import './styles/overrides.css';

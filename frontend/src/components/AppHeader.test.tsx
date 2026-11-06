@@ -6,6 +6,7 @@ import { AppStateProvider } from '../AppState'
 import { ApiError, GOOGLE_LOGIN_URL, api } from '../api/client'
 import type { RefreshResult } from '../types'
 import { AppHeader } from './AppHeader'
+import { SettingsPage } from '../pages/SettingsPage'
 import { AuthGate, browser } from './AuthGate'
 import { cacheGeneration, putCache } from '../lib/cache'
 
@@ -23,11 +24,13 @@ function mockHealth(extra: Record<string, unknown> = {}) {
   })
 }
 
+/** 머리줄과 설정 탭 — 예전 머리줄 단추 · ⋯ 메뉴는 설정 탭으로 갔다 (디자인 4차 묶음 2) */
 function renderHeader() {
   return render(
     <MemoryRouter>
       <AppStateProvider>
         <AppHeader />
+        <SettingsPage />
       </AppStateProvider>
     </MemoryRouter>,
   )
@@ -92,7 +95,7 @@ describe('화면 설정', () => {
     const user = userEvent.setup()
     renderHeader()
 
-    await user.click(screen.getByRole('button', { name: '화면' }))
+    await user.click(screen.getByRole('button', { name: /^화면/ }))
     // 팝업 코드는 누를 때 받는다(8-5) — 받는 동안의 틀을 지나 진짜 팝업을 기다린다
     await screen.findByRole('group', { name: '테마' })
     const dialog = screen.getByRole('dialog', { name: '화면 설정' })
@@ -110,7 +113,7 @@ describe('화면 설정', () => {
     mockHealth()
     const user = userEvent.setup()
     renderHeader()
-    await user.click(screen.getByRole('button', { name: '화면' }))
+    await user.click(screen.getByRole('button', { name: /^화면/ }))
     await screen.findByRole('group', { name: '테마' })
     const dialog = screen.getByRole('dialog', { name: '화면 설정' })
     expect(within(within(dialog).getByRole('group', { name: '상승 색' })).getByRole('button', { name: '초록' })).toHaveAttribute('aria-pressed', 'true')
@@ -190,16 +193,17 @@ describe('구글 계정', () => {
         <AuthGate>
           <AppStateProvider>
             <AppHeader />
+            <SettingsPage />
           </AppStateProvider>
         </AuthGate>
       </MemoryRouter>,
     )
   }
 
-  it('누구로 들어와 있는지 보여준다 — 계정이 여럿인 폰에서 헷갈리지 않게', async () => {
+  it('누구로 들어와 있는지 설정 탭 맨 위에 — 계정이 여럿인 폰에서 헷갈리지 않게', async () => {
     renderSignedIn({ email: 'friend@example.com', name: '친구', is_owner: false })
-    const chip = await screen.findByText('친구')
-    expect(chip.closest('.account-chip')).toHaveAttribute('title', 'friend@example.com')
+    const name = await screen.findByText('친구')
+    expect(name.closest('.settings-account')).toHaveTextContent('friend@example.com')
   })
 
   it('관리자에게는 탈퇴 버튼이 없고, 관리자 버튼(전체 새로고침·진단)이 있다', async () => {
@@ -208,9 +212,8 @@ describe('구글 계정', () => {
     expect(screen.getByText('관리자')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '탈퇴' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '전체 새로고침' })).toBeInTheDocument()
-    // 진단은 메뉴 안에 있다 (ROADMAP 8-2)
-    await userEvent.click(screen.getByRole('button', { name: '메뉴' }))
-    expect(screen.getByRole('button', { name: '진단' })).toBeInTheDocument()
+    // 진단은 설정 탭에 (디자인 4차 묶음 2 — 숨은 메뉴 없음)
+    expect(screen.getByRole('button', { name: /^진단/ })).toBeInTheDocument()
   })
 
   it('사용자에게는 관리자 버튼이 없다 — 전원의 시세 갱신·남의 로그', async () => {
@@ -218,14 +221,14 @@ describe('구글 계정', () => {
     await screen.findByText('친구')
     expect(screen.queryByText('관리자')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '전체 새로고침' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '진단' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /메뉴/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^진단/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^사용자/ })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '나가기' })).toBeInTheDocument()
   })
 
-  it('들어온 사람에게는 AI 키 버튼 — 누르면 키 설정 팝업', async () => {
+  it('들어온 사람에게는 AI 키 줄 — 누르면 키 설정 팝업', async () => {
     renderSignedIn({ email: 'friend@example.com', name: '친구', is_owner: false })
-    await userEvent.click(await screen.findByRole('button', { name: 'AI 키 설정' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'AI 키' }))
     expect(await screen.findByRole('dialog', { name: 'AI 키 설정' })).toBeInTheDocument()
     expect(screen.getByText(/이 기기의 브라우저에만/)).toBeInTheDocument()
   })
@@ -241,17 +244,21 @@ describe('구글 계정', () => {
         <AuthGate>
           <AppStateProvider>
             <AppHeader />
+            <SettingsPage />
           </AppStateProvider>
         </AuthGate>
       </MemoryRouter>,
     )
-    await userEvent.click(await screen.findByRole('button', { name: '로그인' }))
+    // 머리줄과 설정 탭 맨 위, 두 곳에 로그인
+    const logins = await screen.findAllByRole('button', { name: '로그인' })
+    expect(logins).toHaveLength(2)
+    await userEvent.click(logins[0])
     expect(go).toHaveBeenCalledWith(GOOGLE_LOGIN_URL)
-    for (const name of ['나가기', '탈퇴', '전체 새로고침', '진단', 'AI 키 설정']) {
+    for (const name of ['나가기', '탈퇴', '전체 새로고침', '진단', 'AI 키', '알림']) {
       expect(screen.queryByRole('button', { name })).not.toBeInTheDocument()
     }
-    // 탭은 그대로 다 보인다 — 무엇이 있는지는 보여준다
-    expect(screen.getByRole('link', { name: '종목 관리' })).toBeInTheDocument()
+    // 화면 설정은 손님도
+    expect(screen.getByRole('button', { name: /^화면/ })).toBeInTheDocument()
   })
 
   it('탈퇴는 한 번 더 묻고, 지우면 첫 화면을 새로 연다', async () => {
@@ -268,15 +275,12 @@ describe('구글 계정', () => {
     await waitFor(() => expect(go).toHaveBeenCalledWith('/'))
   })
 
-  it('PC: 이름이 단추(▾) — 누르면 "모든 기기에서 나가기", 한 번 더 묻고 나가면 첫 화면 (0.45.4)', async () => {
+  it('설정 탭의 "모든 기기에서 나가기" — 한 번 더 묻고 나가면 첫 화면 (0.45.4)', async () => {
     const logoutAll = vi.spyOn(api, 'logoutAll').mockResolvedValue({ locked: true, authenticated: false })
     const go = vi.spyOn(browser, 'go').mockImplementation(() => {})
     renderSignedIn({ email: 'friend@example.com', name: '친구', is_owner: false })
     // 나가기 단추는 그대로 한 번 누르기
     expect(await screen.findByRole('button', { name: '나가기' })).toBeInTheDocument()
-    const nameButton = screen.getByRole('button', { name: '친구 — 계정' })
-    expect(nameButton).toHaveTextContent('친구 ▾')
-    await userEvent.click(nameButton)
     await userEvent.click(screen.getByRole('button', { name: '모든 기기에서 나가기' }))
     expect(logoutAll).not.toHaveBeenCalled()
     const dialog = screen.getByRole('alertdialog', { name: '모든 기기에서 나갈까요?' })
@@ -290,8 +294,7 @@ describe('구글 계정', () => {
   it('모든 기기에서 나가기가 실패하면 창에 사유를 남긴다', async () => {
     vi.spyOn(api, 'logoutAll').mockRejectedValue(new ApiError(500, '서버 오류', 'boom'))
     renderSignedIn({ email: 'friend@example.com', name: '친구', is_owner: false })
-    await userEvent.click(await screen.findByRole('button', { name: '친구 — 계정' }))
-    await userEvent.click(screen.getByRole('button', { name: '모든 기기에서 나가기' }))
+    await userEvent.click(await screen.findByRole('button', { name: '모든 기기에서 나가기' }))
     await userEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: '모든 기기에서 나가기' }))
     expect(await screen.findByText('서버 오류')).toBeInTheDocument()
     expect(screen.getByRole('alertdialog')).toBeInTheDocument()
@@ -335,12 +338,12 @@ it.each([404, 405])('서버가 아직 모르는 기능(%i)이면 영어 대신 �
       <AuthGate>
         <AppStateProvider>
           <AppHeader />
+          <SettingsPage />
         </AppStateProvider>
       </AuthGate>
     </MemoryRouter>,
   )
-  await userEvent.click(await screen.findByRole('button', { name: '친구 — 계정' }))
-  await userEvent.click(screen.getByRole('button', { name: '모든 기기에서 나가기' }))
+  await userEvent.click(await screen.findByRole('button', { name: '모든 기기에서 나가기' }))
   await userEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: '모든 기기에서 나가기' }))
   expect(await screen.findByText(/서버가 아직 이 기능을 모릅니다/)).toBeInTheDocument()
   expect(screen.queryByText(/Method Not Allowed|Not Found/)).toBeNull()

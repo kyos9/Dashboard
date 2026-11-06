@@ -147,7 +147,6 @@ export function pnlIn(
    고른 정렬·보기는 이 기기의 편의다. 저장이 막힌 브라우저(사생활 보호 창)에서도 화면은 떠야 한다. */
 
 const SORT_STORE = 'dashboard.sort'
-const VIEW_STORE = 'dashboard.view'
 const PNL_STORE = 'dashboard.pnl-currency'
 
 export type DashboardView = 'portfolio' | 'signal'
@@ -175,14 +174,6 @@ export function loadSort(): SortKey {
 
 export function saveSort(key: SortKey) {
   write(SORT_STORE, key)
-}
-
-export function loadView(): DashboardView {
-  return read(VIEW_STORE) === 'signal' ? 'signal' : 'portfolio'
-}
-
-export function saveView(view: DashboardView) {
-  write(VIEW_STORE, view)
 }
 
 /** 고른 손익 통화. 기억이 없거나 이상하면 종목별 통화 */

@@ -5,7 +5,8 @@ import { ReasonTag, SellTooTag, SignalShape } from '../components/SignalShape'
 import { BuyConditions } from '../components/BuyConditions'
 import { hasWeightSignal, isWeightReason, weightSide } from '../components/weightSignal'
 import { useNarrow } from '../lib/narrow'
-import { loadView, saveView, type DashboardView } from '../lib/portfolio'
+import { type DashboardView } from '../lib/portfolio'
+import { Icon } from '../components/icons/Icon'
 import { NumberInput } from '../components/NumberInput'
 import { dropSide, moveOne, placeAt } from '../lib/reorder'
 import { useReorderAnimation } from '../lib/flip'
@@ -21,11 +22,9 @@ import type { ChartTab } from '../lib/fundamentals'
 import { useRecheck } from '../lib/recheck'
 
 // 차트는 누를 때 받는다 (App.tsx의 HistoryChart와 같은 이유)
-const AiSummaryModal = lazyChunk(() => import('../components/AiSummaryModal'), 'AiSummaryModal')
 // 시그널 기준(0.42.0)도 누를 때 받는다 — 첫 화면 JS 를 늘리지 않게
 const SignalThresholdsModal = lazyChunk(() => import('../components/SignalThresholdsModal'), 'SignalThresholdsModal')
 import { useAuth } from '../components/AuthGate'
-import { pushAccount } from '../lib/push'
 import { ErrorNotice } from '../components/ErrorNotice'
 import {
   CATEGORY_UNSET,
@@ -422,12 +421,7 @@ export function Dashboard() {
   }, [thresholdsNote])
   const openChart = useCallback((card: DashboardCard) => setChart({ card, tab: 'chart' }), [])
   const openAi = useCallback((card: DashboardCard) => setChart({ card, tab: 'ai' }), [])
-  const [aiAll, setAiAll] = useState(false)
-  const closeAiAll = useCallback(() => setAiAll(false), [])
-  const { user, canAdvise } = useAuth()
-  // 포트폴리오 진단 (9-7) — 내 비중(%)이 AI 에게 간다. 관리자는 늘, 사용자는 관리자가 열어 둔 동안 (9-15)
-  const [aiPortfolio, setAiPortfolio] = useState(false)
-  const closeAiPortfolio = useCallback(() => setAiPortfolio(false), [])
+  const { canAdvise } = useAuth()
   const [stocks, setStocks] = useState<Stock[]>([])
   const [reordering, setReordering] = useState(false)
   // 폰의 "순서 편집" — 켜면 줄마다 ▲▼ 가 선다
@@ -659,23 +653,18 @@ export function Dashboard() {
   const [params, setParams] = useSearchParams()
   const location = useLocation()
   const navigate = useNavigate()
-  const [storedView, setStoredView] = useState<DashboardView>(loadView)
   const urlView = params.get('view')
-  const mode: DashboardView = urlView === 'signal' || urlView === 'portfolio' ? urlView : storedView
+  const mode: DashboardView = urlView === 'signal' ? 'signal' : 'portfolio'
   const fromDot = (location.state as { fromDot?: boolean } | null)?.fromDot === true
   const portfolioScroll = useRef<number | null>(null)
 
-  const chooseView = (next: DashboardView) => {
-    if (next === mode) return
-    if (fromDot && next === 'portfolio') {
-      // 점을 눌러 온 칸을 거두면 포트폴리오로 돌아간다 — 헛도는 칸이 남지 않는다
+  // ‹ — 점·칸을 눌러 왔으면 뒤로가기 한 칸(포트폴리오의 보던 자리), 주소로 바로 왔으면 홈으로
+  const leaveSignals = () => {
+    if (fromDot) {
       navigate(-1)
       return
     }
-    if (next === 'signal') portfolioScroll.current = window.scrollY
-    saveView(next)
-    setStoredView(next)
-    if (urlView !== null) setParams({}, { replace: true })
+    setParams({}, { replace: true })
   }
 
   const goToSignal = (ticker: string) => {
@@ -767,28 +756,27 @@ export function Dashboard() {
 
   return (
     <div>
-      <div className="view-head">
-        <div className="view-switch" role="group" aria-label="대시보드 보기">
-          <button aria-pressed={mode === 'portfolio'} onClick={() => chooseView('portfolio')}>
-            포트폴리오
-          </button>
-          <button aria-pressed={mode === 'signal'} onClick={() => chooseView('signal')}>
-            시그널
-          </button>
-        </div>
-        {mode === 'portfolio' && current && canAdvise && (
-          <button className="chip view-head-action" onClick={() => setAiPortfolio(true)}>
-            ✦ AI 포트폴리오 진단
-          </button>
-        )}
-        {/* 두 보기 모두 AI 는 같은 자리 — 전환 옆 (디자인 1차). 담은 종목 전체를 AI 가 한 장으로 (3c-2).
-            누르면 창만 열린다 — 부르는 것은 창에서 한 번 더 */}
-        {mode === 'signal' && (
-          <button className="chip view-head-action" onClick={() => setAiAll(true)}>
-            ✦ AI 전체 정리
-          </button>
-        )}
-      </div>
+      {/* 위 탭 없음 (디자인 4차 ② — 주인: 보기 전환 "다"). 시그널 목록은 홈의 시그널 칸 · 신호 배지로 들어오고 ‹ 로 돌아간다 */}
+      {mode === 'signal' && (
+        <>
+          <div className="sub-head">
+            <button type="button" className="sub-back" onClick={leaveSignals} aria-label="홈으로">
+              <Icon name="back" size={22} />
+            </button>
+            <h2>
+              시그널 <span className="sub-count">{summary.buy + summary.hot + summary.rebalanceCount}</span>
+            </h2>
+          </div>
+          <Link to="/ai/watchlist" className="ai-row">
+            <Icon name="ai" size={22} className="ai-row-mark" />
+            <span className="ai-row-text">
+              AI 전체 정리
+              <span className="hint">담은 종목 전체를 한 장으로</span>
+            </span>
+            <Icon name="forward" size={18} className="ai-row-go" />
+          </Link>
+        </>
+      )}
 
       <ErrorNotice error={error} onDismiss={() => setError(null)} />
 
@@ -811,6 +799,7 @@ export function Dashboard() {
           onChart={openChart}
           onSignal={goToSignal}
           onOpenSignals={openSignals}
+          canAdvise={canAdvise}
           onSaved={notifyDataChanged}
         />
       ) : (
@@ -1109,16 +1098,6 @@ export function Dashboard() {
         </Suspense>
       )}
 
-      {aiAll && (
-        <Suspense fallback={null}>
-          <AiSummaryModal kind="watchlist" account={pushAccount(user)} onClose={closeAiAll} />
-        </Suspense>
-      )}
-      {aiPortfolio && canAdvise && (
-        <Suspense fallback={null}>
-          <AiSummaryModal kind="portfolio" account={pushAccount(user)} onClose={closeAiPortfolio} />
-        </Suspense>
-      )}
     </div>
   )
 }

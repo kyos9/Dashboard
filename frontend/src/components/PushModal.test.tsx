@@ -26,6 +26,8 @@ import { ApiError, api } from '../api/client'
 import { disablePush, enablePush, forgetPushDevice, pushState, syncPush } from '../lib/push'
 import type { AuthUser, PushSettings, Stock } from '../types'
 import { AppHeader } from './AppHeader'
+import { TabBar } from './TabBar'
+import { SettingsPage } from '../pages/SettingsPage'
 import { AuthGate, browser } from './AuthGate'
 import { STATE_TEXT } from '../lib/pushText'
 import { PushModal } from './PushModal'
@@ -187,6 +189,8 @@ function renderApp(user: AuthUser | null) {
       <AuthGate>
         <AppStateProvider>
           <AppHeader />
+          <TabBar />
+          <SettingsPage />
         </AppStateProvider>
       </AuthGate>
     </MemoryRouter>,
@@ -196,9 +200,9 @@ function renderApp(user: AuthUser | null) {
 const FRIEND: AuthUser = { email: 'friend@example.com', name: '친구', is_owner: false, status: 'active' }
 
 describe('헤더', () => {
-  it('들어온 사람에게 🔔 — 누르면 알림 창, 열 때 이 기기를 한 번 맞춘다', async () => {
+  it('들어온 사람에게 설정 탭의 "알림" — 누르면 알림 창, 열 때 이 기기를 한 번 맞춘다', async () => {
     renderApp(FRIEND)
-    await userEvent.click(await screen.findByRole('button', { name: '알림 설정' }))
+    await userEvent.click(await screen.findByRole('button', { name: '알림' }))
     expect(await screen.findByRole('dialog', { name: '알림' })).toBeInTheDocument()
     expect(syncPush).toHaveBeenCalledWith('friend@example.com')
     // 팝업 코드는 누를 때 받는다(8-5) — 받고 나서 이 기기 상태를 읽는다
@@ -207,13 +211,13 @@ describe('헤더', () => {
 
   it('손님·승인 대기에게는 없다 — 보낼 것이 없다', async () => {
     const { unmount } = renderApp(null)
-    await screen.findByRole('button', { name: '로그인' })
-    expect(screen.queryByRole('button', { name: '알림 설정' })).not.toBeInTheDocument()
+    await screen.findAllByRole('button', { name: '로그인' })
+    expect(screen.queryByRole('button', { name: '알림' })).not.toBeInTheDocument()
     unmount()
 
     renderApp({ ...FRIEND, status: 'pending' })
     await screen.findByText('승인 대기')
-    expect(screen.queryByRole('button', { name: '알림 설정' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '알림' })).not.toBeInTheDocument()
     expect(syncPush).not.toHaveBeenCalled()
   })
 

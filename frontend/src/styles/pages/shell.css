@@ -1,0 +1,392 @@
+/* ---------- 묶음 2 뼈대 화면들 (디자인 4차 목업 09 · 09b) ---------- */
+
+/* PC 머리줄 — 이름은 왼쪽 메뉴에. 본문 위 오른쪽에 상태 · 새로고침 · 로그인만 */
+.app-header.wide {
+  background: transparent;
+  color: var(--text);
+  border-bottom: 0;
+  padding-top: 16px;
+  padding-bottom: 0;
+  max-width: 1440px;
+  margin: 0 auto;
+}
+
+.app-header.wide .status-pill,
+.app-header.wide .status-pill .mono {
+  color: var(--text-faint);
+}
+
+.app-header.wide > .header-right > button {
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.app-header.wide > .header-right > button:hover:not(:disabled) {
+  background: var(--panel-soft);
+  color: var(--text);
+}
+
+.header-refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 들어간 화면의 머리 — ‹ 와 제목 (시그널 목록 · AI 정리) */
+.sub-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 0 12px -10px;
+}
+
+.sub-head h2 {
+  margin: 0;
+  font-size: var(--fs-title);
+}
+
+.sub-head .hint {
+  display: block;
+  margin-top: 2px;
+}
+
+.sub-count {
+  color: var(--text-faint);
+  font-weight: 600;
+}
+
+button.sub-back {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+}
+
+/* AI 한 줄 — 누르면 AI 정리 화면 */
+.ai-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.ai-row:hover {
+  border-color: var(--accent-line);
+}
+
+.ai-row-mark {
+  color: var(--accent);
+}
+
+.ai-row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+}
+
+.ai-row-text .hint {
+  font-weight: 400;
+}
+
+.ai-row-go {
+  color: var(--text-faint);
+}
+
+.ai-page {
+  max-width: 760px;
+}
+
+.ai-page-lead {
+  margin: 0 0 12px;
+  color: var(--text-dim);
+}
+
+/* 설정 탭 — 무리마다 둥근 칸, 줄마다 토스페이스 · 이름 · 값 · › */
+.settings-page {
+  max-width: 640px;
+}
+
+.settings-account {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin-bottom: 8px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.settings-account .account-name {
+  font-weight: 700;
+}
+
+.settings-group {
+  margin-top: 16px;
+}
+
+.settings-group-title {
+  margin: 0 0 6px 4px;
+  font-size: var(--fs-caption);
+  font-weight: 500;
+  color: var(--text-faint);
+}
+
+.settings-list {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  overflow: hidden;
+}
+
+.settings-row,
+button.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 52px;
+  padding: 10px 14px;
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-body);
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.settings-list > :first-child,
+.settings-list > :first-child > .settings-row {
+  border-top: 0;
+}
+
+.settings-row:hover,
+button.settings-row:hover:not(:disabled) {
+  background: var(--panel-soft);
+  color: var(--text);
+}
+
+.settings-row.danger,
+button.settings-row.danger {
+  color: var(--red);
+}
+
+.settings-face {
+  width: 24px;
+  height: 24px;
+  flex: none;
+}
+
+.settings-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-value {
+  color: var(--text-faint);
+  font-size: var(--fs-sub);
+  white-space: nowrap;
+}
+
+.settings-go {
+  color: var(--text-faint);
+}
+
+.settings-credits {
+  border-top: 1px solid var(--border);
+}
+
+.settings-credits summary {
+  list-style: none;
+}
+
+.settings-credits summary::-webkit-details-marker {
+  display: none;
+}
+
+.settings-credits[open] .settings-go {
+  transform: rotate(180deg);
+}
+
+.settings-credits ul {
+  margin: 0;
+  padding: 4px 16px 14px 52px;
+  font-size: var(--fs-sub);
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+
+.settings-version {
+  margin: 16px 4px 0;
+}
+
+/* PC 홈 (목업 09b A) — 요약은 위 한 줄, 표는 왼쪽 넓게, 신호 · AI 는 오른쪽 칸 */
+@media (min-width: 1100px) {
+  .portfolio {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    column-gap: 16px;
+    align-items: start;
+  }
+  .portfolio > * {
+    grid-column: 1;
+  }
+  .portfolio > .money-line {
+    grid-column: 1 / -1;
+  }
+  .portfolio > .portfolio-rail {
+    grid-column: 2;
+    grid-row: 2 / span 20;
+    position: sticky;
+    top: 16px;
+    margin-top: 16px;
+  }
+  .portfolio-rail .signal-counts {
+    margin-top: 0;
+  }
+}
+
+/* PC 오른쪽 칸 — 신호가 뜬 종목 미리보기 */
+.rail-signals {
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  overflow: hidden;
+}
+
+.rail-title {
+  margin: 0;
+  padding: 12px 14px 8px;
+  font-size: var(--fs-sub);
+  font-weight: 700;
+}
+
+.rail-signals ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rail-signals li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 6px 2px 14px;
+  border-top: 1px solid var(--border);
+}
+
+.rail-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-sub);
+}
+
+.rail-signals .holding-signals {
+  flex: none;
+  margin: 0;
+  flex-wrap: nowrap;
+}
+
+button.rail-more {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* PC 표 (목업 09b A) */
+.holdings-table td .holding-sub {
+  display: block;
+  margin-top: 2px;
+  white-space: nowrap;
+}
+
+.holdings-table .signal-head,
+.holdings-table .signal-cell {
+  width: auto;
+  text-align: left;
+}
+
+.holdings-table .holding-signals {
+  margin: -8px 0;
+  padding: 0;
+}
+
+.weight-meter {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.weight-meter-text {
+  display: inline-flex;
+  gap: 6px;
+  align-items: baseline;
+  white-space: nowrap;
+}
+
+.weight-meter-bar {
+  position: relative;
+  width: 72px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--panel-soft);
+}
+
+.weight-meter-bar i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 3px;
+  background: var(--accent);
+}
+
+.weight-meter-bar em {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--text);
+}
+
+/* 미리보기는 오른쪽 칸이 있을 때만 — 좁은 PC 에서는 표가 밀려 내려간다 */
+@media (max-width: 1099px) {
+  .rail-signals {
+    display: none;
+  }
+}

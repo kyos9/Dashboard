@@ -1,13 +1,9 @@
 import { useEffect } from 'react'
 import { useBackToClose } from '../lib/backToClose'
 import { AiPanel } from './AiPanel'
+import { TITLES } from '../lib/aiTitles'
 import { lockBodyScroll } from '../lib/scrollLock'
 
-const TITLES = {
-  watchlist: { title: 'AI 전체 정리', sub: '담은 종목 전체를 한 장으로' },
-  macro: { title: 'AI 매크로 정리', sub: '지표와 국면 배지를 글로' },
-  portfolio: { title: 'AI 포트폴리오 진단', sub: '내 비중·수익률(%)로 전체를 점검' },
-} as const
 
 /**
  * 종목 하나가 아닌 AI 정리를 띄우는 창 (ROADMAP 3c-2) — 대시보드의 "AI 전체 정리", 매크로의 "AI 정리",

@@ -1,0 +1,159 @@
+/* ---------- 탭 다섯 (디자인 4차 묶음 2 · 목업 09 · 09b A) ----------
+   폰: 화면 아래 — 켜진 탭은 아이콘 뒤에 알약, 그림은 속을 채운다.
+   PC: 왼쪽 메뉴 — 넓으면 아이콘 + 이름 한 줄, 1100px 아래는 아이콘 위 · 이름 아래로 좁게. */
+
+:root {
+  --side-w: 232px;
+}
+
+.icon {
+  flex: none;
+}
+
+/* 켜진 그림 위의 가는 선(문 · 바늘 · 톱니 구멍)은 바탕색으로 뚫는다 */
+.icon-knock {
+  stroke: var(--icon-knock, var(--bg-elevated));
+}
+
+.tab-ico {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+
+.tab-badge {
+  position: absolute;
+  top: -6px;
+  right: -12px;
+}
+
+.tab-dot {
+  position: absolute;
+  top: -1px;
+  right: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--amber);
+  box-shadow: 0 0 0 2px var(--bg-elevated);
+}
+
+/* 폰 — 켜진 탭의 알약 */
+.bottom-tab .tab-ico {
+  width: 56px;
+  height: 30px;
+  border-radius: 999px;
+}
+
+.bottom-tab.active .tab-ico {
+  background: var(--accent-soft);
+  --icon-knock: var(--bg-elevated);
+}
+
+.bottom-tab.active .bottom-tab-label {
+  font-weight: 700;
+}
+
+/* PC — 왼쪽 메뉴. 본문은 그만큼 오른쪽으로 */
+.side-nav {
+  position: fixed;
+  z-index: 40;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: var(--side-w);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 20px 12px;
+  background: var(--bg-elevated);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+}
+
+body:has(.side-nav) #root {
+  padding-left: var(--side-w);
+}
+
+.side-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px 20px;
+  font-size: var(--fs-strong);
+  font-weight: 700;
+  color: var(--text);
+}
+
+.side-logo {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--brand);
+  color: var(--on-brand);
+  font-weight: 700;
+}
+
+.side-tab {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  color: var(--text-dim);
+  font-size: var(--fs-body);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.side-tab:hover {
+  background: var(--panel-soft);
+  color: var(--text);
+}
+
+.side-tab.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 700;
+  --icon-knock: var(--bg-elevated);
+}
+
+/* 721–1099 — 좁은 PC · 태블릿: 아이콘 위, 이름 아래 */
+@media (max-width: 1099px) {
+  :root {
+    --side-w: 84px;
+  }
+  .side-nav {
+    padding: 16px 8px;
+    align-items: stretch;
+  }
+  .side-brand {
+    justify-content: center;
+    padding: 0 0 16px;
+  }
+  .side-brand-name {
+    display: none;
+  }
+  .side-tab {
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px 2px;
+    font-size: var(--fs-caption);
+    text-align: center;
+  }
+}
+
+/* 폰 — 알약(56px) 안쪽 오른쪽 위에 */
+.bottom-tab .tab-badge {
+  top: -4px;
+  right: 2px;
+}
+
+.bottom-tab .tab-dot {
+  top: 2px;
+  right: 12px;
+}

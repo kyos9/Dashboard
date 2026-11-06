@@ -46,7 +46,7 @@ describe('탭 조각을 못 받으면', () => {
     expect(alert).toHaveTextContent('이 화면을 불러오지 못했습니다')
     expect(within(alert).getByRole('button', { name: '다시 불러오기' })).toBeInTheDocument()
     // 다른 탭으로 갈 길이 남아 있다
-    expect(screen.getAllByRole('link', { name: /대시보드/ }).length).toBeGreaterThan(0)
+    expect(screen.getAllByRole('link', { name: /^홈/ }).length).toBeGreaterThan(0)
     expect(screen.getByRole('link', { name: '개인정보처리방침 · 이용약관' })).toBeInTheDocument()
   })
 

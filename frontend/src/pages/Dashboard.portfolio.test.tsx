@@ -219,7 +219,8 @@ function cellOf(tr: HTMLElement, head: string): HTMLElement {
   const table = tr.closest('table') as HTMLElement
   const heads = within(table)
     .getAllByRole('columnheader')
-    .map((th) => th.textContent?.replace(/\(.*\)/, '').trim())
+    // 머리글의 작은 둘째 줄(.th-sub — "(목표)" · "수량 · 평단가")은 빼고 이름만
+    .map((th) => th.childNodes[0]?.textContent?.trim())
   const index = heads.indexOf(head)
   if (index < 0) throw new Error(`${head} 칸이 없습니다`)
   return within(tr).getAllByRole('cell')[index]
@@ -350,7 +351,7 @@ describe('금액 가리기 (9-3)', () => {
     expect(line).toHaveTextContent('+25.0%')
     expect(line).toHaveTextContent('+0.43%')
     const schd = await holdingRow('SCHD')
-    expect(cellOf(schd, '수량')).toHaveTextContent('•••••')
+    expect(cellOf(schd, '종목').querySelector('.holding-sub')).toHaveTextContent('•••••')
     expect(schd).not.toHaveTextContent('₩17,553,153')
     expect(schd).not.toHaveTextContent('$10,402')
     expect(schd).toHaveTextContent('•••••')
@@ -370,7 +371,7 @@ describe('금액 가리기 (9-3)', () => {
     expect(again).not.toHaveTextContent('₩37,668,153')
     await userEvent.click(within(again).getByRole('button', { name: '금액 보기' }))
     expect(again).toHaveTextContent('₩37,668,153')
-    expect(cellOf(await holdingRow('SCHD'), '수량')).toHaveTextContent(/^100$/)
+    expect(cellOf(await holdingRow('SCHD'), '종목').querySelector('.holding-sub')).toHaveTextContent(/^100주 · /)
     expect(localStorage.getItem(HIDE_AMOUNTS_KEY)).toBeNull()
   })
 
@@ -389,20 +390,19 @@ describe('금액 가리기 (9-3)', () => {
 })
 
 describe('보유 종목 표', () => {
-  it('한 줄에 수량·현재가(전일 대비)·평단가·수익률·평가손익·평가금액·비중(목표)', async () => {
+  it('한 줄에 수량·평단가(종목 아래)·현재가(전일 대비)·평가금액·비중(목표)·수익률·평가손익·신호', async () => {
     mockApi()
     renderDashboard()
     const schd = await holdingRow('SCHD')
-    // 수량은 이름 옆 작은 글씨가 아니라 제 칸이 있다 (9-10)
-    expect(cellOf(schd, '종목')).not.toHaveTextContent('100')
-    expect(cellOf(schd, '수량')).toHaveTextContent(/^100$/)
+    // 수량 · 평단가는 종목 아래 둘째 줄 (디자인 4차 묶음 2, 목업 09b A — 9-10 의 수량 칸을 바꿈)
+    expect(cellOf(schd, '종목').querySelector('.holding-sub')).toHaveTextContent('100주 · 평단 $26.00')
     expect(schd).toHaveTextContent('$130.02')
     expect(schd).toHaveTextContent('+1.09%')
     expect(schd).toHaveTextContent('$26.00')
     expect(schd).toHaveTextContent('+400.1%')
     expect(schd).toHaveTextContent('+$10,402.00')
     expect(schd).toHaveTextContent('₩17,553,153')
-    expect(schd).toHaveTextContent('46.6% (10%)')
+    expect(cellOf(schd, '비중')).toHaveTextContent('46.6%목표 10%')
   })
 
   it('보유 0 인 종목은 표에 없고 관심 종목으로 따로 모인다', async () => {
@@ -728,7 +728,7 @@ describe('신호 점', () => {
 
     await userEvent.click(within(await holdingRow('SCHD')).getByRole('button', { name: /SCHD 신호/ }))
     expect(screen.getByTestId('where')).toHaveTextContent('/?view=signal')
-    expect(screen.getByRole('button', { name: '시그널' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('heading', { name: /^시그널/ })).toBeInTheDocument()
     // 시그널 보기의 그 종목 줄로 스크롤하고 잠깐 밝힌다
     const target = await waitFor(() => {
       const found = document.querySelector('[data-ticker="SCHD"].flash')
@@ -740,13 +740,13 @@ describe('신호 점', () => {
     expect(localStorage.getItem('dashboard.view')).toBeNull()
 
     ;(window as { scrollY: number }).scrollY = 0
-    await userEvent.click(screen.getByRole('button', { name: '포트폴리오' }))
+    await userEvent.click(screen.getByRole('button', { name: '홈으로' }))
     await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent(/^\/$/))
     expect(screen.getByRole('region', { name: '내 자산' })).toBeInTheDocument()
     expect(window.scrollTo).toHaveBeenLastCalledWith(0, 640)
   })
 
-  it('시그널 보기에서 "포트폴리오"로 돌아오면 헛도는 칸이 없다 — 뒤로가기 한 번이면 앞 화면', async () => {
+  it('시그널 목록에서 ‹(홈으로)로 돌아오면 헛도는 칸이 없다 — 뒤로가기 한 번이면 앞 화면', async () => {
     mockApi()
     render(
       <MemoryRouter initialEntries={['/stocks', '/']} initialIndex={1}>
@@ -759,7 +759,7 @@ describe('신호 점', () => {
     )
     await userEvent.click(within(await holdingRow('SCHD')).getByRole('button', { name: /SCHD 신호/ }))
     expect(screen.getByTestId('where')).toHaveTextContent('/?view=signal')
-    await userEvent.click(screen.getByRole('button', { name: '포트폴리오' }))
+    await userEvent.click(screen.getByRole('button', { name: '홈으로' }))
     await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent(/^\/$/))
     await userEvent.click(screen.getByRole('button', { name: '뒤로' }))
     await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent('/stocks'))
@@ -768,11 +768,11 @@ describe('신호 점', () => {
   it('필터가 그 종목을 가리고 있으면 "모두 보기"로 돌린다', async () => {
     mockApi()
     renderDashboard()
-    // 시그널 보기에서 비중조절 신호만 보이게 걸어 둔다 — NVDA(매도 시그널만)는 가려진다
-    await userEvent.click(await screen.findByRole('button', { name: '시그널' }))
+    // 시그널 목록에서 비중조절 신호만 보이게 걸어 둔다 — NVDA(매도 시그널만)는 가려진다
+    await userEvent.click(within(await holdingRow('SCHD')).getByRole('button', { name: /SCHD 신호/ }))
     await userEvent.click(await screen.findByRole('button', { name: /^비중조절 \d+$/ }))
     expect(document.querySelector('[data-ticker="NVDA"]')).toBeNull()
-    await userEvent.click(screen.getByRole('button', { name: '포트폴리오' }))
+    await userEvent.click(screen.getByRole('button', { name: '홈으로' }))
 
     const watch = await screen.findByRole('region', { name: /관심 종목/ })
     await userEvent.click(within(watch).getByRole('button', { name: /NVDA 신호/ }))
@@ -781,26 +781,28 @@ describe('신호 점', () => {
   })
 })
 
-describe('포트폴리오 | 시그널', () => {
-  it('처음엔 포트폴리오, 고른 쪽을 기억한다', async () => {
+describe('위 탭 없음 (디자인 4차 묶음 2 — 보기 전환 "다")', () => {
+  it('처음엔 늘 포트폴리오 — 예전에 시그널을 골라 두었어도. 전환 단추가 없다', async () => {
+    localStorage.setItem('dashboard.view', 'signal')
     mockApi()
-    const first = renderDashboard()
-    expect(await screen.findByRole('button', { name: '포트폴리오' })).toHaveAttribute('aria-pressed', 'true')
-    await userEvent.click(screen.getByRole('button', { name: '시그널' }))
-    // 예전 대시보드가 그대로 있다 — 지표 표와 AI 전체 정리
-    expect(await screen.findByRole('button', { name: /AI 전체 정리/ })).toBeInTheDocument()
-    expect(localStorage.getItem('dashboard.view')).toBe('signal')
-    // 고른 것은 뒤로가기 칸을 쌓지 않는다
-    expect(screen.getByTestId('where')).toHaveTextContent(/^\/$/)
-
-    first.unmount()
     renderDashboard()
-    expect(await screen.findByRole('button', { name: '시그널' })).toHaveAttribute('aria-pressed', 'true')
+    expect(await screen.findByRole('region', { name: '내 자산' })).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: '대시보드 보기' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '시그널' })).toBeNull()
+  })
+
+  it('신호 칸을 누르면 시그널 목록 — 머리에 ‹ 와 "시그널", AI 전체 정리 한 줄', async () => {
+    mockApi()
+    renderDashboard()
+    await userEvent.click(await screen.findByRole('button', { name: /비중조절/ }))
+    expect(screen.getByTestId('where')).toHaveTextContent('/?view=signal')
+    expect(screen.getByRole('heading', { name: /^시그널/ })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /AI 전체 정리/ })).toHaveAttribute('href', '/ai/watchlist')
   })
 
   it('저장이 막힌 브라우저에서도 화면은 뜬다', async () => {
     mockApi()
-    const get = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
       throw new Error('blocked')
     })
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
@@ -808,9 +810,6 @@ describe('포트폴리오 | 시그널', () => {
     })
     renderDashboard()
     expect(await screen.findByRole('region', { name: '내 자산' })).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: '시그널' }))
-    expect(screen.getByRole('button', { name: '시그널' })).toHaveAttribute('aria-pressed', 'true')
-    expect(get).toHaveBeenCalled()
   })
 })
 
@@ -874,24 +873,21 @@ describe('폰 — 한 종목이 두 줄', () => {
 })
 
 describe('AI 포트폴리오 진단 (9-7) — 관리자는 늘, 사용자는 관리자가 열어 둔 동안 (9-15)', () => {
-  it('관리자에게는 포트폴리오 보기에 버튼이 있고, 누르면 창만 연다 — 부르는 것은 창에서 한 번 더', async () => {
+  it('관리자에게는 홈에 AI 진단 한 줄 — AI 진단 화면으로 가는 링크, 누르기만으로 부르지 않는다', async () => {
     localStorage.clear()
     mockApi()
     const stream = vi.spyOn(api, 'aiAnalyzeStream')
     renderDashboard()
-    await userEvent.click(await screen.findByRole('button', { name: '✦ AI 포트폴리오 진단' }))
-    const dialog = await screen.findByRole('dialog', { name: 'AI 포트폴리오 진단' })
-    // 무엇이 가고 무엇이 안 가는지 먼저 적는다
-    expect(within(dialog).getByText(/평가금액·수량·평단가·현금 액수는 보내지 않습니다/)).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: /AI 포트폴리오 진단/ })).toHaveAttribute('href', '/ai/portfolio')
     expect(stream).not.toHaveBeenCalled()
   })
 
-  it('시그널 보기에는 없다 — 진단은 포트폴리오 보기의 일이다', async () => {
+  it('시그널 목록에는 없다 — 진단은 홈의 일이다', async () => {
     mockApi()
     renderDashboard()
-    await userEvent.click(await screen.findByRole('button', { name: '시그널' }))
-    expect(await screen.findByRole('button', { name: /AI 전체 정리/ })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '✦ AI 포트폴리오 진단' })).toBeNull()
+    await userEvent.click(within(await holdingRow('SCHD')).getByRole('button', { name: /SCHD 신호/ }))
+    expect(await screen.findByRole('link', { name: /AI 전체 정리/ })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /AI 포트폴리오 진단/ })).toBeNull()
   })
 
   it.each([
@@ -914,7 +910,7 @@ describe('AI 포트폴리오 진단 (9-7) — 관리자는 늘, 사용자는 관
       </MemoryRouter>,
     )
     expect(await screen.findByText('총 평가금액')).toBeInTheDocument()
-    expect(screen.queryAllByRole('button', { name: '✦ AI 포트폴리오 진단' })).toHaveLength(open ? 1 : 0)
+    expect(screen.queryAllByRole('link', { name: /AI 포트폴리오 진단/ })).toHaveLength(open ? 1 : 0)
   })
 
   it('옛 서버(ai_advice 를 안 보냄)면 사용자에게는 없다', async () => {
@@ -934,6 +930,6 @@ describe('AI 포트폴리오 진단 (9-7) — 관리자는 늘, 사용자는 관
       </MemoryRouter>,
     )
     expect(await screen.findByText('총 평가금액')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '✦ AI 포트폴리오 진단' })).toBeNull()
+    expect(screen.queryByRole('link', { name: /AI 포트폴리오 진단/ })).toBeNull()
   })
 })

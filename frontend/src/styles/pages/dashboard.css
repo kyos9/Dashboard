@@ -354,7 +354,7 @@ button.signal-count:hover:not(:disabled) {
    신호 칸이 밀려났다 (4차 사용자 확인·재검토) */
 .holdings-table {
   width: 100%;
-  min-width: 780px;
+  min-width: 720px;
 }
 
 /* 칸 사이 여백을 조금 줄인다 — 칸 아홉의 12px 양옆이 PC 확대 150% 에서 23px 넘치게 했다 */

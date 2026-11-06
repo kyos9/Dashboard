@@ -71,16 +71,9 @@ async function clickViewTool(page, name, exact = false) {
 const clickText = (re) => async (page) => {
   await page.getByRole('button', { name: re }).first().click()
 }
-async function openMenu(page, label, pcLabel = label) {
-  // PC 는 헤더 버튼(이름이 다를 수 있다), 폰은 ⋯ 메뉴 안
-  for (const name of [label, pcLabel]) {
-    const direct = page.getByRole('button', { name, exact: true })
-    if (await direct.first().isVisible().catch(() => false)) return direct.first().click()
-  }
-  await page.getByRole('button', { name: /^메뉴/ }).first().click()
-  // 메뉴 안에서는 .menu-item 으로만 찾는다 — 메뉴 단추 자신의 이름("메뉴 — 진단을 확인하세요")에도 '진단'이 들어 있어
-  // 전에는 메뉴를 다시 눌러 닫아 버렸다(진단 팝업이 기준선에서 늘 "열지 못함", 디자인 3차에서 찾음)
-  await page.locator('.menu-item', { hasText: label }).first().click()
+// 4차 묶음 2: 머리줄 ⋯ 메뉴는 설정 탭(/settings)이 되었다 — 설정 줄을 누른다
+async function openMenu(page, label) {
+  await page.locator('.settings-row', { has: page.locator('.settings-label', { hasText: label }) }).first().click()
 }
 
 const SCREENS = [
@@ -118,13 +111,11 @@ const SCREENS = [
       await page.waitForSelector('canvas', { timeout: 15000 }).catch(() => {})
     },
   },
-  {
-    name: 'modal-ai-summary',
-    who: 'owner@example.com',
-    path: '/',
-    view: 'portfolio',
-    act: clickText(/AI 포트폴리오 진단/),
-  },
+  // 4차 묶음 2: AI 정리는 창이 아니라 화면
+  { name: 'ai-portfolio', who: 'owner@example.com', path: '/ai/portfolio' },
+  { name: 'ai-watchlist', who: 'owner@example.com', path: '/ai/watchlist' },
+  { name: 'settings', who: 'owner@example.com', path: '/settings' },
+  { name: 'guest-settings', who: null, path: '/settings' },
   { name: 'fundamentals', who: 'owner@example.com', path: '/fundamentals' },
   { name: 'rebalance', who: 'owner@example.com', path: '/rebalance' },
   { name: 'macro', who: 'owner@example.com', path: '/macro' },
@@ -194,11 +185,11 @@ const SCREENS = [
       await page.waitForSelector('canvas', { timeout: 15000 }).catch(() => {})
     },
   },
-  { name: 'menu-display', who: 'owner@example.com', path: '/', act: (p) => openMenu(p, '화면 설정', '화면') },
-  { name: 'menu-ai-key', who: 'owner@example.com', path: '/', act: (p) => openMenu(p, 'AI 키 설정') },
-  { name: 'menu-push', who: 'owner@example.com', path: '/', act: (p) => openMenu(p, '알림 설정') },
-  { name: 'menu-diagnostics', who: 'owner@example.com', path: '/', act: (p) => openMenu(p, '진단') },
-  { name: 'menu-users', who: 'owner@example.com', path: '/', act: (p) => openMenu(p, /사용자/) },
+  { name: 'menu-display', who: 'owner@example.com', path: '/settings', act: (p) => openMenu(p, '화면') },
+  { name: 'menu-ai-key', who: 'owner@example.com', path: '/settings', act: (p) => openMenu(p, 'AI 키') },
+  { name: 'menu-push', who: 'owner@example.com', path: '/settings', act: (p) => openMenu(p, '알림') },
+  { name: 'menu-diagnostics', who: 'owner@example.com', path: '/settings', act: (p) => openMenu(p, '진단') },
+  { name: 'menu-users', who: 'owner@example.com', path: '/settings', act: (p) => openMenu(p, '사용자') },
 ]
 
 /* ---------- 브라우저 안에서 재는 것 ---------- */
@@ -681,7 +672,8 @@ async function main() {
       let failed = null
       let heights = []
       try {
-        await page.goto(BASE + s.path, { waitUntil: 'networkidle' })
+        // 4차 묶음 2: 대시보드 위 탭이 없어졌다 — 시그널 목록은 주소(?view=signal)로 연다
+        await page.goto(BASE + s.path + (s.view === 'signal' ? '?view=signal' : ''), { waitUntil: 'networkidle' })
         if (s.act) {
           await s.act(page)
           if (s.name.startsWith('modal-') || s.name.startsWith('menu-'))

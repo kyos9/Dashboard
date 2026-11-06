@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Icon } from './icons/Icon'
 import {
   amount,
   avgPrice,
@@ -56,6 +57,8 @@ interface Props {
   onSignal: (ticker: string) => void
   /** 맨 위 "확인할 신호" — 종류를 누르면 그 종류만 걸러진 시그널 보기로, "시그널 보기"는 모두 (디자인 2차, 주인 결정 ②) */
   onOpenSignals: (kind?: SignalFilter) => void
+  /** AI 포트폴리오 진단을 쓸 수 있나 — 관리자는 늘, 사용자는 관리자가 열어 둔 동안 (9-15) */
+  canAdvise?: boolean
   onSaved: () => void
 }
 
@@ -75,7 +78,7 @@ function labelOf(item: PortfolioItem): string {
  *
  * 숫자는 전부 리밸런싱과 같은 응답에서 온다 — 두 화면의 합계가 원 단위까지 같다.
  */
-export function PortfolioView({ current, cards, stocks, narrow, onChart, onSignal, onOpenSignals, onSaved }: Props) {
+export function PortfolioView({ current, cards, stocks, narrow, onChart, onSignal, onOpenSignals, canAdvise, onSaved }: Props) {
   const base = current.base_currency
   const [sort, setSort] = useState<SortKey>(loadSort)
   // 종목 한 번에 수정 — 열려 있으면 처음 커서를 둘 자리 (ROADMAP 9-11)
@@ -143,7 +146,41 @@ export function PortfolioView({ current, cards, stocks, narrow, onChart, onSigna
       {/* 디자인 4차 B (목업 05b): 요약 칸(총액 크게 + 네 칸) → 신호 칸 셋 → 표. 매크로 줄은 대시보드에서 뺐다(주인 답 ㉡) */}
       <MoneyLine current={current} review />
 
-      <SignalLine kinds={signalKinds} onOpen={onOpenSignals} />
+      {/* PC 는 오른쪽 칸(목업 09b A), 폰은 요약 아래 — 신호 칸과 AI 진단 한 줄 (디자인 4차 묶음 2) */}
+      <aside className="portfolio-rail" aria-label="신호와 AI">
+        <SignalLine kinds={signalKinds} onOpen={onOpenSignals} />
+        {!narrow && signalCount > 0 && (
+          // PC 만 — 신호가 뜬 종목 몇 개를 미리. 폰은 칸 셋으로 충분하다(첫 화면이 길어진다)
+          <div className="rail-signals">
+            <h3 className="rail-title">신호가 뜬 종목</h3>
+            <ul>
+              {held
+                .concat(watching)
+                .filter((i) => signalsOf(i).length > 0)
+                .slice(0, 5)
+                .map((item) => (
+                  <li key={item.row.ticker}>
+                    <span className="rail-name">{labelOf(item)}</span>
+                    <SignalBadges label={labelOf(item)} signals={signalsOf(item)} ticker={item.row.ticker} onSignal={onSignal} />
+                  </li>
+                ))}
+            </ul>
+            <button type="button" className="rail-more" onClick={() => onOpenSignals()}>
+              시그널 모두 보기 <Icon name="forward" size={16} />
+            </button>
+          </div>
+        )}
+        {canAdvise && (
+          <Link to="/ai/portfolio" className="ai-row">
+            <Icon name="ai" size={22} className="ai-row-mark" />
+            <span className="ai-row-text">
+              AI 포트폴리오 진단
+              <span className="hint">내 비중 · 수익률로 전체를 점검</span>
+            </span>
+            <Icon name="forward" size={18} className="ai-row-go" />
+          </Link>
+        )}
+      </aside>
 
       <section className="section" aria-labelledby="holdings-title">
         <div className="section-head">
@@ -538,27 +575,39 @@ interface ListProps {
   onEdit: OnEdit
 }
 
+/** 비중 — 숫자와 막대, 막대 위의 선이 목표 (목업 09b). 막대는 가장 큰 비중 40% 를 끝으로 본다 */
+function WeightMeter({ actual, target }: { actual: number | null; target: number | null }) {
+  const scale = (v: number | null) => `${Math.min(100, Math.max(0, ((v ?? 0) / 40) * 100))}%`
+  return (
+    <span className="weight-meter">
+      <span className="weight-meter-text">
+        <span className="mono">{num(actual, 1)}%</span>
+        <span className="hint mono">목표 {num(target, 0)}%</span>
+      </span>
+      <span className="weight-meter-bar" aria-hidden="true">
+        <i style={{ width: scale(actual) }} />
+        {target != null && <em style={{ left: scale(target) }} />}
+      </span>
+    </span>
+  )
+}
+
 function HoldingTable({ items, base, pnl: pnlCurrency, fx, onChart, onSignal, onEdit }: ListProps) {
   return (
     <div className="table-scroll">
       <table className="data-table holdings-table">
         <thead>
           <tr>
-            <th>종목</th>
-            <th className="num-head">수량</th>
+            {/* 디자인 4차 묶음 2 (목업 09b A) — 수량 · 평단가는 종목 아래 작게, 비중은 목표선이 있는 막대, 신호는 글자 배지 */}
+            <th>
+              종목
+              <br />
+              <span className="th-sub">수량 · 평단가</span>
+            </th>
             <th className="num-head">
               현재가
               <br />
               <span className="th-sub">(전일 대비)</span>
-            </th>
-            <th className="num-head">평단가</th>
-            <th className="num-head">수익률</th>
-            <th className="num-head">
-              평가손익
-              <br />
-              <span className="th-sub">
-                {pnlCurrency === 'local' ? '(종목 통화)' : `(${CURRENCY_META[pnlCurrency].symbol} 기준)`}
-              </span>
             </th>
             <th className="num-head">
               평가금액
@@ -569,6 +618,14 @@ function HoldingTable({ items, base, pnl: pnlCurrency, fx, onChart, onSignal, on
               비중
               <br />
               <span className="th-sub">(목표)</span>
+            </th>
+            <th className="num-head">수익률</th>
+            <th className="num-head">
+              평가손익
+              <br />
+              <span className="th-sub">
+                {pnlCurrency === 'local' ? '(종목 통화)' : `(${CURRENCY_META[pnlCurrency].symbol} 기준)`}
+              </span>
             </th>
             <th className="signal-head">신호</th>
           </tr>
@@ -583,25 +640,25 @@ function HoldingTable({ items, base, pnl: pnlCurrency, fx, onChart, onSignal, on
                   <div className="stock-line">
                     <NameButton item={item} onChart={onChart} />
                   </div>
+                  <span className="holding-sub mono">
+                    {qty(row.quantity)}주 · 평단 {avgPrice(row.avg_cost, row.currency)}
+                  </span>
                 </td>
-                <td className="num-cell mono">{qty(row.quantity)}</td>
                 <td className="num-cell">
                   <PriceWithChange item={item} />
                 </td>
-                <td className="num-cell mono">{avgPrice(row.avg_cost, row.currency)}</td>
+                <td className="num-cell mono" title={row.currency === base ? undefined : `현지 ${amount(row.current_value, row.currency)}`}>
+                  <strong>{amount(row.current_value_base, base)}</strong>
+                </td>
+                <td className="num-cell">
+                  <WeightMeter actual={row.actual_weight_pct} target={row.target_weight_pct} />
+                </td>
                 <td className="num-cell">
                   <ReturnCell item={item} onEnter={() => onEdit(item, 'avgCost')} />
                 </td>
                 <td className={`num-cell mono ${tone(pnl.value)}`}>{signedAmount(pnl.value, pnl.currency)}</td>
-                <td className="num-cell mono" title={row.currency === base ? undefined : `현지 ${amount(row.current_value, row.currency)}`}>
-                  {amount(row.current_value_base, base)}
-                </td>
-                <td className="num-cell">
-                  <span className="mono">{num(row.actual_weight_pct, 1)}%</span>{' '}
-                  <span className="hint mono">({num(row.target_weight_pct, 0)}%)</span>
-                </td>
                 <td className="signal-cell">
-                  <SignalDot label={labelOf(item)} signals={signalsOf(item)} ticker={row.ticker} onSignal={onSignal} />
+                  <SignalBadges label={labelOf(item)} signals={signalsOf(item)} ticker={row.ticker} onSignal={onSignal} />
                 </td>
               </tr>
             )

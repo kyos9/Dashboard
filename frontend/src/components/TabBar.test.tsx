@@ -1,129 +1,82 @@
 /**
- * 화면 탭 (ROADMAP 8-2) — PC 는 위 한 줄, 폰은 아래 탭 + 더보기.
+ * 화면 탭 (디자인 4차 묶음 2 — 주인: 탭 구성 B, "처음부터 없는 상태로 디자인한다고 생각해").
  *
- * 순서는 주인이 정했다: 대시보드 · 재무 · 리밸런싱 · 매크로 · 더보기(차트·종목 관리).
+ * 홈 · 종목 · 리밸런싱 · 매크로 · 설정 다섯. 더보기도 머리줄 ⋯ 메뉴도 없다.
+ * PC 는 왼쪽 메뉴(목업 09b A), 폰은 화면 아래. 재무 · 차트는 종목 안으로 갈 때까지 종목 탭에 속한다.
  */
-import { act, render, screen } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { BrowserRouter, MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { resetBackToClose } from '../lib/backToClose'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
+import { afterEach, describe, expect, it } from 'vitest'
 import { forgetPhone, pretendPhone } from '../test/phone'
+import { activeTab } from '../lib/tabs'
 import { TabBar } from './TabBar'
 
 function Where() {
   return <p data-testid="where">{useLocation().pathname}</p>
 }
 
-function renderTabs(Router: typeof MemoryRouter | typeof BrowserRouter = MemoryRouter, at = '/') {
+function renderTabs(at = '/') {
   return render(
-    <Router {...(Router === MemoryRouter ? { initialEntries: [at] } : {})}>
+    <MemoryRouter initialEntries={[at]}>
       <TabBar />
       <Routes>
         <Route path="*" element={<Where />} />
       </Routes>
-    </Router>,
+    </MemoryRouter>,
   )
 }
 
-function names(container: HTMLElement) {
-  return Array.from(container.querySelectorAll('a, button')).map((el) => el.textContent)
+function names(nav: HTMLElement) {
+  return Array.from(nav.querySelectorAll('a')).map((el) => el.textContent?.replace(/\d+$/, ''))
 }
-
-async function back() {
-  await act(async () => {
-    window.history.back()
-    await new Promise((r) => setTimeout(r, 30))
-  })
-}
-
-beforeEach(() => {
-  resetBackToClose()
-  window.history.replaceState({ idx: 0, key: 'base' }, '', '/')
-})
 
 afterEach(() => forgetPhone())
 
-describe('PC', () => {
-  it('위에 여섯 탭 한 줄 — 주인이 정한 순서, 더보기 없음', () => {
+describe('PC — 왼쪽 메뉴', () => {
+  it('다섯 탭이 주인이 고른 순서로, 아이콘과 이름. 더보기 없음', () => {
     renderTabs()
     const nav = screen.getByRole('navigation', { name: '화면' })
-    expect(nav).toHaveClass('tabs')
-    expect(names(nav)).toEqual(['대시보드', '재무', '리밸런싱', '매크로', '차트', '종목 관리'])
+    expect(nav).toHaveClass('side-nav')
+    expect(names(nav)).toEqual(['홈', '종목', '리밸런싱', '매크로', '설정'])
+    expect(nav.querySelectorAll('svg[data-icon]')).toHaveLength(5)
     expect(screen.queryByRole('button', { name: /더보기/ })).not.toBeInTheDocument()
+  })
+
+  it('켜진 탭은 그림 속을 채운다 — 나머지는 선만', () => {
+    renderTabs('/macro')
+    const on = screen.getByRole('link', { name: '매크로' })
+    expect(on).toHaveAttribute('aria-current', 'page')
+    expect(on.querySelector('path[fill="currentColor"]')).not.toBeNull()
+    expect(screen.getByRole('link', { name: '홈' }).querySelector('path[fill="currentColor"]')).toBeNull()
   })
 })
 
-describe('폰 아래 탭', () => {
-  beforeEach(() => {
+describe('폰 — 아래 탭', () => {
+  it('다섯 탭, 누르면 그 화면', async () => {
     pretendPhone()
-  })
-
-  it('넷 + 더보기. 차트·종목 관리는 더보기를 열어야 보인다', async () => {
     renderTabs()
     const nav = screen.getByRole('navigation', { name: '화면' })
     expect(nav).toHaveClass('bottom-tabs')
-    expect(names(nav)).toEqual(['대시보드', '재무', '리밸런싱', '매크로', '더보기'])
-    expect(screen.getByRole('link', { name: '대시보드' })).toHaveAttribute('aria-current', 'page')
-
-    await userEvent.click(screen.getByRole('button', { name: '더보기' }))
-    const sheet = screen.getByRole('group', { name: '더보기' })
-    expect(names(sheet)).toEqual(['차트', '종목 관리'])
+    expect(names(nav)).toEqual(['홈', '종목', '리밸런싱', '매크로', '설정'])
+    await userEvent.click(screen.getByRole('link', { name: '설정' }))
+    expect(screen.getByTestId('where')).toHaveTextContent('/settings')
+    expect(screen.getByRole('link', { name: '설정' })).toHaveAttribute('aria-current', 'page')
   })
+})
 
-  it('더보기에서 고르면 그 화면으로 가고, 더보기 자리에 지금 화면 이름이 켜진다', async () => {
-    renderTabs()
-    await userEvent.click(screen.getByRole('button', { name: '더보기' }))
-    await userEvent.click(screen.getByRole('link', { name: '종목 관리' }))
-
-    expect(screen.getByTestId('where')).toHaveTextContent('/stocks')
-    expect(screen.queryByRole('group', { name: '더보기' })).not.toBeInTheDocument()
-    const more = screen.getByRole('button', { name: '종목 관리' })
-    expect(more).toHaveAttribute('aria-current', 'page')
-    expect(more).toHaveClass('active')
-    expect(screen.getByRole('link', { name: '대시보드' })).not.toHaveAttribute('aria-current')
-  })
-
-  it('차트 화면에서 열면 더보기 칸이 "차트"로 켜져 있다', () => {
-    renderTabs(MemoryRouter, '/history')
-    expect(screen.getByRole('button', { name: '차트' })).toHaveAttribute('aria-current', 'page')
-  })
-
-  it('바깥을 누르면 닫힌다', async () => {
-    renderTabs()
-    await userEvent.click(screen.getByRole('button', { name: '더보기' }))
-    await userEvent.click(screen.getByTestId('where'))
-    expect(screen.queryByRole('group', { name: '더보기' })).not.toBeInTheDocument()
-  })
-
-  it('Esc 로 닫고 초점은 더보기로', async () => {
-    renderTabs()
-    await userEvent.click(screen.getByRole('button', { name: '더보기' }))
-    await userEvent.keyboard('{Escape}')
-    expect(screen.queryByRole('group', { name: '더보기' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '더보기' })).toHaveFocus()
-  })
-
-  it('뒤로가기는 더보기만 닫는다 — 화면은 그대로', async () => {
-    renderTabs(BrowserRouter)
-    await userEvent.click(screen.getByRole('link', { name: '매크로' }))
-    await userEvent.click(screen.getByRole('button', { name: '더보기' }))
-    await back()
-    expect(screen.queryByRole('group', { name: '더보기' })).not.toBeInTheDocument()
-    expect(screen.getByTestId('where')).toHaveTextContent('/macro')
-  })
-
-  it('더보기로 간 화면에서 뒤로가기 한 번이면 앞 화면 — 헛도는 칸이 없다', async () => {
-    renderTabs(BrowserRouter)
-    await userEvent.click(screen.getByRole('link', { name: '매크로' }))
-    await userEvent.click(screen.getByRole('button', { name: '더보기' }))
-    await userEvent.click(screen.getByRole('link', { name: '차트' }))
-    expect(screen.getByTestId('where')).toHaveTextContent('/history')
-
-    await back()
-    expect(screen.getByTestId('where')).toHaveTextContent('/macro')
-    // 한 번 더 — 더보기가 쌓았던 칸(주소는 /macro)이 남아 있으면 여기서 제자리걸음을 한다
-    await back()
-    expect(screen.getByTestId('where')).toHaveTextContent(/^\/$/)
+describe('어느 탭이 켜지나', () => {
+  it.each([
+    ['/', '/'],
+    ['/ai/portfolio', '/'],
+    ['/stocks', '/stocks'],
+    ['/fundamentals', '/stocks'],
+    ['/history', '/stocks'],
+    ['/rebalance', '/rebalance'],
+    ['/macro', '/macro'],
+    ['/settings', '/settings'],
+    ['/policy', ''],
+  ])('%s → %s', (path, tab) => {
+    expect(activeTab(path)).toBe(tab)
   })
 })
