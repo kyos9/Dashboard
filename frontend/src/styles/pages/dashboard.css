@@ -266,6 +266,7 @@ button.signal-count:hover:not(:disabled) {
   padding: 0 2px;
   font-size: var(--fs-caption);
   font-weight: 500;
+  color: var(--accent);
   white-space: nowrap;
 }
 
@@ -700,10 +701,15 @@ button.signal-count:hover:not(:disabled) {
   padding-bottom: 4px;
 }
 
+/* 이름은 줄 전체를 쓰고, 그 아래 수량 | 평가금액·비중 | 수익률·수익금 이 머리줄 칸에 맞는다.
+   이름을 첫 칸에만 두면 긴 이름(미국필라델피아반도체나스닥)이 옆 숫자와 겹쳤다 (4차 사용자 확인) */
 .holding-toggle {
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--holding-col-value) var(--holding-col-return);
-  gap: 8px;
+  grid-template-areas:
+    'name name name'
+    'sub value return';
+  gap: 2px 8px;
   align-items: start;
   width: 100%;
   min-height: 44px;
@@ -717,10 +723,24 @@ button.signal-count:hover:not(:disabled) {
 }
 
 .holding-name-col {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
+  display: contents;
+}
+
+.holding-name {
+  grid-area: name;
+}
+
+.holding-sub {
+  grid-area: sub;
+  align-self: start;
+}
+
+.holding-value {
+  grid-area: value;
+}
+
+.holding-return {
+  grid-area: return;
 }
 
 .holding-name {
@@ -795,21 +815,30 @@ button.signal-count:hover:not(:disabled) {
   cursor: pointer;
 }
 
+/* 배지는 모두 같은 꼴 — 옅은 바탕 알약 + 모양 + 글자. 매수·매도만 글자였더니 누를 수 있는지 몰랐다 (4차 사용자 확인).
+   링크(밑줄)와는 바탕으로 갈린다 (계획 검토 R1) */
 .holding-badge {
   display: inline-flex;
   align-items: center;
   gap: 3px;
+  padding: 1px 6px;
+  border-radius: 6px;
   font-size: var(--fs-caption);
   font-weight: 700;
   white-space: nowrap;
 }
 
-/* 비중 배지는 옅은 바탕 — 같은 청람의 링크(밑줄)와 갈린다 (4차 계획 검토 R1) */
+.holding-badge.tone-buy {
+  background: var(--signal-buy-soft);
+}
+
+.holding-badge.tone-sell {
+  background: var(--signal-sell-soft);
+}
+
 .holding-badge.weight {
   color: var(--signal-weight);
   background: var(--signal-weight-soft);
-  border-radius: 6px;
-  padding: 1px 6px;
 }
 
 .holding-detail {
@@ -869,9 +898,13 @@ button.signal-count:hover:not(:disabled) {
 
 @media (max-width: 720px) {
   /* 보기 전환과 AI 진단을 한 줄에 — 따로 한 줄을 쓰던 자리를 보유 목록에 준다 (디자인 1차) */
+  /* 보기 전환과 AI 진단을 한 줄에 — 글자를 키워 안 들어가면 AI 단추만 다음 줄로(화면이 옆으로 밀렸다, 4차 사용자 확인) */
   .view-head {
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     margin-bottom: 12px;
+  }
+  .view-head .view-switch {
+    flex: 1 1 160px;
   }
   .view-head .view-switch button {
     min-width: 0;

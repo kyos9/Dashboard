@@ -72,6 +72,11 @@
   --on-brand-dim: #b9c8dd; /* 머리줄 위 옅은 글자 — 8.0 */
   --on-brand-soft: rgba(255, 255, 255, 0.12);
   --on-brand-line: rgba(255, 255, 255, 0.3);
+  /* 머리줄(청람) 위의 상태 점·알림 배지 — 바탕이 어두운 청람이라 밝은 단계 (두 테마 같음) */
+  --on-brand-ok: #4ade80;
+  --on-brand-warn: #fbbf24;
+  --on-brand-bad: #fca5a5;
+  --on-brand-warn-ink: #1a1203;
   --accent: #92b1db; /* 글자·링크·고른 탭 — 다크에서 #0051a8 를 글자로 쓰면 2.4:1 이라 밝은 단계 */
   --on-accent: #0b0f18; /* 강조색 바탕 위 글자 — 흰 글자는 2.2:1 */
   --accent-soft: rgba(146, 177, 219, 0.14);
@@ -164,6 +169,10 @@
   --on-brand-dim: #d6e2f2; /* 머리줄 위 옅은 글자 — 5.9 */
   --on-brand-soft: rgba(255, 255, 255, 0.14);
   --on-brand-line: rgba(255, 255, 255, 0.35);
+  --on-brand-ok: #4ade80;
+  --on-brand-warn: #fbbf24;
+  --on-brand-bad: #fca5a5;
+  --on-brand-warn-ink: #1a1203;
   --accent: #0051a8;
   --on-accent: #ffffff;
   --accent-soft: rgba(0, 81, 168, 0.08);
@@ -175,7 +184,7 @@
   --amber: #92400e;
   --amber-soft: rgba(146, 64, 14, 0.09);
   --amber-line: rgba(146, 64, 14, 0.35);
-  --on-amber: #1a1203;
+  --on-amber: #ffffff; /* #92400e 위 7.1 */
   --red: #b91c1c;
   --red-soft: rgba(185, 28, 28, 0.08);
   --red-line: rgba(185, 28, 28, 0.35);

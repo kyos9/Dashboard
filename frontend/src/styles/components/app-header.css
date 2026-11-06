@@ -159,3 +159,23 @@
   background: var(--on-brand-soft);
   color: var(--on-brand);
 }
+
+/* 머리줄 위의 상태 점 · 알림 배지 · "승인 대기" — 청람 위에서 흐리지 않게 밝은 단계 (4차 사용자 확인) */
+.app-header .status-dot.ok {
+  background: var(--on-brand-ok);
+  box-shadow: 0 0 0 3px var(--on-brand-soft);
+}
+.app-header .status-dot.warn {
+  background: var(--on-brand-warn);
+  box-shadow: 0 0 0 3px var(--on-brand-soft);
+}
+.app-header .status-dot.bad {
+  background: var(--on-brand-bad);
+  box-shadow: 0 0 0 3px var(--on-brand-soft);
+}
+.app-header .menu-badge,
+.app-header .account-chip .badge-amber,
+.app-header .count-badge {
+  background: var(--on-brand-warn);
+  color: var(--on-brand-warn-ink);
+}
