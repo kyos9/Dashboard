@@ -228,8 +228,10 @@ function measure(opts) {
   }
 
   // 1. 페이지 가로 넘침
-  if (document.documentElement.scrollWidth > innerWidth + 1)
-    out.push({ check: 'page-overflow', where: 'document', text: '', px: document.documentElement.scrollWidth - innerWidth })
+  // 폰 흉내(isMobile)에서는 넘치면 innerWidth 까지 같이 커진다 — 정한 화면 폭과 비교한다 (4차 묶음 2 재검토 조건 3)
+  const viewW = Math.min(innerWidth, opts.width)
+  if (document.documentElement.scrollWidth > viewW + 1)
+    out.push({ check: 'page-overflow', where: 'document', text: '', px: document.documentElement.scrollWidth - viewW })
 
   // 팝업이 열려 있으면 팝업 안만 잰다 — 뒤 화면은 그 화면의 검사가 잰다
   const modals = [...document.querySelectorAll('.modal-backdrop, [role=dialog]')].filter(visible)

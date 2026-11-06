@@ -474,6 +474,8 @@ button.sub-more.active {
 }
 
 .filter-chips {
+  /* 안의 화면 읽기 글(.sr-only, absolute)이 가로 스크롤 칸을 빠져나가 300px 폰의 쪽 폭을 349 로 넓혔다 (재검토 조건 3) */
+  position: relative;
   flex-wrap: nowrap;
   overflow-x: auto;
   scrollbar-width: none;
