@@ -92,6 +92,15 @@ button.icon-action {
 }
 
 @media (max-width: 340px) {
+  /* 알릴 상태(갱신 중·실패)의 글은 알약 안에서 두 줄까지 — 한 줄로 묶으면 새로고침 단추를 덮었다 (4차 네 번째 검토) */
+  .status-pill.compact {
+    flex: 0 1 auto;
+  }
+  .status-pill.compact .status-text {
+    white-space: normal;
+    line-height: 1.2;
+  }
+
   /* 좋은 상태만 — 갱신 실패·갱신 중 같은 알릴 것은 글이 남는다 (4차 세 번째 검토) */
   .status-pill.compact:has(.status-dot.ok) .status-text {
     position: absolute;
