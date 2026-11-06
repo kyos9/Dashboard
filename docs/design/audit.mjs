@@ -592,7 +592,8 @@ async function routeExtraCondition(page) {
 async function cardChecks(page) {
   return page.evaluate(async () => {
     // 시그널 카드만(매크로 카드도 .stock-card 다) — 그 밖의 화면에서는 규칙을 받지 않는다(손님은 401)
-    const cards = [...document.querySelectorAll('article.stock-card[data-ticker]')].filter((c) => c.getBoundingClientRect().height > 0)
+    // 폰의 접힌 카드(.folded)는 조건 칩을 그리지 않는다 — 펼친 카드만 잰다 (4차 묶음 2 재검토 조건 2)
+    const cards = [...document.querySelectorAll('article.stock-card[data-ticker]:not(.folded)')].filter((c) => c.getBoundingClientRect().height > 0)
     if (!cards.length && !document.querySelector('.cond-mark')) return { issues: [], heights: [] }
     let want = null
     try {

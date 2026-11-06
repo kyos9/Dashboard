@@ -1515,7 +1515,7 @@ function SignalCards({
           <article
             key={card.ticker}
             data-ticker={card.ticker}
-            className={`stock-card signal-card ${drag.className}`.trim()}
+            className={`stock-card signal-card${folded ? ' folded' : ''} ${drag.className}`.trim()}
             onDragOver={drag.onDragOver}
             onDrop={drag.onDrop}
           >
@@ -1544,7 +1544,7 @@ function SignalCards({
                 type="button"
                 className="signal-card-toggle"
                 aria-expanded={!folded}
-                aria-controls={`signal-card-${card.ticker}`}
+                aria-controls={folded ? undefined : `signal-card-${card.ticker}`}
                 onClick={() => onToggle?.(card.ticker)}
               >
                 <span className="signal-card-badges">

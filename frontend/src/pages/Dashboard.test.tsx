@@ -416,6 +416,29 @@ describe('대시보드 · 신호 칸은 짧게, 모양으로도 (ROADMAP 8-4)', 
     }
   })
 
+  it('홈의 신호 배지에서 넘어오면 그 종목 카드가 펼쳐져 있다 (묶음 2 재검토 조건 6)', async () => {
+    vi.stubGlobal('innerWidth', 390)
+    pretendPhone()
+    try {
+      mockApi([card({ ticker: 'VOO' }), card({ ticker: 'QQQ' })])
+      render(
+        <MemoryRouter initialEntries={[{ pathname: '/', search: '?view=signal', state: { focus: 'QQQ' } }]}>
+          <AppStateProvider>
+            <Dashboard />
+          </AppStateProvider>
+        </MemoryRouter>,
+      )
+      await waitFor(() => expect(document.querySelectorAll('.signal-card-toggle')).toHaveLength(2))
+      await waitFor(() => expect(document.querySelectorAll('.stat-grid')).toHaveLength(1))
+      const open = document.querySelector('.signal-card-toggle[aria-expanded="true"]') as HTMLElement
+      expect(open.closest('article')).toHaveAttribute('data-ticker', 'QQQ')
+      // 펼친 카드만 aria-controls — 접힌 카드가 없는 id 를 가리키지 않는다
+      expect(document.querySelectorAll('.signal-card-toggle[aria-controls]')).toHaveLength(1)
+    } finally {
+      forgetPhone()
+    }
+  })
+
   it('폰에서도 "—"·비중 줄의 풀이가 화면 글로 보인다 — 툴팁은 폰에서 못 본다 (0.44.0, B 검토)', async () => {
     vi.stubGlobal('innerWidth', 360)
     pretendPhone()

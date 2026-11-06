@@ -482,10 +482,16 @@ button.sub-more.active {
 
 .filter-chips .chip {
   flex: none;
+  min-height: 44px;
+}
+
+/* 구분 고르기도 줄지 않는다 — 한 줄 고정 안에서 42px 로 눌려 글이 사라졌다 (묶음 2 재검토 조건 1) */
+.filter-chips .category-pick {
+  flex: none;
 }
 
 .category-pick select {
-  min-height: 40px;
+  min-height: 44px;
   border-radius: 999px;
   padding: 0 28px 0 12px;
   font-size: var(--fs-sub);
@@ -500,6 +506,16 @@ button.sub-more.active {
 }
 
 /* 폰 카드 — 접혀 있고 누르면 하나만 펼친다 */
+/* 접힌 카드는 목업 10 가처럼 낮게 — 이름 · 값 한 줄, 배지 · 이유 한 줄 (재검토 조건 5) */
+.stock-card.folded {
+  gap: 4px;
+  padding: 12px 14px;
+}
+
+.stock-card.folded button.signal-card-toggle {
+  margin-top: 0;
+}
+
 button.signal-card-toggle {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

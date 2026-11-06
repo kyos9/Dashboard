@@ -47,7 +47,7 @@ export function AiSummaryPage() {
       </div>
       <p className="ai-page-lead">{LEADS[kind]}</p>
       {kind === 'portfolio' && !canAdvise ? (
-        <p className="callout">포트폴리오 진단은 관리자가 열어 둔 동안 쓸 수 있습니다.</p>
+        <p className="callout">AI 포트폴리오 점검은 관리자가 열어 둔 동안 쓸 수 있습니다.</p>
       ) : (
         <AiPanel target={{ kind }} account={pushAccount(user)} />
       )}
