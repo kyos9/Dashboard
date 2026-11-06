@@ -500,7 +500,8 @@ function measure(opts) {
       const ratio = (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05)
       if (ratio < 3) add('focus-ring', el, { ratio: +ratio.toFixed(2), color: cs.outlineColor })
     }
-    if (before && before.focus) before.focus()
+    // 검사가 준 포커스를 남기지 않는다 — 처음이 body 였으면 풀어 둔다(사진에 사용자가 안 본 테두리가 찍혔다)
+    if (before && before !== document.body && before.focus) before.focus()
     else document.activeElement?.blur?.()
   }
 

@@ -86,13 +86,14 @@ button.icon-action {
 
 
 /* 상태 글("방금 받음")은 한 덩어리 — 글자를 키운 좁은 폰에서 세 줄로 접혔다(4차 재검토, 폰 글자 130%).
-   그보다 좁으면 점만 남기고 글은 화면 읽기에만 — 점의 색과 title 이 같은 뜻을 말한다 */
+   그보다 좁으면 좋은 상태(방금 받음)일 때만 점만 남기고 글은 화면 읽기에만 */
 .status-pill.compact .status-text {
   white-space: nowrap;
 }
 
 @media (max-width: 340px) {
-  .status-pill.compact .status-text {
+  /* 좋은 상태만 — 갱신 실패·갱신 중 같은 알릴 것은 글이 남는다 (4차 세 번째 검토) */
+  .status-pill.compact:has(.status-dot.ok) .status-text {
     position: absolute;
     width: 1px;
     height: 1px;

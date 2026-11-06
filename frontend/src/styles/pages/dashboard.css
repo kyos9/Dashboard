@@ -350,9 +350,18 @@ button.signal-count:hover:not(:disabled) {
   padding: 24px 16px;
 }
 
+/* 넘치면 표 안에서 옆으로 밀린다. 최소 폭은 PC 확대 150%(창 933)에 들어가게 — 860 이면 23px 넘쳐
+   신호 칸이 밀려났다 (4차 사용자 확인·재검토) */
 .holdings-table {
   width: 100%;
-  min-width: 860px;
+  min-width: 780px;
+}
+
+/* 칸 사이 여백을 조금 줄인다 — 칸 아홉의 12px 양옆이 PC 확대 150% 에서 23px 넘치게 했다 */
+table.data-table.holdings-table th,
+table.data-table.holdings-table td {
+  padding-left: 8px;
+  padding-right: 8px;
 }
 
 .holdings-table .num-head {
@@ -369,24 +378,6 @@ button.signal-count:hover:not(:disabled) {
   text-align: center;
   padding-left: 4px;
   padding-right: 4px;
-}
-
-/* 신호 칸은 오른쪽 끝에 붙여 둔다 — PC 확대 150% 에서 표를 옆으로 밀어야 신호가 보였다 (4차 사용자 확인·재검토).
-   종목 칸(왼쪽)이 붙어 있는 것과 짝 */
-.holdings-table .signal-head,
-.holdings-table .signal-cell {
-  position: sticky;
-  right: 0;
-  z-index: 1;
-}
-
-.holdings-table .signal-head {
-  background: var(--panel-soft);
-}
-
-.holdings-table .signal-cell {
-  background: var(--panel);
-  box-shadow: -1px 0 0 var(--border);
 }
 
 .stock-line .hint.mono {
