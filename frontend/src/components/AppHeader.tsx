@@ -107,13 +107,14 @@ export function AppHeader() {
   }, [])
   const loadedAgo = loadedAgoLabel(loadedAt, Math.max(now, loadedAt ?? 0))
 
+  // short — 아주 좁은 폰(340px 아래)에서 보이는 짧은 글. 좋은 상태는 점만 (디자인 4차 검토 — 긴 글이 접히거나 단추를 덮었다)
   const status = refreshing
-    ? { dot: 'warn', text: '시세 갱신 중…' }
+    ? { dot: 'warn', text: '시세 갱신 중…', short: '갱신 중' }
     : refreshError
-      ? { dot: 'bad', text: '갱신 실패' }
+      ? { dot: 'bad', text: '갱신 실패', short: '실패' }
       : lastSync
-        ? { dot: 'ok', text: '시세 연동 정상' }
-        : { dot: 'ok', text: loadedAgo ?? '연결 확인 중' }
+        ? { dot: 'ok', text: '시세 연동 정상', short: '' }
+        : { dot: 'ok', text: loadedAgo ?? '연결 확인 중', short: '' }
 
   const narrow = useNarrow()
   const install = useInstall()
@@ -212,6 +213,11 @@ export function AppHeader() {
     >
       <span className={`status-dot ${status.dot}`} aria-hidden="true" />
       <span className="status-text">{status.text}</span>
+      {narrow && status.short && (
+        <span className="status-short" aria-hidden="true">
+          {status.short}
+        </span>
+      )}
       {lastSync && !narrow && <span className="mono">갱신 {lastSync.toLocaleTimeString('ko-KR')}</span>}
     </span>
   )

@@ -86,28 +86,26 @@ button.icon-action {
 
 
 /* 상태 글("방금 받음")은 한 덩어리 — 글자를 키운 좁은 폰에서 세 줄로 접혔다(4차 재검토, 폰 글자 130%).
-   그보다 좁으면 좋은 상태(방금 받음)일 때만 점만 남기고 글은 화면 읽기에만 */
-.status-pill.compact .status-text {
+   340px 아래에서는 긴 글을 화면 읽기에만 두고, 짧은 글(갱신 중 · 실패)을 한 줄로 보인다. 좋은 상태는 점만.
+   (긴 글을 두 줄로 접게 했더니 300px 에서 세 줄이 되어 머리줄이 커졌다 — 다섯 번째 검토) */
+.status-pill.compact .status-text,
+.status-short {
   white-space: nowrap;
 }
 
-@media (max-width: 340px) {
-  /* 알릴 상태(갱신 중·실패)의 글은 알약 안에서 두 줄까지 — 한 줄로 묶으면 새로고침 단추를 덮었다 (4차 네 번째 검토) */
-  .status-pill.compact {
-    flex: 0 1 auto;
-  }
-  .status-pill.compact .status-text {
-    white-space: normal;
-    line-height: 1.2;
-  }
+.status-short {
+  display: none;
+}
 
-  /* 좋은 상태만 — 갱신 실패·갱신 중 같은 알릴 것은 글이 남는다 (4차 세 번째 검토) */
-  .status-pill.compact:has(.status-dot.ok) .status-text {
+@media (max-width: 340px) {
+  .status-pill.compact .status-text {
     position: absolute;
     width: 1px;
     height: 1px;
     overflow: hidden;
     clip-path: inset(50%);
-    white-space: nowrap;
+  }
+  .status-pill.compact .status-short {
+    display: inline;
   }
 }
