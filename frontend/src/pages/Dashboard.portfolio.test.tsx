@@ -800,6 +800,16 @@ describe('위 탭 없음 (디자인 4차 묶음 2 — 보기 전환 "다")', () 
     expect(screen.getByRole('link', { name: /AI 전체 정리/ })).toHaveAttribute('href', '/ai/watchlist')
   })
 
+  it('신호가 하나도 없어도 시그널 목록으로 갈 길이 있다 (묶음 2 검토 조건 1)', async () => {
+    const quiet = CARDS.map((c) => ({ ...c, knee_buy_v2: false, shoulder_sell_ref: false, rebalance_signal: { active: false, reasons: [] } }))
+    const rows = ROWS.map((r) => ({ ...r, rebalance_signal: { active: false, reasons: [] } }))
+    mockApi({ ...CURRENT, rows }, quiet)
+    renderDashboard()
+    expect(await screen.findByText(/확인할 신호가 없습니다/)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: '시그널 목록 보기' }))
+    expect(screen.getByTestId('where')).toHaveTextContent('/?view=signal')
+  })
+
   it('저장이 막힌 브라우저에서도 화면은 뜬다', async () => {
     mockApi()
     vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {

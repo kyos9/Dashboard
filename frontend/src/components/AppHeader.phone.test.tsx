@@ -129,9 +129,10 @@ describe('폰 머리줄은 한 줄 — 메뉴 없음', () => {
     expect(await screen.findByLabelText('진단을 확인하세요 — 백업 · 시세 받기', { selector: '.tab-dot' })).toBeInTheDocument()
   })
 
-  it('관리자: 신청도 있고 백업도 봐야 하면 탭에는 숫자가 먼저, 진단 줄에 점 (0.45.2 B4)', async () => {
+  it('관리자: 신청도 있고 백업도 봐야 하면 탭에 숫자와 점을 같이 — 숫자가 점을 가리지 않는다 (0.45.2 B4)', async () => {
     renderAs({ ...OWNER, backup_attention: true })
     expect(await screen.findByLabelText('가입 신청 2건', { selector: '.tab-badge' })).toBeInTheDocument()
+    expect(screen.getByLabelText('진단을 확인하세요 — 백업', { selector: '.tab-dot' })).toBeInTheDocument()
     expect(within(screen.getByRole('button', { name: /^진단/ })).getByLabelText('진단을 확인하세요 — 백업')).toBeInTheDocument()
   })
 

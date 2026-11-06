@@ -84,7 +84,7 @@ describe('승인을 기다리는 사람', () => {
 
   it('설정 탭에 승인 대기 표시와 나가기가 있고, 탈퇴·관리자 줄은 없다', async () => {
     renderApp(pending)
-    const name = await screen.findByText('새 사람')
+    const name = await screen.findByText('새 사람', { selector: '.settings-account .account-name' })
     expect(within(name.closest('.settings-account') as HTMLElement).getByText('승인 대기')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '나가기' })).toBeInTheDocument()
     for (const name of ['탈퇴', '전체 새로고침', '진단', '사용자']) {

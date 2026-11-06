@@ -299,8 +299,12 @@ function SignalLine({
   ]
   if (parts.every((p) => p.n === 0)) {
     return (
+      // 신호가 없어도 시그널 목록(지표 표 · AI 전체 정리 · 시그널 기준 · 종목 설정)으로 갈 길은 남긴다 (묶음 2 검토 조건 1)
       <p className="signal-line quiet">
         확인할 신호가 없습니다
+        <button type="button" className="link-like signal-line-go" onClick={() => onOpen()}>
+          시그널 목록 보기
+        </button>
       </p>
     )
   }

@@ -65,6 +65,18 @@ describe('폰 — 아래 탭', () => {
   })
 })
 
+describe('제 주소가 아니어도 켜진 탭은 aria-current (묶음 2 검토 조건 2)', () => {
+  it.each([
+    ['/fundamentals', '종목'],
+    ['/history', '종목'],
+    ['/ai/portfolio', '홈'],
+  ])('%s → %s', (path, name) => {
+    renderTabs(path)
+    expect(screen.getByRole('link', { name })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getAllByRole('link').filter((a) => a.getAttribute('aria-current') === 'page')).toHaveLength(1)
+  })
+})
+
 describe('어느 탭이 켜지나', () => {
   it.each([
     ['/', '/'],

@@ -163,3 +163,48 @@ body:has(.side-nav) #root {
   top: -8px;
   right: -14px;
 }
+
+/* 숫자 옆의 점 — 둘 다 보일 때 점은 숫자 아래로 */
+.tab-dot.tab-dot-aside {
+  top: auto;
+  bottom: -2px;
+}
+
+/* PC 왼쪽 메뉴 아래 — 누구로 들어와 있는지 */
+.side-account {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 44px;
+  padding: 12px;
+  border-top: 1px solid var(--border);
+  color: var(--text);
+  text-decoration: none;
+  font-size: var(--fs-sub);
+}
+
+.side-account:hover {
+  background: var(--panel-soft);
+}
+
+.side-account-name {
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.side-account-sub {
+  font-size: var(--fs-caption);
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 1099px) {
+  .side-account {
+    display: none;
+  }
+}

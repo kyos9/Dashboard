@@ -423,3 +423,7 @@ button.rail-name {
   align-items: center;
   text-decoration: none;
 }
+
+.signal-line-go {
+  margin-left: 8px;
+}

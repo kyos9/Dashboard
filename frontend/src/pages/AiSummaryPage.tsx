@@ -1,4 +1,4 @@
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { AiPanel } from '../components/AiPanel'
 import { TITLES } from '../lib/aiTitles'
 import { useAuth } from '../components/AuthGate'
@@ -23,7 +23,9 @@ export function AiSummaryPage() {
   const navigate = useNavigate()
   const { user, canAdvise } = useAuth()
   const kind = KINDS.find((k) => k === raw)
-  const back = () => (window.history.length > 1 ? navigate(-1) : navigate('/'))
+  const location = useLocation()
+  // 앱 안에서 왔으면 온 곳으로, 주소로 바로 열었으면(첫 칸) 홈으로 — 앱 밖으로 나가지 않는다 (묶음 2 검토 참고)
+  const back = () => (location.key !== 'default' ? navigate(-1) : navigate('/'))
 
   if (!kind)
     return (

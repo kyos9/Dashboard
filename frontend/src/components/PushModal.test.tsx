@@ -216,7 +216,7 @@ describe('헤더', () => {
     unmount()
 
     renderApp({ ...FRIEND, status: 'pending' })
-    await screen.findByText('승인 대기')
+    await screen.findByText('승인 대기', { selector: '.settings-account .badge' })
     expect(screen.queryByRole('button', { name: '알림' })).not.toBeInTheDocument()
     expect(syncPush).not.toHaveBeenCalled()
   })
