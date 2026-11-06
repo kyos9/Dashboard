@@ -58,8 +58,8 @@ interface Props {
   /** 그 종목의 오늘 카드 — 시세·신호. 없으면(시세를 아직 못 받음) 머리에 값이 비고 신호 탭이 안내만 */
   card?: DashboardCard
   initialTab?: ChartTab
-  /** 머리줄 왼쪽 자리 — 화면이면 ‹(뒤로), 팝업이면 비움(✕ 는 오른쪽) */
-  lead?: ReactNode
+  /** 머리줄 왼쪽 자리 — 화면이면 ‹(뒤로), 팝업이면 비움(✕ 는 오른쪽). AI 를 연 채인지 알아야 하면 함수로 */
+  lead?: ReactNode | ((ctx: { aiOpen: boolean }) => ReactNode)
   /** 머리줄 오른쪽 자리 — 팝업의 ✕ */
   trail?: ReactNode
   /** 종목을 지웠을 때 (보유 탭) — 화면이면 종목 목록으로 */
@@ -136,7 +136,7 @@ export function StockDetail({ ticker, name, card, initialTab = 'chart', lead, tr
   return (
     <div className="stock-detail">
       <div className="stock-detail-bar">
-        {lead}
+        {typeof lead === 'function' ? lead({ aiOpen: activeTab === 'ai' }) : lead}
         <h2 className="stock-detail-name">{label}</h2>
         {/* AI 분석은 머리 오른쪽 작은 한 줄 — 첫 화면에서 보이게(사용자 확인 찾지 못한 것 1). 시그널 목록 머리의 "AI 종목 정리"와 같은 모양 */}
         {member && (

@@ -565,6 +565,34 @@ describe('차트 팝업 · 키보드 (디자인 2차 검토)', () => {
     expect(onClose).toHaveBeenCalled()
   })
 
+  it('팝업 위 팝업 — Tab 은 맨 안쪽(수정) 팝업 안에서만 돈다, 뒤 화면으로 새지 않는다 (재검토 조건 1)', async () => {
+    vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
+    vi.spyOn(api, 'getFundamentals').mockResolvedValue(FUNDAMENTALS)
+    vi.spyOn(api, 'listStocks').mockResolvedValue([
+      { ticker: 'GOOG', name: null, category: null, market: 'US', currency: 'USD', active: true, added_at: '2026-01-01T00:00:00', target_weight_pct: 5, rebalance_band_pct: null, sort_order: 0 },
+    ])
+    vi.spyOn(api, 'listHoldings').mockResolvedValue([])
+    vi.spyOn(api, 'getSettings').mockRejectedValue(new Error('x'))
+    vi.spyOn(api, 'getRebalanceCurrent').mockRejectedValue(new Error('x'))
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter>
+        <button>뒤 화면 단추</button>
+        <AppStateProvider>
+          <ChartModal ticker="GOOG" name="GOOG" initialTab="holding" onClose={() => {}} />
+        </AppStateProvider>
+      </MemoryRouter>,
+    )
+    await user.click(await screen.findByRole('button', { name: /보유 고치기/ }))
+    const edit = await screen.findByRole('dialog', { name: 'GOOG 수정' })
+    for (let i = 0; i < 12; i++) {
+      await user.tab()
+      expect(edit.contains(document.activeElement)).toBe(true)
+    }
+    await user.tab({ shift: true })
+    expect(edit.contains(document.activeElement)).toBe(true)
+  })
+
   it('닫으면 포커스가 연 단추로 돌아간다', async () => {
     vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
     const opener = document.createElement('button')

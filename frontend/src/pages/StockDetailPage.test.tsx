@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { Fragment } from 'react'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppStateProvider } from '../AppState'
@@ -52,13 +53,23 @@ function Where() {
   return <span data-testid="where">{pathname}</span>
 }
 
+/** 앱처럼 주소가 바뀌면 화면을 새로 만든다(App 의 PageBoundary key={pathname}) */
+function Keyed() {
+  const { pathname } = useLocation()
+  return (
+    <Fragment key={pathname}>
+      <StockDetailPage />
+    </Fragment>
+  )
+}
+
 function renderAt(path: string) {
   window.history.replaceState(null, '', path)
   return render(
     <MemoryRouter initialEntries={[path]}>
       <AppStateProvider>
         <Routes>
-          <Route path="/stocks/:ticker" element={<StockDetailPage />} />
+          <Route path="/stocks/:ticker" element={<Keyed />} />
           <Route path="/stocks" element={<p>종목 목록</p>} />
         </Routes>
         <Where />
@@ -165,6 +176,27 @@ describe('종목 안 · 사용자 확인 보완 (묶음 3)', () => {
     expect(screen.getByTestId('where')).toHaveTextContent('/stocks/VOO')
   })
 
+  it('AI 를 연 채로 ‹ 를 누르면 한 번에 종목 목록으로 (재검토 조건 3)', async () => {
+    vi.spyOn(api, 'getDashboard').mockResolvedValue([dashCard({ ticker: 'VOO' })])
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter initialEntries={['/stocks', '/stocks/VOO']} initialIndex={1}>
+        <AppStateProvider>
+          <Routes>
+            <Route path="/stocks/:ticker" element={<Keyed />} />
+            <Route path="/stocks" element={<p>종목 목록</p>} />
+          </Routes>
+          <Where />
+        </AppStateProvider>
+      </MemoryRouter>,
+    )
+    await screen.findByText('$100.00')
+    await user.click(screen.getByRole('button', { name: 'AI 분석' }))
+    expect(screen.getByRole('region', { name: 'AI 분석' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '종목 목록으로' }))
+    await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent(/^\/stocks$/))
+  })
+
   it('재무 탭에서 여러 종목 재무로 가는 길이 있다 (사용자 확인 찾지 못한 것 2)', async () => {
     vi.spyOn(api, 'getDashboard').mockResolvedValue([dashCard({ ticker: 'GOOG' })])
     renderAt('/stocks/GOOG?tab=fundamentals')
@@ -193,7 +225,7 @@ describe('주소의 종목 — 옛 차트 화면(0.45.1 B2·BCD)이 하던 일�
     vi.spyOn(api, 'getDashboard').mockResolvedValue([])
     vi.spyOn(api, 'getHistory').mockRejectedValue(new ApiError(404, null, 'stock not found'))
     renderAt('/stocks/NOPE')
-    expect(await screen.findByRole('heading', { name: '‘NOPE’ 은 담은 종목에 없습니다' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '‘NOPE’은(는) 담은 종목에 없습니다' })).toBeInTheDocument()
     expect(screen.queryByText(/stock not found/)).toBeNull()
     expect(screen.queryByText(/매수 0일/)).toBeNull()
     expect(screen.getByRole('link', { name: '종목 탭으로' })).toHaveAttribute('href', '/stocks')

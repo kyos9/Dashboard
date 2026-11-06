@@ -7,22 +7,24 @@ import { useEffect, type RefObject } from 'react'
  */
 export function useFocusTrap(ref: RefObject<HTMLElement | null>, initial?: () => HTMLElement | null | undefined) {
   useEffect(() => {
-    const focusables = () =>
+    const focusables = (root: HTMLElement) =>
       Array.from(
-        ref.current?.querySelectorAll<HTMLElement>(
+        root.querySelectorAll<HTMLElement>(
           'button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
-        ) ?? [],
+        ),
       ).filter((el) => !el.closest('[hidden], [aria-hidden="true"]'))
     const onTab = (e: KeyboardEvent) => {
       if (e.key !== 'Tab' || !ref.current) return
-      // 안쪽에 또 연 팝업이 있으면 그쪽이 가둔다
-      if (isCovered(ref.current)) return
-      const items = focusables()
+      // 안쪽에 또 연 팝업(보유 탭의 수정·삭제 확인)이 있으면 맨 안쪽 팝업 안에서 돈다 — 그 팝업들에는 가두기가 없어
+      // 그냥 손을 떼면 뒤 화면으로 샜다(재검토 조건 1)
+      const inner = ref.current.querySelectorAll<HTMLElement>('[role="dialog"], [role="alertdialog"]')
+      const root = inner.length > 0 ? inner[inner.length - 1] : ref.current
+      const items = focusables(root)
       if (items.length === 0) return
       const first = items[0]
       const last = items[items.length - 1]
       const active = document.activeElement as HTMLElement | null
-      const inside = !!active && ref.current.contains(active)
+      const inside = !!active && root.contains(active)
       if (e.shiftKey && (!inside || active === first)) {
         e.preventDefault()
         last.focus()

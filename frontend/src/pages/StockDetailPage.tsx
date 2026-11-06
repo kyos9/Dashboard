@@ -59,23 +59,30 @@ export function StockDetailPage() {
   const card = cards?.find((c) => c.ticker === shown)
   // 뒤로 — 앱 안에서 왔으면 그 자리로(스크롤·거르기 그대로), 바로 열었으면 종목 탭으로
   const back = () => (window.history.state?.idx > 0 ? navigate(-1) : navigate('/stocks'))
-  const lead = (
-    <button type="button" className="icon-btn stock-back" onClick={back} aria-label="종목 목록으로">
+  // AI 분석을 연 채로 ‹ — AI 가 쌓은 뒤로가기 칸을 먼저 빼고(AI 닫힘) 그다음 목록으로. 한 번에 나가게(재검토 조건 3)
+  const leave = (aiOpen: boolean) => {
+    if (!aiOpen) return back()
+    window.addEventListener('popstate', () => setTimeout(back, 0), { once: true })
+    window.history.back()
+  }
+  const lead = ({ aiOpen }: { aiOpen: boolean }) => (
+    <button type="button" className="icon-btn stock-back" onClick={() => leave(aiOpen)} aria-label="종목 목록으로">
       <Icon name="back" />
     </button>
   )
 
-  if (!listed) return <p className="hint detail-empty">불러오는 중…</p>
+  // 주소를 티커 주소로 바꾸는 동안은 그리지 않는다 — 바뀐 주소에서 화면이 새로 만들어지며(App 의 PageBoundary key) 시세를 또 불렀다(재검토 조건 2)
+  if (!listed || (match && match.ticker !== ticker)) return <p className="hint detail-empty">불러오는 중…</p>
 
   if (unknown) {
     return (
       <div className="stock-detail">
         <div className="stock-detail-bar">
-          {lead}
+          {lead({ aiOpen: false })}
           <h2 className="stock-detail-name">{ticker}</h2>
         </div>
         <div className="empty-state">
-          <h3>‘{ticker}’ 은 담은 종목에 없습니다</h3>
+          <h3>‘{ticker}’은(는) 담은 종목에 없습니다</h3>
           <p>종목 탭의 찾기 칸에서 찾아 담으면 차트 · 신호 · 재무를 볼 수 있습니다.</p>
           <Link to="/stocks" className="link-button">
             종목 탭으로
