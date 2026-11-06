@@ -20,7 +20,7 @@ import {
 import { TERM_SPREAD_CODE } from '../types'
 import type { MacroOverview, MacroSeriesInfo, TermSpread } from '../types'
 
-// 차트는 누를 때 받는다 (App.tsx의 HistoryChart와 같은 이유)
+// 차트는 누를 때 받는다 (첫 화면에 차트 코드를 싣지 않는다 — lib/chartChunk)
 const MacroChartModal = lazyChunk(() => import('../components/MacroChartModal'), 'MacroChartModal')
 const AiSummaryModal = lazyChunk(() => import('../components/AiSummaryModal'), 'AiSummaryModal')
 

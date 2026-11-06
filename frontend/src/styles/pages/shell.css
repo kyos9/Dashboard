@@ -412,18 +412,6 @@ button.rail-name {
   color: var(--text);
 }
 
-.stock-subnav {
-  display: flex;
-  gap: 8px;
-}
-
-.stock-subnav .chip {
-  min-height: 44px;
-  display: inline-flex;
-  align-items: center;
-  text-decoration: none;
-}
-
 .signal-line-go {
   margin-left: 8px;
 }
@@ -508,7 +496,7 @@ button.sub-more.active {
 }
 
 /* 폰 카드 — 접혀 있고 누르면 하나만 펼친다 */
-/* 접힌 카드는 목업 10 가처럼 낮게 — 이름 · 값 한 줄, 배지 · 이유 한 줄 (재검토 조건 5) */
+/* 접힌 카드는 낮게 — 이름 · 배지 · 값 한 줄, 이유 한 줄 (재검토 조건 5 → 묶음 3 목업 11: 배지를 이름 줄로) */
 .stock-card.folded {
   gap: 4px;
   padding: 12px 14px;
@@ -518,12 +506,25 @@ button.sub-more.active {
   margin-top: 0;
 }
 
+/* 배지가 이름 줄로 오면서 값이 아래 줄로 밀리던 것 — 접힌 카드는 값 칸을 오른쪽에 두고, 배지는 이름 칸 안에서 꺾인다 */
+.stock-card.folded .stock-card-head {
+  flex-wrap: nowrap;
+}
+.stock-card.folded .stock-card-head .ticker-cell {
+  flex: 1;
+  min-width: 0;
+}
+.stock-card.folded .stock-card-price {
+  flex: none;
+}
+.stock-card.folded .stock-line {
+  row-gap: 4px;
+}
+
 button.signal-card-toggle {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas:
-    'badges chev'
-    'why chev';
+  grid-template-areas: 'why chev';
   gap: 4px 8px;
   align-items: center;
   width: 100%;
@@ -539,8 +540,7 @@ button.signal-card-toggle {
 }
 
 .signal-card-badges {
-  grid-area: badges;
-  display: flex;
+  display: inline-flex;
   flex-wrap: wrap;
   gap: 6px;
   align-items: center;

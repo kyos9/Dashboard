@@ -7,6 +7,7 @@ import { api, ApiError } from '../api/client'
 import type { Holding, ListingStatus, Settings, Stock, StockCreateResult, SymbolMatch } from '../types'
 import { listingHint, listingRefreshNotice } from '../lib/listing'
 import { StockManager } from './StockManager'
+import { dashCard } from '../test/cardFixture'
 
 const SAMSUNG: SymbolMatch = {
   ticker: '005930.KS',
@@ -66,6 +67,7 @@ function mockApi(
 ) {
   vi.spyOn(api, 'listStocks').mockResolvedValue(stocks)
   vi.spyOn(api, 'listHoldings').mockResolvedValue(holdings)
+  vi.spyOn(api, 'getDashboard').mockResolvedValue([])
   vi.spyOn(api, 'getSettings').mockResolvedValue(settings({ cash_target_pct: cashTarget }))
   vi.spyOn(api, 'searchSymbols').mockResolvedValue([SAMSUNG])
   vi.spyOn(api, 'getListingStatus').mockResolvedValue({
@@ -85,6 +87,12 @@ function mockApi(
 /** 종목 검색창. 화면의 <select>들도 combobox 역할이라 placeholder로 특정한다 */
 function symbolInput() {
   return screen.getByPlaceholderText(/삼성전자, 005930, VOO/)
+}
+
+/** 바텀 시트의 추가 단추 (묶음 3 — 찾기 칸에서 고르거나 Enter 로 시트를 연다) */
+async function submitSheet(user: ReturnType<typeof userEvent.setup>) {
+  const sheet = await screen.findByRole('dialog', { name: / 추가$/ })
+  await user.click(within(sheet).getByRole('button', { name: '종목 추가' }))
 }
 
 function renderManager() {
@@ -120,8 +128,12 @@ describe('종목 등록', () => {
 
   it('고르기 전에는 평단가에 단위가 없고, 국내 종목을 고르면 원화로 (0.44.0 C3)', async () => {
     mockApi()
+    const search = vi.spyOn(api, 'searchSymbols').mockResolvedValue([])
     const user = userEvent.setup()
     renderManager()
+    // 고르지 않고 쳐서 Enter — 어느 시장인지 모르니 단위가 없다
+    await user.type(symbolInput(), 'XYZ{Enter}')
+    await screen.findByRole('dialog', { name: 'XYZ 추가' })
 
     // 예전에는 미국이 기본이라 "($)"가 먼저 떴다 — 원화 종목도 달러로 적게 만들었다
     expect(screen.getByLabelText('평단가')).toBeInTheDocument()
@@ -131,7 +143,11 @@ describe('종목 등록', () => {
     const category = screen.getByLabelText('구분')
     expect(category).toHaveValue('')
     expect(category).toHaveAttribute('placeholder', '비워 둬도 됩니다')
+    await user.click(screen.getByRole('button', { name: '추가 닫기' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
 
+    search.mockResolvedValue([SAMSUNG])
+    await user.clear(symbolInput())
     await user.type(symbolInput(), '삼성전자')
     await user.click(await screen.findByText('삼성전자'))
 
@@ -245,6 +261,9 @@ describe('종목 등록', () => {
     renderManager()
 
     await user.type(symbolInput(), 'VOO{Enter}')
+    // Enter 는 시트를 연다 — 목표 비중·보유를 넣을 자리 (묶음 3)
+    expect(create).not.toHaveBeenCalled()
+    await submitSheet(user)
 
     await waitFor(() => expect(create).toHaveBeenCalled())
     expect(create.mock.calls[0][0].ticker).toBe('VOO')
@@ -283,13 +302,14 @@ describe('종목 등록', () => {
     renderManager()
 
     await user.type(symbolInput(), '없는회사{Enter}')
+    await submitSheet(user)
 
     expect(await screen.findByText(/해당하는 종목을 찾지 못했습니다/)).toBeInTheDocument()
   })
 })
 
 describe('등록된 종목 목록', () => {
-  it('줄은 보이기만 한다 — 입력칸·줄마다 저장 없이, 구분·목표·밴드·보유가 글로 (9-11)', async () => {
+  it('줄은 보이기만 한다 — 입력칸 없이 이름 · 시장, 누르면 종목 안으로 (묶음 3, 9-11)', async () => {
     mockApi(
       [
         stock({ ticker: '005930.KS', name: '삼성전자', market: 'KR', currency: 'KRW', category: '알파', target_weight_pct: 12.5 }),
@@ -304,18 +324,15 @@ describe('등록된 종목 목록', () => {
     )
     renderManager()
 
-    const samsung = (await screen.findByText(/12\.5주/)).closest('tr') as HTMLElement
-    // 적은 소수를 버리지 않는다 — 원화 가격 자릿수(0)로 자르면 71,235 가 된다
-    expect(samsung).toHaveTextContent('평단 ₩71,234.56')
-    expect(samsung).toHaveTextContent('알파')
-    expect(samsung).toHaveTextContent('12.5%')
-    expect(samsung).toHaveTextContent('기본값')
-    const voo = screen.getByText(/미국 · \$USD/).closest('tr') as HTMLElement
-    expect(within(voo).getByText('보유 없음')).toBeInTheDocument()
-    expect(voo).toHaveTextContent('±3.0%p')
-    const table = screen.getByRole('table')
-    expect(within(table).queryAllByRole('textbox')).toHaveLength(0)
-    expect(within(table).queryByRole('button', { name: /저장|수정/ })).toBeNull()
+    const list = await screen.findByRole('list', { name: '담은 종목' })
+    await within(list).findByText('삼성전자')
+    expect(within(list).getByRole('link', { name: /삼성전자/ })).toHaveAttribute('href', '/stocks/005930.KS')
+    expect(within(list).getByRole('link', { name: /VOO/ })).toHaveAttribute('href', '/stocks/VOO')
+    expect(within(list).queryAllByRole('textbox')).toHaveLength(0)
+    expect(within(list).queryByRole('button')).toBeNull()
+    // 거르기 칩이 수를 겸한다 — 보유 1 · 관심 1
+    await waitFor(() => expect(screen.getByRole('button', { name: '보유 1' })).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: '관심 1' })).toBeInTheDocument()
   })
 
   it('"수정" 하나로 모든 종목(비활성 포함)의 모든 칸을 한 번에 고친다 — 바뀐 것만 보낸다', async () => {
@@ -399,7 +416,9 @@ describe('등록된 종목 목록', () => {
     vi.spyOn(api, 'listHoldings').mockRejectedValue(new Error('down'))
     renderManager()
     expect(await screen.findByText(/미국 · \$USD/)).toBeInTheDocument()
-    expect(screen.getByText('보유 없음')).toBeInTheDocument()
+    // 보유를 모르면 모두 관심으로 센다 — 목록은 그대로
+    expect(screen.queryByRole('button', { name: /^보유 / })).toBeNull()
+    expect(screen.getByRole('button', { name: '관심 1' })).toBeInTheDocument()
   })
 
   it('종목마다 시장과 통화를 보여준다', async () => {
@@ -422,53 +441,6 @@ describe('등록된 종목 목록', () => {
     await user.click(screen.getByRole('button', { name: '종목 한 번에 수정' }))
     const dialog = await screen.findByRole('dialog', { name: '종목 한 번에 수정' })
     expect(within(dialog).queryByLabelText('VOO 표시 이름')).not.toBeInTheDocument()
-  })
-
-  it('종목을 내 목록에서 지울 수 있다 — 되돌릴 수 없으니 한 번 더 묻는다', async () => {
-    const purge = vi.spyOn(api, 'purgeStock').mockResolvedValue(undefined)
-    mockApi([stock({ ticker: 'VOO' })])
-    const user = userEvent.setup()
-    renderManager()
-
-    await user.click(await screen.findByRole('button', { name: 'VOO 삭제' }))
-    expect(purge).not.toHaveBeenCalled()
-
-    // 확인은 표 아래가 아니라 화면 위에 떠야 한다 (종목이 많으면 표 아래는 안 보인다)
-    const dialog = screen.getByRole('alertdialog')
-    expect(within(dialog).getByText(/되돌릴 수 없습니다/)).toBeInTheDocument()
-    expect(within(dialog).getByText(/시세·지표는 모두가 같이 쓰는 기록이라 남겨/)).toBeInTheDocument()
-
-    await user.click(within(dialog).getByRole('button', { name: '네, 지웁니다' }))
-    await waitFor(() => expect(purge).toHaveBeenCalledWith('VOO'))
-    expect(await screen.findByText(/VOO을\(를\) 지웠습니다/)).toBeInTheDocument()
-  })
-
-  it('방금 받은 종목을 새로고침하면 다시 받지 않고 언제 받았는지 알린다', async () => {
-    // 같은 종목은 10분에 한 번만 실제로 받는다 (서버 쿨다운). 거절이 아니라 사실을 알린다
-    mockApi([stock({ ticker: 'VOO' })])
-    vi.spyOn(api, 'refreshStock').mockResolvedValue({
-      ticker: 'VOO',
-      skipped: true,
-      hint: '3분 전에 받았습니다. 같은 종목은 10분에 한 번 다시 받습니다.',
-    })
-    const user = userEvent.setup()
-    renderManager()
-
-    await user.click(await screen.findByRole('button', { name: 'VOO 시세 갱신' }))
-    expect(await screen.findByText('VOO: 3분 전에 받았습니다. 같은 종목은 10분에 한 번 다시 받습니다.')).toBeInTheDocument()
-  })
-
-  it('삭제를 취소하면 아무것도 지우지 않는다', async () => {
-    const purge = vi.spyOn(api, 'purgeStock').mockResolvedValue(undefined)
-    mockApi([stock({ ticker: 'VOO' })])
-    const user = userEvent.setup()
-    renderManager()
-
-    await user.click(await screen.findByRole('button', { name: 'VOO 삭제' }))
-    await user.click(screen.getByRole('button', { name: '취소' }))
-
-    expect(purge).not.toHaveBeenCalled()
-    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
   })
 
   it('활성 종목의 목표 비중 합계를 알려준다', async () => {
@@ -681,10 +653,10 @@ describe('종목 관리 · 이름을 비운 종목 (0.42.0 B9)', () => {
 })
 
 describe('종목 관리 · 정돈 (디자인 2차)', () => {
-  it('추가 칸의 제목은 "종목 추가" — "관심 종목"은 대시보드에서 보유 0 인 종목이다', async () => {
+  it('추가하는 곳의 이름은 "종목 추가" — "관심 종목"은 홈에서 보유 0 인 종목이다', async () => {
     mockApi()
     renderManager()
-    expect(await screen.findByRole('heading', { name: '종목 추가' })).toBeInTheDocument()
+    expect(await screen.findByRole('region', { name: '종목 추가' })).toBeInTheDocument()
     expect(screen.queryByText('관심 종목 추가')).toBeNull()
   })
 
@@ -698,27 +670,102 @@ describe('종목 관리 · 정돈 (디자인 2차)', () => {
   it('이름 = 티커인 종목(미국)은 아래 줄에 티커를 다시 쓰지 않는다', async () => {
     mockApi([stock({ ticker: 'VOO' }), stock({ ticker: '005930.KS', name: '삼성전자', market: 'KR', currency: 'KRW' })])
     renderManager()
-    const voo = (await screen.findAllByRole('row')).find((tr) => tr.getAttribute('data-ticker') === 'VOO')!
-    expect(voo.querySelector('.ticker-sub')!.textContent).not.toMatch(/VOO/)
-    const samsung = screen.getAllByRole('row').find((tr) => tr.getAttribute('data-ticker') === '005930.KS')!
-    expect(samsung.querySelector('.ticker-sub')).toHaveTextContent(/^005930\.KS ·/)
+    await screen.findByText('삼성전자')
+    const voo = document.querySelector('li[data-ticker="VOO"]')!
+    expect(voo.querySelector('.stock-row-sub')!.textContent).not.toMatch(/VOO/)
+    const samsung = document.querySelector('li[data-ticker="005930.KS"]')!
+    expect(samsung.querySelector('.stock-row-sub')).toHaveTextContent(/^005930\.KS ·/)
   })
 
   it('평단가 칸 안내는 숫자 칸 글꼴이 아니라 본문 글꼴을 쓰도록 폼에 표시가 있다', async () => {
     mockApi()
+    vi.spyOn(api, 'searchSymbols').mockResolvedValue([])
+    const user = userEvent.setup()
     renderManager()
+    await user.type(symbolInput(), 'VOO{Enter}')
     const cost = await screen.findByLabelText(/평단가/)
-    expect(cost.closest('.add-stock-form')).not.toBeNull()
+    expect(cost.closest('.add-sheet-form')).not.toBeNull()
     expect(cost).toHaveAttribute('placeholder', '모르면 비움')
   })
 })
 
-describe('종목 관리 · 표 이름 칸 고정 (디자인 2차, 주인 결정 ②)', () => {
-  it('등록된 종목 표는 종목 칸이 고정된다 — 폰에서 옆으로 밀어도 이름이 남는다', async () => {
+describe('종목 탭 · 줄 / 카드 (묶음 3 — 주인: 사용자가 골라 보기)', () => {
+  beforeEach(() => localStorage.clear())
+
+  it('옆으로 미는 표가 없다 — 폰에서 이름이 밀려 사라지지 않게 줄 목록으로', async () => {
     mockApi([stock({ ticker: 'VOO' })])
     renderManager()
-    const table = await screen.findByRole('table')
-    expect(table).toHaveClass('sticky-first')
+    await screen.findByRole('list', { name: '담은 종목' })
+    expect(screen.queryByRole('table')).toBeNull()
+  })
+
+  it('카드 보기를 고르면 카드로, 이 기기에 기억한다 — 다시 열어도 카드', async () => {
+    mockApi([stock({ ticker: 'VOO' })])
+    vi.spyOn(api, 'getHistory').mockResolvedValue({
+      ticker: 'VOO',
+      prices: [{ date: '2026-09-15', close: 10 }, { date: '2026-09-16', close: 11 }],
+      markers: [],
+      coverage: { first_date: '2026-09-15', last_date: '2026-09-16', rows: 2 },
+    })
+    const user = userEvent.setup()
+    const view = renderManager()
+    await screen.findByRole('list', { name: '담은 종목' })
+    await user.click(screen.getByRole('button', { name: '카드 보기' }))
+    expect(document.querySelector('.stock-tiles')).not.toBeNull()
+    expect(localStorage.getItem('dashboard.stock-view')).toBe('card')
+    // 카드의 작은 선은 차트와 같은 시세(6개월)에서 — 새 API 없이
+    await waitFor(() => expect(api.getHistory).toHaveBeenCalledWith('VOO', '6mo'))
+    view.unmount()
+    renderManager()
+    await screen.findByText(/미국 · \$USD/)
+    expect(document.querySelector('.stock-tiles')).not.toBeNull()
+    expect(screen.getByRole('button', { name: '카드 보기' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('거르기 칩 — 신호 뜬 종목만, 고른 칩은 눌린 상태', async () => {
+    mockApi([stock({ ticker: 'VOO' }), stock({ ticker: 'QQQ' })])
+    vi.spyOn(api, 'getDashboard').mockResolvedValue([
+      dashCard({ ticker: 'VOO', knee_buy_v2: true }),
+      dashCard({ ticker: 'QQQ' }),
+    ])
+    const user = userEvent.setup()
+    renderManager()
+    const chip = await screen.findByRole('button', { name: '신호 1' })
+    await user.click(chip)
+    expect(chip).toHaveAttribute('aria-pressed', 'true')
+    const list = screen.getByRole('list', { name: '담은 종목' })
+    expect(within(list).getAllByRole('link')).toHaveLength(1)
+    expect(within(list).getByRole('link')).toHaveTextContent('매수')
+  })
+
+  it('순서 바꾸기 — ▲▼ 로 한 칸 옮기고 바로 저장한다', async () => {
+    let saved = [stock({ ticker: 'VOO' }), stock({ ticker: 'QQQ' })]
+    mockApi(saved)
+    // 서버는 저장한 순서를 돌려준다 — 저장 뒤 다시 받아도 그 순서
+    vi.spyOn(api, 'listStocks').mockImplementation(async () => saved)
+    const order = vi.spyOn(api, 'updateStockOrder').mockImplementation(async (tickers: string[]) => {
+      saved = tickers.map((t) => saved.find((s) => s.ticker === t)!)
+      return undefined as never
+    })
+    const user = userEvent.setup()
+    renderManager()
+    await screen.findByRole('list', { name: '담은 종목' })
+    await user.click(screen.getByRole('button', { name: '↕ 순서 바꾸기' }))
+    expect(screen.getByRole('button', { name: 'VOO 위로' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'QQQ 위로' }))
+    await waitFor(() => expect(order).toHaveBeenCalledWith(['QQQ', 'VOO']))
+    const items = within(screen.getByRole('list', { name: '종목 순서' })).getAllByRole('listitem')
+    expect(items.map((li) => li.getAttribute('data-ticker'))).toEqual(['QQQ', 'VOO'])
+  })
+
+  it('찾은 후보 중 이미 담은 종목에는 "담음"', async () => {
+    mockApi([stock({ ticker: '005930.KS', name: '삼성전자', market: 'KR', currency: 'KRW' })])
+    const user = userEvent.setup()
+    renderManager()
+    await screen.findByRole('list', { name: '담은 종목' })
+    await user.type(symbolInput(), '삼성')
+    const option = await screen.findByRole('option')
+    expect(option).toHaveTextContent('담음')
   })
 })
 
@@ -731,9 +778,10 @@ describe('목표 비중을 비운 채 수량을 넣고 추가하면 (0.45.4 C)',
     const create = vi.spyOn(api, 'createStock').mockResolvedValue(created())
     const user = userEvent.setup()
     renderManager()
-    if (fields.quantity) await user.type(screen.getByLabelText('보유 수량'), fields.quantity)
-    if (fields.weight) await user.type(screen.getByLabelText('목표 비중 (%)'), fields.weight)
     await user.type(symbolInput(), '005930.KS{Enter}')
+    if (fields.quantity) await user.type(await screen.findByLabelText('보유 수량'), fields.quantity)
+    if (fields.weight) await user.type(screen.getByLabelText('목표 비중 (%)'), fields.weight)
+    await submitSheet(user)
     await waitFor(() => expect(create).toHaveBeenCalled())
     await screen.findByText(/추가 완료/)
     return user
@@ -743,7 +791,7 @@ describe('목표 비중을 비운 채 수량을 넣고 추가하면 (0.45.4 C)',
     const user = await add({ quantity: '10' })
     const alert = screen.getByRole('alert')
     expect(alert).toHaveTextContent('삼성전자의 목표 비중을 비워 0%로 넣었습니다 — 리밸런싱에서 전부 파는 계산이 됩니다')
-    expect(alert).toHaveTextContent("이 화면의 ✎ 수정(리밸런싱에서는 '보유 · 목표 비중')에서")
+    expect(alert).toHaveTextContent("종목 안의 '보유' 또는 ⋯ 의 '한 번에 수정'(리밸런싱에서는 '보유 · 목표 비중')에서")
     // 추가 알림은 이름으로 (티커는 괄호)
     expect(screen.getByText(/^삼성전자 \(005930\.KS\) 추가 완료/)).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: '목표 비중 알림 닫기' }))
@@ -769,7 +817,9 @@ it('후보를 고르지 않고 쳐 둔 글자로 "추가" 단추를 눌러도 �
   const user = userEvent.setup()
   renderManager()
   await user.type(symbolInput(), 'QQQ')
-  await user.click(screen.getByRole('button', { name: /종목 추가/ }))
+  // 쳐 둔 글자 그대로 — "QQQ 그대로 추가"가 시트를 연다
+  await user.click(screen.getByRole('button', { name: /"QQQ" 그대로 추가/ }))
+  await submitSheet(user)
   await waitFor(() => expect(create).toHaveBeenCalled())
   expect(create.mock.calls[0][0].ticker).toBe('QQQ')
   expect(screen.queryByText(/종목명이나 티커를 입력해주세요/)).toBeNull()
@@ -783,6 +833,7 @@ it('이미 담은 종목을 다시 넣으면 한국어로 — 서버의 영어 �
   const user = userEvent.setup()
   renderManager()
   await user.type(symbolInput(), 'TQQQ{Enter}')
+  await submitSheet(user)
   expect(await screen.findByText(/TQQQ은\(는\) 이미 담은 종목입니다/)).toBeInTheDocument()
 })
 
@@ -796,6 +847,7 @@ it('종목 수 한도(409 + 한국어 안내)는 서버 말 그대로 — "이�
   const user = userEvent.setup()
   renderManager()
   await user.type(symbolInput(), 'NEWONE{Enter}')
+  await submitSheet(user)
   expect(await screen.findByText(/종목은 30개까지 담을 수 있습니다/)).toBeInTheDocument()
   expect(screen.queryByText(/이미 담은 종목입니다/)).toBeNull()
 })
@@ -808,6 +860,7 @@ it('추가가 끝나면 검색칸도 비워진다 — 글자가 남은 채 다�
   const user = userEvent.setup()
   renderManager()
   await user.type(symbolInput(), 'QQQ{Enter}')
+  await submitSheet(user)
   await screen.findByText(/추가 완료/)
   expect(symbolInput()).toHaveValue('')
 })
@@ -823,9 +876,10 @@ it('경고는 닫을 때까지 남는다 — 목표를 넣은 다음 종목을 �
   const user = userEvent.setup()
   renderManager()
   const addOne = async (ticker: string, qty: string, weight?: string) => {
-    await user.type(screen.getByLabelText('보유 수량'), qty)
-    if (weight) await user.type(screen.getByLabelText('목표 비중 (%)'), weight)
     await user.type(symbolInput(), `${ticker}{Enter}`)
+    await user.type(await screen.findByLabelText('보유 수량'), qty)
+    if (weight) await user.type(screen.getByLabelText('목표 비중 (%)'), weight)
+    await submitSheet(user)
     await waitFor(() => expect(screen.getByText(new RegExp(`${ticker.replace('.', '\\.')}\\) 추가 완료`))).toBeInTheDocument())
   }
   await addOne('035420.KS', '5')

@@ -698,7 +698,7 @@ describe('대시보드 · 차트 열기', () => {
     await waitFor(() => expect(history).toHaveBeenCalledWith('005930.KS', '1y'))
   })
 
-  it('맨 오른쪽 "AI 분석"을 누르면 팝업이 AI 탭으로 열린다 — 누르는 것만으로 부르지는 않는다', async () => {
+  it('맨 오른쪽 "AI 분석"을 누르면 팝업이 AI 분석으로 열린다 — 누르는 것만으로 부르지는 않는다', async () => {
     mockApi()
     vi.spyOn(api, 'getHistory').mockResolvedValue({
       ticker: '005930.KS', prices: [], markers: [],
@@ -715,7 +715,7 @@ describe('대시보드 · 차트 열기', () => {
     await user.click(screen.getByRole('button', { name: '삼성전자 AI 분석' }))
 
     const dialog = await screen.findByRole('dialog', { name: /삼성전자 차트/ })
-    expect(within(dialog).getByRole('tab', { name: 'AI 분석' })).toHaveAttribute('aria-selected', 'true')
+    expect(within(dialog).getByRole('region', { name: 'AI 분석' })).toBeInTheDocument()
     expect(analyze).not.toHaveBeenCalled()
   })
 

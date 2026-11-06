@@ -9,13 +9,8 @@ import { PageBoundary } from './components/PageBoundary'
 import { PageSkeleton } from './components/Skeleton'
 import { Dashboard } from './pages/Dashboard'
 import { GuestHome } from './pages/GuestHome'
-import { lazyChunk } from './lib/lazyChunk'
-import { AiSummaryPage, FundamentalsPage, MacroPanel, Policy, RebalancePanel, SettingsPage, StockManager, preloadPages } from './lib/pageChunks'
+import { AiSummaryPage, FundamentalsPage, MacroPanel, Policy, RebalancePanel, SettingsPage, StockDetailPage, StockManager, preloadPages } from './lib/pageChunks'
 import { POLICY_PATH } from './lib/policy'
-
-// 차트 라이브러리(lightweight-charts)는 번들의 3분의 1이다. 차트를 열 때만 받는다 —
-// 첫 화면은 표와 숫자뿐이라, 폰에서 처음 여는 사람이 차트 코드까지 기다릴 이유가 없다.
-const HistoryChart = lazyChunk(() => import('./pages/HistoryChart'), 'HistoryChart')
 
 /** 첫 화면. 손님은 매크로 한 줄 + 로그인 안내, 들어온 사람은 내 대시보드. */
 function Home() {
@@ -38,7 +33,7 @@ function Tab({ children }: { children: ReactNode }) {
 
 /**
  * 없는 주소 (0.45.0 D2). 예전에는 머리글·바닥글만 있고 본문이 비어 무엇이 잘못됐는지 몰랐다.
- * `/chart` 는 차트 탭의 주소로 짐작해 여는 사람이 있어 `/history` 로 넘긴다.
+ * `/chart` · `/history` 는 옛 차트 주소라 종목 안으로 넘긴다(`ToStock`).
  */
 function NotFound() {
   return (
@@ -52,10 +47,14 @@ function NotFound() {
   )
 }
 
-/** `/chart?ticker=VOO` 도 그 종목으로 — 주소 뒤의 고른 종목을 버리지 않는다 (0.45.0 D 사용자 확인) */
-function ToHistory() {
+/**
+ * 옛 차트 주소(`/history?ticker=VOO`, `/chart?ticker=VOO`)는 그 종목 안으로 — 북마크·알림 링크가 깨지지 않게
+ * (디자인 4차 묶음 3: 차트는 종목 안의 탭). 종목이 없으면 종목 탭으로.
+ */
+function ToStock() {
   const { search } = useLocation()
-  return <Navigate to={`/history${search}`} replace />
+  const ticker = new URLSearchParams(search).get('ticker')
+  return <Navigate to={ticker ? `/stocks/${encodeURIComponent(ticker)}` : '/stocks'} replace />
 }
 
 /** 첫 화면이 그려진 뒤 한가할 때 다른 탭 코드를 받아 둔다 */
@@ -77,16 +76,7 @@ function App() {
                 화면에서 로그인을 권한다. 매크로만 로그인 없이 열린다. */}
             <Routes>
               <Route path="/" element={<Home />} />
-              <Route
-                path="/history"
-                element={
-                  <RequireLogin title="로그인하면 담은 종목의 차트를 볼 수 있습니다">
-                    <Tab>
-                      <HistoryChart />
-                    </Tab>
-                  </RequireLogin>
-                }
-              />
+              <Route path="/history" element={<ToStock />} />
               <Route
                 path="/fundamentals"
                 element={
@@ -135,6 +125,16 @@ function App() {
                 }
               />
               <Route
+                path="/stocks/:ticker"
+                element={
+                  <RequireLogin title="로그인하면 담은 종목의 차트를 볼 수 있습니다">
+                    <Tab>
+                      <StockDetailPage />
+                    </Tab>
+                  </RequireLogin>
+                }
+              />
+              <Route
                 path="/settings"
                 element={
                   <Tab>
@@ -153,7 +153,7 @@ function App() {
                   </RequireLogin>
                 }
               />
-              <Route path="/chart" element={<ToHistory />} />
+              <Route path="/chart" element={<ToStock />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </main>

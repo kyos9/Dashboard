@@ -1,0 +1,253 @@
+/* 종목 탭 (디자인 4차 묶음 3, 목업 11) — 찾기 칸 = 추가 · 거르기 칩 · 줄 / 카드(사용자가 고름) · 순서 바꾸기.
+   색은 tokens.css 의 이름만 쓴다. 글자는 자르지 않는다 — 긴 이름은 줄바꿈 */
+
+.stocks-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.stocks-head > div {
+  flex: 1;
+  min-width: 0;
+}
+.stocks-head h2 {
+  margin: 0;
+}
+
+.stock-find {
+  margin: 12px 0 4px;
+}
+.stock-find .symbol-search input {
+  min-height: 46px;
+  font-size: var(--fs-body);
+}
+.stock-find-raw {
+  min-height: 44px;
+  margin-top: 4px;
+}
+.stock-find-hint {
+  margin-top: 6px;
+  text-wrap: pretty;
+}
+
+.stock-tools,
+.stock-filters {
+  margin: 12px 0 0;
+}
+.stock-tools .chip,
+.stock-filters .chip {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  text-decoration: none;
+}
+.stock-target-sum {
+  align-self: center;
+  margin-left: auto;
+}
+
+/* 줄 — 리스트 셀: 왼쪽 이름 · 오른쪽 현재가 · 등락 */
+.stock-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.stock-list > li + li {
+  border-top: 1px solid var(--border);
+}
+.stock-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 60px;
+  padding: 10px 12px 10px 16px;
+  color: var(--text);
+  text-decoration: none;
+}
+a.stock-row:hover {
+  background: var(--panel-soft);
+}
+.stock-row-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.stock-row-title {
+  font-size: var(--fs-body);
+  font-weight: 600;
+  text-wrap: balance;
+}
+.stock-row-sub {
+  font-size: var(--fs-caption);
+}
+.stock-row-price {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  font-size: var(--fs-body);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.stock-row-change {
+  font-size: var(--fs-caption);
+  font-weight: 500;
+}
+/* 누르면 종목 안 — › 는 그림이 아니라 이동 표시(어포던스) */
+a.stock-row::after {
+  content: '›';
+  color: var(--text-faint);
+  font-size: var(--fs-strong);
+}
+.stock-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+}
+.stock-list li.inactive .stock-row-title,
+.stock-tiles li.inactive .stock-row-title {
+  color: var(--text-faint);
+}
+.signal-badge-list {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* 순서 바꾸기 — 줄마다 ▲▼ (홈 시그널 목록의 순서 편집과 같은 단추) */
+.stock-order .stock-row {
+  padding-right: 8px;
+}
+
+/* 카드 — 두 줄(폰) · 넓으면 더 */
+.stock-tiles {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 8px;
+}
+.stock-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  height: 100%;
+  min-height: 132px;
+  padding: 10px 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  text-decoration: none;
+}
+a.stock-tile:hover {
+  border-color: var(--border-strong);
+}
+.stock-tile .stock-row-price {
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: auto;
+  font-size: var(--fs-sub);
+}
+.stock-tile-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-height: 20px;
+  margin-top: 4px;
+}
+.sparkline {
+  display: block;
+  width: 100%;
+  height: 30px;
+  margin: 6px 0 4px;
+}
+.sparkline.up {
+  color: var(--up);
+}
+.sparkline.down {
+  color: var(--down);
+}
+
+/* 바텀 시트 — 폰은 아래에 붙어 올라오고, 넓으면 가운데 판 */
+.sheet-backdrop {
+  align-items: flex-end;
+}
+.sheet {
+  width: min(520px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 8px 16px 20px;
+  padding-bottom: max(20px, env(safe-area-inset-bottom, 0px));
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 16px 16px var(--radius) var(--radius);
+  box-shadow: var(--shadow-up);
+}
+.sheet-grab {
+  width: 36px;
+  height: 4px;
+  margin: 0 auto 10px;
+  border-radius: 2px;
+  background: var(--border-strong);
+}
+.sheet-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.sheet-head > div {
+  flex: 1;
+  min-width: 0;
+}
+.sheet-head h3 {
+  margin: 0;
+  font-size: var(--fs-strong);
+  text-wrap: balance;
+}
+.sheet-head .icon-btn {
+  width: 44px;
+  height: 44px;
+}
+.add-sheet-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.add-sheet-two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.add-sheet-submit {
+  min-height: 50px;
+  font-size: var(--fs-strong);
+}
+.add-sheet-hint {
+  margin-top: 12px;
+  text-wrap: pretty;
+}
+
+@media (max-width: 640px) {
+  .sheet-backdrop {
+    padding: 0;
+  }
+  .sheet {
+    width: 100%;
+    border-radius: 16px 16px 0 0;
+    border-bottom: 0;
+  }
+  .stock-target-sum {
+    margin-left: 0;
+  }
+}

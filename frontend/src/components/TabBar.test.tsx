@@ -68,7 +68,7 @@ describe('폰 — 아래 탭', () => {
 describe('제 주소가 아니어도 켜진 탭은 aria-current (묶음 2 검토 조건 2)', () => {
   it.each([
     ['/fundamentals', '종목'],
-    ['/history', '종목'],
+    ['/stocks/VOO', '종목'],
     ['/ai/portfolio', '홈'],
   ])('%s → %s', (path, name) => {
     renderTabs(path)
@@ -83,7 +83,7 @@ describe('어느 탭이 켜지나', () => {
     ['/ai/portfolio', '/'],
     ['/stocks', '/stocks'],
     ['/fundamentals', '/stocks'],
-    ['/history', '/stocks'],
+    ['/stocks/005930.KS', '/stocks'],
     ['/rebalance', '/rebalance'],
     ['/macro', '/macro'],
     ['/settings', '/settings'],

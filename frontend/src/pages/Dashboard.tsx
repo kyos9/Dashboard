@@ -21,7 +21,7 @@ import { PageSkeleton } from '../components/Skeleton'
 import type { ChartTab } from '../lib/fundamentals'
 import { useRecheck } from '../lib/recheck'
 
-// 차트는 누를 때 받는다 (App.tsx의 HistoryChart와 같은 이유)
+// 차트는 누를 때 받는다 (첫 화면에 차트 코드를 싣지 않는다 — lib/chartChunk)
 // 시그널 기준(0.42.0)도 누를 때 받는다 — 첫 화면 JS 를 늘리지 않게
 const SignalThresholdsModal = lazyChunk(() => import('../components/SignalThresholdsModal'), 'SignalThresholdsModal')
 import { useAuth } from '../components/AuthGate'
@@ -1556,6 +1556,15 @@ function SignalCards({
                   <button className="stock-name" onClick={() => onChart(card)} title="차트 보기">
                     {stockLabel(card)}
                   </button>
+                  {/* 폰 접힌 카드 — 배지는 이름 줄에 (묶음 3, 목업 11: 카드 높이를 줄인다) */}
+                  {collapsible && (
+                    <span className="signal-card-badges">
+                      <TrafficBadge traffic={trafficLight(card, rules)} />
+                      {weightReasons.map((r) => (
+                        <ReasonTag key={r} reason={r} />
+                      ))}
+                    </span>
+                  )}
                 </div>
               </div>
               <div className="stock-card-price">
@@ -1576,12 +1585,6 @@ function SignalCards({
                 aria-controls={folded ? undefined : `signal-card-${card.ticker}`}
                 onClick={() => onToggle?.(card.ticker)}
               >
-                <span className="signal-card-badges">
-                  <TrafficBadge traffic={trafficLight(card, rules)} />
-                  {weightReasons.map((r) => (
-                    <ReasonTag key={r} reason={r} />
-                  ))}
-                </span>
                 <span className="signal-card-why">{reasonLine(card, rules, weights?.get(card.ticker))}</span>
                 <Icon name="chevronDown" size={18} className="signal-card-chev" />
               </button>

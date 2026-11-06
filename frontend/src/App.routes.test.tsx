@@ -31,19 +31,26 @@ describe('없는 주소', () => {
     expect(screen.getByRole('link', { name: '첫 화면으로' })).toHaveAttribute('href', '/')
   })
 
-  it('/chart 는 차트 탭(/history)으로 넘긴다', async () => {
+  it('/chart · /history 는 종목 탭으로 넘긴다 — 차트는 종목 안의 탭 (묶음 3)', async () => {
     window.history.replaceState(null, '', '/chart')
     render(<App />)
-    expect(await screen.findByText('로그인하면 담은 종목의 차트를 볼 수 있습니다')).toBeInTheDocument()
-    expect(window.location.pathname).toBe('/history')
+    expect(await screen.findByText('로그인하면 종목을 담을 수 있습니다')).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/stocks')
     expect(screen.queryByRole('heading', { name: '없는 화면입니다' })).not.toBeInTheDocument()
   })
 
-  it('/chart?ticker=VOO 는 고른 종목을 버리지 않는다', async () => {
+  it('/chart?ticker=VOO 는 고른 종목을 버리지 않는다 — 그 종목 안으로', async () => {
     window.history.replaceState(null, '', '/chart?ticker=VOO')
     render(<App />)
     await screen.findByText('로그인하면 담은 종목의 차트를 볼 수 있습니다')
-    expect(window.location.pathname + window.location.search).toBe('/history?ticker=VOO')
+    expect(window.location.pathname).toBe('/stocks/VOO')
+  })
+
+  it('옛 차트 주소 /history?ticker=005930.KS 도 그 종목 안으로 — 북마크가 깨지지 않게', async () => {
+    window.history.replaceState(null, '', '/history?ticker=005930.KS')
+    render(<App />)
+    await screen.findByText('로그인하면 담은 종목의 차트를 볼 수 있습니다')
+    expect(window.location.pathname).toBe('/stocks/005930.KS')
   })
 
   it('있는 화면은 가로채지 않는다 — 로그인 전에 여는 방침 화면', async () => {

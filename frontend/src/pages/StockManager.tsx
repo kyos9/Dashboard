@@ -1,141 +1,32 @@
 import { Link } from 'react-router-dom'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { useAppState } from '../AppState'
 import { ApiError, api } from '../api/client'
 import { useAuth } from '../components/AuthGate'
-import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ErrorNotice } from '../components/ErrorNotice'
 import { PageIntro } from '../components/PageIntro'
-import { NumberInput } from '../components/NumberInput'
-import { HOLDING_MINUS_HINT } from '../lib/numberDropped'
 import { StockEditModal } from '../components/StockEditModal'
 import { SymbolSearch } from '../components/SymbolSearch'
-import { avgPrice, CURRENCY_BY_MARKET, CURRENCY_META, MARKET_LABEL, num, qty, savedStocksText, stockLabel } from '../lib/display'
-import { fxFromInput, fxUnitLabel } from '../lib/fxInput'
-import type { Holding, ListingStatus, Stock, SymbolMatch } from '../types'
+import { AddStockSheet } from '../components/stock/AddStockSheet'
+import { emptyForm, type NewStockForm } from '../lib/stockForm'
+import { Sparkline } from '../components/stock/Sparkline'
+import { SignalBadges } from '../components/ui/SignalBadges'
+import { Icon } from '../components/icons/Icon'
+import { CURRENCY_BY_MARKET, CURRENCY_META, MARKET_LABEL, price, savedStocksText, signed, stockLabel } from '../lib/display'
+import { fxFromInput } from '../lib/fxInput'
+import type { DashboardCard, Holding, ListingStatus, Stock, SymbolMatch } from '../types'
 import { listingHint, listingRefreshNotice } from '../lib/listing'
 import { useRecheck } from '../lib/recheck'
 import { useCachedLoad } from '../lib/cache'
+import { cardSignals, tone } from '../lib/portfolio'
+import { moveOne } from '../lib/reorder'
+import { useNarrow } from '../lib/narrow'
+import { useStockView } from '../lib/stockView'
+import { useSparkHistory } from '../lib/sparkHistory'
 
-/** 새 종목 입력칸. 숫자도 글자로 들고 있다 — 비워둔 것과 0을 구분해야 한다 */
-interface NewStockForm {
-  ticker: string
-  category: string
-  targetWeight: string
-  quantity: string
-  avgCost: string
-  /** 산 환율 — 달러는 원/$, 엔은 원/100엔으로 받는다 */
-  avgFx: string
-}
-
-const emptyForm: NewStockForm = { ticker: '', category: '', targetWeight: '', quantity: '', avgCost: '', avgFx: '' }
-
-/** 구분 입력을 돕는 예시값 — 자유 입력이므로 강제되지 않는다 */
-const CATEGORY_SUGGESTIONS = ['지수', '알파', '안전자산']
-
-/**
- * 등록된 종목 한 줄 — **보이기만 한다**. 고치는 것은 표 위의 "수정" 하나로 모든 종목을 한 번에
- * (ROADMAP 9-11). 줄에는 그 종목에만 하는 일(시세 갱신·비활성화·삭제)만 남는다.
- */
-function StockRow({
-  stock,
-  holding,
-  onSaved,
-  onError,
-  onNotice,
-  onPurge,
-}: {
-  stock: Stock
-  /** 보유 수량·평단가. 아직 못 읽었으면 없다 */
-  holding: Holding | undefined
-  onSaved: () => void
-  onError: (e: unknown) => void
-  /** 받지 않고 넘어갔을 때 그 사실을 알린다 ("3분 전에 받았습니다") */
-  onNotice: (text: string) => void
-  onPurge: (stock: Stock) => void
-}) {
-  const [refreshing, setRefreshing] = useState(false)
-
-  const toggleActive = async () => {
-    try {
-      if (stock.active) await api.deactivateStock(stock.ticker)
-      else await api.updateStock(stock.ticker, { active: true })
-      onSaved()
-    } catch (e) {
-      onError(e)
-    }
-  }
-
-  const refresh = async () => {
-    setRefreshing(true)
-    onError(null)
-    try {
-      const result = await api.refreshStock(stock.ticker)
-      // 같은 종목은 10분에 한 번만 실제로 받는다 — 거절이 아니라 언제 받았는지를 알린다
-      if (result.skipped) onNotice(`${stockLabel(stock)}: ${result.hint ?? '최근에 받았습니다.'}`)
-      onSaved()
-    } catch (e) {
-      onError(e)
-    } finally {
-      setRefreshing(false)
-    }
-  }
-
-  return (
-    <tr className={stock.active ? '' : 'inactive'} data-ticker={stock.ticker}>
-      <td>
-        <div className="ticker-cell">
-          <span className="ticker-name">{stockLabel(stock)}</span>
-          <span className="ticker-sub">
-            {/* 이름 = 티커면(미국 종목) 아래에 다시 쓰지 않는다 — "VOO / VOO · 미국" (디자인 2차) */}
-            {stockLabel(stock) !== stock.ticker && <>{stock.ticker} · </>}
-            <span className="nowrap">
-              {MARKET_LABEL[stock.market]} · {CURRENCY_META[stock.currency].symbol}
-              {stock.currency}
-            </span>
-          </span>
-          {!stock.active && <span className="badge badge-grey">비활성</span>}
-          {stock.data_status === 'loading' && <span className="badge badge-blue">시세 받는 중…</span>}
-          {stock.data_status === 'failed' && (
-            <span className="badge badge-amber" title={stock.data_hint ?? undefined}>
-              시세 못 받음
-            </span>
-          )}
-        </div>
-      </td>
-      <td>{stock.category ? stock.category : <span className="hint">없음</span>}</td>
-      <td className="mono">{num(stock.target_weight_pct, 1)}%</td>
-      <td className="mono">
-        {stock.rebalance_band_pct === null ? <span className="hint">기본값</span> : `±${num(stock.rebalance_band_pct, 1)}%p`}
-      </td>
-      <td>
-        <div className="holding-cell">
-          {holding && holding.quantity > 0 ? (
-            <span className="mono">
-              {qty(holding.quantity)}주
-              <span className="hint"> · 평단 {avgPrice(holding.avg_cost, stock.currency)}</span>
-            </span>
-          ) : (
-            <span className="hint">보유 없음</span>
-          )}
-        </div>
-      </td>
-      <td>
-        <div className="btn-group tight">
-          <button className="sm" onClick={refresh} disabled={refreshing} aria-label={`${stockLabel(stock)} 시세 갱신`}>
-            {refreshing ? '갱신 중…' : '시세 갱신'}
-          </button>
-          <button className="sm ghost" onClick={toggleActive} aria-label={`${stockLabel(stock)} ${stock.active ? '비활성화' : '활성화'}`}>
-            {stock.active ? '비활성화' : '활성화'}
-          </button>
-          <button className="sm danger" onClick={() => onPurge(stock)} aria-label={`${stockLabel(stock)} 삭제`}>
-            삭제
-          </button>
-        </div>
-      </td>
-    </tr>
-  )
-}
+/** 종목 탭 거르기 — 칩이 수를 겸한다 (목업 11) */
+type Filter = 'all' | 'signal' | 'held' | 'watch' | 'inactive'
+const FILTER_LABEL: Record<Filter, string> = { all: '전체', signal: '신호', held: '보유', watch: '관심', inactive: '비활성' }
 
 /** 날짜("2026-09")가 줄 끝에서 "2026-" / "09"로 갈라지지 않게 묶는다 — 글은 lib/listing 그대로 (디자인 2차) */
 function keepDates(text: string) {
@@ -150,10 +41,59 @@ function keepDates(text: string) {
   )
 }
 
+/** 이름 아래 한 줄 — 이름 = 티커면(미국 종목) 티커를 다시 쓰지 않는다 "VOO / VOO · 미국" (디자인 2차) */
+function subLine(stock: Stock) {
+  return (
+    <>
+      {stockLabel(stock) !== stock.ticker && <>{stock.ticker} · </>}
+      <span className="nowrap">
+        {MARKET_LABEL[stock.market]} · {CURRENCY_META[stock.currency].symbol}
+        {stock.currency}
+      </span>
+    </>
+  )
+}
+
+/** 시세 상태 배지 — 줄·카드가 같이 쓴다 */
+function StatusBadges({ stock }: { stock: Stock }) {
+  return (
+    <>
+      {!stock.active && <span className="badge badge-grey">비활성</span>}
+      {stock.data_status === 'loading' && <span className="badge badge-blue">시세 받는 중…</span>}
+      {stock.data_status === 'failed' && (
+        <span className="badge badge-amber" title={stock.data_hint ?? undefined}>
+          시세 못 받음
+        </span>
+      )}
+    </>
+  )
+}
+
+function PriceBlock({ stock, card }: { stock: Stock; card: DashboardCard | undefined }) {
+  const ind = card?.indicators
+  if (!ind || ind.close === null) return <span className="stock-row-price hint">—</span>
+  return (
+    <span className="stock-row-price">
+      <span className="mono">{price(ind.close, stock.currency)}</span>
+      <span className={`mono stock-row-change ${tone(ind.change_pct)}`}>{signed(ind.change_pct ?? null, 2, '%')}</span>
+    </span>
+  )
+}
+
+/**
+ * 종목 탭 (디자인 4차 목업 11 — 주인: 목록은 줄/카드를 사용자가 고름, 종목 안은 위 탭 넷).
+ *
+ * 맨 위 찾기 칸이 곧 추가다 — 고르면 아래에서 시트가 올라와 목표 비중·보유를 넣는다. 아래는 담은 종목의
+ * 줄(또는 카드). 누르면 종목 안(/stocks/:ticker)으로 간다 — 차트 · 신호 · 재무 · 보유가 거기 있다.
+ * 줄마다 있던 시세 갱신 · 비활성화 · 삭제는 종목 안 "보유"로, 한 번에 수정 · 순서는 ⋯ 로.
+ */
 export function StockManager() {
   const { refreshKey, notifyDataChanged } = useAppState()
   const { isAdmin } = useAuth()
+  const narrow = useNarrow()
+  const [view, setView] = useStockView()
   const [stocks, setStocks] = useState<Stock[]>([])
+  const [cards, setCards] = useState<DashboardCard[]>([])
   const [form, setForm] = useState<NewStockForm>(emptyForm)
   const [cashTarget, setCashTarget] = useState(0)
   const [error, setError] = useState<unknown>(null)
@@ -164,18 +104,23 @@ export function StockManager() {
   const [searchKey, setSearchKey] = useState(0)
   const [creating, setCreating] = useState(false)
   const [picked, setPicked] = useState<SymbolMatch | null>(null)
-  // 산 환율은 목록에서 고른 외화 종목만 받는다
-  const pickedCurrency = CURRENCY_BY_MARKET[picked?.market ?? 'KR']
-  const pickedForeign = picked !== null && pickedCurrency !== 'KRW'
+  // 고르지 않고 쳐서 넣는 종목 — 시트를 연 글자
+  const [rawTicker, setRawTicker] = useState<string | null>(null)
   const [listingBusy, setListingBusy] = useState(false)
   const [listing, setListing] = useState<ListingStatus | null>(null)
-  const [purging, setPurging] = useState<Stock | null>(null)
   const [holdings, setHoldings] = useState<Map<string, Holding>>(new Map())
+  const [filter, setFilter] = useState<Filter>('all')
+  const [toolsOpen, setToolsOpen] = useState(false)
+  const [ordering, setOrdering] = useState(false)
+  const [orderBusy, setOrderBusy] = useState(false)
   // 종목 한 번에 수정 (ROADMAP 9-11)
   const [editing, setEditing] = useState(false)
-  // 일괄 수정을 닫은 뒤 한 줄 — 수정 단추 바로 아래, 수정을 다시 열 때까지 (0.45.2 A3). 맨 위 알림 칸은 폰에서 화면 밖이다
+  // 일괄 수정을 닫은 뒤 한 줄 — 수정을 다시 열 때까지 (0.45.2 A3)
   const [savedNote, setSavedNote] = useState('')
-  const [purgeBusy, setPurgeBusy] = useState(false)
+
+  const sheetOpen = picked !== null || rawTicker !== null
+  // 산 환율은 목록에서 고른 외화 종목만 받는다
+  const pickedCurrency = picked ? CURRENCY_BY_MARKET[picked.market] : null
 
   // 시세를 뒤에서 받는 중인 종목. 다음에 목록을 받았을 때 여기서 빠진 종목이 "다 받은" 종목이다.
   const loadingRef = useRef<string[]>([])
@@ -195,7 +140,7 @@ export function StockManager() {
               tone: 'amber',
               text:
                 `${failed.map(stockLabel).join(', ')} 시세를 받지 못했습니다. ` +
-                (failed[0].data_hint ?? '아래 "시세 갱신"으로 다시 시도해주세요.'),
+                (failed[0].data_hint ?? '종목 안 "보유"의 "시세 갱신"으로 다시 시도해주세요.'),
             }
           : {
               tone: 'green',
@@ -209,6 +154,8 @@ export function StockManager() {
 
   // 탭을 옮겨 와도 들고 있던 값을 먼저 그린다 (ROADMAP 8-1)
   const { loading: stocksLoading } = useCachedLoad('page:stocks', api.listStocks, applyStocks, setError, [refreshKey])
+  // 줄의 현재가 · 등락 · 신호 — 홈과 같은 카드 응답. 못 읽으면 그 칸만 빈다
+  useCachedLoad('page:stocks:cards', api.getDashboard, setCards, () => setCards([]), [refreshKey])
 
   // 받는 중인 종목이 있는 동안만 몇 초마다 다시 묻는다
   const recheck = useCallback(() => {
@@ -223,7 +170,7 @@ export function StockManager() {
   // 실패해도 검색 자체는 되므로 오류로 처리하지 않는다.
   useCachedLoad('page:stocks:listing', api.getListingStatus, setListing, () => setListing(null), [refreshKey])
 
-  // 보유 칸 — 못 읽으면 칸만 빈다(종목 관리는 그대로 된다)
+  // 보유 — 못 읽으면 보유·관심 거르기만 빈다(종목 목록은 그대로 된다)
   useCachedLoad(
     'page:stocks:holdings',
     api.listHoldings,
@@ -233,35 +180,32 @@ export function StockManager() {
   )
 
   // 목표 비중 합계에 현금 몫도 넣어야 100%가 맞는지 알 수 있다. 못 읽으면 0으로 본다.
-  useCachedLoad(
-    'page:stocks:settings',
-    api.getSettings,
-    (s) => setCashTarget(s.cash_target_pct),
-    () => setCashTarget(0),
-    [refreshKey],
+  useCachedLoad('page:stocks:settings', api.getSettings, (s) => setCashTarget(s.cash_target_pct), () => setCashTarget(0), [refreshKey])
+
+  const cardBy = useMemo(() => new Map(cards.map((c) => [c.ticker, c])), [cards])
+  const held = (s: Stock) => (holdings.get(s.ticker)?.quantity ?? 0) > 0
+  const matches = (s: Stock, f: Filter): boolean => {
+    if (f === 'all') return true
+    if (f === 'inactive') return !s.active
+    if (!s.active) return false
+    if (f === 'held') return held(s)
+    if (f === 'watch') return !held(s)
+    const card = cardBy.get(s.ticker)
+    return !!card && cardSignals(card).length > 0
+  }
+  const counts = Object.fromEntries((Object.keys(FILTER_LABEL) as Filter[]).map((f) => [f, stocks.filter((s) => matches(s, f)).length])) as Record<Filter, number>
+  // 비어 있는 거르기는 칩을 그리지 않는다 — "비활성 0"은 할 일이 아니다. 고른 칩은 0 이 되어도 남는다
+  const filters = (Object.keys(FILTER_LABEL) as Filter[]).filter((f) => f === 'all' || counts[f] > 0 || f === filter)
+  const visible = stocks.filter((s) => matches(s, filter))
+  const spark = useSparkHistory(
+    visible.filter((s) => s.active).map((s) => s.ticker),
+    view === 'card' && !ordering,
   )
 
-  const handleSaved = () => {
-    setError(null)
-    notifyDataChanged()
-  }
-
-  /** 종목과 딸린 기록을 전부 지운다. 되돌릴 수 없으므로 한 번 더 묻고 나서 온다. */
-  const purge = async (stock: Stock) => {
-    setPurgeBusy(true)
-    setError(null)
-    try {
-      await api.purgeStock(stock.ticker)
-      setPurging(null)
-      setNotice({ tone: 'green', text: `${stockLabel(stock)}을(를) 지웠습니다.` })
-      notifyDataChanged()
-    } catch (e) {
-      setError(e)
-      setPurging(null)
-    } finally {
-      setPurgeBusy(false)
-    }
-  }
+  const closeSheet = useCallback(() => {
+    setPicked(null)
+    setRawTicker(null)
+  }, [])
 
   const createWith = async (query: string) => {
     if (!query) {
@@ -273,16 +217,17 @@ export function StockManager() {
     setNotice(null)
     try {
       const quantity = form.quantity === '' ? undefined : Number(form.quantity)
+      const foreign = pickedCurrency !== null && pickedCurrency !== 'KRW'
       const result = await api.createStock({
         ticker: query,
         category: form.category.trim() === '' ? null : form.category.trim(),
         target_weight_pct: form.targetWeight === '' ? 0 : Number(form.targetWeight),
         ...(quantity ? { quantity } : {}),
         ...(form.avgCost === '' ? {} : { avg_cost: Number(form.avgCost) }),
-        ...(pickedForeign && form.avgFx !== '' ? { avg_fx: fxFromInput(form.avgFx, pickedCurrency) } : {}),
+        ...(foreign && form.avgFx !== '' ? { avg_fx: fxFromInput(form.avgFx, pickedCurrency) } : {}),
       })
       setForm(emptyForm)
-      setPicked(null)
+      closeSheet()
       setSearchKey((k) => k + 1) // 검색칸도 비운다 — 글자가 남은 채 다시 누르면 "입력해주세요"가 났다 (B 검토 참고)
       // 아주 빨리 받아서 목록에 "받는 중"이 한 번도 안 찍혀도 "다 받았다"를 알릴 수 있게
       if (result.data_pending) loadingRef.current = [...loadingRef.current, result.stock.ticker]
@@ -294,7 +239,7 @@ export function StockManager() {
       // 경고가 필요 없는 추가(목표를 넣었거나 수량이 없다)는 앞의 경고를 건드리지 않는다 — 앞 종목은 여전히 전부 파는 계산이다 (C 검토 2)
       if (quantity && form.targetWeight === '') {
         setZeroTarget(
-          `${name}의 목표 비중을 비워 0%로 넣었습니다 — 리밸런싱에서 전부 파는 계산이 됩니다. 목표 비중은 이 화면의 ✎ 수정(리밸런싱에서는 '보유 · 목표 비중')에서 넣으세요.`,
+          `${name}의 목표 비중을 비워 0%로 넣었습니다 — 리밸런싱에서 전부 파는 계산이 됩니다. 목표 비중은 종목 안의 '보유' 또는 ⋯ 의 '한 번에 수정'(리밸런싱에서는 '보유 · 목표 비중')에서 넣으세요.`,
         )
       }
 
@@ -313,12 +258,14 @@ export function StockManager() {
               tone: 'amber',
               text:
                 `${label}은(는) 등록됐지만 시세를 받지 못했습니다. ` +
-                (result.data_hint ?? '아래 "시세 갱신"으로 다시 시도해주세요.'),
+                (result.data_hint ?? '종목 안 "보유"의 "시세 갱신"으로 다시 시도해주세요.'),
               detail: result.data_error ?? undefined,
             },
       )
       notifyDataChanged()
     } catch (e) {
+      // 시트는 닫는다 — 오류는 찾기 칸 위에 뜬다. 넣던 값은 남겨 두어 다시 열면 그대로다
+      closeSheet()
       // 이미 담은 종목 — 서버는 영어 한 줄("VOO already exists")만 준다. 서버 말은 그대로 두고 화면에서 바꾼다 (0.45.4 B 사용자 확인).
       // 같은 409 라도 종목 수 한도는 서버가 한국어 안내를 같이 준다 — 그건 그대로 보인다 (B 검토 1)
       if (e instanceof ApiError && e.status === 409 && !e.hint && /already exists/.test(e.detail)) {
@@ -330,8 +277,6 @@ export function StockManager() {
       setCreating(false)
     }
   }
-
-  const handleCreate = () => void createWith(picked?.ticker ?? form.ticker.trim())
 
   const refreshListing = async () => {
     setListingBusy(true)
@@ -347,37 +292,56 @@ export function StockManager() {
     }
   }
 
-  const targetSum =
-    stocks.filter((s) => s.active).reduce((sum, s) => sum + s.target_weight_pct, 0) + cashTarget
-  // 평단가는 그 종목을 실제로 거래하는 통화 기준이므로, 고른 종목에 맞춰 단위를 보여준다.
-  // 고르기 전에는 단위를 붙이지 않는다 — 예전에는 미국이 기본이라 "($)"가 먼저 떠 원화 종목도 달러로 적게 했다 (0.44.0 C3)
-  const newCurrencyMeta = picked ? CURRENCY_META[CURRENCY_BY_MARKET[picked.market]] : null
+  /** 한 칸 옮기고 바로 저장한다. 실패하면 화면도 되돌린다 (홈 시그널 목록의 순서 편집과 같은 규칙) */
+  const move = async (ticker: string, direction: 'up' | 'down') => {
+    const order = stocks.map((s) => s.ticker)
+    const next = moveOne(order, visible.map((s) => s.ticker), ticker, direction)
+    if (next.join() === order.join()) return
+    const previous = stocks
+    const byTicker = new Map(stocks.map((s) => [s.ticker, s]))
+    setStocks(next.map((t) => byTicker.get(t)!))
+    setOrderBusy(true)
+    try {
+      await api.updateStockOrder(next)
+      notifyDataChanged()
+    } catch (e) {
+      setStocks(previous)
+      setError(e)
+    } finally {
+      setOrderBusy(false)
+    }
+  }
+
+  const targetSum = stocks.filter((s) => s.active).reduce((sum, s) => sum + s.target_weight_pct, 0) + cashTarget
+  const currencyMeta = pickedCurrency ? CURRENCY_META[pickedCurrency] : null
+  const ownedTickers = useMemo(() => new Set(stocks.map((s) => s.ticker)), [stocks])
+  const toolsShown = !narrow || toolsOpen || ordering
 
   return (
-    <div>
-      <datalist id="category-options">
-        {CATEGORY_SUGGESTIONS.map((c) => (
-          <option key={c} value={c} />
-        ))}
-      </datalist>
-
-      <div className="page-head">
+    <div className="stocks-page">
+      <div className="page-head stocks-head">
         <div>
-          <h2>종목 관리</h2>
-          <PageIntro line="종목을 추가하면 전체 히스토리를 받아 지표·시그널을 계산합니다." firstVisit={stocksLoading ? null : stocks.length === 0}>
+          <h2>
+            종목 <span className="sub-count">{stocks.length}종목</span>
+          </h2>
+          <PageIntro line="찾아서 담으면 지난 시세를 받아 지표·시그널을 계산합니다." firstVisit={stocksLoading ? null : stocks.length === 0}>
             국내주식은 종목명(삼성전자)이나 종목코드(005930)로, 미국주식은 티커(VOO)나 영문 이름(Agilent)으로 찾을 수
-            있습니다. 구분(지수/알파/안전자산 등)은 자유 입력이며 시그널 목록의 거르기로 쓰입니다.
+            있습니다. 구분(지수/알파/안전자산 등)은 자유 입력이며 시그널 목록의 거르기로 쓰입니다. 종목을 누르면 차트 · 신호 ·
+            재무 · 보유가 있는 종목 안으로 갑니다. <span className="stock-listing-hint">{keepDates(listingHint(listing, isAdmin))}</span>
           </PageIntro>
         </div>
-        {/* 차트 · 재무는 묶음 3에서 종목 안으로 들어간다 — 그때까지 종목 탭 맨 위에서 간다 (사용자 확인: 종목 탭에서 찾았다) */}
-        <nav className="stock-subnav" aria-label="종목 보기">
-          <Link to="/history" className="chip">
-            차트
-          </Link>
-          <Link to="/fundamentals" className="chip">
-            재무
-          </Link>
-        </nav>
+        {narrow && stocks.length > 0 && (
+          <button
+            type="button"
+            className={`sub-more${toolsShown ? ' active' : ''}`}
+            aria-label="보기·설정"
+            aria-expanded={toolsShown}
+            aria-controls="stock-view-tools"
+            onClick={() => setToolsOpen((o) => !o)}
+          >
+            <Icon name="more" size={20} />
+          </button>
+        )}
       </div>
 
       <ErrorNotice error={error} onDismiss={() => setError(null)} />
@@ -405,164 +369,174 @@ export function StockManager() {
         </div>
       )}
 
-      <div className="panel">
-        <div className="section-head">
-          {/* "관심 종목"은 대시보드에서 보유 0 인 종목이다 — 여기는 보유도 같이 넣는 곳이라 "종목 추가" (디자인 2차, 용어 사전) */}
-          <h3>종목 추가</h3>
-          {/* 상장 목록은 전원이 같이 쓴다 — 받아오는 건 관리자만 */}
-          {isAdmin && (
-            <button className="ghost sm" onClick={() => void refreshListing()} disabled={listingBusy}>
-              {listingBusy ? '받는 중…' : '거래소 목록 갱신'}
-            </button>
-          )}
-          <span className="hint">{keepDates(listingHint(listing, isAdmin))}</span>
-        </div>
-        <div className="form-grid add-stock-form">
-          <div className="field field-wide">
-            <label htmlFor="new-ticker">종목 검색</label>
-            <SymbolSearch
-              key={searchKey}
-              selected={picked}
-              onSelect={setPicked}
-              onSubmitRaw={(typed) => void createWith(typed)}
-              onTypedChange={(typed) => setForm((f) => ({ ...f, ticker: typed }))}
-              disabled={creating}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="new-category">구분</label>
-            <input
-              id="new-category"
-              type="text"
-              list="category-options"
-              // 회색 "지수"가 미리 채운 값으로 읽혔다(사용자 확인) — 고를 말은 목록(datalist)이 보여 준다 (0.44.0 C3)
-              placeholder="비워 둬도 됩니다"
-              value={form.category}
-              onChange={(e) => setForm({ ...form, category: e.target.value })}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="new-weight">목표 비중 (%)</label>
-            <NumberInput
-              id="new-weight"
-              placeholder="0"
-              value={form.targetWeight}
-              onChange={(v) => setForm({ ...form, targetWeight: v })}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="new-quantity">보유 수량</label>
-            <NumberInput
-              id="new-quantity"
-              placeholder="0"
-              minusHint={HOLDING_MINUS_HINT}
-              value={form.quantity}
-              onChange={(v) => setForm({ ...form, quantity: v })}
-              // 미국 주식은 소수점 단위로도 산다
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="new-cost">평단가{newCurrencyMeta ? ` (${newCurrencyMeta.symbol})` : ''}</label>
-            <NumberInput
-              id="new-cost"
-              placeholder="모르면 비움"
-              value={form.avgCost}
-              onChange={(v) => setForm({ ...form, avgCost: v })}
-              // 원·엔은 소수점이 의미가 없다
-            />
-          </div>
-          {/* 산 환율은 목록에서 고른 외화 종목만 — 이름을 쳐서 넣으면 원화 종목일 수도 있다 (그러면 서버가 거절한다) */}
-          {pickedForeign && (
-            <div className="field">
-              <label htmlFor="new-fx">산 환율 ({fxUnitLabel(pickedCurrency)})</label>
-              <NumberInput
-                id="new-fx"
-                placeholder="모르면 비움"
-                value={form.avgFx}
-                onChange={(v) => setForm({ ...form, avgFx: v })}
-              />
+      {/* 찾기 = 추가 (목업 11). "관심 종목"은 홈에서 보유 0 인 종목이다 — 여기는 보유도 같이 넣는 곳이라 "종목 추가" (용어 사전) */}
+      <section className="stock-find" aria-label="종목 추가">
+        <SymbolSearch
+          key={searchKey}
+          selected={null}
+          owned={ownedTickers}
+          onSelect={(match) => {
+            if (!match) return
+            setForm((f) => ({ ...f, ticker: '' }))
+            setPicked(match)
+          }}
+          onSubmitRaw={(typed) => setRawTicker(typed)}
+          onTypedChange={(typed) => setForm((f) => ({ ...f, ticker: typed }))}
+          disabled={creating}
+        />
+        {form.ticker.trim() !== '' && (
+          <button type="button" className="link-btn stock-find-raw" onClick={() => setRawTicker(form.ticker.trim())}>
+            "{form.ticker.trim()}" 그대로 추가
+          </button>
+        )}
+        {/* 상장 목록은 전원이 같이 쓴다 — 받아오는 건 관리자만. 무엇으로 찾는지는 맨 위 "자세히" */}
+        {isAdmin && (
+          <button type="button" className="link-btn stock-find-raw" onClick={() => void refreshListing()} disabled={listingBusy}>
+            {listingBusy ? '받는 중…' : '거래소 목록 갱신'}
+          </button>
+        )}
+      </section>
+
+      {stocks.length > 0 && (
+        <>
+          {toolsShown && (
+            <div className="chip-row view-tools stock-tools" id="stock-view-tools" role="group" aria-label="보기·설정">
+              <button type="button" className={`chip${view === 'list' && !ordering ? ' active' : ''}`} aria-pressed={view === 'list'} onClick={() => setView('list')}>
+                줄 보기
+              </button>
+              <button type="button" className={`chip${view === 'card' && !ordering ? ' active' : ''}`} aria-pressed={view === 'card'} onClick={() => setView('card')}>
+                카드 보기
+              </button>
+              <button type="button" className={`chip${ordering ? ' active' : ''}`} aria-pressed={ordering} onClick={() => setOrdering((o) => !o)}>
+                {ordering ? '순서 바꾸기 끝' : '↕ 순서 바꾸기'}
+              </button>
+              <button
+                type="button"
+                className="chip"
+                onClick={() => {
+                  setSavedNote('')
+                  setEditing(true)
+                }}
+                aria-label="종목 한 번에 수정"
+              >
+                ✎ 한 번에 수정
+              </button>
+              <Link to="/fundamentals" className="chip">
+                PER 한눈에
+              </Link>
             </div>
           )}
-          <div className="field">
-            <label>&nbsp;</label>
-            <button className="primary" onClick={handleCreate} disabled={creating}>
-              {creating ? '추가하는 중…' : '+ 종목 추가'}
-            </button>
-          </div>
-        </div>
-        {/* 다섯 줄이던 도움말을 세 줄로 — "추가" 단추가 아래로 밀렸다 (디자인 2차) */}
-        <p className="hint" style={{ marginTop: 10 }}>
-          목표 비중은 <b>현금을 포함한 전체 자금</b> 중 이 종목의 비중입니다. 이미 들고 있으면 수량·평단가도 적으세요 —
-          평단가({newCurrencyMeta ? `${newCurrencyMeta.label} 기준` : '그 종목을 거래하는 통화 기준'})는 손익에만 쓰이고 비중에는 영향이 없습니다. 둘 다 나중에 목록·홈·리밸런싱에서 고칠 수 있습니다. 시세를
-          못 받아도 종목은 남고 나중에 다시 받습니다.
-        </p>
-      </div>
-
-      <div className="section">
-        <div className="section-head">
-          <h3>등록된 종목 {stocks.length}개</h3>
-          <span className={`badge ${Math.abs(targetSum - 100) < 0.01 ? 'badge-green' : 'badge-amber'}`}>
-            목표 비중 합계 {targetSum.toFixed(1)}%
-            {cashTarget > 0 && ` (현금 ${cashTarget.toFixed(1)}% 포함)`}
-          </span>
-          {stocks.length > 0 && (
-            <button
-              className="sm section-action"
-              onClick={() => {
-                setSavedNote('')
-                setEditing(true)
-              }}
-              aria-label="종목 한 번에 수정"
-            >
-              ✎ 수정
-            </button>
+          {savedNote && (
+            <p className="hint saved-note" role="status">
+              ✓ {savedNote}
+            </p>
           )}
-        </div>
-        {savedNote && (
-          <p className="hint saved-note" role="status">
-            ✓ {savedNote}
-          </p>
-        )}
 
-        {stocks.length === 0 ? (
-          <div className="empty-state">
-            <h3>등록된 종목이 없습니다</h3>
-            <p>위 검색창에 종목명(삼성전자)이나 티커(VOO)를 입력해 추가해주세요.</p>
+          <div className="chip-row stock-filters" role="group" aria-label="거르기">
+            {filters.map((f) => (
+              <button
+                key={f}
+                type="button"
+                className={`chip${filter === f ? ' active' : ''}`}
+                aria-pressed={filter === f}
+                onClick={() => setFilter(f)}
+              >
+                {FILTER_LABEL[f]} <span className="mono">{counts[f]}</span>
+              </button>
+            ))}
+            <span className={`badge stock-target-sum ${Math.abs(targetSum - 100) < 0.01 ? 'badge-green' : 'badge-amber'}`}>
+              목표 비중 합계 {targetSum.toFixed(1)}%{cashTarget > 0 && ` (현금 ${cashTarget.toFixed(1)}% 포함)`}
+            </span>
           </div>
-        ) : (
-          <div className="table-scroll">
-            <table className="data-table fixed sticky-first" style={{ minWidth: 1070 }}>
-              <thead>
-                <tr>
-                  <th style={{ width: 202 }}>종목</th>
-                  <th style={{ width: 108 }}>구분</th>
-                  <th style={{ width: 132 }}>목표 비중</th>
-                  <th style={{ width: 148 }}>
-                    밴드 임계값
-                    <br />
-                    (비워두면 기본값)
-                  </th>
-                  <th style={{ width: 180 }}>보유</th>
-                  <th style={{ width: 300 }}>작업</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stocks.map((s) => (
-                  <StockRow
-                    key={s.ticker}
-                    stock={s}
-                    holding={holdings.get(s.ticker)}
-                    onSaved={handleSaved}
-                    onError={setError}
-                    onNotice={(text) => setNotice({ tone: 'green', text })}
-                    onPurge={setPurging}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+        </>
+      )}
+
+      {stocks.length === 0 ? (
+        <div className="empty-state">
+          <h3>담은 종목이 없습니다</h3>
+          <p>위 찾기 칸에 종목명(삼성전자)이나 티커(VOO)를 넣어 추가해주세요.</p>
+        </div>
+      ) : ordering ? (
+        <ol className="stock-list stock-order" aria-label="종목 순서">
+          {visible.map((s, i) => (
+            <li key={s.ticker} className="stock-row" data-ticker={s.ticker}>
+              <span className="stock-row-name">
+                <span className="stock-row-title">{stockLabel(s)}</span>
+                <span className="stock-row-sub hint">{subLine(s)}</span>
+              </span>
+              <span className="move-buttons">
+                <button type="button" aria-label={`${stockLabel(s)} 위로`} disabled={orderBusy || i === 0} onClick={() => void move(s.ticker, 'up')}>
+                  ▲
+                </button>
+                <button
+                  type="button"
+                  aria-label={`${stockLabel(s)} 아래로`}
+                  disabled={orderBusy || i === visible.length - 1}
+                  onClick={() => void move(s.ticker, 'down')}
+                >
+                  ▼
+                </button>
+              </span>
+            </li>
+          ))}
+        </ol>
+      ) : view === 'card' ? (
+        <ul className="stock-tiles" aria-label="담은 종목">
+          {visible.map((s) => {
+            const card = cardBy.get(s.ticker)
+            return (
+              <li key={s.ticker} data-ticker={s.ticker} className={s.active ? '' : 'inactive'}>
+                <Link to={`/stocks/${encodeURIComponent(s.ticker)}`} className="stock-tile">
+                  <span className="stock-row-title">{stockLabel(s)}</span>
+                  <span className="stock-row-sub hint">{subLine(s)}</span>
+                  <Sparkline values={spark.get(s.ticker) ?? []} />
+                  <PriceBlock stock={s} card={card} />
+                  <span className="stock-tile-badges">
+                    {card && <SignalBadges signals={cardSignals(card)} />}
+                    <StatusBadges stock={s} />
+                  </span>
+                </Link>
+              </li>
+            )
+          })}
+        </ul>
+      ) : (
+        <ul className="stock-list" aria-label="담은 종목">
+          {visible.map((s) => {
+            const card = cardBy.get(s.ticker)
+            return (
+              <li key={s.ticker} data-ticker={s.ticker} className={s.active ? '' : 'inactive'}>
+                <Link to={`/stocks/${encodeURIComponent(s.ticker)}`} className="stock-row">
+                  <span className="stock-row-name">
+                    <span className="stock-row-head">
+                      <span className="stock-row-title">{stockLabel(s)}</span>
+                      {card && <SignalBadges signals={cardSignals(card)} />}
+                      <StatusBadges stock={s} />
+                    </span>
+                    <span className="stock-row-sub hint">{subLine(s)}</span>
+                  </span>
+                  <PriceBlock stock={s} card={card} />
+                </Link>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+
+      {sheetOpen && (
+        <AddStockSheet
+          title={picked ? picked.name : rawTicker ?? ''}
+          sub={picked ? `${picked.ticker} · ${MARKET_LABEL[picked.market]} · ${currencyMeta?.label ?? ''}` : '목록에서 고르지 않은 이름 — 서버가 찾아 맞춥니다'}
+          form={form}
+          onChange={setForm}
+          currency={pickedCurrency}
+          currencySymbol={currencyMeta?.symbol ?? null}
+          currencyLabel={currencyMeta?.label ?? null}
+          busy={creating}
+          onSubmit={() => void createWith(picked?.ticker ?? rawTicker ?? form.ticker.trim())}
+          onClose={closeSheet}
+        />
+      )}
 
       {editing && (
         <StockEditModal
@@ -572,30 +546,10 @@ export function StockManager() {
           onClose={() => setEditing(false)}
           onSaved={(labels) => {
             setSavedNote(savedStocksText(labels))
-            handleSaved()
+            setError(null)
+            notifyDataChanged()
           }}
         />
-      )}
-
-      {purging && (
-        <ConfirmDialog
-          title={`${stockLabel(purging)} 삭제`}
-          confirmLabel="네, 지웁니다"
-          busyLabel="지우는 중…"
-          busy={purgeBusy}
-          onConfirm={() => void purge(purging)}
-          onCancel={() => setPurging(null)}
-        >
-          <p>
-            <strong>{stockLabel(purging)}</strong>({purging.ticker})을(를) 내 목록에서 빼고 보유수량·평단가를
-            지웁니다. 되돌릴 수 없습니다. 시세·지표는 모두가 같이 쓰는 기록이라 남겨 두므로, 다시 등록하면
-            히스토리가 바로 보입니다. 이미 남긴 리밸런싱 기록도 그대로 둡니다.
-          </p>
-          <p>
-            잠시 목록에서만 내리려는 것이라면 <strong>비활성화</strong>를 쓰세요. 기록은 그대로 남고
-            언제든 다시 켤 수 있습니다.
-          </p>
-        </ConfirmDialog>
       )}
     </div>
   )

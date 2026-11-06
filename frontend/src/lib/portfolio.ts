@@ -39,6 +39,20 @@ export const SIGNAL_LABEL: Record<SignalKind, string> = {
   under: '비중 미달',
 }
 
+/** 카드 하나의 신호 — 종목 탭 줄·카드와 종목 안 머리가 쓴다. `signalsOf` 와 같은 규칙(보유 줄이 없을 때) */
+export function cardSignals(card: DashboardCard): SignalMark[] {
+  const out: SignalKind[] = []
+  if (trafficLight(card).state !== 'stale') {
+    if (card.knee_buy_v2) out.push('buy')
+    if (card.shoulder_sell_ref) out.push('sell')
+  }
+  // 옛 서버·덜 채운 카드는 비중 신호가 없을 수 있다
+  const reasons = card.rebalance_signal?.reasons ?? []
+  if (reasons.some((r) => r.includes('매도 검토'))) out.push('over')
+  if (reasons.some((r) => r.includes('매수 검토'))) out.push('under')
+  return out.map((kind) => ({ kind, label: SIGNAL_LABEL[kind] }))
+}
+
 export function signalsOf(item: PortfolioItem): SignalMark[] {
   const out: SignalKind[] = []
   const card = item.card

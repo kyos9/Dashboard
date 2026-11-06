@@ -51,4 +51,6 @@
 @import './styles/pages/display-settings.css';
 @import './styles/pages/signal-thresholds.css';
 @import './styles/pages/shell.css';
+@import './styles/components/stock-detail.css';
+@import './styles/pages/stocks.css';
 @import './styles/overrides.css';

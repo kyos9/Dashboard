@@ -119,7 +119,40 @@ const SCREENS = [
   { name: 'fundamentals', who: 'owner@example.com', path: '/fundamentals' },
   { name: 'rebalance', who: 'owner@example.com', path: '/rebalance' },
   { name: 'macro', who: 'owner@example.com', path: '/macro' },
-  { name: 'history', who: 'owner@example.com', path: '/history' },
+  // 4차 묶음 3: 차트 탭(/history)은 종목 안의 탭이 됐다 — 종목 안(/stocks/:ticker)의 탭 넷을 잰다
+  { name: 'stock-detail', who: 'owner@example.com', path: '/stocks/AAPL' },
+  ...['신호', '재무', '보유'].map((tab) => ({
+    name: `stock-detail-${{ 신호: 'signal', 재무: 'fund', 보유: 'holding' }[tab]}`,
+    who: 'owner@example.com',
+    path: '/stocks',
+    act: async (page) => {
+      // 이름이 가장 긴 종목(TIGER 미국필라델피아…)으로 — 머리·탭이 좁은 폭에서 깨지는지
+      await page.locator('a.stock-row', { hasText: 'TIGER' }).first().click()
+      await page.waitForSelector('[role=tab]')
+      await page.getByRole('tab', { name: new RegExp('^' + tab) }).click()
+    },
+  })),
+  {
+    name: 'stocks-card',
+    who: 'owner@example.com',
+    path: '/stocks',
+    act: async (page) => {
+      const more = page.getByRole('button', { name: '보기·설정' })
+      if (await more.isVisible().catch(() => false)) await more.click()
+      await page.getByRole('button', { name: '카드 보기' }).click()
+      await page.waitForTimeout(800)
+    },
+  },
+  {
+    name: 'stocks-sheet',
+    who: 'owner@example.com',
+    path: '/stocks',
+    act: async (page) => {
+      await page.getByPlaceholder(/삼성전자, 005930/).fill('삼성')
+      await page.locator('.symbol-option').nth(2).click()
+      await page.waitForSelector('.add-sheet')
+    },
+  },
   { name: 'stocks', who: 'owner@example.com', path: '/stocks' },
   { name: 'policy', who: null, path: '/policy' },
   // 2차에서 더한 화면 — 차트 팝업의 다른 탭, 카드 보기, 시그널 기준, 매크로 차트, 종목 설정 표
@@ -158,7 +191,8 @@ const SCREENS = [
       for (let i = 0, n = await names.count(); i < n; i++) {
         await names.nth(i).click()
         await page.waitForSelector('[role=dialog] [role=tab]', { timeout: 15000 })
-        const want = page.locator('[role=dialog]').getByRole('tab', { name: tab })
+        // 4차 묶음 3: AI 분석은 탭이 아니라 아래 한 줄(단추)
+        const want = page.locator('[role=dialog]').getByRole(String(tab) === String(/AI/) ? 'button' : 'tab', { name: tab })
         if (await want.count()) return want.first().click()
         await page.locator('[role=dialog]').getByRole('button', { name: '닫기' }).first().click()
       }

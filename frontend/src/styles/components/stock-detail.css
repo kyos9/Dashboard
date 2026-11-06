@@ -1,0 +1,212 @@
+/* 종목 안 (디자인 4차 목업 11 가) — 머리(이름 · 현재가 · 등락 · 신호) + 위 탭 넷 + 카드.
+   종목 탭의 화면(/stocks/:ticker)과 홈의 차트 팝업(.chart-modal)이 같은 모양 */
+
+.stock-detail-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 48px;
+}
+.stock-detail-name {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--fs-strong);
+  font-weight: 700;
+  text-wrap: balance;
+}
+.stock-detail-bar .icon-btn {
+  width: 44px;
+  height: 44px;
+  flex: none;
+}
+.stock-back {
+  margin-left: -10px;
+  border: 0;
+  color: var(--accent);
+}
+
+.stock-hero {
+  padding: 2px 0 12px;
+}
+.stock-hero-sub {
+  margin: 0;
+  font-size: var(--fs-caption);
+  color: var(--text-faint);
+}
+.stock-hero-price {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin: 2px 0 0;
+}
+.stock-hero-close {
+  font-size: var(--fs-big);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.stock-hero-change {
+  font-size: var(--fs-sub);
+  font-weight: 600;
+}
+.stock-hero-badges {
+  margin-top: 6px;
+}
+
+/* 위 탭 — 글자만 나란히, 고른 칸에 밑줄 (용어 사전 "위 탭") */
+.stock-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  margin: 0 0 12px;
+}
+.stock-tab {
+  flex: 1;
+  min-height: 44px;
+  padding: 10px 4px 9px;
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  color: var(--text-faint);
+  font-size: var(--fs-body);
+  font-weight: 600;
+  position: relative;
+}
+.stock-tab:hover {
+  color: var(--text);
+}
+.stock-tabs .stock-tab.active {
+  background: none;
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+/* 신호가 뜬 종목 — 신호 탭에 점. 신호 종류마다 색이 달라 점은 강조색 하나로 (글자 "(신호 있음)"은 읽어 주기로) */
+.stock-tab.has-dot::after {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 4px;
+  vertical-align: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.stock-ranges {
+  margin-bottom: 10px;
+}
+.stock-ranges .chip {
+  flex: 1;
+  min-height: 44px;
+  justify-content: center;
+}
+
+.detail-card {
+  margin: 0 0 10px;
+  padding: 12px 14px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.chart-modal .detail-card {
+  background: var(--panel-soft);
+}
+.detail-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.detail-card-title {
+  margin: 0 0 8px;
+  font-size: var(--fs-body);
+  font-weight: 700;
+}
+.detail-card-head .detail-card-title {
+  flex: 1;
+  margin: 0;
+}
+.detail-card-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  color: var(--accent);
+}
+.detail-kv {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 10px 16px;
+  margin: 8px 0;
+}
+.detail-kv dt {
+  font-size: var(--fs-caption);
+  color: var(--text-faint);
+}
+.detail-kv dd {
+  margin: 1px 0 0;
+  font-size: var(--fs-strong);
+  font-weight: 700;
+}
+.detail-actions {
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.detail-actions button {
+  min-height: 44px;
+}
+.detail-empty {
+  padding: 16px 0;
+  text-wrap: pretty;
+}
+
+/* AI 분석으로 들어가는 한 줄 — 단추는 이름만(좁은 폭에서 꺾이지 않게), 풀이는 아래 한 줄 */
+.detail-row {
+  margin-top: 12px;
+  padding: 4px 14px 10px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+button.detail-row-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0;
+  text-align: left;
+  background: none;
+  border: 0;
+  color: var(--text);
+  font-size: var(--fs-body);
+  font-weight: 600;
+}
+button.detail-row-link::after {
+  content: '›';
+  margin-left: auto;
+  color: var(--text-faint);
+  font-size: var(--fs-strong);
+}
+.detail-row-icon {
+  color: var(--accent);
+  display: inline-flex;
+}
+.detail-row-hint {
+  margin: 0 0 0 32px;
+  text-wrap: balance; /* 짧은 안내 — 130% 글자에서 "필요"만 떨어지던 외톨이 */
+}
+
+/* 머리의 배지는 바탕(--bg) 위에 있다 — 옅은 칠을 판(--panel) 위에 얹어 표의 배지와 같은 대비로 (상승 빨강 라이트 청록 4.5) */
+.stock-hero .holding-badge {
+  background-color: var(--panel);
+}
+.stock-hero .holding-badge.tone-buy {
+  background-image: linear-gradient(var(--signal-buy-soft), var(--signal-buy-soft));
+}
+.stock-hero .holding-badge.tone-sell {
+  background-image: linear-gradient(var(--signal-sell-soft), var(--signal-sell-soft));
+}
+.stock-hero .holding-badge.weight {
+  background-image: linear-gradient(var(--signal-weight-soft), var(--signal-weight-soft));
+}
