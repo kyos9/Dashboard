@@ -151,7 +151,19 @@ button.sub-back {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--panel);
-  overflow: hidden;
+}
+
+/* 모서리는 줄이 둥글게 따른다 — 상자를 잘라(overflow) 맞추면 펼친 "만든 것들"이 잘려 보인다고 잰다(audit clipped) */
+.settings-list > :first-child,
+.settings-list > :first-child > .settings-row {
+  border-top-left-radius: var(--radius);
+  border-top-right-radius: var(--radius);
+}
+
+.settings-list > :last-child,
+.settings-list > details:last-child:not([open]) > .settings-row {
+  border-bottom-left-radius: var(--radius);
+  border-bottom-right-radius: var(--radius);
 }
 
 .settings-row,
