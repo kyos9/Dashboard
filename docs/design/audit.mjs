@@ -481,21 +481,39 @@ function measure(opts) {
     if (ratio < 4.5) add('contrast', el, { ratio: +ratio.toFixed(2), color: cs.color, size: cs.fontSize })
   }
   // 4차: 글자 겹침 — 한 상자 안의 이웃 칸끼리 글자가 겹친다(긴 종목 이름이 옆 금액 위로). 요소 상자가 아니라 글자 상자를 잰다
+  const shown = new Set(textEls)
+  // 보이는 글자만 — 접힌 "자세히"·넘침을 감춘 상자 안의 글은 상자를 그려도 화면에 없다
+  const clipOf = (el) => {
+    let box = { left: -1e9, top: -1e9, right: 1e9, bottom: 1e9 }
+    for (let n = el; n && n !== document.body; n = n.parentElement) {
+      const cs = getComputedStyle(n)
+      if (cs.overflowX !== 'visible' || cs.overflowY !== 'visible') {
+        const r = n.getBoundingClientRect()
+        box = { left: Math.max(box.left, r.left), top: Math.max(box.top, r.top), right: Math.min(box.right, r.right), bottom: Math.min(box.bottom, r.bottom) }
+      }
+    }
+    return box
+  }
   const textRects = (el) => {
     const rects = []
     const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
     for (let n = walker.nextNode(); n; n = walker.nextNode()) {
-      if (!n.textContent.trim()) continue
+      if (!n.textContent.trim() || !shown.has(n.parentElement)) continue
+      if (n.parentElement.closest('details:not([open]) > :not(summary)')) continue // 접힌 "자세히" 안의 글
+      const clip = clipOf(n.parentElement)
       const r = document.createRange()
       r.selectNodeContents(n)
-      for (const b of r.getClientRects()) if (b.width > 0 && b.height > 0) rects.push(b)
+      for (const b of r.getClientRects()) {
+        const c = { left: Math.max(b.left, clip.left), top: Math.max(b.top, clip.top), right: Math.min(b.right, clip.right), bottom: Math.min(b.bottom, clip.bottom) }
+        if (c.right - c.left > 1 && c.bottom - c.top > 1) rects.push(c)
+      }
     }
     return rects
   }
   const cut = (a, b) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > 2 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 2
   const seen = new Set()
   for (const parent of root.querySelectorAll('*')) {
-    const kids = [...parent.children].filter((c) => visible(c) && !['absolute', 'fixed'].includes(getComputedStyle(c).position))
+    const kids = [...parent.children].filter((c) => visible(c) && !['absolute', 'fixed', 'sticky'].includes(getComputedStyle(c).position) /* 붙어 있는 머리줄·저장 줄은 일부러 위에 덮인다 */)
     if (kids.length < 2 || kids.length > 30) continue
     const boxes = kids.map(textRects)
     for (let i = 0; i < kids.length; i++)
