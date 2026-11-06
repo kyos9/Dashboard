@@ -1,6 +1,5 @@
 import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { MacroStrip } from '../components/MacroStrip'
 import { PortfolioView, type SignalFilter } from '../components/PortfolioView'
 import { ReasonTag, SellTooTag, SignalShape } from '../components/SignalShape'
 import { BuyConditions } from '../components/BuyConditions'
@@ -823,8 +822,7 @@ export function Dashboard() {
         ))}
       </datalist>
 
-      {/* 매크로는 한 줄만. 홈의 주인공은 종목이다 (components/MacroStrip.tsx) */}
-      <MacroStrip />
+      {/* 매크로 줄은 대시보드에서 뺐다 — 매크로 탭·손님 화면에 있다 (디자인 4차, 주인 답 ㉡) */}
 
       {/* 신호 요약 한 장 (디자인 1차) — 시그널 넷(매수·관망·매도·비중조절)을 한 줄에, 비중조절의 갈래는 그 아래.
           예전에는 "종합 신호등"과 "비중조절" 두 장이라 폰 첫 화면을 다 썼다. */}

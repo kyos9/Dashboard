@@ -9,9 +9,6 @@
 .cat-tag.cat-tag {
   border-color: transparent;
 }
-section.signal-line {
-  cursor: default;
-}
 
 /* 차트 위 줄 — 읽기 글(왼쪽)과 ◀ ▶ · 전체 보기(오른쪽). 좁으면 단추 줄이 아래로 (0.45.2 C2·C3) */
 .chart-top {

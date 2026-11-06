@@ -268,7 +268,9 @@ describe('맨 위 — 내 돈 한 줄', () => {
     const line = await screen.findByRole('region', { name: '내 자산' })
     expect(line).toHaveTextContent('₩37,668,153')
     // 평가손익은 평단가를 아는 종목끼리의 원가 대비 %
-    expect(line).toHaveTextContent('+₩1,250,000 +25.0%')
+    // 디자인 4차 B: 평가손익과 수익률은 칸이 따로 (주인 답 "수익과 수익률은 B처럼 구분")
+    expect(line).toHaveTextContent('+₩1,250,000')
+    expect(line).toHaveTextContent('+25.0%')
     expect(line).toHaveTextContent('최근 거래일 대비')
     expect(line).toHaveTextContent('+₩162,000 +0.43%')
     expect(line).toHaveTextContent('₩17,400,000')
@@ -281,8 +283,8 @@ describe('맨 위 — 내 돈 한 줄', () => {
       '매수 1종목 — 시그널 보기에서 매수만',
       '매도 1종목 — 시그널 보기에서 매도만',
       '비중조절 1종목 — 시그널 보기에서 비중조절만',
-      '시그널 보기 →',
     ])
+    // "시그널 보기 →" 는 뺐다 — 바로 위의 "시그널" 탭과 같은 일 (디자인 4차 B, 목업 05b)
   })
 
   it('"확인할 신호"의 매도를 누르면 시그널 보기가 매도로 걸러져 열린다 — 수가 같다', async () => {
@@ -326,7 +328,8 @@ describe('맨 위 — 내 돈 한 줄', () => {
     renderDashboard()
     await screen.findByRole('region', { name: '내 자산' })
     expect(screen.getByText('리뷰할 때')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: '리밸런싱 →' })).toHaveAttribute('href', '/rebalance')
+    // 디자인 4차 B: 다음 리뷰는 요약 칸의 한 칸 — 옆에 리밸런싱으로 가는 글자 링크
+    expect(screen.getByRole('link', { name: '리밸런싱' })).toHaveAttribute('href', '/rebalance')
   })
 })
 
@@ -816,21 +819,23 @@ describe('폰 — 한 종목이 두 줄', () => {
     pretendPhone()
   })
 
-  it('윗줄 이름·평가금액, 아랫줄 현재가(등락)·수익률·비중. 누르면 펼쳐진다', async () => {
+  it('한 줄: 이름·수량 | 평가금액·비중 | 수익률·수익금. 현재가(등락)는 펼치면. 누르면 펼쳐진다 (디자인 4차 B)', async () => {
     mockApi()
     renderDashboard()
     const toggle = await screen.findByRole('button', { name: 'SCHD 자세히' })
-    expect(toggle).toHaveTextContent('SCHD 100주')
+    expect(toggle).toHaveTextContent('SCHD')
+    expect(toggle).toHaveTextContent('100주')
+    expect(toggle).toHaveTextContent('비중 46.6%')
     expect(toggle).toHaveTextContent('₩17,553,153')
-    expect(toggle).toHaveTextContent('$130.02 +1.09%')
     expect(toggle).toHaveTextContent('+400.1%')
-    expect(toggle).toHaveTextContent('46.6%')
+    expect(toggle).not.toHaveTextContent('$130.02')
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
 
     await userEvent.click(toggle)
     expect(toggle).toHaveAttribute('aria-expanded', 'true')
     const detail = document.getElementById('holding-SCHD') as HTMLElement
+    expect(detail).toHaveTextContent('$130.02 +1.09%')
     expect(detail).toHaveTextContent('$26.00')
     expect(detail).toHaveTextContent('+$10,402.00')
     expect(detail).toHaveTextContent('10% (+36.6%p)')

@@ -14,7 +14,7 @@
   margin-left: auto;
 }
 
-/* 두 칸 전환. 누르는 자리는 44px */
+/* 두 칸 전환 (화면 설정의 고르기에서도 쓴다). 누르는 자리는 44px */
 .view-switch {
   display: inline-flex;
   padding: 4px;
@@ -43,81 +43,116 @@
   box-shadow: inset 0 0 0 1px var(--accent);
 }
 
-/* 맨 위 — 확인할 신호 (디자인 1차). 아침에 "볼 것이 있나"를 먼저. 누르면 시그널 보기 */
-.signal-line {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 16px;
-  width: 100%;
+/* 대시보드의 보기 전환은 밑줄 탭 (디자인 4차 B, 목업 05b). 역할은 그대로 aria-pressed 단추 */
+.view-head .view-switch {
+  flex: 1 1 auto;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: none;
+}
+
+.view-head .view-switch button {
+  flex: 1 1 0;
   min-height: 44px;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  border-radius: 0;
+  color: var(--text-faint);
+  font-size: var(--fs-body);
+}
+
+.view-head .view-switch button[aria-pressed='true'] {
+  background: none;
+  box-shadow: none;
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* PC — 탭은 글자 폭만큼(넓은 화면 끝까지 늘어나면 두 칸이 멀어진다) */
+@media (min-width: 721px) {
+  .view-head .view-switch {
+    flex: 0 1 auto;
+  }
+  .view-head .view-switch button {
+    flex: 0 0 auto;
+    min-width: 120px;
+  }
+}
+
+/* 신호가 하나도 없을 때의 한 줄 */
+.signal-line.quiet {
   margin: 0 0 12px;
-  padding: 4px 12px;
+  padding: 12px;
   border: 1px solid var(--border);
-  border-left: 3px solid var(--accent);
   border-radius: var(--radius);
   background: var(--panel);
-  color: var(--text);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-
-.signal-line.quiet {
-  border-left-color: var(--border-strong);
   color: var(--text-dim);
   font-size: var(--fs-sub);
-  cursor: default;
 }
 
-.signal-line-title {
-  font-size: var(--fs-sub);
-  font-weight: 700;
-  color: var(--text-dim);
+/* 확인할 신호 — 칸 셋(매수 · 매도 · 비중조절), 늘 같은 자리 (디자인 4차 B, 목업 05b). 칸 하나가 단추 하나 */
+.signal-counts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 8px 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  overflow: hidden;
 }
 
-.signal-line-counts {
+.signal-count {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px 16px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 56px;
+  padding: 8px 4px;
+  border: 0;
+  border-right: 1px solid var(--border);
+  border-radius: 0;
+  background: none;
+  font: inherit;
 }
 
-.signal-line-count {
+.signal-count:last-child {
+  border-right: 0;
+}
+
+.signal-count-n {
+  font-size: var(--fs-title);
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.signal-count-label {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-weight: 700;
+  font-size: var(--fs-caption);
+  color: var(--text-dim);
   white-space: nowrap;
 }
-/* 종류마다 누르는 단추 (디자인 2차, 주인 결정 ②) — 단추 기본 꼴 대신 글자 + 밑줄, 44px. 색은 종류 색 그대로 */
-button.signal-line-count,
-button.signal-line-go {
-  min-height: 44px;
-  padding: 0 4px;
-  background: none;
-  border: 0;
-  font: inherit;
-  font-weight: 700;
-  text-decoration: underline;
-  text-decoration-color: color-mix(in srgb, currentColor 40%, transparent);
-  text-underline-offset: 4px;
+
+/* 누르는 칸은 › 로 — 거르기로 간다는 표시 (디자인 2차 어포던스와 같은 말) */
+button.signal-count .signal-count-label::after {
+  content: '›';
+  color: var(--text-faint);
 }
-button.signal-line-count:hover:not(:disabled),
-button.signal-line-go:hover:not(:disabled) {
+
+button.signal-count:hover:not(:disabled) {
   background: var(--panel-soft);
 }
 
-.signal-line-count b {
-  font-size: var(--fs-strong);
+.signal-count.zero .signal-count-n {
+  color: var(--text-faint);
 }
 
-.signal-line-go {
-  margin-left: auto;
-  font-size: var(--fs-sub);
-  font-weight: 600;
-  color: var(--accent);
-  white-space: nowrap;
+.signal-count.tone-rebalance .signal-count-n {
+  color: var(--signal-weight);
 }
 
 /* 시그널 보기 맨 위 — 신호 요약 한 장 */
@@ -156,37 +191,41 @@ button.signal-line-go:hover:not(:disabled) {
   }
 }
 
-/* 맨 위 — 내 돈 한 줄 */
+/* 맨 위 — 요약 칸 (디자인 4차 B, 목업 01c 가). 총 평가금액만 크게, 그 아래 두 칸씩. 숫자는 Spoqa(요약 숫자만) */
 .money-line {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 16px 28px;
-  padding: 16px 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  padding: 16px;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
 }
 
+.summary-num {
+  font-family: var(--font-summary-num);
+  font-variant-numeric: tabular-nums;
+}
+
 .money-total {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   min-width: 0;
 }
 
+/* 총액 — 6단계 밖의 크기를 만들지 않는다: 가장 큰 단계 */
 .money-big {
   font-size: var(--fs-big);
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
+  font-weight: 700;
+  letter-spacing: -0.02em; /* 주인 고름: 총액 자간 −2% (목업 02e ②) */
   white-space: nowrap;
 }
 
 .money-facts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 24px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 16px;
   margin: 0;
   min-width: 0;
 }
@@ -194,7 +233,7 @@ button.signal-line-go:hover:not(:disabled) {
 .money-facts div {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   min-width: 0;
 }
 
@@ -210,36 +249,49 @@ button.signal-line-go:hover:not(:disabled) {
 }
 
 /* 금액과 % 는 각자 한 덩어리 — 좁으면 % 만 다음 줄로 */
-.money-facts dd .mono {
+.money-facts dd .summary-num {
   white-space: nowrap;
 }
 
+.money-sub {
+  font-size: var(--fs-sub);
+  font-weight: 600;
+}
+
+.money-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px; /* 누르는 자리 44 — 칸 높이는 늘리지 않는다 */
+  margin: -12px 0 -12px 4px;
+  padding: 0 2px;
+  font-size: var(--fs-caption);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.review-due dd .summary-num {
+  color: var(--amber);
+}
+
 .money-note {
-  flex-basis: 100%;
   margin: 0;
 }
 
-.portfolio-sub {
-  margin-top: 12px;
-}
-
-.portfolio-sub .macro-home {
-  margin-bottom: 0;
-}
-
-.review-line {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 8px 16px;
-  margin: 8px 2px 0;
-  font-size: var(--fs-sub);
-  color: var(--text-dim);
-}
-
-.review-line.due b {
-  color: var(--amber);
+/* PC — 넓으면 총액과 네 칸을 한 줄에 */
+@media (min-width: 721px) {
+  .money-line {
+    grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+    align-items: end;
+    column-gap: 32px;
+  }
+  .money-facts {
+    grid-template-columns: repeat(4, minmax(0, auto));
+    justify-content: start;
+    column-gap: 28px;
+  }
+  .money-note {
+    grid-column: 1 / -1;
+  }
 }
 
 .sort-pick {
@@ -483,6 +535,7 @@ button.signal-line-go:hover:not(:disabled) {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: space-between;
   column-gap: 12px;
 }
 
@@ -597,13 +650,39 @@ button.signal-line-go:hover:not(:disabled) {
 }
 
 /* 폰 — 한 종목이 두 줄, 누르면 펼친다 */
+/* 폰 보유 표 (디자인 4차 B, 목업 05b) — 머리줄 + 한 종목 한 줄: 종목 · 수량 · 비중 | 평가금액 | 수익률 + 수익금.
+   신호 배지는 이름 아래 줄(390 폭에 신호 칸을 따로 두면 표 밖으로 밀렸다). 줄을 누르면 지금처럼 펼친다 */
+.holding-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--holding-col-value) var(--holding-col-return);
+  gap: 8px;
+  padding: 8px 12px;
+  font-size: var(--fs-caption);
+  color: var(--text-faint);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-bottom: 0;
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+.holding-head span:not(:first-child) {
+  text-align: right;
+}
+
+/* 숫자 칸은 숫자 폭만큼 — 남는 자리는 종목 이름에 (폰 360 에서 "2,000주 · 비중 34.9%" 가 두 줄이 됐다) */
+.holding-head,
+.holding-list {
+  --holding-col-value: 96px; /* ₩83,250,000 (14px) */
+  --holding-col-return: 92px; /* +₩21,833,040 (12px) */
+}
+
 .holding-list {
   list-style: none;
   margin: 0;
   padding: 0;
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: 0 0 var(--radius) var(--radius);
 }
 
 .holding-item {
@@ -616,16 +695,19 @@ button.signal-line-go:hover:not(:disabled) {
 
 .holding-main {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
+  padding-bottom: 4px;
 }
 
 .holding-toggle {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 8px 0 8px 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--holding-col-value) var(--holding-col-return);
+  gap: 8px;
+  align-items: start;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px 4px;
   border: none;
   background: none;
   color: var(--text);
@@ -634,13 +716,11 @@ button.signal-line-go:hover:not(:disabled) {
   cursor: pointer;
 }
 
-.holding-top,
-.holding-bottom {
+.holding-name-col {
   display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 4px 12px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
 .holding-name {
@@ -650,14 +730,86 @@ button.signal-line-go:hover:not(:disabled) {
   min-width: 0;
 }
 
-.holding-value {
-  font-weight: 700;
-  font-size: var(--fs-body);
+.holding-sub {
+  font-size: var(--fs-caption);
+  color: var(--text-faint);
 }
 
-.holding-bottom {
-  font-size: var(--fs-sub);
-  color: var(--text-dim);
+.holding-value,
+.holding-return {
+  text-align: right;
+  font-size: var(--fs-body);
+  white-space: nowrap;
+}
+
+.holding-value {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  font-weight: 600;
+}
+
+.holding-amount,
+.holding-weight {
+  display: block;
+}
+
+.holding-weight {
+  font-size: var(--fs-caption);
+  font-weight: 500;
+  color: var(--text-faint);
+}
+
+.holding-return {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  font-weight: 600;
+}
+
+.holding-pct,
+.holding-pnl {
+  display: block;
+}
+
+.holding-pnl {
+  font-size: var(--fs-caption);
+  font-weight: 500;
+}
+
+/* 신호 배지 — 모양 + 짧은 글자. 누르면 시그널 보기(줄 펼침과 갈린 단추) */
+.holding-signals {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-self: flex-start;
+  gap: 6px;
+  min-height: 44px; /* 누르는 자리 44 — 보이는 배지는 작아도 */
+  align-items: center;
+  margin: -6px 0 0 8px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+.holding-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* 비중 배지는 옅은 바탕 — 같은 청람의 링크(밑줄)와 갈린다 (4차 계획 검토 R1) */
+.holding-badge.weight {
+  color: var(--signal-weight);
+  background: var(--signal-weight-soft);
+  border-radius: 6px;
+  padding: 1px 6px;
 }
 
 .holding-detail {
@@ -716,58 +868,25 @@ button.signal-line-go:hover:not(:disabled) {
 }
 
 @media (max-width: 720px) {
-  .money-line {
-    padding: 16px;
-    gap: 8px 20px;
-  }
-  .money-big {
-    font-size: var(--fs-big);
-  }
-  .money-facts {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    width: 100%;
-  }
   /* 보기 전환과 AI 진단을 한 줄에 — 따로 한 줄을 쓰던 자리를 보유 목록에 준다 (디자인 1차) */
   .view-head {
     flex-wrap: nowrap;
     margin-bottom: 12px;
   }
-  .view-switch {
-    flex: 1 1 auto;
-    padding: 2px;
-  }
-  .view-switch button {
-    flex: 1 1 0;
+  .view-head .view-switch button {
     min-width: 0;
-    min-height: 40px;
     padding: 0 12px;
   }
   .view-head-action {
     flex: none;
   }
 
-  /* 손익은 금액 옆에 % — 금액이 길면 % 만 다음 줄. 현금은 이름 옆에 한 줄 */
-  .money-facts {
-    gap: 12px 16px;
-  }
+  /* 금액과 % 는 같은 칸에 — 금액이 길면 % 만 다음 줄 */
   .money-facts dd {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
     column-gap: 8px;
-  }
-  .money-facts dd .mono + .mono {
-    font-size: var(--fs-sub);
-    font-weight: 600;
-  }
-  .money-facts > div:nth-child(n + 3) {
-    flex-direction: row;
-    align-items: baseline;
-    gap: 8px;
-  }
-  .money-facts > div:nth-child(n + 3) dd {
-    font-size: var(--fs-body);
   }
 
   /* 보유 종목 도구: [정렬][손익 통화][수정] 한 줄, 이름표는 위에 작게 */
@@ -1051,11 +1170,6 @@ tr.dirty td {
 /* 폰에서 누르는 자리는 44px (E2E 에서 잰 것) */
 @media (max-width: 720px) {
   .view-switch button {
-    min-height: 44px;
-  }
-  .review-line a {
-    display: inline-flex;
-    align-items: center;
     min-height: 44px;
   }
   .watch-list .stock-name {

@@ -36,13 +36,13 @@ button.stock-name:hover {
 }
 
 /* 눌러서 펼치는 보유 줄(폰) — 줄 전체가 단추인데 단추로 안 보였다 (디자인 2차, 어포던스). 금액 옆에 ▾/▴ */
-.holding-toggle .holding-value::after {
+.holding-toggle .holding-amount::after {
   content: ' ▾';
   color: var(--text-faint);
   font-family: var(--font-sans);
   font-weight: 400;
 }
-.holding-toggle[aria-expanded='true'] .holding-value::after {
+.holding-toggle[aria-expanded='true'] .holding-amount::after {
   content: ' ▴';
 }
 

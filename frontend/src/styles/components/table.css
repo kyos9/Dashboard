@@ -37,6 +37,12 @@ table.data-table td {
   white-space: normal;
 }
 
+/* 숫자 칸은 한 덩어리 — 위의 white-space: normal 이 base.css 의 td.mono 묶음을 이겨 "+₩ / 21,833,040" 으로 갈렸다 (4차) */
+table.data-table td.mono,
+table.data-table td .mono {
+  white-space: nowrap;
+}
+
 table.data-table tbody tr:last-child td {
   border-bottom: none;
 }

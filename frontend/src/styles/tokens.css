@@ -69,6 +69,9 @@
   /* 청람 */
   --brand: #002f67; /* 머리줄 바탕 */
   --on-brand: #ffffff;
+  --on-brand-dim: #b9c8dd; /* 머리줄 위 옅은 글자 — 8.0 */
+  --on-brand-soft: rgba(255, 255, 255, 0.12);
+  --on-brand-line: rgba(255, 255, 255, 0.3);
   --accent: #92b1db; /* 글자·링크·고른 탭 — 다크에서 #0051a8 를 글자로 쓰면 2.4:1 이라 밝은 단계 */
   --on-accent: #0b0f18; /* 강조색 바탕 위 글자 — 흰 글자는 2.2:1 */
   --accent-soft: rgba(146, 177, 219, 0.14);
@@ -158,6 +161,9 @@
 
   --brand: #0051a8;
   --on-brand: #ffffff;
+  --on-brand-dim: #d6e2f2; /* 머리줄 위 옅은 글자 — 5.9 */
+  --on-brand-soft: rgba(255, 255, 255, 0.14);
+  --on-brand-line: rgba(255, 255, 255, 0.35);
   --accent: #0051a8;
   --on-accent: #ffffff;
   --accent-soft: rgba(0, 81, 168, 0.08);

@@ -7,8 +7,9 @@
   gap: 12px;
   /* 상태바가 비쳐 보이는 설정(black-translucent)이라 위쪽도 피해야 한다 */
   padding: calc(16px + env(safe-area-inset-top, 0px)) var(--gutter-right) 16px var(--gutter-left);
-  background: linear-gradient(180deg, var(--bg-elevated), var(--panel));
-  border-bottom: 1px solid var(--border);
+  background: var(--brand); /* 디자인 4차 B — 청람 머리줄 (목업 01c·05b) */
+  color: var(--on-brand);
+  border-bottom: 1px solid var(--brand);
 }
 
 .brand {
@@ -25,7 +26,7 @@
   display: grid;
   place-items: center;
   border-radius: 10px;
-  background: var(--accent);
+  background: var(--on-brand-soft);
   font-size: var(--fs-title);
 }
 
@@ -47,7 +48,7 @@
 .brand-sub {
   margin: 1px 0 0;
   font-size: var(--fs-caption);
-  color: var(--text-faint);
+  color: var(--on-brand-dim);
 }
 
 .header-right {
@@ -129,3 +130,32 @@
   word-break: keep-all;
 }
 
+
+/* ---------- 머리줄 위의 조작 (디자인 4차 B) ----------
+   청람 바탕 위라 패널 색 상자는 따로 놀았다 — 흰 글자 + 옅은 흰 테두리. 메뉴 판(.menu-panel) 안은 건드리지 않는다. */
+.app-header > .header-right > button,
+.app-header .header-menu > button,
+.app-header .status-pill,
+.app-header .account-chip {
+  background: transparent;
+  color: var(--on-brand);
+  border-color: var(--on-brand-line);
+}
+
+.app-header > .header-right > button:hover:not(:disabled),
+.app-header .header-menu > button:hover:not(:disabled) {
+  background: var(--on-brand-soft);
+  color: var(--on-brand);
+}
+
+.app-header .status-pill,
+.app-header .status-pill .mono,
+.app-header .account-chip .account-name {
+  color: var(--on-brand-dim);
+}
+
+.app-header .brand-title .badge,
+.app-header .account-chip .badge:not(.badge-amber) {
+  background: var(--on-brand-soft);
+  color: var(--on-brand);
+}
