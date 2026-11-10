@@ -129,6 +129,34 @@ describe('종목 안 · 보유 탭 (묶음 3 — 종목 관리 표의 줄이 여
     await waitFor(() => expect(onPurged).toHaveBeenCalled())
   })
 
+  it('팝업 밖(종목 안 화면)에서 연 수정 · 삭제 확인도 Tab 이 그 창 안에서만 돌고, 닫으면 연 단추로 (재검토 참고 2 · 5)', async () => {
+    mockApi([stock({ ticker: 'VOO' })])
+    const user = userEvent.setup()
+    renderTab('VOO')
+    const edit = await screen.findByRole('button', { name: 'VOO 보유 고치기' })
+    await user.click(edit)
+    const dialog = await screen.findByRole('dialog', { name: 'VOO 수정' })
+    for (let i = 0; i < 12; i++) {
+      await user.tab()
+      expect(dialog.contains(document.activeElement)).toBe(true)
+    }
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(edit).toHaveFocus()
+
+    const del = screen.getByRole('button', { name: 'VOO 삭제' })
+    await user.click(del)
+    const confirm = screen.getByRole('alertdialog')
+    expect(within(confirm).getByRole('button', { name: '취소' })).toHaveFocus()
+    for (let i = 0; i < 5; i++) {
+      await user.tab()
+      expect(confirm.contains(document.activeElement)).toBe(true)
+    }
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
+    expect(del).toHaveFocus()
+  })
+
   it('삭제를 취소하면 아무것도 지우지 않는다', async () => {
     const purge = vi.spyOn(api, 'purgeStock').mockResolvedValue(undefined)
     mockApi([stock({ ticker: 'VOO' })])

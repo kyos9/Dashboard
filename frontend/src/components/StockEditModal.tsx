@@ -9,6 +9,7 @@ import { ConfirmDialog } from './ConfirmDialog'
 import { ErrorNotice } from './ErrorNotice'
 import { NumberInput } from './NumberInput'
 import { HOLDING_MINUS_HINT } from '../lib/numberDropped'
+import { useFocusTrap } from '../lib/focusTrap'
 import { lockBodyScroll } from '../lib/scrollLock'
 
 interface Props {
@@ -57,6 +58,9 @@ export function StockEditModal({ stocks, holdings, cashTargetPct = 0, focus, onl
   // 저장한 때의 이름 — 저장 뒤 다시 고치다 닫은 이름이 나오지 않게(A 검토). base 는 다음 그림에야 바뀌어 여기 둔다
   const savedNames = useRef<Record<string, string>>({})
   const bodyRef = useRef<HTMLDivElement>(null)
+  // Tab 은 이 팝업 안에서만 · 닫으면 연 단추로. 처음 칸은 아래에서 스스로 고른다 (묶음 3 재검토 참고 2 · 5)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(dialogRef, undefined, false)
 
   const dirty = useMemo(
     () =>
@@ -198,6 +202,7 @@ export function StockEditModal({ stocks, holdings, cashTargetPct = 0, focus, onl
     // 바로 이 어두운 곳을 눌렀을 때만 — 안에 뜬 확인 창의 바깥을 누른 것이 올라와 다시 묻지 않게
     <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && requestClose()}>
       <div
+        ref={dialogRef}
         className="modal stock-edit-modal"
         role="dialog"
         aria-modal="true"

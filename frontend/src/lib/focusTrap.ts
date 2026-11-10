@@ -5,12 +5,17 @@ import { useEffect, type RefObject } from 'react'
  * 열면 포커스를 팝업으로(또는 `initial`), 닫으면 연 자리로 돌려준다.
  * 차트 팝업에서 쓰던 것을 묶음 3 의 추가 시트도 쓰게 꺼냈다(검토 조건 3).
  */
-export function useFocusTrap(ref: RefObject<HTMLElement | null>, initial?: () => HTMLElement | null | undefined) {
+export function useFocusTrap(
+  ref: RefObject<HTMLElement | null>,
+  initial?: () => HTMLElement | null | undefined,
+  /** 거짓이면 열 때 포커스를 옮기지 않는다 — 처음 칸을 스스로 고르는 팝업(종목 수정) */
+  takeFocus = true,
+) {
   useEffect(() => {
     const focusables = (root: HTMLElement) =>
       Array.from(
         root.querySelectorAll<HTMLElement>(
-          'button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
+          'button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), summary, [tabindex]:not([tabindex="-1"])',
         ),
       ).filter((el) => !el.closest('[hidden], [aria-hidden="true"]'))
     const onTab = (e: KeyboardEvent) => {
@@ -34,8 +39,7 @@ export function useFocusTrap(ref: RefObject<HTMLElement | null>, initial?: () =>
       }
     }
     const opener = document.activeElement as HTMLElement | null
-    const start = initial?.() ?? ref.current
-    start?.focus({ preventScroll: true })
+    if (takeFocus) (initial?.() ?? ref.current)?.focus({ preventScroll: true })
     document.addEventListener('keydown', onTab)
     return () => {
       document.removeEventListener('keydown', onTab)

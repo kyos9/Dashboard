@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Fragment } from 'react'
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
+import { BrowserRouter, Link, MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppStateProvider } from '../AppState'
 import { api } from '../api/client'
@@ -176,25 +176,33 @@ describe('종목 안 · 사용자 확인 보완 (묶음 3)', () => {
     expect(screen.getByTestId('where')).toHaveTextContent('/stocks/VOO')
   })
 
-  it('AI 를 연 채로 ‹ 를 누르면 한 번에 종목 목록으로 (재검토 조건 3)', async () => {
+  it('AI 를 연 채로 ‹ 를 누르면 한 번에 종목 목록으로 — 실제 브라우저 기록으로, 앱 안에서 들어온 경우 (재검토 조건 3)', async () => {
     vi.spyOn(api, 'getDashboard').mockResolvedValue([dashCard({ ticker: 'VOO' })])
     const user = userEvent.setup()
+    // MemoryRouter 는 window.history 의 idx 가 없어 늘 "바로 연 주소" 길로 간다 — 고친 줄을 지나가지 않았다(두 번째 재검토)
+    window.history.replaceState(null, '', '/stocks')
     render(
-      <MemoryRouter initialEntries={['/stocks', '/stocks/VOO']} initialIndex={1}>
+      <BrowserRouter>
         <AppStateProvider>
           <Routes>
             <Route path="/stocks/:ticker" element={<Keyed />} />
-            <Route path="/stocks" element={<p>종목 목록</p>} />
+            <Route path="/stocks" element={<Link to="/stocks/VOO">VOO 열기</Link>} />
           </Routes>
           <Where />
         </AppStateProvider>
-      </MemoryRouter>,
+      </BrowserRouter>,
     )
+    await user.click(await screen.findByRole('link', { name: 'VOO 열기' }))
     await screen.findByText('$100.00')
+    const idxIn = window.history.state?.idx
+    expect(idxIn).toBeGreaterThan(0)
     await user.click(screen.getByRole('button', { name: 'AI 분석' }))
     expect(screen.getByRole('region', { name: 'AI 분석' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: '종목 목록으로' }))
-    await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent(/^\/stocks$/))
+    await waitFor(() => expect(window.location.pathname).toBe('/stocks'))
+    // 목록 칸으로 돌아왔다 — AI 칸·종목 안 칸이 둘 다 빠졌다(앞으로 가는 칸이 아니라 뒤로)
+    await waitFor(() => expect(window.history.state?.idx).toBe(idxIn - 1))
+    expect(await screen.findByRole('link', { name: 'VOO 열기' })).toBeInTheDocument()
   })
 
   it('재무 탭에서 여러 종목 재무로 가는 길이 있다 (사용자 확인 찾지 못한 것 2)', async () => {
