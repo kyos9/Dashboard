@@ -137,6 +137,10 @@ a.stock-row::after {
   touch-action: none;
   user-select: none;
 }
+.drag-grip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
 .drag-grip:active {
   cursor: grabbing;
 }
@@ -195,6 +199,10 @@ a.stock-row::after {
 }
 a.stock-tile:hover {
   border-color: var(--border-strong);
+}
+/* 띄어쓰기 없는 긴 이름(東京海上ホールディングス)이 카드보다 넓어 360 에서 넘쳤다 — 넘칠 때만 끊는다(맨 위 원칙) */
+.stock-tile .stock-row-title {
+  overflow-wrap: break-word;
 }
 .stock-tile .stock-row-price {
   flex-direction: row;

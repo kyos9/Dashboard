@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { dropSide, placeAt } from '../../lib/reorder'
 import { Icon } from '../icons/Icon'
 
@@ -24,42 +24,58 @@ interface Props {
  *
  * 폰 브라우저는 HTML 끌기(draggable)를 손가락으로 하지 않는다 — 그래서 포인터(손가락·마우스 같이)로 직접 한다.
  * 끄는 동안 자리를 미리 벌려 보이고, 놓으면 그 순서를 저장하게 넘긴다. 손잡이는 키보드로도 된다(위·아래 화살표).
+ *
+ * 끄는 동안의 움직임·놓기는 손잡이가 아니라 **창(window)** 에서 듣는다 — 아래로 끌면 끄는 줄이 DOM 에서 옮겨지며
+ * 손잡이의 포인터 잡기가 풀려, 손잡이 밖에서 놓으면 끝나지 않고 저장도 없었다(② 반영 검토 조건 1).
  * 보이기만 한다 — 저장·되돌리기는 부르는 쪽(StockManager)이 들고 있다.
  */
 export function DragOrderList({ items, busy, moved, onDrop, onStep }: Props) {
   const [dragging, setDragging] = useState<string | null>(null)
   const [preview, setPreview] = useState<string[] | null>(null)
   const listRef = useRef<HTMLOListElement>(null)
+  // 창에서 듣는 처리기가 늘 지금 값을 보게
+  const live = useRef({ items, preview, dragging, onDrop })
+  useEffect(() => {
+    live.current = { items, preview, dragging, onDrop }
+  })
   const byKey = new Map(items.map((i) => [i.key, i]))
   const keys = preview ?? items.map((i) => i.key)
+
+  useEffect(() => {
+    if (!dragging) return
+    const move = (e: PointerEvent) => {
+      const { dragging: key, items: list } = live.current
+      if (!key) return
+      const row = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>('li[data-ticker]')
+      const target = row?.dataset.ticker
+      if (!row || !target || !listRef.current?.contains(row) || target === key) return
+      const side = dropSide(row.getBoundingClientRect(), { x: e.clientX, y: e.clientY }, false)
+      setPreview((current) => placeAt(current ?? list.map((i) => i.key), key, target, side))
+    }
+    const finish = () => {
+      const { dragging: key, items: list, preview: after, onDrop: drop } = live.current
+      setDragging(null)
+      setPreview(null)
+      if (!key) return
+      const before = list.map((i) => i.key)
+      const next = after ?? before
+      if (next.join('\u0000') !== before.join('\u0000')) drop(next, key)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', finish)
+    window.addEventListener('pointercancel', finish)
+    return () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', finish)
+      window.removeEventListener('pointercancel', finish)
+    }
+  }, [dragging])
 
   const start = (key: string, e: React.PointerEvent<HTMLElement>) => {
     if (busy || (e.pointerType === 'mouse' && e.button !== 0)) return
     e.preventDefault()
-    e.currentTarget.setPointerCapture?.(e.pointerId)
     setDragging(key)
     setPreview(items.map((i) => i.key))
-  }
-
-  const over = (e: React.PointerEvent<HTMLElement>) => {
-    if (!dragging) return
-    const row = document
-      .elementFromPoint(e.clientX, e.clientY)
-      ?.closest<HTMLElement>('li[data-ticker]')
-    const target = row?.dataset.ticker
-    if (!row || !target || !listRef.current?.contains(row) || target === dragging) return
-    const side = dropSide(row.getBoundingClientRect(), { x: e.clientX, y: e.clientY }, false)
-    setPreview((current) => placeAt(current ?? items.map((i) => i.key), dragging, target, side))
-  }
-
-  const end = () => {
-    if (!dragging) return
-    const before = items.map((i) => i.key)
-    const after = preview ?? before
-    const key = dragging
-    setDragging(null)
-    setPreview(null)
-    if (after.join('\u0000') !== before.join('\u0000')) onDrop(after, key)
   }
 
   return (
@@ -85,9 +101,6 @@ export function DragOrderList({ items, busy, moved, onDrop, onStep }: Props) {
                 if (el && !busy && moved === key && !dragging && document.activeElement?.closest('.stock-order') && document.activeElement !== el) el.focus()
               }}
               onPointerDown={(e) => start(key, e)}
-              onPointerMove={over}
-              onPointerUp={end}
-              onPointerCancel={end}
               onKeyDown={(e) => {
                 if (busy || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return
                 e.preventDefault()
