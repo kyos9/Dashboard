@@ -157,7 +157,7 @@ export function HoldingTab({
             <dd>{stock.category ?? <span className="hint">없음</span>}</dd>
           </div>
           <div>
-            <dt>{row ? '비중 지금 / 목표' : '목표 비중'}</dt>
+            <dt>{row ? '비중 현재 / 목표' : '목표 비중'}</dt>
             <dd className="mono">
               {row && `${num(row.actual_weight_pct, 1)}% / `}
               {num(stock.target_weight_pct, 1)}%

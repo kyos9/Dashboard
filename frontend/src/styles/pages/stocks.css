@@ -44,7 +44,6 @@
 }
 .stock-target-sum {
   align-self: center;
-  margin-left: auto;
 }
 
 /* 줄 — 리스트 셀: 왼쪽 이름 · 오른쪽 현재가 · 등락 */
@@ -121,9 +120,39 @@ a.stock-row::after {
   gap: 4px;
 }
 
-/* 순서 바꾸기 — 줄마다 ▲▼ (홈 시그널 목록의 순서 편집과 같은 단추). 방금 옮긴 줄은 잠깐 표시 */
+/* 순서 바꾸기 — ≡ 손잡이를 잡고 끈다(② 주인 답). 손가락이 화면을 밀지 않게 손잡이는 touch-action none.
+   방금 옮긴 줄은 잠깐 표시 */
 .stock-order .stock-row {
-  padding-right: 8px;
+  padding-left: 4px;
+}
+.drag-grip {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  color: var(--text-faint);
+  border-radius: var(--radius-sm);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.drag-grip:active {
+  cursor: grabbing;
+}
+.stock-order.is-dragging {
+  user-select: none;
+}
+.stock-order .stock-row.dragging {
+  background: var(--panel-soft);
+  box-shadow: var(--shadow-pop);
+  position: relative;
+  z-index: 1;
+}
+.stock-target-hint {
+  flex-basis: 100%;
+  margin: 0;
+  text-wrap: pretty;
 }
 .stock-order .stock-row.just-moved {
   animation: stock-moved 1.4s ease-out;
@@ -271,8 +300,5 @@ a.stock-tile:hover {
     width: 100%;
     border-radius: 16px 16px 0 0;
     border-bottom: 0;
-  }
-  .stock-target-sum {
-    margin-left: 0;
   }
 }

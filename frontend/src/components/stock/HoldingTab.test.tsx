@@ -96,6 +96,7 @@ describe('종목 안 · 보유 탭 (묶음 3 — 종목 관리 표의 줄이 여
     expect(screen.getByText('+21.9%')).toBeInTheDocument()
     expect(screen.getByText('+$707.60')).toBeInTheDocument()
     expect(screen.getByText('17.2% / 18.0%')).toBeInTheDocument()
+    expect(screen.getByText('비중 현재 / 목표')).toBeInTheDocument()
   })
 
   it('고치기는 이 종목 칸만 연다 — 다른 종목 칸이 없고, 수량 칸에 커서 (사용자 확인 막힌 곳 2)', async () => {

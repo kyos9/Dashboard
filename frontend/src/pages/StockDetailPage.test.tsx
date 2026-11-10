@@ -223,6 +223,8 @@ describe('종목 안 · 사용자 확인 보완 (묶음 3)', () => {
     await screen.findByText('$100.00')
     await user.click(screen.getByRole('tab', { name: /^신호/ }))
     expect(await screen.findByText('17.2%')).toBeInTheDocument()
+    // ② 주인 답 — "지금" 대신 "현재"
+    expect(document.querySelector('.detail-weight')).toHaveTextContent(/^현재 17\.2% · 목표 18\.0%/)
     expect(screen.getByText('(허용 ±3.0%p)')).toBeInTheDocument()
   })
 })

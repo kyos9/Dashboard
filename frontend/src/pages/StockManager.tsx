@@ -10,6 +10,7 @@ import { SymbolSearch } from '../components/SymbolSearch'
 import { AddStockSheet } from '../components/stock/AddStockSheet'
 import { emptyForm, type NewStockForm } from '../lib/stockForm'
 import { Sparkline } from '../components/stock/Sparkline'
+import { DragOrderList } from '../components/stock/DragOrderList'
 import { SignalBadges } from '../components/ui/SignalBadges'
 import { Icon } from '../components/icons/Icon'
 import { CURRENCY_BY_MARKET, CURRENCY_META, MARKET_LABEL, price, savedStocksText, signed, stockLabel } from '../lib/display'
@@ -122,7 +123,7 @@ export function StockManager() {
   // 일괄 수정을 닫은 뒤 한 줄 — 수정을 다시 열 때까지 (0.45.2 A3)
   const [savedNote, setSavedNote] = useState('')
   // 순서 — 방금 옮긴 종목. 그 종목의 단추에 포커스를 두고 줄을 잠깐 표시한다(같은 자리를 다시 눌러 되돌아가던 것, 사용자 확인 막힌 곳 3)
-  const [moved, setMoved] = useState<{ ticker: string; direction: 'up' | 'down' } | null>(null)
+  const [moved, setMoved] = useState<string | null>(null)
 
   const sheetOpen = picked !== null || rawTicker !== null
   // 산 환율은 목록에서 고른 외화 종목만 받는다
@@ -298,15 +299,14 @@ export function StockManager() {
     }
   }
 
-  /** 한 칸 옮기고 바로 저장한다. 실패하면 화면도 되돌린다 (홈 시그널 목록의 순서 편집과 같은 규칙) */
-  const move = async (ticker: string, direction: 'up' | 'down') => {
+  /** 새 순서를 화면에 먼저 그리고 바로 저장한다. 실패하면 화면도 되돌린다 (홈 시그널 목록의 순서 편집과 같은 규칙) */
+  const saveOrder = async (next: string[], ticker: string) => {
     const order = stocks.map((s) => s.ticker)
-    const next = moveOne(order, visible.map((s) => s.ticker), ticker, direction)
     if (next.join() === order.join()) return
     const previous = stocks
     const byTicker = new Map(stocks.map((s) => [s.ticker, s]))
     setStocks(next.map((t) => byTicker.get(t)!))
-    setMoved({ ticker, direction })
+    setMoved(ticker)
     setOrderBusy(true)
     try {
       await api.updateStockOrder(next)
@@ -320,7 +320,19 @@ export function StockManager() {
     }
   }
 
+  /** 키보드로 한 칸 — 보이는 이웃과 자리를 바꾼다(거르기가 걸려 있어도) */
+  const step = (ticker: string, direction: 'up' | 'down') =>
+    void saveOrder(moveOne(stocks.map((s) => s.ticker), visible.map((s) => s.ticker), ticker, direction), ticker)
+
+  /** 끌어 놓은 보이는 순서를 전체 순서에 끼운다 — 가려진 종목은 제자리, 보이는 종목 자리만 새 순서로 채운다 */
+  const drop = (shown: string[], ticker: string) => {
+    const seen = new Set(shown)
+    const queue = [...shown]
+    void saveOrder(stocks.map((s) => (seen.has(s.ticker) ? queue.shift()! : s.ticker)), ticker)
+  }
+
   const targetSum = stocks.filter((s) => s.active).reduce((sum, s) => sum + s.target_weight_pct, 0) + cashTarget
+  const sumOk = Math.abs(targetSum - 100) < 0.01
   const currencyMeta = pickedCurrency ? CURRENCY_META[pickedCurrency] : null
   const ownedTickers = useMemo(() => new Set(stocks.map((s) => s.ticker)), [stocks])
   const toolsShown = !narrow || toolsOpen || ordering
@@ -423,6 +435,7 @@ export function StockManager() {
                   setMoved(null)
                   setOrdering((o) => !o)
                 }}
+                aria-label={ordering ? '순서 바꾸기 끝' : '순서 바꾸기'}
               >
                 {ordering ? '순서 바꾸기 끝' : '↕ 순서 바꾸기'}
               </button>
@@ -440,6 +453,11 @@ export function StockManager() {
               <Link to="/fundamentals" className="chip">
                 재무 한눈에
               </Link>
+              {/* 목표 비중 합계 — 목표를 고치는 "한 번에 수정" 옆에, 100% 가 아니면 무엇을 하면 되는지 한 줄 (② 주인 답 · 사용자 확인 11) */}
+              <span className={`badge stock-target-sum ${sumOk ? 'badge-green' : 'badge-amber'}`}>
+                목표 비중 합계 {targetSum.toFixed(1)}%{cashTarget > 0 && ` (현금 ${cashTarget.toFixed(1)}% 포함)`}
+              </span>
+              {!sumOk && <span className="hint stock-target-hint">현금을 포함해 100%가 되게 맞추면 리밸런싱 계산이 맞습니다 — 한 번에 수정에서 고칩니다.</span>}
             </div>
           )}
           {savedNote && (
@@ -460,9 +478,6 @@ export function StockManager() {
                 {FILTER_LABEL[f]} <span className="mono">{counts[f]}</span>
               </button>
             ))}
-            <span className={`badge stock-target-sum ${Math.abs(targetSum - 100) < 0.01 ? 'badge-green' : 'badge-amber'}`}>
-              목표 비중 합계 {targetSum.toFixed(1)}%{cashTarget > 0 && ` (현금 ${cashTarget.toFixed(1)}% 포함)`}
-            </span>
           </div>
         </>
       )}
@@ -473,40 +488,13 @@ export function StockManager() {
           <p>위 찾기 칸에 종목명(삼성전자)이나 티커(VOO)를 넣어 추가해주세요.</p>
         </div>
       ) : ordering ? (
-        <ol className="stock-list stock-order" aria-label="종목 순서">
-          {visible.map((s, i) => (
-            <li key={s.ticker} className={`stock-row${moved?.ticker === s.ticker ? ' just-moved' : ''}`} data-ticker={s.ticker}>
-              <span className="stock-row-name">
-                <span className="stock-row-title">{stockLabel(s)}</span>
-                <span className="stock-row-sub hint">{subLine(s)}</span>
-              </span>
-              <span className="move-buttons">
-                <button
-                  type="button"
-                  aria-label={`${stockLabel(s)} 위로`}
-                  disabled={orderBusy || i === 0}
-                  ref={(el) => {
-                    if (el && !orderBusy && moved?.ticker === s.ticker && moved.direction === 'up' && document.activeElement !== el) el.focus()
-                  }}
-                  onClick={() => void move(s.ticker, 'up')}
-                >
-                  ▲
-                </button>
-                <button
-                  type="button"
-                  aria-label={`${stockLabel(s)} 아래로`}
-                  disabled={orderBusy || i === visible.length - 1}
-                  ref={(el) => {
-                    if (el && !orderBusy && moved?.ticker === s.ticker && moved.direction === 'down' && document.activeElement !== el) el.focus()
-                  }}
-                  onClick={() => void move(s.ticker, 'down')}
-                >
-                  ▼
-                </button>
-              </span>
-            </li>
-          ))}
-        </ol>
+        <DragOrderList
+          items={visible.map((s) => ({ key: s.ticker, label: stockLabel(s), sub: subLine(s) }))}
+          busy={orderBusy}
+          moved={moved}
+          onDrop={drop}
+          onStep={step}
+        />
       ) : view === 'card' ? (
         <ul className="stock-tiles" aria-label="담은 종목">
           {visible.map((s) => {

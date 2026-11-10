@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -740,27 +740,74 @@ describe('종목 탭 · 줄 / 카드 (묶음 3 — 주인: 사용자가 골라 �
     expect(within(list).getByRole('link')).toHaveTextContent('매수')
   })
 
-  it('순서 바꾸기 — ▲▼ 로 한 칸 옮기고 바로 저장한다', async () => {
-    let saved = [stock({ ticker: 'VOO' }), stock({ ticker: 'QQQ' })]
+  function orderApi(tickers: string[]) {
+    let saved = tickers.map((t) => stock({ ticker: t }))
     mockApi(saved)
     // 서버는 저장한 순서를 돌려준다 — 저장 뒤 다시 받아도 그 순서
     vi.spyOn(api, 'listStocks').mockImplementation(async () => saved)
-    const order = vi.spyOn(api, 'updateStockOrder').mockImplementation(async (tickers: string[]) => {
-      saved = tickers.map((t) => saved.find((s) => s.ticker === t)!)
+    return vi.spyOn(api, 'updateStockOrder').mockImplementation(async (next: string[]) => {
+      saved = next.map((t) => saved.find((s) => s.ticker === t)!)
       return undefined as never
     })
+  }
+  const shownOrder = () =>
+    within(screen.getByRole('list', { name: '종목 순서' }))
+      .getAllByRole('listitem')
+      .map((li) => li.getAttribute('data-ticker'))
+
+  it('순서 바꾸기 — ≡ 손잡이를 잡고 끌어 놓으면 그 순서로 저장한다 (② 주인 답 "≡ 잡고 끌기")', async () => {
+    const order = orderApi(['VOO', 'QQQ', 'SCHD'])
     const user = userEvent.setup()
     renderManager()
     await screen.findByRole('list', { name: '담은 종목' })
-    await user.click(screen.getByRole('button', { name: '↕ 순서 바꾸기' }))
-    expect(screen.getByRole('button', { name: 'VOO 위로' })).toBeDisabled()
-    await user.click(screen.getByRole('button', { name: 'QQQ 위로' }))
-    await waitFor(() => expect(order).toHaveBeenCalledWith(['QQQ', 'VOO']))
-    const items = within(screen.getByRole('list', { name: '종목 순서' })).getAllByRole('listitem')
-    expect(items.map((li) => li.getAttribute('data-ticker'))).toEqual(['QQQ', 'VOO'])
-    // 저장했다는 말 · 포커스는 옮긴 종목의 ▲ 에 — 같은 자리를 다시 눌러 되돌아가지 않게 (사용자 확인 막힌 곳 3)
+    await user.click(screen.getByRole('button', { name: '순서 바꾸기' }))
+    const rows = () => Array.from(document.querySelectorAll<HTMLElement>('.stock-order li[data-ticker]'))
+    // jsdom 은 자리를 모른다 — 줄마다 높이 60 의 상자를 주고, 손가락 아래 줄을 돌려준다
+    rows().forEach((li, i) => {
+      li.getBoundingClientRect = () => ({ top: i * 60, bottom: i * 60 + 60, left: 0, right: 390, width: 390, height: 60, x: 0, y: i * 60, toJSON: () => ({}) })
+    })
+    const at = (y: number) => rows().find((li) => y >= li.getBoundingClientRect().top && y < li.getBoundingClientRect().bottom) ?? null
+    const prev = document.elementFromPoint
+    document.elementFromPoint = (_x: number, y: number) => at(y)
+    try {
+      const grip = screen.getByRole('button', { name: /^SCHD 순서/ })
+      fireEvent.pointerDown(grip, { pointerId: 1, clientX: 20, clientY: 150, button: 0, pointerType: 'touch' })
+      // 맨 위 줄(VOO)의 위쪽 절반으로 끈다 — 끄는 동안 자리를 미리 벌린다
+      fireEvent.pointerMove(grip, { pointerId: 1, clientX: 20, clientY: 10, pointerType: 'touch' })
+      expect(shownOrder()).toEqual(['SCHD', 'VOO', 'QQQ'])
+      expect(order).not.toHaveBeenCalled()
+      fireEvent.pointerUp(grip, { pointerId: 1, clientX: 20, clientY: 10, pointerType: 'touch' })
+    } finally {
+      document.elementFromPoint = prev
+    }
+    await waitFor(() => expect(order).toHaveBeenCalledWith(['SCHD', 'VOO', 'QQQ']))
     expect(await screen.findByText(/순서를 저장했습니다/)).toBeInTheDocument()
-    await waitFor(() => expect(screen.getByRole('button', { name: 'QQQ 위로' })).toHaveFocus())
+    expect(shownOrder()).toEqual(['SCHD', 'VOO', 'QQQ'])
+  })
+
+  it('순서 바꾸기 — 손잡이는 키보드로도(위·아래 화살표), 옮긴 뒤 포커스는 같은 종목의 손잡이에', async () => {
+    const order = orderApi(['VOO', 'QQQ'])
+    const user = userEvent.setup()
+    renderManager()
+    await screen.findByRole('list', { name: '담은 종목' })
+    await user.click(screen.getByRole('button', { name: '순서 바꾸기' }))
+    screen.getByRole('button', { name: /^QQQ 순서/ }).focus()
+    await user.keyboard('{ArrowUp}')
+    await waitFor(() => expect(order).toHaveBeenCalledWith(['QQQ', 'VOO']))
+    expect(shownOrder()).toEqual(['QQQ', 'VOO'])
+    await waitFor(() => expect(screen.getByRole('button', { name: /^QQQ 순서/ })).toHaveFocus())
+    // 맨 위에서 위로는 아무 일도 없다
+    await user.keyboard('{ArrowUp}')
+    expect(order).toHaveBeenCalledTimes(1)
+  })
+
+  it('목표 비중 합계는 ⋯ 의 "한 번에 수정" 옆 — 100% 가 아니면 무엇을 하면 되는지 한 줄 (② 주인 답)', async () => {
+    mockApi([stock({ ticker: 'VOO', target_weight_pct: 60 }), stock({ ticker: 'QQQ', target_weight_pct: 30 })])
+    renderManager()
+    const badge = await screen.findByText(/목표 비중 합계 90\.0%/)
+    expect(badge.closest('[aria-label="보기·설정"]')).not.toBeNull()
+    expect(badge.closest('[aria-label="거르기"]')).toBeNull()
+    expect(screen.getByText(/현금을 포함해 100%가 되게 맞추면/)).toBeInTheDocument()
   })
 
   it('담는 시트 — 수량을 넣고 목표를 비우면 넣기 전에 "전부 파는 계산" 한 줄 (사용자 확인 헷갈린 말 4)', async () => {

@@ -235,7 +235,7 @@ export function StockDetail({ ticker, name, card, initialTab = 'chart', lead, tr
                 <h3 className="detail-card-title">비중조절</h3>
                 {row && (
                   <p className="detail-weight">
-                    지금 <b className="mono">{num(row.actual_weight_pct, 1)}%</b> · 목표 <span className="mono">{num(row.target_weight_pct, 1)}%</span>{' '}
+                    현재 <b className="mono">{num(row.actual_weight_pct, 1)}%</b> · 목표 <span className="mono">{num(row.target_weight_pct, 1)}%</span>{' '}
                     <span className="hint nowrap">(허용 ±{num(row.band_pct, 1)}%p)</span>
                   </p>
                 )}

@@ -1,0 +1,110 @@
+import { useRef, useState, type ReactNode } from 'react'
+import { dropSide, placeAt } from '../../lib/reorder'
+import { Icon } from '../icons/Icon'
+
+export interface OrderItem {
+  key: string
+  label: string
+  sub?: ReactNode
+}
+
+interface Props {
+  items: OrderItem[]
+  busy: boolean
+  /** 방금 옮긴 것 — 그 줄을 잠깐 표시하고, 키보드로 옮겼으면 그 손잡이에 포커스를 둔다 */
+  moved: string | null
+  /** 끌어 놓은 뒤의 보이는 순서 */
+  onDrop: (keys: string[], key: string) => void
+  /** 키보드(위·아래 화살표)로 한 칸 */
+  onStep: (key: string, direction: 'up' | 'down') => void
+}
+
+/**
+ * 순서 바꾸기 — ≡ 손잡이를 잡고 끌어 옮긴다 (디자인 4차 목업 11 · ② 주인 답 "≡ 잡고 끌기 만들기").
+ *
+ * 폰 브라우저는 HTML 끌기(draggable)를 손가락으로 하지 않는다 — 그래서 포인터(손가락·마우스 같이)로 직접 한다.
+ * 끄는 동안 자리를 미리 벌려 보이고, 놓으면 그 순서를 저장하게 넘긴다. 손잡이는 키보드로도 된다(위·아래 화살표).
+ * 보이기만 한다 — 저장·되돌리기는 부르는 쪽(StockManager)이 들고 있다.
+ */
+export function DragOrderList({ items, busy, moved, onDrop, onStep }: Props) {
+  const [dragging, setDragging] = useState<string | null>(null)
+  const [preview, setPreview] = useState<string[] | null>(null)
+  const listRef = useRef<HTMLOListElement>(null)
+  const byKey = new Map(items.map((i) => [i.key, i]))
+  const keys = preview ?? items.map((i) => i.key)
+
+  const start = (key: string, e: React.PointerEvent<HTMLElement>) => {
+    if (busy || (e.pointerType === 'mouse' && e.button !== 0)) return
+    e.preventDefault()
+    e.currentTarget.setPointerCapture?.(e.pointerId)
+    setDragging(key)
+    setPreview(items.map((i) => i.key))
+  }
+
+  const over = (e: React.PointerEvent<HTMLElement>) => {
+    if (!dragging) return
+    const row = document
+      .elementFromPoint(e.clientX, e.clientY)
+      ?.closest<HTMLElement>('li[data-ticker]')
+    const target = row?.dataset.ticker
+    if (!row || !target || !listRef.current?.contains(row) || target === dragging) return
+    const side = dropSide(row.getBoundingClientRect(), { x: e.clientX, y: e.clientY }, false)
+    setPreview((current) => placeAt(current ?? items.map((i) => i.key), dragging, target, side))
+  }
+
+  const end = () => {
+    if (!dragging) return
+    const before = items.map((i) => i.key)
+    const after = preview ?? before
+    const key = dragging
+    setDragging(null)
+    setPreview(null)
+    if (after.join('\u0000') !== before.join('\u0000')) onDrop(after, key)
+  }
+
+  return (
+    <ol className={`stock-list stock-order${dragging ? ' is-dragging' : ''}`} aria-label="종목 순서" ref={listRef}>
+      {keys.map((key, i) => {
+        const item = byKey.get(key)
+        if (!item) return null
+        return (
+          <li
+            key={key}
+            className={`stock-row${moved === key ? ' just-moved' : ''}${dragging === key ? ' dragging' : ''}`}
+            data-ticker={key}
+          >
+            <span
+              className="drag-grip"
+              role="button"
+              tabIndex={0}
+              aria-label={`${item.label} 순서 — 끌거나 위·아래 화살표`}
+              aria-disabled={busy || undefined}
+              title="잡고 끌어 옮깁니다 (위·아래 화살표도 됩니다)"
+              ref={(el) => {
+                // 키보드로 옮긴 뒤에도 같은 손잡이에 — 같은 자리를 다시 눌러 다른 종목이 움직이지 않게
+                if (el && !busy && moved === key && !dragging && document.activeElement?.closest('.stock-order') && document.activeElement !== el) el.focus()
+              }}
+              onPointerDown={(e) => start(key, e)}
+              onPointerMove={over}
+              onPointerUp={end}
+              onPointerCancel={end}
+              onKeyDown={(e) => {
+                if (busy || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return
+                e.preventDefault()
+                if (e.key === 'ArrowUp' && i === 0) return
+                if (e.key === 'ArrowDown' && i === keys.length - 1) return
+                onStep(key, e.key === 'ArrowUp' ? 'up' : 'down')
+              }}
+            >
+              <Icon name="grip" />
+            </span>
+            <span className="stock-row-name">
+              <span className="stock-row-title">{item.label}</span>
+              {item.sub && <span className="stock-row-sub hint">{item.sub}</span>}
+            </span>
+          </li>
+        )
+      })}
+    </ol>
+  )
+}
