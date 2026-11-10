@@ -200,9 +200,12 @@ a.stock-row::after {
 a.stock-tile:hover {
   border-color: var(--border-strong);
 }
-/* 띄어쓰기 없는 긴 이름(東京海上ホールディングス)이 카드보다 넓어 360 에서 넘쳤다 — 넘칠 때만 끊는다(맨 위 원칙) */
+/* 카드 제목 — 칸이 좁다(폰 360 에서 136px). 띄어쓰기 없는 긴 이름(東京海上ホールディングス · 미국필라델피아반도체나스닥)이
+   한 단어로 칸보다 넓어 넘쳤고, 넘칠 때만 끊는 비상 끊기(break-word)는 끝 한두 자를 혼자 남겼다(② 반영 재검토 조건 2).
+   카드 제목만 글자 사이 끊기를 허용하고(keep-all 예외) 줄을 고르게 나눈다 — 짧은 이름은 한 줄이라 바뀌지 않는다 */
 .stock-tile .stock-row-title {
-  overflow-wrap: break-word;
+  word-break: normal;
+  text-wrap: balance;
 }
 .stock-tile .stock-row-price {
   flex-direction: row;

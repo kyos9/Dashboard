@@ -812,6 +812,39 @@ describe('종목 탭 · 줄 / 카드 (묶음 3 — 주인: 사용자가 골라 �
     expect(document.querySelector('.stock-order.is-dragging')).toBeNull()
   })
 
+  it('순서 바꾸기 — 끄는 동안 다른 손가락은 끌기를 움직이지도 끝내지도 않는다, 기기가 끌기를 빼앗으면(취소) 저장하지 않는다 (② 반영 재검토 조건 1)', async () => {
+    const order = orderApi(['VOO', 'QQQ', 'SCHD'])
+    const user = userEvent.setup()
+    renderManager()
+    await screen.findByRole('list', { name: '담은 종목' })
+    await user.click(screen.getByRole('button', { name: '순서 바꾸기' }))
+    const rows = () => Array.from(document.querySelectorAll<HTMLElement>('.stock-order li[data-ticker]'))
+    const box = (li: HTMLElement) => {
+      const i = rows().indexOf(li)
+      return { top: i * 60, bottom: i * 60 + 60, left: 0, right: 390, width: 390, height: 60, x: 0, y: i * 60, toJSON: () => ({}) }
+    }
+    rows().forEach((li) => (li.getBoundingClientRect = () => box(li)))
+    const prev = document.elementFromPoint
+    document.elementFromPoint = (_x: number, y: number) => rows().find((li) => y >= box(li).top && y < box(li).bottom) ?? null
+    try {
+      fireEvent.pointerDown(screen.getByRole('button', { name: /^VOO 순서/ }), { pointerId: 1, clientX: 20, clientY: 30, button: 0, pointerType: 'touch' })
+      // 둘째 손가락(엄지·손바닥)이 아래 줄 위에서 움직이고 떨어진다 — 아무 일도 없어야 한다
+      fireEvent.pointerMove(window, { pointerId: 2, clientX: 200, clientY: 170, pointerType: 'touch' })
+      expect(shownOrder()).toEqual(['VOO', 'QQQ', 'SCHD'])
+      fireEvent.pointerUp(window, { pointerId: 2, clientX: 200, clientY: 170, pointerType: 'touch' })
+      expect(document.querySelector('.stock-order.is-dragging')).not.toBeNull()
+      // 잡은 손가락으로 끌다가 기기가 빼앗으면 — 제자리, 저장 없음
+      fireEvent.pointerMove(window, { pointerId: 1, clientX: 20, clientY: 170, pointerType: 'touch' })
+      expect(shownOrder()).toEqual(['QQQ', 'SCHD', 'VOO'])
+      fireEvent.pointerCancel(window, { pointerId: 1, pointerType: 'touch' })
+    } finally {
+      document.elementFromPoint = prev
+    }
+    expect(document.querySelector('.stock-order.is-dragging')).toBeNull()
+    expect(shownOrder()).toEqual(['VOO', 'QQQ', 'SCHD'])
+    expect(order).not.toHaveBeenCalled()
+  })
+
   it('순서 바꾸기 — 거르기가 걸린 채 끌면 보이는 종목 자리만 바뀌고 가려진 종목은 제자리 (② 반영 검토 조건 2)', async () => {
     const order = orderApi(['VOO', 'QQQ', 'SCHD', 'AAPL'])
     vi.spyOn(api, 'getDashboard').mockResolvedValue([

@@ -31,6 +31,8 @@ interface Props {
  */
 export function DragOrderList({ items, busy, moved, onDrop, onStep }: Props) {
   const [dragging, setDragging] = useState<string | null>(null)
+  // 잡은 손가락(포인터) — 다른 손가락·손바닥이 끌기를 움직이거나 끝내지 않게(② 반영 재검토 조건 1)
+  const pointer = useRef<number | null>(null)
   const [preview, setPreview] = useState<string[] | null>(null)
   const listRef = useRef<HTMLOListElement>(null)
   // 창에서 듣는 처리기가 늘 지금 값을 보게
@@ -45,18 +47,21 @@ export function DragOrderList({ items, busy, moved, onDrop, onStep }: Props) {
     if (!dragging) return
     const move = (e: PointerEvent) => {
       const { dragging: key, items: list } = live.current
-      if (!key) return
+      if (!key || e.pointerId !== pointer.current) return
       const row = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>('li[data-ticker]')
       const target = row?.dataset.ticker
       if (!row || !target || !listRef.current?.contains(row) || target === key) return
       const side = dropSide(row.getBoundingClientRect(), { x: e.clientX, y: e.clientY }, false)
       setPreview((current) => placeAt(current ?? list.map((i) => i.key), key, target, side))
     }
-    const finish = () => {
+    const finish = (e: PointerEvent) => {
+      if (e.pointerId !== pointer.current) return
       const { dragging: key, items: list, preview: after, onDrop: drop } = live.current
+      pointer.current = null
       setDragging(null)
       setPreview(null)
-      if (!key) return
+      // 브라우저·기기가 끌기를 빼앗으면(pointercancel — 전화가 오는 등) 저장하지 않고 제자리로
+      if (!key || e.type === 'pointercancel') return
       const before = list.map((i) => i.key)
       const next = after ?? before
       if (next.join('\u0000') !== before.join('\u0000')) drop(next, key)
@@ -74,6 +79,8 @@ export function DragOrderList({ items, busy, moved, onDrop, onStep }: Props) {
   const start = (key: string, e: React.PointerEvent<HTMLElement>) => {
     if (busy || (e.pointerType === 'mouse' && e.button !== 0)) return
     e.preventDefault()
+    if (pointer.current !== null) return // 이미 다른 손가락으로 끄는 중
+    pointer.current = e.pointerId
     setDragging(key)
     setPreview(items.map((i) => i.key))
   }
