@@ -157,6 +157,26 @@ describe('종목 안 · 보유 탭 (묶음 3 — 종목 관리 표의 줄이 여
     expect(del).toHaveFocus()
   })
 
+  it('고친 것이 있을 때의 "닫을까요?" — Tab 이 두 단추 사이를 돈다, 한 단추에 묶이지 않는다 (세 번째 재검토 조건 1)', async () => {
+    mockApi([stock({ ticker: 'VOO' })], [{ ticker: 'VOO', quantity: 3, avg_cost: null, avg_fx: null, updated_at: '2026-09-01T00:00:00' }])
+    const user = userEvent.setup()
+    renderTab('VOO')
+    await user.click(await screen.findByRole('button', { name: 'VOO 보유 고치기' }))
+    const dialog = await screen.findByRole('dialog', { name: 'VOO 수정' })
+    await user.type(within(dialog).getByRole('textbox', { name: 'VOO 보유수량' }), '5')
+    await user.keyboard('{Escape}')
+    const ask = await screen.findByRole('alertdialog')
+    const keep = within(ask).getByRole('button', { name: '계속 고치기' })
+    const drop = within(ask).getByRole('button', { name: '버리고 닫기' })
+    const seen = new Set<Element | null>()
+    for (let i = 0; i < 4; i++) {
+      await user.tab()
+      expect(ask.contains(document.activeElement)).toBe(true)
+      seen.add(document.activeElement)
+    }
+    expect(seen).toEqual(new Set([keep, drop]))
+  })
+
   it('삭제를 취소하면 아무것도 지우지 않는다', async () => {
     const purge = vi.spyOn(api, 'purgeStock').mockResolvedValue(undefined)
     mockApi([stock({ ticker: 'VOO' })])

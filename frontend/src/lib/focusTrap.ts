@@ -17,7 +17,12 @@ export function useFocusTrap(
         root.querySelectorAll<HTMLElement>(
           'button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), summary, [tabindex]:not([tabindex="-1"])',
         ),
-      ).filter((el) => !el.closest('[hidden], [aria-hidden="true"]'))
+      ).filter(
+        (el) =>
+          !el.closest('[hidden], [aria-hidden="true"]') &&
+          // 닫힌 <details> 안은 summary 만 갈 수 있다 — 안의 단추가 "마지막 칸"으로 잡혀 summary 에서 Tab 이 밖으로 샜다(세 번째 재검토 참고 1)
+          !(el.tagName !== 'SUMMARY' && el.closest('details:not([open])')),
+      )
     const onTab = (e: KeyboardEvent) => {
       if (e.key !== 'Tab' || !ref.current) return
       // 안쪽에 또 연 팝업(보유 탭의 수정·삭제 확인)이 있으면 맨 안쪽 팝업 안에서 돈다 — 그 팝업들에는 가두기가 없어
@@ -29,6 +34,9 @@ export function useFocusTrap(
       const first = items[0]
       const last = items[items.length - 1]
       const active = document.activeElement as HTMLElement | null
+      // 포커스가 내 밖의 다른 팝업(예: 수정창 바깥에 그려지는 "닫을까요?") 안이면 그 팝업이 가둔다 — 둘이 Tab 마다
+      // 서로 끌어와 한 단추에 묶였다(세 번째 재검토 조건 1)
+      if (active && !ref.current.contains(active) && active.closest('[role="dialog"], [role="alertdialog"]')) return
       const inside = !!active && root.contains(active)
       if (e.shiftKey && (!inside || active === first)) {
         e.preventDefault()

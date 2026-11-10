@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
@@ -563,6 +563,37 @@ describe('차트 팝업 · 키보드 (디자인 2차 검토)', () => {
     // 한 번 더 누르면 그때 차트 팝업이 닫힌다
     await user.keyboard('{Escape}')
     expect(onClose).toHaveBeenCalled()
+  })
+
+  it('팝업 위 팝업 위 "닫을까요?" — 차트 팝업 안에서도 Tab 이 두 단추 사이를 돈다 (세 번째 재검토 조건 1)', async () => {
+    vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
+    vi.spyOn(api, 'getFundamentals').mockResolvedValue(FUNDAMENTALS)
+    vi.spyOn(api, 'listStocks').mockResolvedValue([
+      { ticker: 'GOOG', name: null, category: null, market: 'US', currency: 'USD', active: true, added_at: '2026-01-01T00:00:00', target_weight_pct: 5, rebalance_band_pct: null, sort_order: 0 },
+    ])
+    vi.spyOn(api, 'listHoldings').mockResolvedValue([])
+    vi.spyOn(api, 'getSettings').mockRejectedValue(new Error('x'))
+    vi.spyOn(api, 'getRebalanceCurrent').mockRejectedValue(new Error('x'))
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter>
+        <AppStateProvider>
+          <ChartModal ticker="GOOG" name="GOOG" initialTab="holding" onClose={() => {}} />
+        </AppStateProvider>
+      </MemoryRouter>,
+    )
+    await user.click(await screen.findByRole('button', { name: /보유 고치기/ }))
+    const edit = await screen.findByRole('dialog', { name: 'GOOG 수정' })
+    await user.type(within(edit).getByRole('textbox', { name: 'GOOG 보유수량' }), '5')
+    await user.keyboard('{Escape}')
+    const ask = await screen.findByRole('alertdialog')
+    const seen = new Set<Element | null>()
+    for (let i = 0; i < 4; i++) {
+      await user.tab()
+      expect(ask.contains(document.activeElement)).toBe(true)
+      seen.add(document.activeElement)
+    }
+    expect(seen).toEqual(new Set([within(ask).getByRole('button', { name: '계속 고치기' }), within(ask).getByRole('button', { name: '버리고 닫기' })]))
   })
 
   it('팝업 위 팝업 — Tab 은 맨 안쪽(수정) 팝업 안에서만 돈다, 뒤 화면으로 새지 않는다 (재검토 조건 1)', async () => {
