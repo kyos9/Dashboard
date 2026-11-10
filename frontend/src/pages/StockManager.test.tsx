@@ -833,6 +833,9 @@ describe('종목 탭 · 줄 / 카드 (묶음 3 — 주인: 사용자가 골라 �
       expect(shownOrder()).toEqual(['VOO', 'QQQ', 'SCHD'])
       fireEvent.pointerUp(window, { pointerId: 2, clientX: 200, clientY: 170, pointerType: 'touch' })
       expect(document.querySelector('.stock-order.is-dragging')).not.toBeNull()
+      // 둘째 손가락이 다른 손잡이를 잡아도 끄는 줄은 그대로(재검토 참고 1)
+      fireEvent.pointerDown(screen.getByRole('button', { name: /^SCHD 순서/ }), { pointerId: 3, clientX: 20, clientY: 150, button: 0, pointerType: 'touch' })
+      expect(document.querySelector('.stock-order li.dragging')?.getAttribute('data-ticker')).toBe('VOO')
       // 잡은 손가락으로 끌다가 기기가 빼앗으면 — 제자리, 저장 없음
       fireEvent.pointerMove(window, { pointerId: 1, clientX: 20, clientY: 170, pointerType: 'touch' })
       expect(shownOrder()).toEqual(['QQQ', 'SCHD', 'VOO'])
