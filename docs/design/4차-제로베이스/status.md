@@ -49,6 +49,11 @@
   - ③ 보고로 넘길 것: 끄는 동안 화면 끝에서 저절로 내려가지 않음(멀리 옮기면 두 번) · 카드 제목 keep-all 예외로 띄어쓰기 있는 긴 이름도 낱말 가운데서 끊길 수 있음 · 바뀌는 주소에서 dashboard·stocks 한 번 더 · 움직임 줄이기면 옮긴 줄 표시 없음 · "닫을까요"에서 돌아오면 포커스가 구분 칸 · ConfirmDialog busy 동안 Tab · 카드 보기 스파크라인 요청 수(종목 수만큼) · 새 팝업에는 가두기를 꼭 단다 · 사용자 메모 남은 거슬림(3-보완.md 표)
   - 새 세션에서 이을 때: 가짜 서버 `cd backend && python -m devtools.fake_server --reset --port 8765`(dist 를 연다 → 먼저 `cd frontend && npm run build`), 로그인은 계정 고르기에서 owner@example.com. audit 은 `node docs/design/audit.mjs --base http://127.0.0.1:8765 --out <작업 폴더>`(playwright 는 작업 폴더에서 require)
 
+- [ ] 묶음 4 리밸런싱 ← **지금 — 목업 12 주인 고르기**
+  - 지금 앱(가짜 서버 15종목): 폰 한 화면 9,482px(주문 카드 15 + 고치는 카드 15) · PC 표 10열 1120px 이 본문보다 넓어 신호 열 잘림
+  - [x] 목업 12 `docs/design/mockups/4차/12-리밸런싱.html` — 가 할 일 줄(팔기 먼저 · 유지 접음 · 고치기/기록/설정 줄 셋, 약 1,650px) / 나 비중 막대 / 다 위 탭 셋(주문 · 비중 · 기록) · 공통: 줄 누르면 시트(자세히 + 거래 입력) · 목표 · 밴드 한 시트 · PC 표 6열(팔기/사기/유지 묶음)
+  - 묶음 1에서 넘어온 것: 사기 · 팔기 색을 시그널 색으로(상승 빨강이면 사기 빨강) · 외톨이 +2(PC 본문 좁아짐 → 표 6열로)
+
 ## 막힌 것
 
 - (풀림) 토스페이스 원본 SVG 와 LICENSE 는 frontend/src/assets/tossface/ · public/licenses/ 에 있다. 손대지 않고 쓴다.
