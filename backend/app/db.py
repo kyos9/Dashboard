@@ -246,6 +246,20 @@ def init_db(bind=None) -> None:
     upgrade_to_head(bind)
     _seed_macro_series(bind)
     _sweep_value_records(bind)
+    _adopt_jp_names(bind)
+
+
+def _adopt_jp_names(bind) -> None:
+    """담긴 일본 종목의 영문·일본어 이름을 내장 한글 이름으로 (`symbols.adopt_jp_seed_names`). 넘어져도 앱은 뜬다."""
+    from sqlalchemy.orm import Session
+
+    from app.services import symbols
+
+    try:
+        with Session(bind) as session:
+            symbols.adopt_jp_seed_names(session)
+    except Exception:
+        logger.exception("일본 종목 이름을 한글로 맞추지 못했습니다 (앱은 계속 뜹니다)")
 
 
 def _sweep_value_records(bind) -> None:
