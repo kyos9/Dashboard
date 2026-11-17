@@ -224,3 +224,15 @@ button.rb-pill {
 .rb-holds + .order-card {
   margin-top: 8px;
 }
+/* 누를 수 없는 알약은 단추처럼 보이지 않게 — 테두리 없이 (사용자 확인 4) */
+.rb-pill.static {
+  border-color: transparent;
+  background: var(--panel-soft);
+}
+#new-money-block {
+  scroll-margin-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+}
+.cash-card .order-row-act .hint {
+  display: block;
+  margin-top: 2px;
+}

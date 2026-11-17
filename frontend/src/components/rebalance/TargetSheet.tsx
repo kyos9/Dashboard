@@ -24,6 +24,7 @@ export function TargetSheet({
   defaultBand,
   dirtyCount,
   saving,
+  note,
   onChange,
   onSave,
   onReset,
@@ -38,6 +39,8 @@ export function TargetSheet({
   defaultBand: string
   dirtyCount: number
   saving: boolean
+  /** 저장한 뒤 한 줄 — 버튼 글자만 바뀌어 저장됐는지 몰랐다 (사용자 확인 4) */
+  note?: string | null
   onChange: (ticker: string, patch: { target?: string; band?: string }) => void
   onSave: () => void
   onReset: () => void
@@ -78,7 +81,7 @@ export function TargetSheet({
               <span className="hint mono">{l.sub}</span>
             </span>
             <span className="input-with-button tight">
-              <NumberInput value={l.target} onChange={(v) => onChange(l.ticker, { target: v })} aria-label={`${l.ticker} 목표 비중`} />
+              <NumberInput value={l.target} onChange={(v) => onChange(l.ticker, { target: v })} aria-label={`${l.label} 목표 비중`} />
               <span className="unit">%</span>
             </span>
             <span className="input-with-button tight">
@@ -86,7 +89,7 @@ export function TargetSheet({
                 value={l.band}
                 placeholder="기본"
                 onChange={(v) => onChange(l.ticker, { band: v })}
-                aria-label={`${l.ticker} 밴드 임계값`}
+                aria-label={`${l.label} 밴드 임계값`}
               />
               <span className="unit">%p</span>
             </span>
@@ -97,7 +100,12 @@ export function TargetSheet({
         밴드를 비워 두면 설정의 기본 밴드({defaultBand}%p)를 씁니다. 수량 · 평단가 · 산 환율은 종목 탭의 ⋯ &ldquo;한 번에 수정&rdquo;이나 종목 안
         &ldquo;보유&rdquo;에서 고칩니다.
       </p>
-      <div className="target-actions" role="status">
+      {note && (
+        <p className="hint saved-note" role="status">
+          ✓ {note}
+        </p>
+      )}
+      <div className="target-actions">
         <button type="button" onClick={onReset} disabled={saving || dirtyCount === 0}>
           되돌리기
         </button>

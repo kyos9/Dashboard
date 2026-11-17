@@ -37,10 +37,10 @@ export function RebalanceSummary({
       <div className="rb-summary-big summary-num">{total}</div>
       {notes && <p className="hint rb-summary-note">{notes}</p>}
       <div className="rb-pills">
-        <span className="rb-pill">
+        <span className="rb-pill static">
           현금 <b className="mono">{cash}</b>
         </span>
-        <span className="rb-pill">
+        <span className="rb-pill static">
           기본 밴드 <b className="mono">{band}</b>
         </span>
         <button
