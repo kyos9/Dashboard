@@ -1,0 +1,226 @@
+/* 리밸런싱 — 디자인 4차 목업 12c: 요약 · 줄일/늘릴 막대 · 둥근 카드 묶음(부호 주수 + 왼쪽 띠) · 타일 셋 · 시트 둘 · PC 6열 */
+
+.rb-head {
+  align-items: flex-start;
+}
+.rb-head > div:first-child {
+  flex: 1;
+  min-width: 0;
+}
+.rb-head-actions {
+  flex-wrap: wrap;
+}
+
+/* 알약 — 다음 리뷰 · 현금 · 밴드 · 목표 합계 */
+.rb-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--text-dim);
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  white-space: nowrap;
+}
+button.rb-pill {
+  min-height: 44px;
+  cursor: pointer;
+}
+.rb-pill b {
+  color: var(--text);
+}
+.rb-review b {
+  color: var(--accent);
+}
+.rb-pill.warn {
+  background: var(--amber-soft);
+  border-color: var(--amber-line);
+  color: var(--amber);
+}
+.rb-pill.warn b {
+  color: inherit;
+}
+
+/* 요약 */
+.rb-top {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+@media (min-width: 900px) {
+  .rb-top {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+.rb-summary {
+  min-width: 0;
+}
+.rb-summary-title {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+.rb-summary-big {
+  margin-top: 2px;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+.rb-summary-note {
+  margin: 2px 0 0;
+}
+.rb-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.rb-money-box {
+  padding: 12px 14px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.rb-target-warn {
+  margin: 0 0 12px;
+  color: var(--amber);
+}
+
+/* 줄일/늘릴 막대 */
+.order-split {
+  padding: 12px 14px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.order-split-k {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: var(--fs-caption);
+  color: var(--text-dim);
+}
+.order-split-k.faint {
+  color: var(--text-faint);
+}
+.order-split-k .right {
+  text-align: right;
+}
+.order-split-k b {
+  display: block;
+  margin-top: 1px;
+  font-size: var(--fs-body);
+}
+.order-split-bar {
+  display: flex;
+  gap: 2px;
+  height: 8px;
+  margin: 8px 0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.order-split-bar i {
+  display: block;
+  min-width: 2px;
+}
+.order-split-bar .sell {
+  background: var(--signal-sell);
+}
+.order-split-bar .buy {
+  background: var(--signal-buy);
+}
+.weight-dot {
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  background: var(--signal-weight);
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+  vertical-align: 0;
+}
+
+/* 한 줄 단추 — 새로 넣을 돈 · 유지 */
+.rb-money {
+  margin-top: 8px;
+}
+.rb-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 12px 0 14px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-dim);
+  font-size: var(--fs-sub);
+  font-weight: 400;
+  text-align: left;
+}
+.rb-line > span:first-child {
+  flex: 1;
+  min-width: 0;
+}
+.rb-line b {
+  color: var(--text);
+}
+.rb-line-go {
+  flex: none;
+  color: var(--text-faint);
+  transition: transform 0.15s;
+}
+.rb-line-go.open {
+  transform: rotate(90deg);
+}
+.rb-money #new-money-block {
+  margin-top: 8px;
+  padding: 12px 14px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+/* 묶음 · 줄 */
+.order-group {
+  margin-top: 16px;
+}
+.order-group-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  padding: 0 4px 6px;
+}
+.order-group-head h4 {
+  margin: 0;
+  font-size: var(--fs-sub);
+}
+.order-group-head span {
+  font-size: var(--fs-caption);
+  font-weight: 600;
+}
+.order-card {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.order-card > li + li {
+  border-top: 1px solid var(--border);
+}
+.order-group > .order-card {
+  margin-top: 0;
+}
+.rb-holds + .order-card {
+  margin-top: 8px;
+}

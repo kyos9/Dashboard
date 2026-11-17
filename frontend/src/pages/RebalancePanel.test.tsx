@@ -116,6 +116,17 @@ async function orderRow(ticker: string) {
   return row
 }
 
+/** PC 표 한 줄의 주문 — 글씨 "사기·팔기"는 화면에서 뺐고(디자인 4차 12c) 읽기 프로그램용 이름에 남는다 */
+function act(tr: HTMLElement) {
+  return tr.querySelector('.order-shares')?.getAttribute('aria-label') ?? ''
+}
+
+/** PC 머리의 "목표 · 밴드"로 시트를 연다 */
+async function openTargets(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(await screen.findByRole('button', { name: '목표 · 밴드' }))
+  return screen.getByRole('dialog', { name: '목표 비중 · 밴드 고치기' })
+}
+
 beforeEach(() => {
   vi.restoreAllMocks()
 })
@@ -309,14 +320,23 @@ describe('리밸런싱 · 평단가와 거래 입력', () => {
     ],
   }
 
-  it('평단가를 알면 손익을 거래 통화로 보여주고, 모르면 비워둔다', async () => {
-    mockApi(HELD)
-    renderPanel()
-
-    expect(await screen.findByText('+$200.00')).toBeInTheDocument()
-    const holdings = screen.getByRole('region', { name: /보유 · 목표 비중/ })
-    expect(within(holdings).getByText('+25.0%')).toBeInTheDocument()
-    expect(within(holdings).getByText('평단가 입력 시')).toBeInTheDocument()
+  it('폰: 줄을 누르면 시트에 자세히 — 비중 · 밴드 · 평가금액 · 목표 금액 · 현지 주문 금액 · 종목 안 길 (디자인 4차 12c)', async () => {
+    pretendPhone()
+    try {
+      mockApi(HELD)
+      const user = userEvent.setup()
+      renderPanel()
+      await user.click(await screen.findByRole('button', { name: /^VOO .*팔기 — 자세히$/ }))
+      const sheet = screen.getByRole('dialog', { name: 'VOO 주문 자세히' })
+      expect(sheet).toHaveTextContent('61.9% → 목표 60%')
+      expect(sheet).toHaveTextContent('밴드 ±5.0%p 안')
+      expect(sheet).toHaveTextContent('₩1,300,000')
+      expect(sheet).toHaveTextContent('목표 ₩1,260,000')
+      expect(sheet).toHaveTextContent('주문 −$30.77')
+      expect(within(sheet).getByRole('link', { name: '종목 안 보기' })).toHaveAttribute('href', '/stocks/VOO')
+    } finally {
+      forgetPhone()
+    }
   })
 
   it('산 것을 입력하면 수량을 더하고 평단가를 가중평균으로 저장한다', async () => {
@@ -325,9 +345,10 @@ describe('리밸런싱 · 평단가와 거래 입력', () => {
     const user = userEvent.setup()
     renderPanel()
 
-    // VOO 2주 @400 + 2주 @500 = 4주 @450
-    const [voo] = await screen.findAllByRole('button', { name: '거래 입력' })
-    await user.click(voo)
+    // VOO 2주 @400 + 2주 @500 = 4주 @450 — 주문 줄의 거래 입력에서
+    await user.click(within(await orderRow('VOO')).getByRole('button', { name: 'VOO 거래 입력' }))
+    await user.click(screen.getByRole('button', { name: '샀다' }))
+    await user.clear(screen.getByLabelText('VOO 거래 수량'))
     await user.type(screen.getByLabelText('VOO 거래 수량'), '2')
     const priceBox = screen.getByLabelText('VOO 거래 가격')
     await user.clear(priceBox)
@@ -344,11 +365,12 @@ describe('리밸런싱 · 평단가와 거래 입력', () => {
     const user = userEvent.setup()
     renderPanel()
 
-    const [voo] = await screen.findAllByRole('button', { name: '거래 입력' })
-    await user.click(voo)
-    await user.click(screen.getByRole('button', { name: '팔았다' }))
+    // 파는 주문에서 열면 "팔았다"로 열린다
+    await user.click(within(await orderRow('VOO')).getByRole('button', { name: 'VOO 거래 입력' }))
+    expect(screen.getByRole('button', { name: '팔았다' })).toHaveClass('active')
     expect(screen.queryByLabelText('VOO 거래 가격')).not.toBeInTheDocument()
 
+    await user.clear(screen.getByLabelText('VOO 거래 수량'))
     await user.type(screen.getByLabelText('VOO 거래 수량'), '3')
     await user.click(screen.getByRole('button', { name: '반영' }))
     expect(await screen.findByText(/보유 2주보다 많이 팔 수 없습니다/)).toBeInTheDocument()
@@ -360,19 +382,15 @@ describe('리밸런싱 · 평단가와 거래 입력', () => {
     await waitFor(() => expect(update).toHaveBeenCalledWith('VOO', 1, 400, null))
   })
 
-  it('빼기를 친 수량 칸은 뜻을 한 마디 더 말한다 — 보유수량은 합계, 거래 수량은 "샀다"일 때만 (0.45.2 A2)', async () => {
+  it('빼기를 친 거래 수량 칸은 "샀다"일 때만 팔았다를 고르라고 한다 (0.45.2 A2 — 보유수량 칸은 종목 수정으로 옮겼다)', async () => {
     mockApi(HELD)
     const user = userEvent.setup()
     renderPanel()
     const live = () => document.querySelector('[data-num-live]')
 
-    await user.type(await screen.findByLabelText('VOO 보유수량'), '-')
-    expect(live()).toHaveTextContent('VOO 보유수량 — 빼기(−)는 넣을 수 없습니다 · 지금 값 2 · 보유 수량은 가진 전체 수량입니다(판 수량이 아닙니다)')
-    await user.type(screen.getByLabelText('VOO 평단가'), '-')
-    expect(live()).not.toHaveTextContent('판 수량')
-
-    const [voo] = await screen.findAllByRole('button', { name: '거래 입력' })
-    await user.click(voo)
+    await user.click(within(await orderRow('VOO')).getByRole('button', { name: 'VOO 거래 입력' }))
+    await user.click(screen.getByRole('button', { name: '샀다' }))
+    await user.clear(screen.getByLabelText('VOO 거래 수량'))
     await user.type(screen.getByLabelText('VOO 거래 수량'), '-3')
     expect(live()).toHaveTextContent('VOO 거래 수량 — 빼기(−)는 넣을 수 없습니다 · 지금 값 3 · 팔았으면 ‘팔았다’를 고르세요')
     await user.click(screen.getByRole('button', { name: '팔았다' }))
@@ -382,19 +400,18 @@ describe('리밸런싱 · 평단가와 거래 입력', () => {
     expect(live()).not.toHaveTextContent('팔았다’를')
   })
 
-  it('평단가 칸을 비워 저장하면 "모름"으로 보낸다', async () => {
+  it('리밸런싱에는 보유수량 · 평단가 · 산 환율 칸이 없다 — 종목 탭 "한 번에 수정"으로 안내한다 (주인 답 "목표 · 밴드만")', async () => {
     mockApi(HELD)
-    const update = vi.spyOn(api, 'updateHolding').mockResolvedValue({} as never)
-    vi.spyOn(api, 'updateRebalanceTarget').mockResolvedValue({} as never)
     const user = userEvent.setup()
     renderPanel()
-
-    await user.clear(await screen.findByLabelText('VOO 평단가'))
-    await user.click(screen.getByRole('button', { name: '바뀐 1줄 저장' }))
-
-    // 산 환율은 안 고쳤으니 보내지 않는다(undefined) — 보낸 것만 바뀐다
-    await waitFor(() => expect(update).toHaveBeenCalledWith('VOO', 2, null, undefined))
+    const sheet = await openTargets(user)
+    expect(within(sheet).getByLabelText('VOO 목표 비중')).toHaveValue('60')
+    expect(screen.queryByLabelText('VOO 보유수량')).toBeNull()
+    expect(screen.queryByLabelText('VOO 평단가')).toBeNull()
+    expect(screen.queryByLabelText('VOO 산 환율')).toBeNull()
+    expect(sheet).toHaveTextContent('수량 · 평단가 · 산 환율은 종목 탭의 ⋯ “한 번에 수정”이나 종목 안 “보유”에서 고칩니다')
   })
+
 })
 
 describe('리밸런싱 · 리뷰와 기록', () => {
@@ -479,24 +496,26 @@ describe('리밸런싱 · 리뷰와 기록', () => {
 /* ---------- 8-3 — 답을 먼저 · 한 번에 저장 · 산 환율 · 폰 카드 ---------- */
 
 describe('리밸런싱 · 답을 먼저 (ROADMAP 8-3)', () => {
-  it('순서는 요약 → 주문 가이드 → 보유·목표 → 기록 → 설정(접힘)', async () => {
+  it('순서는 요약 → 주문 가이드 → 기록 → 설정(접힘) — 보유 · 목표 칸은 시트로 (디자인 4차 12c)', async () => {
     mockApi()
     const { container } = renderPanel()
     await screen.findByRole('region', { name: '주문 가이드' })
     const order = Array.from(container.querySelectorAll('[aria-label="내 자산"], section h3, details summary h3')).map(
       (el) => (el.getAttribute('aria-label') ?? el.textContent ?? '').trim(),
     )
-    expect(order).toEqual(['내 자산', '주문 가이드', '보유 · 목표 비중', '리뷰 · 기록', '설정'])
+    expect(order).toEqual(['내 자산', '주문 가이드', '리뷰 · 기록', '설정'])
     expect(container.querySelector('details.settings-fold')).not.toHaveAttribute('open')
   })
 
-  it('요약 숫자는 대시보드 맨 위 한 줄과 같다', async () => {
+  it('요약은 전체 자금 · 현금 · 기본 밴드 · 목표 합계 — 손익은 홈에 (디자인 4차 12c)', async () => {
     mockApi({ ...CURRENT, day_change_base: 13_000, day_change_pct: 0.62 })
     renderPanel()
     const line = await screen.findByRole('region', { name: '내 자산' })
     expect(line).toHaveTextContent('₩2,100,000')
-    expect(line).toHaveTextContent('+₩13,000 +0.62%')
-    // 리밸런싱에서는 신호 수를 따로 세지 않는다 (주문 가이드 머리에 있다)
+    expect(line).toHaveTextContent('현금 ₩0')
+    expect(line).toHaveTextContent('기본 밴드 ±5.0%p')
+    expect(within(line).getByRole('button', { name: /^목표 합계 100\.0% · 목표 · 밴드 고치기$/ })).not.toHaveClass('warn')
+    expect(line).not.toHaveTextContent('+₩13,000')
     expect(within(line).queryByText('신호')).not.toBeInTheDocument()
   })
 
@@ -534,65 +553,67 @@ describe('리밸런싱 · 금액 가리기 (9-3)', () => {
 })
 
 describe('리밸런싱 · 보유·목표는 한 번에 저장', () => {
-  it('고친 줄에 표시가 붙고, 아래에 "바뀐 N줄 저장 · 되돌리기"가 뜬다', async () => {
+  it('목표 · 밴드 시트: 고친 줄에 표시가 붙고, "바뀐 N줄 저장 · 되돌리기"', async () => {
     mockApi()
     const user = userEvent.setup()
     renderPanel()
-    expect(screen.queryByRole('button', { name: /줄 저장/ })).not.toBeInTheDocument()
+    const sheet = await openTargets(user)
+    expect(within(sheet).getByRole('button', { name: '바뀐 것 없음' })).toBeDisabled()
 
-    await user.clear(await screen.findByLabelText('VOO 보유수량'))
-    await user.type(screen.getByLabelText('VOO 보유수량'), '3')
-    await user.clear(screen.getByLabelText('005930.KS 목표 비중'))
-    await user.type(screen.getByLabelText('005930.KS 목표 비중'), '45')
+    await user.type(within(sheet).getByLabelText('VOO 밴드 임계값'), '3')
+    await user.clear(within(sheet).getByLabelText('005930.KS 목표 비중'))
+    await user.type(within(sheet).getByLabelText('005930.KS 목표 비중'), '45')
 
-    expect(screen.getByRole('button', { name: '바뀐 2줄 저장' })).toBeInTheDocument()
-    expect(screen.getByLabelText('VOO 보유수량').closest('tr')).toHaveClass('dirty')
+    expect(within(sheet).getByRole('button', { name: '바뀐 2줄 저장' })).toBeEnabled()
+    expect(within(sheet).getByLabelText('VOO 밴드 임계값').closest('li')).toHaveClass('dirty')
 
-    await user.click(screen.getByRole('button', { name: '되돌리기' }))
-    expect(screen.getByLabelText('VOO 보유수량')).toHaveValue('2')
-    expect(screen.queryByRole('button', { name: /줄 저장/ })).not.toBeInTheDocument()
+    await user.click(within(sheet).getByRole('button', { name: '되돌리기' }))
+    expect(within(sheet).getByLabelText('005930.KS 목표 비중')).toHaveValue('40')
+    expect(within(sheet).getByRole('button', { name: '바뀐 것 없음' })).toBeDisabled()
   })
 
-  it('고친 것만 보낸다 — 수량만 고친 줄은 목표를, 목표만 고친 줄은 보유를 보내지 않는다', async () => {
+  it('고친 것만 보낸다 — 목표 · 밴드만, 보유는 보내지 않는다', async () => {
     mockApi()
     const holding = vi.spyOn(api, 'updateHolding').mockResolvedValue({} as never)
     const target = vi.spyOn(api, 'updateRebalanceTarget').mockResolvedValue({} as never)
     const user = userEvent.setup()
     renderPanel()
+    const sheet = await openTargets(user)
 
-    await user.clear(await screen.findByLabelText('VOO 보유수량'))
-    await user.type(screen.getByLabelText('VOO 보유수량'), '3')
-    await user.clear(screen.getByLabelText('005930.KS 목표 비중'))
-    await user.type(screen.getByLabelText('005930.KS 목표 비중'), '45')
-    await user.click(screen.getByRole('button', { name: '바뀐 2줄 저장' }))
+    await user.type(within(sheet).getByLabelText('VOO 밴드 임계값'), '3')
+    await user.clear(within(sheet).getByLabelText('005930.KS 목표 비중'))
+    await user.type(within(sheet).getByLabelText('005930.KS 목표 비중'), '45')
+    await user.click(within(sheet).getByRole('button', { name: '바뀐 2줄 저장' }))
 
-    await waitFor(() => expect(holding).toHaveBeenCalledTimes(1))
-    expect(holding).toHaveBeenCalledWith('VOO', 3, null, undefined)
-    expect(target).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(target).toHaveBeenCalledTimes(2))
     expect(target).toHaveBeenCalledWith('005930.KS', { target_weight_pct: 45, rebalance_band_pct: null })
+    expect(target).toHaveBeenCalledWith('VOO', { target_weight_pct: 60, rebalance_band_pct: 3 })
+    expect(holding).not.toHaveBeenCalled()
   })
 
   it('중간에 실패한 줄은 고치던 값을 남기고, 나머지는 저장한다', async () => {
     mockApi()
-    vi.spyOn(api, 'updateHolding').mockImplementation(async (ticker) => {
+    vi.spyOn(api, 'updateRebalanceTarget').mockImplementation(async (ticker) => {
       if (ticker === 'VOO') throw new Error('저장 실패')
       return {} as never
     })
     const user = userEvent.setup()
     renderPanel()
+    const sheet = await openTargets(user)
 
-    await user.clear(await screen.findByLabelText('VOO 보유수량'))
-    await user.type(screen.getByLabelText('VOO 보유수량'), '3')
-    await user.clear(screen.getByLabelText('005930.KS 보유수량'))
-    await user.type(screen.getByLabelText('005930.KS 보유수량'), '12')
-    await user.click(screen.getByRole('button', { name: '바뀐 2줄 저장' }))
+    await user.clear(within(sheet).getByLabelText('VOO 목표 비중'))
+    await user.type(within(sheet).getByLabelText('VOO 목표 비중'), '55')
+    await user.clear(within(sheet).getByLabelText('005930.KS 목표 비중'))
+    await user.type(within(sheet).getByLabelText('005930.KS 목표 비중'), '45')
+    await user.click(within(sheet).getByRole('button', { name: '바뀐 2줄 저장' }))
 
-    // 다시 받아 온 뒤에도 — 성공한 줄은 서버 값(여기서는 그대로 10), 실패한 줄은 고치던 3
+    // 다시 받아 온 뒤에도 — 성공한 줄은 서버 값(여기서는 그대로 40), 실패한 줄은 고치던 55
     expect(await screen.findByText(/저장 실패/)).toBeInTheDocument()
-    await waitFor(() => expect(screen.getByLabelText('005930.KS 보유수량')).toHaveValue('10'))
-    expect(screen.getByLabelText('VOO 보유수량')).toHaveValue('3')
+    await waitFor(() => expect(screen.getByLabelText('005930.KS 목표 비중')).toHaveValue('40'))
+    expect(screen.getByLabelText('VOO 목표 비중')).toHaveValue('55')
     expect(screen.getByRole('button', { name: '바뀐 1줄 저장' })).toBeInTheDocument()
   })
+
 })
 
 describe('리밸런싱 · 산 환율과 환율 효과', () => {
@@ -612,20 +633,17 @@ describe('리밸런싱 · 산 환율과 환율 효과', () => {
     ],
   }
 
-  it('외화 종목에만 산 환율 칸이 있고, 엔은 100엔 단위로 받아 1엔 값으로 보낸다', async () => {
+  it('목표 · 밴드 시트는 Esc · ✕ 로 닫히고, 열 때 첫 목표 칸에 포커스 (새 팝업 가두기)', async () => {
     mockApi(JP)
-    const holding = vi.spyOn(api, 'updateHolding').mockResolvedValue({} as never)
     const user = userEvent.setup()
     renderPanel()
-
-    expect(await screen.findByLabelText('VOO 산 환율')).toHaveValue('1,250')
-    expect(screen.getByLabelText('7203.T 산 환율')).toHaveValue('910')
-    expect(screen.queryByLabelText('005930.KS 산 환율')).not.toBeInTheDocument()
-
-    await user.clear(screen.getByLabelText('7203.T 산 환율'))
-    await user.type(screen.getByLabelText('7203.T 산 환율'), '920')
-    await user.click(screen.getByRole('button', { name: '바뀐 1줄 저장' }))
-    await waitFor(() => expect(holding).toHaveBeenCalledWith('7203.T', 100, 2500, 9.2))
+    let sheet = await openTargets(user)
+    expect(document.activeElement).toBe(within(sheet).getByLabelText('VOO 목표 비중'))
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: '목표 비중 · 밴드 고치기' })).toBeNull()
+    sheet = await openTargets(user)
+    await user.click(within(sheet).getByRole('button', { name: '목표 · 밴드 닫기' }))
+    expect(screen.queryByRole('dialog', { name: '목표 비중 · 밴드 고치기' })).toBeNull()
   })
 
   it('원화 종목만 있으면 산 환율 칸도 환율 효과 설정도 없다', async () => {
@@ -642,9 +660,10 @@ describe('리밸런싱 · 산 환율과 환율 효과', () => {
     const user = userEvent.setup()
     renderPanel()
 
-    const vooRow = (await screen.findByLabelText('VOO 보유수량')).closest('tr') as HTMLElement
-    await user.click(within(vooRow).getByRole('button', { name: '거래 입력' }))
+    await user.click(within(await orderRow('VOO')).getByRole('button', { name: 'VOO 거래 입력' }))
+    await user.click(screen.getByRole('button', { name: '샀다' }))
     expect(screen.getByLabelText('VOO 산 날 환율')).toHaveValue('1,300')
+    await user.clear(screen.getByLabelText('VOO 거래 수량'))
     await user.type(screen.getByLabelText('VOO 거래 수량'), '2')
     await user.clear(screen.getByLabelText('VOO 거래 가격'))
     await user.type(screen.getByLabelText('VOO 거래 가격'), '500')
@@ -694,16 +713,16 @@ describe('리밸런싱 · 산 환율과 환율 효과', () => {
     expect(screen.getByText(/기준통화가 원일 때만 켤 수 있습니다/)).toBeInTheDocument()
   })
 
-  it('환율 효과를 넣은 줄은 원화 손익으로 보인다', async () => {
-    const rows = JP.rows.map((r) =>
-      r.ticker === 'VOO' ? { ...r, unrealized_pnl: 200, shown_pnl: 300_000, shown_return_pct: 30, shown_currency: 'KRW' as const } : r,
-    )
-    mockApi({ ...JP, rows, include_fx_effect: true })
+  it('목표 합계가 100이 아니면 요약 알약이 호박 ⚠ — 누르면 목표 · 밴드 시트', async () => {
+    mockApi({ ...JP, rows: JP.rows.map((r) => ({ ...r, target_weight_pct: 30 })) })
+    const user = userEvent.setup()
     renderPanel()
-    const holdings = await screen.findByRole('region', { name: /보유 · 목표 비중/ })
-    expect(within(holdings).getByText('+₩300,000')).toBeInTheDocument()
-    expect(within(holdings).getByText('+30.0%')).toBeInTheDocument()
+    const pill = await screen.findByRole('button', { name: /^목표 합계 90\.0% — 100%가 아님 · 목표 · 밴드 고치기$/ })
+    expect(pill).toHaveClass('warn')
+    await user.click(pill)
+    expect(screen.getByRole('dialog', { name: '목표 비중 · 밴드 고치기' })).toHaveTextContent('합계 90.0%')
   })
+
 })
 
 describe('리밸런싱 · 폰', () => {
@@ -712,27 +731,36 @@ describe('리밸런싱 · 폰', () => {
   })
   afterEach(() => forgetPhone())
 
-  it('주문 가이드는 종목마다 카드 한 장 — 가로로 넘치는 표가 없다', async () => {
+  it('줄일 · 늘릴 묶음, 줄마다 부호 주수와 왼쪽 띠 — "사기 · 팔기" 글씨는 없다, 표도 없다 (주인 답 12b)', async () => {
     const rows = CURRENT.rows.map((r) => (r.ticker === 'VOO' ? { ...r, target_weight_pct: 20 } : r))
     mockApi({ ...CURRENT, rows })
     renderPanel()
     const guide = await screen.findByRole('region', { name: '주문 가이드' })
     expect(within(guide).queryByRole('table')).not.toBeInTheDocument()
-    const cards = within(guide).getAllByRole('listitem')
     // VOO: 목표 20% x 210만 = 42만 → 88만원 팔기 = $676.92 → 500달러 종가로 1.35주
     // 삼성: 목표 40% = 84만 → 4만원 사기 = 8만원 종가로 0.5주
-    expect(cards.map((c) => c.querySelector('b')?.textContent)).toEqual(['삼성전자 1주 미만 (0.5주) 사기', 'VOO 1주 (1.35) 팔기', '현금'])
-    expect(cards[1]).toHaveTextContent('과중 +41.9%p')
-    expect(cards[1]).toHaveTextContent('61.9% → 목표 20%')
+    const sell = within(guide).getByRole('region', { name: '줄일 종목' })
+    const buy = within(guide).getByRole('region', { name: '늘릴 종목' })
+    const voo = within(sell).getByRole('button', { name: 'VOO 1주 (1.35) 팔기 — 자세히' })
+    expect(voo).toHaveClass('is-sell')
+    expect(voo.querySelector('.order-row-act b')).toHaveTextContent(/^−1주$/)
+    expect(voo).toHaveTextContent('61.9% → 20%')
+    const samsung = within(buy).getByRole('button', { name: '삼성전자 1주 미만 (0.5주) 사기 — 자세히' })
+    expect(samsung).toHaveClass('is-buy')
+    expect(samsung.querySelector('.order-row-act b')).toHaveTextContent(/^\+1주 미만 \(0\.5주\)$/)
+    expect(guide).not.toHaveTextContent(/사기|팔기/)
   })
 
-  it('보유·목표도 카드 — 칸마다 이름이 붙는다', async () => {
+  it('타일 셋 — 목표 · 밴드는 시트, 설정은 접힌 설정을 펼친다', async () => {
     mockApi()
-    renderPanel()
-    const holdings = await screen.findByRole('region', { name: /보유 · 목표 비중/ })
-    expect(within(holdings).queryByRole('table')).not.toBeInTheDocument()
-    expect(within(holdings).getByLabelText('VOO 보유수량').closest('label')).toHaveTextContent('보유수량')
+    const user = userEvent.setup()
+    const { container } = renderPanel()
+    await user.click(await screen.findByRole('button', { name: /^설정 주기 · 현금 · 환율$/ }))
+    expect(container.querySelector('details.settings-fold')).toHaveAttribute('open')
+    await user.click(screen.getByRole('button', { name: /^목표 · 밴드 한 번에 고치기$/ }))
+    expect(screen.getByRole('dialog', { name: '목표 비중 · 밴드 고치기' })).toBeInTheDocument()
   })
+
 })
 
 describe('리밸런싱 · 팔지 않고 새 돈만 나누기 (0.42.0 B6)', () => {
@@ -750,7 +778,7 @@ describe('리밸런싱 · 팔지 않고 새 돈만 나누기 (0.42.0 B6)', () =>
     expect(screen.getByText(/새로 넣을 돈까지 더한 전체 자금으로 목표 비중을 다시 맞춘 주문/)).toBeInTheDocument()
     expect(screen.queryByText(/모자란 종목부터 채우는 주문/)).toBeNull()
     expect(screen.getByRole('status')).toHaveTextContent('새로 넣을 돈 ₩900,000 반영 — 전체 자금으로 목표 비중을 다시 맞춘 주문입니다')
-    expect(await orderRow('VOO')).toHaveTextContent('팔기')
+    expect(act(await orderRow('VOO'))).toMatch(/팔기$/)
   })
 
   it('칸 바로 아래 풀이 앞에도 계산에 쓴 금액 — 폰에서는 위 줄이 화면 밖이다, 읽기는 위 줄 하나 (0.45.2 A4)', async () => {
@@ -779,7 +807,7 @@ describe('리밸런싱 · 팔지 않고 새 돈만 나누기 (0.42.0 B6)', () =>
     expect(localStorage.getItem('rebalance.buy-only')).toBe('1')
     expect(screen.getByRole('status')).toHaveTextContent('목표에 모자란 만큼에 비례해 나눴습니다')
     expect(screen.getByText(/팔지 않고, 새로 넣을 돈만 목표에 모자란 만큼에 비례해 나눕니다/)).toBeInTheDocument()
-    expect(await orderRow('VOO')).toHaveTextContent('유지')
+    expect(act(await orderRow('VOO'))).toMatch(/유지$/)
     // 삼성은 모자람 40만(목표 120만 − 80만) — 90만 중 40만만 쓰고 50만은 현금에 남는다(현금 목표 0 이면 몫이 없다)
     expect(await orderRow('005930.KS')).toHaveTextContent('+₩400,000')
     expect(screen.getByRole('status')).toHaveTextContent('남는 ₩500,000은 현금')
@@ -792,29 +820,33 @@ describe('리밸런싱 · 팔지 않고 새 돈만 나누기 (0.42.0 B6)', () =>
     expect(await screen.findByLabelText('팔지 않고 새 돈만 나누기')).toBeChecked()
   })
 
-  it('폰 — 카드 위에 넣는 칸으로 가는 길, 현금 카드는 산 뒤 남는 현금', async () => {
+  it('폰 — 새로 넣을 돈은 한 줄을 눌러 펼치고, 줄에 넣은 금액 · 현금 칸은 산 뒤 남는 현금', async () => {
     pretendPhone()
     try {
       localStorage.setItem('rebalance.buy-only', '1')
       mockApi(SKEWED)
       const user = userEvent.setup()
       renderPanel()
-      await user.type(await screen.findByLabelText(/이번에 새로 넣을 돈/), '900000')
-      expect(screen.getByRole('button', { name: '새로 넣을 돈 넣기 ↓' })).toBeInTheDocument()
-      const guide = screen.getByRole('region', { name: '주문 가이드' })
-      const cash = within(guide).getAllByRole('listitem').at(-1)!
-      expect(cash).toHaveTextContent('₩900,000 → ₩500,000 남음')
+      const line = await screen.findByRole('button', { name: /^새로 넣을 돈/ })
+      expect(line).toHaveAttribute('aria-expanded', 'false')
+      expect(screen.queryByLabelText(/이번에 새로 넣을 돈/)).toBeNull()
+      await user.click(line)
+      await user.type(screen.getByLabelText(/이번에 새로 넣을 돈/), '900000')
+      expect(line).toHaveTextContent('₩900,000')
+      expect(line).toHaveTextContent('팔지 않고 나누기')
+      expect(document.querySelector('.cash-card')).toHaveTextContent('₩900,000 → ₩500,000 남음')
     } finally {
       forgetPhone()
     }
   })
+
 })
 
 describe('리밸런싱 · 폰 이름은 보일 이름으로 (0.42.0 B9)', () => {
   beforeEach(() => pretendPhone())
   afterEach(() => forgetPhone())
 
-  it('내가 이름을 비운 종목은 공용 종목명 — 티커(7203.T)로 보이지 않는다', async () => {
+  it('내가 이름을 비운 종목은 공용 종목명 — 티커(7203.T)로 보이지 않는다 (유지 줄을 펼쳐서)', async () => {
     const toyota = row({
       ticker: '7203.T',
       name: 'トヨタ自動車',
@@ -839,11 +871,17 @@ describe('리밸런싱 · 폰 이름은 보일 이름으로 (0.42.0 B9)', () => 
         rebalance_band_pct: null,
       } as Stock,
     ])
+    const user = userEvent.setup()
     renderPanel()
     const guide = await screen.findByRole('region', { name: '주문 가이드' })
-    await waitFor(() => expect(within(guide).getByText(/^トヨタ自動車/)).toBeInTheDocument())
+    const holds = await within(guide).findByRole('button', { name: /^유지 \d+ ·/ })
+    await waitFor(() => expect(holds).toHaveTextContent('トヨタ自動車'))
+    await user.click(holds)
+    expect(holds).toHaveAttribute('aria-expanded', 'true')
+    expect(within(guide).getByRole('button', { name: 'トヨタ自動車 유지 — 자세히' })).toBeInTheDocument()
     expect(within(guide).queryByText(/^7203\.T/)).toBeNull()
   })
+
 })
 
 describe('리밸런싱 · 주문과 신호를 다른 말로 (디자인 2차)', () => {
@@ -860,12 +898,12 @@ describe('리밸런싱 · 주문과 신호를 다른 말로 (디자인 2차)', (
     mockApi(MIXED)
     renderPanel()
     const voo = await orderRow('VOO')
-    expect(voo).toHaveTextContent('팔기')
+    expect(act(voo)).toMatch(/팔기$/)
     expect(voo).not.toHaveTextContent('SELL')
     const groups = Array.from(voo.querySelectorAll('.badge-group')).map((g) => g.textContent)
     expect(groups).toEqual(['비중비중 초과', '참고기간 내 매도'])
     const samsung = await orderRow('005930.KS')
-    expect(samsung).toHaveTextContent('사기')
+    expect(act(samsung)).toMatch(/사기$/)
     expect(samsung).toHaveTextContent('비중조절 신호 없음')
     expect(samsung).not.toHaveTextContent('밴드 이내')
     const guide = screen.getByRole('region', { name: '주문 가이드' })
@@ -881,21 +919,24 @@ describe('리밸런싱 · 주문과 신호를 다른 말로 (디자인 2차)', (
     expect(samsung.querySelector('.ticker-sub')).toHaveTextContent(/^005930\.KS ·/)
   })
 
-  it('폰 카드: 비중 줄과 금액 줄이 따로, 금액은 한 덩어리', async () => {
+  it('폰 줄: 비중 줄 · 부호 주수 · 금액 한 덩어리, ◆ 는 비중 신호 줄에만 · 현지 금액은 시트에', async () => {
     pretendPhone()
     try {
       mockApi(MIXED)
+      const user = userEvent.setup()
       renderPanel()
-      const guide = await screen.findByRole('region', { name: '주문 가이드' })
-      const voo = within(guide).getAllByRole('listitem')[1]
-      const lines = Array.from(voo.querySelectorAll('.order-card-line')).map((l) => l.textContent)
-      expect(lines[0]).toBe('61.9% → 목표 20%')
-      expect(lines[1]).toMatch(/^−?-?₩880,000 \(-?−?\$676\.92\)$/)
-      expect(voo.querySelectorAll('.order-card-line .nowrap')).toHaveLength(2)
+      const voo = await screen.findByRole('button', { name: /^VOO .*팔기 — 자세히$/ })
+      expect(voo.querySelector('.order-row-sub')).toHaveTextContent(/^61\.9% → 20%$/)
+      expect(voo.querySelector('.order-row-act span')).toHaveTextContent(/^−₩880,000$/)
+      expect(voo.querySelector('.weight-dot')).not.toBeNull()
+      expect(screen.getByRole('button', { name: /^삼성전자 .*사기 — 자세히$/ }).querySelector('.weight-dot')).toBeNull()
+      await user.click(voo)
+      expect(screen.getByRole('dialog', { name: 'VOO 주문 자세히' })).toHaveTextContent('주문 −$676.92')
     } finally {
       forgetPhone()
     }
   })
+
 })
 
 describe('리밸런싱 · 주문 옆 거래 입력 (디자인 2차, 주인 결정 ②)', () => {
@@ -920,30 +961,39 @@ describe('리밸런싱 · 주문 옆 거래 입력 (디자인 2차, 주인 결�
     expect(await screen.findByText(/VOO 1주 판 것을 반영했습니다 — 주문 가이드를 바뀐 보유로 다시 계산했습니다/)).toBeInTheDocument()
   })
 
-  it('폰: 주문 카드마다 "거래 입력", 사기면 샀다로 연다 · 유지에는 없다', async () => {
+  it('폰: 줄을 눌러 연 시트에 "거래 입력", 사기면 샀다로 연다 · 반영하면 시트가 닫힌다', async () => {
     pretendPhone()
     try {
       mockApi(SKEW)
+      const save = vi.spyOn(api, 'updateHolding').mockResolvedValue(undefined as never)
       const user = userEvent.setup()
       renderPanel()
-      const guide = await screen.findByRole('region', { name: '주문 가이드' })
-      const samsung = within(guide).getAllByRole('listitem')[0]
-      await user.click(within(samsung).getByRole('button', { name: '삼성전자 거래 입력' }))
-      expect(within(samsung).getByRole('button', { name: '샀다' })).toHaveClass('active')
+      await user.click(await screen.findByRole('button', { name: /^삼성전자 .*사기 — 자세히$/ }))
+      const sheet = screen.getByRole('dialog', { name: '삼성전자 주문 자세히' })
+      await user.click(within(sheet).getByRole('button', { name: '삼성전자 거래 입력' }))
+      expect(within(sheet).getByRole('button', { name: '샀다' })).toHaveClass('active')
       // 1주 미만 (0.5주) → 소수 그대로
-      expect(within(samsung).getByLabelText('005930.KS 거래 수량')).toHaveValue('0.5')
+      expect(within(sheet).getByLabelText('005930.KS 거래 수량')).toHaveValue('0.5')
+      await user.click(within(sheet).getByRole('button', { name: '반영' }))
+      await waitFor(() => expect(save).toHaveBeenCalled())
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: '삼성전자 주문 자세히' })).toBeNull())
     } finally {
       forgetPhone()
     }
   })
 
-  it('넓은 표(주문·보유)는 종목 칸이 고정된다 — 옆으로 밀어도 이름이 남는다', async () => {
+  it('PC 주문 표는 6열 · 종목 칸이 고정된다 — 보유 표는 없다 (디자인 4차 12c)', async () => {
     mockApi(SKEW)
     renderPanel()
     const tables = await screen.findAllByRole('table')
+    expect(tables).toHaveLength(1)
     expect(tables[0]).toHaveClass('sticky-first')
-    expect(tables.some((t, i) => i > 0 && t.classList.contains('sticky-first'))).toBe(true)
+    expect(Array.from(tables[0].querySelectorAll('thead th')).map((h) => h.textContent)).toEqual([
+      '구분 / 종목', '비중 · 지금 → 목표', '주문', '조정 금액', '비중조절 신호', '거래',
+    ])
+    expect(within(tables[0]).getAllByRole('columnheader', { name: /줄일 종목|늘릴 종목/ })).toHaveLength(2)
   })
+
 })
 
 describe('날마다의 평가금액 안내 (0.44.0)', () => {
@@ -995,8 +1045,8 @@ describe('목표 0%라 전부 파는 계산 (0.45.4 C)', () => {
     mockApi(ONE)
     renderPanel()
     const k = await orderRow('카카오')
-    expect(k).toHaveTextContent('팔기')
-    expect(k).toHaveTextContent("목표 0%라 전부 파는 계산입니다 · 목표는 아래 '보유 · 목표 비중'에서 정합니다")
+    expect(act(k)).toMatch(/팔기$/)
+    expect(k).toHaveTextContent("목표 0%라 전부 파는 계산입니다 · 목표는 '목표 · 밴드'에서 정합니다")
     expect(await orderRow('VOO')).not.toHaveTextContent('전부 파는')
     expect(await orderRow('삼성전자')).not.toHaveTextContent('전부 파는')
     // 비중 칸의 "목표 0%" 는 원래 있다 — 풀이(꼬리)만 없다
@@ -1010,7 +1060,7 @@ describe('목표 0%라 전부 파는 계산 (0.45.4 C)', () => {
     mockApi(OVER)
     renderPanel()
     const voo = await orderRow('VOO')
-    expect(voo).toHaveTextContent('팔기')
+    expect(act(voo)).toMatch(/팔기$/)
     expect(voo.querySelector('.zero-target-note')).toBeNull()
     expect((await orderRow('카카오')).querySelector('.zero-target-note')).not.toBeNull()
   })
@@ -1036,15 +1086,70 @@ describe('목표 0%라 전부 파는 계산 (0.45.4 C)', () => {
     expect(screen.queryByRole('note')).toBeNull()
   })
 
-  it('폰 카드에도 같은 풀이', async () => {
+  it('폰 시트에도 같은 풀이', async () => {
     pretendPhone()
     try {
       mockApi(ONE)
+      const user = userEvent.setup()
       renderPanel()
-      const card = (await screen.findByText(/카카오 10주 팔기/)).closest('li')!
-      expect(card).toHaveTextContent('목표 0%라 전부 파는 계산입니다')
+      await user.click(await screen.findByRole('button', { name: /^카카오 10주 팔기 — 자세히$/ }))
+      expect(screen.getByRole('dialog', { name: '카카오 주문 자세히' })).toHaveTextContent('목표 0%라 전부 파는 계산입니다')
     } finally {
       forgetPhone()
     }
+  })
+
+})
+
+describe('리밸런싱 · 디자인 4차 목업 12c', () => {
+  it('머리의 "다음 리뷰 D-n" 알약 — 누르면 리뷰 · 기록 칸으로', async () => {
+    mockApi()
+    const before = Element.prototype.scrollIntoView
+    const scroll = vi.fn()
+    Element.prototype.scrollIntoView = scroll
+    try {
+      const user = userEvent.setup()
+      renderPanel()
+      const pill = await screen.findByRole('button', { name: /^다음 리뷰 D-\d+$/ })
+      await user.click(pill)
+      expect(scroll).toHaveBeenCalled()
+      expect(scroll.mock.contexts[0]).toBe(document.getElementById('records'))
+    } finally {
+      Element.prototype.scrollIntoView = before
+    }
+  })
+
+  it('줄을 눌러 연 시트 — Tab 은 시트 안에서 돌고, Esc 로 닫힌다 (새 팝업 가두기)', async () => {
+    pretendPhone()
+    try {
+      mockApi()
+      const user = userEvent.setup()
+      renderPanel()
+      await user.click(await screen.findByRole('button', { name: /^VOO .* — 자세히$/ }))
+      const sheet = screen.getByRole('dialog', { name: 'VOO 주문 자세히' })
+      for (let i = 0; i < 6; i++) {
+        await user.tab()
+        expect(sheet.contains(document.activeElement)).toBe(true)
+      }
+      await user.keyboard('{Escape}')
+      expect(screen.queryByRole('dialog', { name: 'VOO 주문 자세히' })).toBeNull()
+    } finally {
+      forgetPhone()
+    }
+  })
+
+  it('PC 표: 줄일 묶음이 먼저, 묶음 안은 큰 금액부터 — 계산은 그대로, 보이는 순서만', async () => {
+    const rows = [
+      ...CURRENT.rows.map((r) => (r.ticker === 'VOO' ? { ...r, target_weight_pct: 20 } : { ...r, target_weight_pct: 50 })),
+      row({ ticker: 'QQQ', currency: 'USD', target_weight_pct: 30, quantity: 0, last_close: 400 }),
+    ]
+    mockApi({ ...CURRENT, rows })
+    renderPanel()
+    const table = (await screen.findAllByRole('table'))[0]
+    const order = Array.from(table.querySelectorAll('tbody tr'))
+      .map((tr) => tr.querySelector('.ticker-name, th')?.textContent ?? '')
+      .filter(Boolean)
+    // 줄일: VOO −88만 · 늘릴: QQQ +63만(30%) > 삼성 +25만(50% 105만 − 80만)
+    expect(order).toEqual(['줄일 종목 1 · −₩880,000', 'VOO', '늘릴 종목 2 · +₩880,000', 'QQQ', '삼성전자', '현금'])
   })
 })

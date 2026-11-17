@@ -1,0 +1,262 @@
+/* 리밸런싱 — 주문 줄 · 타일 · 시트 둘 · PC 표 (디자인 4차 목업 12c). rebalance-orders.css 에 이어서 */
+
+.order-row {
+  --c: var(--border-strong);
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 60px;
+  padding: 10px 10px 10px 16px;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  color: var(--text);
+  font-weight: 400;
+  text-align: left;
+}
+.order-row::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--c);
+}
+.order-row.is-sell {
+  --c: var(--signal-sell);
+}
+.order-row.is-buy {
+  --c: var(--signal-buy);
+}
+.order-row.is-hold::before {
+  background: transparent;
+}
+button.order-row:hover {
+  background: var(--panel-soft);
+}
+.order-row-name {
+  flex: 1;
+  min-width: 0;
+}
+.order-row-title {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--fs-body);
+  font-weight: 600;
+  min-width: 0;
+}
+.order-row-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.order-row-sub {
+  display: block;
+  margin-top: 3px;
+  font-size: var(--fs-caption);
+  color: var(--text-faint);
+}
+.order-row-act {
+  flex: none;
+  text-align: right;
+}
+.order-row-act b {
+  display: block;
+  font-size: var(--fs-strong);
+  font-weight: 700;
+  color: var(--c);
+}
+.order-row.is-hold .order-row-act b {
+  color: var(--text-faint);
+}
+.order-row-act span {
+  display: block;
+  margin-top: 1px;
+  font-size: var(--fs-caption);
+  color: var(--text-faint);
+}
+.order-row-go {
+  flex: none;
+  color: var(--text-faint);
+}
+
+/* 타일 셋 — 목표 · 밴드 / 리뷰 · 기록 / 설정 */
+.rb-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 16px;
+}
+.rb-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-height: 84px;
+  padding: 12px 10px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-dim);
+  font-size: var(--fs-caption);
+  font-weight: 400;
+  text-align: left;
+}
+.rb-tile .icon {
+  color: var(--accent);
+}
+.rb-tile b {
+  color: var(--text);
+  font-size: var(--fs-sub);
+}
+
+/* 줄을 누르면 — 자세히 + 거래 입력 */
+.order-sheet-act {
+  --c: var(--text-faint);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--c);
+  border-radius: var(--radius);
+}
+.order-sheet-act.is-sell {
+  --c: var(--signal-sell);
+}
+.order-sheet-act.is-buy {
+  --c: var(--signal-buy);
+}
+.order-sheet-act b {
+  font-size: 22px;
+  color: var(--c);
+}
+.order-sheet-act > span {
+  text-align: right;
+}
+.order-sheet-act small {
+  display: block;
+}
+.order-sheet-say {
+  margin: 8px 0 0;
+  font-size: var(--fs-sub);
+  color: var(--text-dim);
+}
+.order-sheet-kv {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0;
+}
+.order-sheet-kv > div {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 12px;
+}
+.order-sheet-kv dt {
+  color: var(--text-faint);
+  font-size: var(--fs-sub);
+}
+.order-sheet-kv dd {
+  margin: 0;
+  text-align: right;
+  font-weight: 600;
+}
+.order-sheet-kv dd small {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--fs-caption);
+  font-weight: 400;
+  color: var(--text-faint);
+}
+.order-sheet-kv .signal-badges {
+  justify-content: flex-end;
+}
+.order-sheet-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.order-sheet-actions > .link-button,
+.order-sheet-actions > button {
+  flex: 1;
+  min-height: 48px;
+}
+.order-sheet-actions > .link-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--panel);
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+.order-sheet-actions .trade-form {
+  flex-basis: 100%;
+}
+
+/* 목표 · 밴드 시트 */
+.target-head,
+.target-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px 104px;
+  gap: 8px;
+  align-items: center;
+}
+.target-head {
+  padding-bottom: 4px;
+  font-size: var(--fs-caption);
+  color: var(--text-faint);
+}
+.target-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.target-list li {
+  min-height: 56px;
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+}
+.target-name {
+  min-width: 0;
+}
+.target-name b {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-body);
+}
+.target-name .hint {
+  display: block;
+  margin: 2px 0 0;
+}
+.target-list input {
+  width: 100%;
+  min-width: 0;
+}
+.target-actions {
+  position: sticky;
+  bottom: -20px;
+  display: flex;
+  gap: 8px;
+  margin-bottom: -20px;
+  padding: 12px 0 20px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-elevated);
+}
+.target-actions button {
+  flex: 1;
+  min-height: 48px;
+}
+.tone-warn {
+  color: var(--amber);
+}
+

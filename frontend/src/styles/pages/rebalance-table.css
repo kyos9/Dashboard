@@ -1,0 +1,78 @@
+/* 리밸런싱 PC 주문 표 (디자인 4차 목업 12c) — 6열 · 줄일/늘릴/유지 묶음 줄 · 왼쪽 띠 · 비중 막대 */
+
+.order-table {
+  min-width: 920px;
+}
+.order-group-row th {
+  padding: 6px 12px;
+  background: var(--panel-soft);
+  font-size: var(--fs-caption);
+  color: var(--text-faint);
+  text-align: left;
+}
+.order-stripe {
+  position: relative;
+  padding-left: 10px;
+}
+.order-stripe::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 2px;
+  bottom: 2px;
+  width: 3px;
+  border-radius: 2px;
+  background: transparent;
+}
+.order-stripe.is-sell::before {
+  background: var(--signal-sell);
+}
+.order-stripe.is-buy::before {
+  background: var(--signal-buy);
+}
+.order-shares {
+  font-weight: 700;
+}
+.wb-track {
+  position: relative;
+  display: block;
+  width: 180px;
+  height: 10px;
+  margin: 2px 0 4px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--panel-soft);
+}
+.wb-track i {
+  position: absolute;
+  display: block;
+}
+.wb-band {
+  top: -1px;
+  bottom: -1px;
+  background: var(--signal-weight-soft);
+}
+.wb-fill {
+  left: 0;
+  top: 1px;
+  bottom: 1px;
+  border-radius: 4px;
+  background: var(--text-faint);
+}
+.wb-fill.over {
+  background: var(--signal-sell);
+}
+.wb-fill.under {
+  background: var(--signal-buy);
+}
+.wb-fill.ok {
+  background: var(--signal-weight);
+}
+.wb-target {
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--text);
+}

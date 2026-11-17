@@ -125,7 +125,7 @@
   max-width: 28ch;
   overflow-wrap: anywhere;
 }
-.order-card .zero-target-note,
+.order-sheet .zero-target-note,
 .zero-target-note[role='note'] {
   max-width: none;
 }

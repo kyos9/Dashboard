@@ -44,6 +44,9 @@
 @import './styles/components/estimate.css';
 @import './styles/components/macro-strip.css';
 @import './styles/pages/rebalance.css';
+@import './styles/pages/rebalance-orders.css';
+@import './styles/pages/rebalance-sheets.css';
+@import './styles/pages/rebalance-table.css';
 @import './styles/pages/fundamentals.css';
 @import './styles/pages/ai.css';
 @import './styles/components/placeholder.css';
