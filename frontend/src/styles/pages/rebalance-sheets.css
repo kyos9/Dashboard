@@ -44,16 +44,17 @@ button.order-row:hover {
 }
 .order-row-title {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 5px;
   font-size: var(--fs-body);
   font-weight: 600;
   min-width: 0;
 }
 .order-row-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  text-wrap: balance;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 .order-row-sub {
   display: block;
@@ -119,9 +120,10 @@ button.order-row:hover {
 .order-sheet-act {
   --c: var(--text-faint);
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
-  gap: 12px;
+  gap: 4px 12px;
   padding: 12px 14px;
   background: var(--panel);
   border: 1px solid var(--border);
@@ -139,7 +141,17 @@ button.order-row:hover {
   color: var(--c);
 }
 .order-sheet-act > span {
+  margin-left: auto;
   text-align: right;
+}
+.order-sheet-act .mono,
+.order-row-act .mono {
+  white-space: nowrap;
+}
+.order-sheet-act b small {
+  display: block;
+  font-size: var(--fs-caption);
+  font-weight: 400;
 }
 .order-sheet-act small {
   display: block;
@@ -186,8 +198,9 @@ button.order-row:hover {
 }
 .order-sheet-actions > .link-button,
 .order-sheet-actions > button {
-  flex: 1;
+  flex: 1 1 128px;
   min-height: 48px;
+  word-break: keep-all;
 }
 .order-sheet-actions > .link-button {
   display: inline-flex;
@@ -229,10 +242,10 @@ button.order-row:hover {
 }
 .target-name b {
   display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   font-size: var(--fs-body);
+  text-wrap: balance;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 .target-name .hint {
   display: block;

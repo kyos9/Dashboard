@@ -1205,3 +1205,76 @@ describe('리밸런싱 · 묶음 4 사용자 확인 보완', () => {
     }
   })
 })
+
+describe('리밸런싱 · 묶음 4 검토 보완', () => {
+  it('줄을 눌러 시트를 열면 포커스가 시트 안(닫기)으로 — 뒤 화면 줄에 남지 않는다 (조건 4)', async () => {
+    pretendPhone()
+    try {
+      mockApi()
+      const user = userEvent.setup()
+      renderPanel()
+      await user.click(await screen.findByRole('button', { name: /^VOO .* — 자세히$/ }))
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: '자세히 닫기' }))
+    } finally {
+      forgetPhone()
+    }
+  })
+
+  it('시트가 떠 있는 동안 뒤 화면은 스크롤되지 않고, 폰 뒤로가기로 닫힌다 (조건 5)', async () => {
+    pretendPhone()
+    try {
+      mockApi()
+      const user = userEvent.setup()
+      renderPanel()
+      await user.click(await screen.findByRole('button', { name: /^VOO .* — 자세히$/ }))
+      expect(document.body.style.overflow).toBe('hidden')
+      window.history.back()
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'VOO 주문 자세히' })).toBeNull())
+      expect(document.body.style.overflow).toBe('')
+    } finally {
+      forgetPhone()
+    }
+  })
+
+  it('목표 · 밴드 시트의 합계는 치는 값을 따라간다 (조건 6)', async () => {
+    mockApi({ ...CURRENT, rows: CURRENT.rows.map((r) => ({ ...r, target_weight_pct: r.ticker === 'VOO' ? 50 : 40 })) })
+    const user = userEvent.setup()
+    renderPanel()
+    const sheet = await openTargets(user)
+    expect(sheet).toHaveTextContent('합계 90.0%')
+    await user.clear(within(sheet).getByLabelText('VOO 목표 비중'))
+    await user.type(within(sheet).getByLabelText('VOO 목표 비중'), '60')
+    expect(sheet).toHaveTextContent('합계 100.0%')
+    expect(sheet).toHaveTextContent('100%로 맞습니다')
+  })
+
+  it('저장하지 않고 닫으면 화면에 한 줄, 거래를 반영해도 고친 목표는 남고 수량은 서버 값으로 (조건 6)', async () => {
+    mockApi()
+    const holding = vi.spyOn(api, 'updateHolding').mockResolvedValue(undefined as never)
+    const target = vi.spyOn(api, 'updateRebalanceTarget').mockResolvedValue({} as never)
+    const user = userEvent.setup()
+    renderPanel()
+    let sheet = await openTargets(user)
+    await user.clear(within(sheet).getByLabelText('VOO 목표 비중'))
+    await user.type(within(sheet).getByLabelText('VOO 목표 비중'), '55')
+    await user.click(within(sheet).getByRole('button', { name: '목표 · 밴드 닫기' }))
+    const line = screen.getByText(/목표 · 밴드에 저장하지 않은 변경 1줄 \(VOO\)/)
+    expect(within(line).getByRole('button', { name: '열어서 저장' })).toBeInTheDocument()
+
+    // 그사이 거래 반영 — 다시 받아 오는 동안에도 55 가 남는다
+    vi.spyOn(api, 'getRebalanceCurrent').mockResolvedValue({
+      ...CURRENT,
+      rows: CURRENT.rows.map((r) => (r.ticker === 'VOO' ? { ...r, quantity: 1 } : r)),
+    })
+    await user.click(within(await orderRow('VOO')).getByRole('button', { name: 'VOO 거래 입력' }))
+    await user.click(screen.getByRole('button', { name: '반영' }))
+    await waitFor(() => expect(holding).toHaveBeenCalled())
+    await waitFor(() => expect(api.getRebalanceCurrent).toHaveBeenCalledTimes(2))
+    sheet = await openTargets(user)
+    await waitFor(() => expect(within(sheet).getByLabelText('VOO 목표 비중')).toHaveValue('55'))
+    await user.click(within(sheet).getByRole('button', { name: '바뀐 1줄 저장' }))
+    await waitFor(() => expect(target).toHaveBeenCalledWith('VOO', { target_weight_pct: 55, rebalance_band_pct: null }))
+    // 수량은 리밸런싱에서 보내지 않는다 — 거래 한 번만
+    expect(holding).toHaveBeenCalledTimes(1)
+  })
+})

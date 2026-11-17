@@ -25,7 +25,9 @@ interface Props {
 export function Sheet({ title, label, sub, closeLabel, onClose, initialFocus, className = '', children }: Props) {
   useBackToClose(onClose)
   const ref = useRef<HTMLDivElement>(null)
-  useFocusTrap(ref, initialFocus)
+  const closeRef = useRef<HTMLButtonElement>(null)
+  // 첫 칸을 주지 않으면 닫기 ✕ 로 — tabindex 없는 상자에 focus 를 부르면 포커스가 뒤 화면 줄에 남았다(묶음 4 검토 조건 4)
+  useFocusTrap(ref, () => initialFocus?.() ?? closeRef.current)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
     document.addEventListener('keydown', onKey)
@@ -52,7 +54,7 @@ export function Sheet({ title, label, sub, closeLabel, onClose, initialFocus, cl
             <h3>{title}</h3>
             {sub && <p className="hint">{sub}</p>}
           </div>
-          <button type="button" className="icon-btn" onClick={onClose} aria-label={closeLabel}>
+          <button ref={closeRef} type="button" className="icon-btn" onClick={onClose} aria-label={closeLabel}>
             ✕
           </button>
         </div>
