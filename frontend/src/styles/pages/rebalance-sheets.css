@@ -38,9 +38,16 @@
 button.order-row:hover {
   background: var(--panel-soft);
 }
+/* 긴 이름이 좁은 칸에 세 줄로 접혔다(묶음 4 재검토 조건 1) — 이름이 140px 도 못 받으면 주수 · 금액이 아랫줄 오른쪽으로 내려간다 */
+.order-row {
+  flex-wrap: wrap;
+}
 .order-row-name {
-  flex: 1;
+  flex: 1 1 140px;
   min-width: 0;
+}
+.order-row-act {
+  margin-left: auto;
 }
 .order-row-title {
   display: flex;
@@ -273,3 +280,17 @@ button.order-row:hover {
   color: var(--amber);
 }
 
+/* 카드가 아주 좁으면(폰 320 · 글자 130%) 이름이 한 줄을 다 쓰고 주수 · 금액은 아랫줄 오른쪽 — 세 줄로 접히던 것(재검토 조건 1) */
+.order-card {
+  container-type: inline-size;
+}
+@container (max-width: 320px) {
+  .order-row-name {
+    flex-basis: calc(100% - 28px);
+  }
+  .order-row-act {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+}

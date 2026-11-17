@@ -1278,3 +1278,33 @@ describe('리밸런싱 · 묶음 4 검토 보완', () => {
     expect(holding).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('리밸런싱 · 묶음 4 재검토 보완', () => {
+  it('좁은 PC(1100px 아래, 확대 150% 등)는 표 대신 줄 묶음 — 머리 단추는 남고 폰 타일은 없다 (재검토 조건 2)', async () => {
+    const before = window.matchMedia
+    // 1100px 질의만 맞다 — 폰(720px) 질의는 아니다
+    window.matchMedia = ((media: string) => ({
+      matches: media.includes('1100px'),
+      media,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    })) as typeof window.matchMedia
+    try {
+      mockApi()
+      renderPanel()
+      const guide = await screen.findByRole('region', { name: '주문 가이드' })
+      expect(within(guide).queryByRole('table')).toBeNull()
+      expect(within(guide).getByRole('button', { name: /^VOO .* — 자세히$/ })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: '목표 · 밴드' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /^목표 · 밴드 한 번에 고치기$/ })).toBeNull()
+      // PC 처럼 새로 넣을 돈 칸은 위에 펼쳐져 있다
+      expect(screen.getByLabelText(/이번에 새로 넣을 돈/)).toBeInTheDocument()
+    } finally {
+      window.matchMedia = before
+    }
+  })
+})
