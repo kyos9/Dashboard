@@ -254,10 +254,16 @@ describe('지표 목록 (목업 13 ② — 카드 열두 장 대신 한 목록)'
     expect(rows[1]).not.toHaveTextContent(/일간/)
   })
 
-  it('줄 단추의 읽는 이름에 값과 변화가 같이 — 누르면 차트', async () => {
+  it('줄 단추의 읽는 이름에 풀이 · 값 · 변화가 같이 — 누르면 차트', async () => {
     mockMacro()
     renderPanel()
-    expect(await screen.findByRole('button', { name: '미 10년물 금리 4.11% +0.06%p — 차트' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: '미 10년물 금리, 장기 금리의 기준, 4.11% +0.06%p — 차트' })).toBeInTheDocument()
+  })
+
+  it('"받아본 적 없음"도 읽는 이름에 들어간다 — 이름을 덮어 써서 듣지 못했다 (검토 6 참고)', async () => {
+    mockMacro({ series: [series({ code: 'FEARGREED', name: '공포·탐욕 지수', value: null, as_of: null, last_checked_at: null })] })
+    renderPanel()
+    expect(await screen.findByRole('button', { name: /^공포·탐욕 지수, 받아본 적 없음, / })).toBeInTheDocument()
   })
 })
 
@@ -473,12 +479,15 @@ describe('화면 전체', () => {
     const user = userEvent.setup()
     renderPanel()
 
-    await user.click(await screen.findByRole('button', { name: /^미 10년물 금리 .* — 차트$/ }))
+    await user.click(await screen.findByRole('button', { name: /^미 10년물 금리, .* — 차트$/ }))
 
     const dialog = await screen.findByRole('dialog')
     // 시세 차트는 1년으로 열지만 매크로는 5년이다 — 지금이 높은지 낮은지는
     // 2020년이 화면에 있어야 보인다
     expect(within(dialog).getByRole('button', { name: '5년' })).toHaveClass('active')
+    // 기간은 한 줄 고르기 — 고른 칸만 눌린 상태로 읽힌다 (목업 13 ③, 검토 6 참고)
+    expect(within(dialog).getByRole('group', { name: '기간' })).toHaveClass('seg')
+    expect(within(within(dialog).getByRole('group', { name: '기간' })).getAllByRole('button').filter((b) => b.getAttribute('aria-pressed') === 'true').map((b) => b.textContent)).toEqual(['5년'])
     expect(api.getMacroHistory).toHaveBeenCalledWith('DGS10', '5y')
   })
 })

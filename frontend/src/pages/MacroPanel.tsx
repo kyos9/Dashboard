@@ -284,6 +284,7 @@ function MacroRow({
     !checked ? '받아본 적 없음' : checked !== commonChecked && `${checked} 확인`,
     series.source && series.source !== commonSource && `출처 ${series.source}`,
   ].filter(Boolean)
+  const sub = [series.note, ...meta].filter(Boolean).join(', ')
 
   return (
     <li className="macro-row">
@@ -306,11 +307,12 @@ function MacroRow({
           type="button"
           className="macro-row-open"
           onClick={onOpen}
-          aria-label={`${series.name} ${value}${change ? ` ${change}` : ''} — 차트`}
+          // 읽는 이름에 풀이 · 주기 · 받은 시각도 — 이름만 덮어 쓰면 "받아본 적 없음" 같은 글을 듣지 못했다(검토 6 참고)
+          aria-label={`${series.name}${sub ? `, ${sub}` : ''}, ${value}${change ? ` ${change}` : ''} — 차트`}
         >
           <span className="macro-row-name">
             <b>{series.name}</b>
-            {(series.note || meta.length > 0) && <small>{[series.note, ...meta].filter(Boolean).join(', ')}</small>}
+            {sub && <small>{sub}</small>}
           </span>
           <span className="macro-row-value">
             <b className="mono">{value}</b>

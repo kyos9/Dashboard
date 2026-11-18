@@ -783,6 +783,8 @@ describe('종목 탭 · 줄 / 카드 (묶음 3 — 주인: 사용자가 골라 �
     renderManager()
     await screen.findByRole('list', { name: '담은 종목' })
     await user.click(screen.getByRole('button', { name: '순서 바꾸기' }))
+    // 순서 바꾸는 동안은 보기 칸 둘 다 고른 모양이 아니다 — "줄"이 고른 채 보였다 (검토 6 참고)
+    for (const b of within(screen.getByRole('group', { name: '보기' })).getAllByRole('button')) expect(b).not.toHaveClass('active')
     const rows = () => Array.from(document.querySelectorAll<HTMLElement>('.stock-order li[data-ticker]'))
     // jsdom 은 자리를 모른다 — 줄마다 높이 60 의 상자를 주고, 손가락 아래 줄을 돌려준다
     rows().forEach((li, i) => {

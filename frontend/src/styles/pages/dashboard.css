@@ -668,27 +668,10 @@ table.data-table.holdings-table td {
 }
 
 /* 폰 — 한 종목이 두 줄, 누르면 펼친다 */
-/* 폰 보유 표 (디자인 4차 B, 목업 05b) — 머리줄 + 한 종목 한 줄: 종목 · 수량 · 비중 | 평가금액 | 수익률 + 수익금.
-   신호 배지는 이름 아래 줄(390 폭에 신호 칸을 따로 두면 표 밖으로 밀렸다). 줄을 누르면 지금처럼 펼친다 */
-.holding-head {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--holding-col-value) var(--holding-col-return);
-  gap: 8px;
-  padding: 8px 12px;
-  font-size: var(--fs-caption);
-  color: var(--text-faint);
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-bottom: 0;
-  border-radius: var(--radius) var(--radius) 0 0;
-}
-
-.holding-head span:not(:first-child) {
-  text-align: right;
-}
-
+/* 폰 보유 표 (디자인 4차 B, 목업 05b) — 한 종목 한 줄: 종목 · 수량 · 비중 | 평가금액 | 수익률 + 수익금.
+   신호 배지는 이름 아래 줄(390 폭에 신호 칸을 따로 두면 표 밖으로 밀렸다). 줄을 누르면 지금처럼 펼친다.
+   머리줄("종목 · 수량 · 신호")은 목업 13 ④ 에서 뺐다 */
 /* 숫자 칸은 숫자 폭만큼 — 남는 자리는 종목 이름에 (폰 360 에서 "2,000주 · 비중 34.9%" 가 두 줄이 됐다) */
-.holding-head,
 .holding-list {
   --holding-col-value: 96px; /* ₩83,250,000 (14px) */
   --holding-col-return: 92px; /* +₩21,833,040 (12px) */
