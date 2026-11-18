@@ -1482,7 +1482,8 @@ export function RebalancePanel() {
                   <th style={{ minWidth: 110 }}>주문</th>
                   <th style={{ minWidth: 150 }}>조정 금액</th>
                   <th style={{ minWidth: 150 }}>비중조절 신호</th>
-                  <th style={{ minWidth: 96 }}>거래</th>
+                  {/* 열린 "거래 칸 닫기"(한 줄) 폭까지 처음부터 — 열 때 열이 96 → 100px 로 넓어져 다른 칸이 꺾였다(검토 9 조건 1) */}
+                  <th style={{ minWidth: 104 }}>거래</th>
                 </tr>
               </thead>
               <tbody>
