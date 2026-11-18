@@ -1,7 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 import { useBackToClose } from '../../lib/backToClose'
 import { lockBodyScroll } from '../../lib/scrollLock'
-import { useFocusTrap } from '../../lib/focusTrap'
+import { isCovered, useFocusTrap } from '../../lib/focusTrap'
 
 interface Props {
   /** 시트 제목 — 읽기 프로그램에도 이 이름으로 */
@@ -29,7 +29,12 @@ export function Sheet({ title, label, sub, closeLabel, onClose, initialFocus, cl
   // 첫 칸을 주지 않으면 닫기 ✕ 로 — tabindex 없는 상자에 focus 를 부르면 포커스가 뒤 화면 줄에 남았다(묶음 4 검토 조건 4)
   useFocusTrap(ref, () => initialFocus?.() ?? closeRef.current)
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    // 시트 안에 확인창(기록 삭제 등)이 떠 있으면 Esc 는 그쪽만 닫는다 — 한 번에 시트째 닫혔다(묶음 4 다섯 번째 검토 조건 1)
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      if (ref.current && isCovered(ref.current)) return
+      onClose()
+    }
     document.addEventListener('keydown', onKey)
     const release = lockBodyScroll()
     return () => {

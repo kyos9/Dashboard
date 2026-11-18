@@ -507,6 +507,25 @@ describe('리밸런싱 · 리뷰와 기록', () => {
     await user.click(within(dialog).getByRole('button', { name: '네, 지웁니다' }))
     await waitFor(() => expect(remove).toHaveBeenCalledWith(7))
   })
+
+  it('시트 안 삭제 확인창에서 Esc 는 확인창만 닫는다 — 시트는 열린 채 (묶음 4 다섯 번째 검토 조건 1)', async () => {
+    mockApi(CURRENT, SETTINGS, [SNAPSHOT])
+    const remove = vi.spyOn(api, 'deleteSnapshot').mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    renderPanel()
+    await openRecords()
+
+    await user.click(await screen.findByRole('button', { name: '기록 삭제' }))
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+    expect(screen.getByRole('dialog', { name: '리뷰 · 기록' })).toBeInTheDocument()
+    expect(remove).not.toHaveBeenCalled()
+
+    // 확인창이 없으면 Esc 한 번에 시트가 닫힌다
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: '리뷰 · 기록' })).not.toBeInTheDocument())
+  })
 })
 
 /* ---------- 8-3 — 답을 먼저 · 한 번에 저장 · 산 환율 · 폰 카드 ---------- */
@@ -1368,6 +1387,34 @@ describe('리밸런싱 · 목업 12d (주인: 너무 길다)', () => {
     } finally {
       forgetPhone()
     }
+  })
+
+  it('폰: 줄일 종목도 큰 것 셋 + "2종목 더 보기" (다섯 번째 검토 — 줄일 묶음 제한을 99로 바꿔도 통과했다)', async () => {
+    pretendPhone()
+    try {
+      const sells = ['S1', 'S2', 'S3', 'S4', 'S5'].map((t, i) =>
+        row({ ticker: t, currency: 'KRW', target_weight_pct: 0, quantity: 100 - i * 10, last_close: 1000, current_value: (100 - i * 10) * 1000, current_value_base: (100 - i * 10) * 1000 }),
+      )
+      const value = sells.reduce((a, r) => a + r.current_value_base, 0) + 1_300_000
+      mockApi({ ...CURRENT, total_value_base: value, holdings_value_base: value, rows: [...sells, { ...CURRENT.rows[1], target_weight_pct: 100 }] })
+      const user = userEvent.setup()
+      renderPanel()
+      const sell = await screen.findByRole('region', { name: '줄일 종목' })
+      expect(within(sell).getAllByRole('listitem').map((li) => li.querySelector('.order-row-label')?.textContent)).toEqual(['S1', 'S2', 'S3'])
+      await user.click(within(sell).getByRole('button', { name: /^2종목 더 보기/ }))
+      expect(within(sell).getAllByRole('listitem')).toHaveLength(5)
+    } finally {
+      forgetPhone()
+    }
+  })
+
+  it('리뷰 · 기록 시트는 ✕ 로 닫힌다 (다섯 번째 검토 — 닫는 함수를 비워도 통과했다)', async () => {
+    mockApi()
+    const user = userEvent.setup()
+    renderPanel()
+    await openRecords()
+    await user.click(screen.getByRole('button', { name: '리뷰 · 기록 닫기' }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: '리뷰 · 기록' })).not.toBeInTheDocument())
   })
 
   it('폰: 새로 넣을 돈은 줄일 · 늘릴 막대 카드 안 한 줄 — 요약은 한 줄(전체 자금 · 큰 금액)과 알약 줄', async () => {

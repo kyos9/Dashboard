@@ -905,7 +905,7 @@ export function RebalancePanel() {
   const orderSaved = (row: Row) => (done?: { side: TradeSide; qty: number }) => {
     if (done)
       setTradeNote(
-        `${shortLabel(row)} ${done.qty.toLocaleString('ko-KR')}주 ${done.side === 'buy' ? '산' : '판'} 것을 반영했습니다 — 주문 가이드를 바뀐 보유로 다시 계산했습니다. 남은 주문이 줄거나 다른 종목의 사기·팔기가 바뀔 수 있습니다.${done.side === 'sell' ? ' 판 돈은 현금에 저절로 더해지지 않습니다 — 아래 설정의 "현금"에 적으면 전체 자금에 들어갑니다.' : ''}`,
+        `${shortLabel(row)} ${done.qty.toLocaleString('ko-KR')}주 ${done.side === 'buy' ? '산' : '판'} 것을 반영했습니다 — 주문 가이드를 바뀐 보유로 다시 계산했습니다. 남은 주문이 줄거나 다른 종목의 사기·팔기가 바뀔 수 있습니다.${done.side === 'sell' ? ' 판 돈은 현금에 저절로 더해지지 않습니다 — "리밸런싱 설정"의 "현금"에 적으면 전체 자금에 들어갑니다.' : ''}`,
       )
     handleSaved()
   }
@@ -1329,7 +1329,7 @@ export function RebalancePanel() {
           <div>
             환율을 받아오지 못해 추정치로 계산하고 있습니다
             {estimatedCurrencies.length > 0 && ` (${estimatedCurrencies.join(', ')})`}. 통화가 섞인
-            포트폴리오라 비중이 실제와 다를 수 있으니, 아래 설정의 "적용 환율"에서 직접 입력하거나 다시
+            포트폴리오라 비중이 실제와 다를 수 있으니, "리밸런싱 설정"의 "적용 환율"에서 직접 입력하거나 다시
             조회해주세요.
           </div>
         </div>
