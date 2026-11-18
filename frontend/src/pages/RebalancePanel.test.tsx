@@ -1,7 +1,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import userEvent from '@testing-library/user-event'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { AppStateProvider } from '../AppState'
 import { api } from '../api/client'
 import type { RebalanceCurrent, RebalanceRow, RebalanceSnapshot, Settings, Stock } from '../types'
@@ -359,6 +359,8 @@ describe('리밸런싱 · 평단가와 거래 입력', () => {
 
     // VOO 2주 @400 + 2주 @500 = 4주 @450 — 주문 줄의 거래 입력에서
     await user.click(within(await orderRow('VOO')).getByRole('button', { name: 'VOO 거래 입력' }))
+    // 열린 단추는 "거래 칸 닫기" — "닫기"만이면 무엇을 닫는지 몰랐다 (검토 7 참고)
+    expect(within(await orderRow('VOO')).getByRole('button', { name: 'VOO 거래 칸 닫기' })).toHaveTextContent(/^거래 칸 닫기$/)
     await user.click(screen.getByRole('button', { name: '샀다' }))
     await user.clear(screen.getByLabelText('VOO 거래 수량'))
     await user.type(screen.getByLabelText('VOO 거래 수량'), '2')
@@ -421,7 +423,7 @@ describe('리밸런싱 · 평단가와 거래 입력', () => {
     expect(screen.queryByLabelText('VOO 보유수량')).toBeNull()
     expect(screen.queryByLabelText('VOO 평단가')).toBeNull()
     expect(screen.queryByLabelText('VOO 산 환율')).toBeNull()
-    expect(sheet).toHaveTextContent('수량 · 평단가 · 산 환율은 종목 탭의 ⋯ “한 번에 수정”이나 종목 안 “보유”에서 고칩니다')
+    expect(sheet).toHaveTextContent('수량 · 평단가 · 산 환율은 종목 탭의 ⋯ “한 번에 수정”이나 종목 화면의 “보유” 탭에서 고칩니다')
   })
 
 })
@@ -1238,6 +1240,12 @@ describe('리밸런싱 · 묶음 4 사용자 확인 보완', () => {
   })
 
   it('목표 · 밴드를 저장하면 시트에 "n줄을 저장했습니다" — 닫으면 지운다', async () => {
+    const scroll = vi.fn()
+    const before = Element.prototype.scrollIntoView
+    Element.prototype.scrollIntoView = scroll
+    onTestFinished(() => {
+      Element.prototype.scrollIntoView = before
+    })
     mockApi()
     vi.spyOn(api, 'updateRebalanceTarget').mockResolvedValue({} as never)
     const user = userEvent.setup()
@@ -1249,6 +1257,8 @@ describe('리밸런싱 · 묶음 4 사용자 확인 보완', () => {
     expect(status).toHaveTextContent('1줄을 저장했습니다 — 주문 가이드를 새 목표로 다시 계산했습니다.')
     // 목록보다 위 — 긴 목록 맨 아래에 있어 보이지 않았다 (묶음 4 사용자 확인 2)
     expect(status.compareDocumentPosition(sheet.querySelector('.target-list')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // 아래쪽 줄을 고치고 저장해 시트가 내려가 있어도 그 줄을 보이는 곳으로 끌어온다 (검토 7 조건 1)
+    expect(scroll.mock.contexts.some((el) => el === status)).toBe(true)
     await user.click(within(sheet).getByRole('button', { name: '목표 · 밴드 닫기' }))
     const again = await openTargets(user)
     expect(within(again).queryByRole('status')).toBeNull()

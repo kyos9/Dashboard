@@ -395,6 +395,8 @@ describe('장단기 금리차 — 장식 없이 (목업 13 ④)', () => {
     const line = (await screen.findByText(/장단기 금리차 \+0\.28%p/)).closest('.callout')!
     expect(line).toHaveTextContent('장단기 금리차 +0.28%p, 정상(장기 > 단기) (2026-11-18 기준)')
     expect(line.textContent).not.toMatch(/📐|DGS10| — /)
+    // 날짜는 한 덩어리 — "(2026-" / "11-18 기준)"으로 갈라졌다 (검토 6 조건 4)
+    expect(within(line as HTMLElement).getByText('(2026-11-18 기준)')).toHaveClass('nowrap')
   })
 })
 

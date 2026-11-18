@@ -421,10 +421,10 @@ export function StockManager() {
             // 목업 13 ③ (주인 답 "나누기") — 하나를 고르는 보기는 한 줄 고르기, 일이 일어나는 것은 네모 단추, 알약은 아래 거르기에만
             <div className="view-tools stock-tools" id="stock-view-tools" role="group" aria-label="보기·설정">
               <div className="seg" role="group" aria-label="보기">
-                <button type="button" className={view === 'list' && !ordering ? 'active' : undefined} aria-pressed={view === 'list'} onClick={() => setView('list')} aria-label="줄 보기">
+                <button type="button" className={view === 'list' && !ordering ? 'active' : undefined} aria-pressed={view === 'list' && !ordering} onClick={() => setView('list')} aria-label="줄 보기">
                   줄
                 </button>
-                <button type="button" className={view === 'card' && !ordering ? 'active' : undefined} aria-pressed={view === 'card'} onClick={() => setView('card')} aria-label="카드 보기">
+                <button type="button" className={view === 'card' && !ordering ? 'active' : undefined} aria-pressed={view === 'card' && !ordering} onClick={() => setView('card')} aria-label="카드 보기">
                   카드
                 </button>
               </div>

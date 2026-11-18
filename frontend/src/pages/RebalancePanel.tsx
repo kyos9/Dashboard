@@ -730,7 +730,7 @@ function OrderTableRow({
               aria-expanded={open}
               aria-label={open ? `${shortLabel(row)} 거래 칸 닫기` : `${shortLabel(row)} 거래 입력`}
             >
-              {open ? '닫기' : '거래 입력'}
+              {open ? '거래 칸 닫기' : '거래 입력'}
             </button>
           )}
         </td>

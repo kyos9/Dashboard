@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { NumberInput } from '../NumberInput'
 import { Sheet } from '../ui/Sheet'
 
@@ -46,6 +47,11 @@ export function TargetSheet({
   onReset: () => void
   onClose: () => void
 }) {
+  const noteRef = useRef<HTMLParagraphElement>(null)
+  // 아래쪽 줄을 고치고 저장하면 시트가 내려간 채라 맨 위 줄이 화면 밖이었다 — 저장 줄을 보이는 곳으로 (묶음 4 검토 7 조건 1)
+  useEffect(() => {
+    if (note) noteRef.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' })
+  }, [note])
   return (
     <Sheet
       title="목표 비중 · 밴드"
@@ -63,7 +69,7 @@ export function TargetSheet({
     >
       {/* 저장한 뒤 한 줄은 맨 위에 — 긴 목록 맨 아래에 있어 보이지 않았다(묶음 4 사용자 확인 2) */}
       {note && (
-        <p className="hint saved-note" role="status">
+        <p ref={noteRef} className="hint saved-note" role="status">
           ✓ {note}
         </p>
       )}
@@ -103,8 +109,8 @@ export function TargetSheet({
         ))}
       </ul>
       <p className="hint">
-        밴드를 비워 두면 설정의 기본 밴드({defaultBand}%p)를 씁니다. 수량 · 평단가 · 산 환율은 종목 탭의 ⋯ &ldquo;한 번에 수정&rdquo;이나 종목 안
-        &ldquo;보유&rdquo;에서 고칩니다.
+        밴드를 비워 두면 설정의 기본 밴드({defaultBand}%p)를 씁니다. 수량 · 평단가 · 산 환율은 종목 탭의 ⋯ &ldquo;한 번에 수정&rdquo;이나 종목 화면의
+        &ldquo;보유&rdquo; 탭에서 고칩니다.
       </p>
       <div className="target-actions">
         <button type="button" onClick={onReset} disabled={saving || dirtyCount === 0}>
