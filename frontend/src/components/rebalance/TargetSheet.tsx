@@ -61,6 +61,12 @@ export function TargetSheet({
         </>
       }
     >
+      {/* 저장한 뒤 한 줄은 맨 위에 — 긴 목록 맨 아래에 있어 보이지 않았다(묶음 4 사용자 확인 2) */}
+      {note && (
+        <p className="hint saved-note" role="status">
+          ✓ {note}
+        </p>
+      )}
       <div className="target-head" aria-hidden="true">
         <span>종목</span>
         <span>목표</span>
@@ -100,11 +106,6 @@ export function TargetSheet({
         밴드를 비워 두면 설정의 기본 밴드({defaultBand}%p)를 씁니다. 수량 · 평단가 · 산 환율은 종목 탭의 ⋯ &ldquo;한 번에 수정&rdquo;이나 종목 안
         &ldquo;보유&rdquo;에서 고칩니다.
       </p>
-      {note && (
-        <p className="hint saved-note" role="status">
-          ✓ {note}
-        </p>
-      )}
       <div className="target-actions">
         <button type="button" onClick={onReset} disabled={saving || dirtyCount === 0}>
           되돌리기

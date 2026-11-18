@@ -497,12 +497,12 @@ export function ValueRecordLine({ record }: { record: ValueRecord | null | undef
   if (!record?.enabled) return null
   return (
     <p className="hint value-record-line">
-      리뷰 기록과 따로, 서버가 매일 아침 평가금액과 보유 모습(수량·평단가·종가·현금·환율)을 남깁니다 —{' '}
+      리뷰 기록과 따로, 서버가 매일 아침 평가금액과 보유 모습(수량·평단가·종가·현금·환율)을 남깁니다.{' '}
       {record.days > 0 && record.since ? (
         <>
           {/* 날짜가 줄 끝에서 "2026-" / "10-12" 로 갈라지지 않게 */}
-          <span className="nowrap">{record.since}부터</span> <span className="nowrap">{record.days}일치</span> 쌓였습니다(쌓인 기록을 보는 화면은
-          아직 없습니다).
+          {/* "(쌓인 기록을 보는 화면은 아직 없습니다)"는 뺐다 — 할 수 없는 일을 알려 헷갈렸다(묶음 4 사용자 확인 2) */}
+          <span className="nowrap">{record.since}부터</span> <span className="nowrap">{record.days}일치</span> 쌓였습니다.
         </>
       ) : (
         '보유나 현금이 있으면 다음 아침부터 쌓입니다.'
@@ -666,6 +666,11 @@ function OrderTrade({
   onError: (e: unknown) => void
 }) {
   const [open, setOpen] = useState(false)
+  const formRef = useRef<HTMLDivElement>(null)
+  // 폰 320 에서 거래 칸이 시트 아래 화면 밖에 열려 "아무 일도 안 일어난 것"처럼 보였다 — 연 칸을 보이는 곳으로 (묶음 4 사용자 확인 2)
+  useEffect(() => {
+    if (open) formRef.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' })
+  }, [open])
   if (order.action === 'hold') return null
   return (
     <>
@@ -675,9 +680,10 @@ function OrderTrade({
         aria-expanded={open}
         aria-label={open ? `${shortLabel(row)} 거래 칸 닫기` : `${shortLabel(row)} 거래 입력`}
       >
-        {open ? '닫기' : '거래 입력'}
+        {open ? '거래 칸 닫기' : '거래 입력'}
       </button>
       {open && (
+        <div ref={formRef} className="order-trade-form">
         <TradeForm
           row={row}
           fxNow={fxNow}
@@ -687,6 +693,7 @@ function OrderTrade({
           onError={onError}
           onClose={() => setOpen(false)}
         />
+        </div>
       )}
     </>
   )
@@ -1613,7 +1620,7 @@ export function RebalancePanel() {
               목표 · 밴드 고치기
             </button>
             <Link className="link-button" to={`/stocks/${encodeURIComponent(openRow.ticker)}`}>
-              종목 안 보기
+              종목 화면 열기
             </Link>
             <OrderTrade
               row={openRow}
@@ -1626,7 +1633,7 @@ export function RebalancePanel() {
               onError={setError}
             />
           </div>
-          <p className="hint">수량 · 평단가는 &ldquo;종목 안 보기&rdquo;의 &ldquo;보유&rdquo;에서 고칩니다.</p>
+          <p className="hint">수량 · 평단가는 종목 화면의 &ldquo;보유&rdquo; 탭에서 고칩니다.</p>
         </Sheet>
       )}
 

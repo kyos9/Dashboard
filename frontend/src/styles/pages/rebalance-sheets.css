@@ -180,7 +180,8 @@ button.order-row:hover {
   border-color: var(--border-strong);
   color: var(--text);
 }
-.order-sheet-actions .trade-form {
+.order-sheet-actions .trade-form,
+.order-sheet-actions > .order-trade-form {
   flex-basis: 100%;
 }
 

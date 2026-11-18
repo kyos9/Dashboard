@@ -805,6 +805,8 @@ describe('종목 탭 · 줄 / 카드 (묶음 3 — 주인: 사용자가 골라 �
     }
     await waitFor(() => expect(order).toHaveBeenCalledWith(['SCHD', 'VOO', 'QQQ']))
     expect(await screen.findByText(/순서를 저장했습니다/)).toBeInTheDocument()
+    // 홈 표는 정렬을 "내가 정한 순서"로 둘 때만 따른다 — "홈 표도 이 순서"라 했는데 그대로라 헷갈렸다 (묶음 4 사용자 확인 2)
+    expect(screen.getByText(/순서를 저장했습니다/)).toHaveTextContent('정렬을 "내가 정한 순서"로 둔 홈 표')
     expect(shownOrder()).toEqual(['SCHD', 'VOO', 'QQQ'])
   })
 

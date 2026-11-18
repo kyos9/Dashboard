@@ -345,7 +345,7 @@ describe('리밸런싱 · 평단가와 거래 입력', () => {
       expect(sheet).toHaveTextContent('₩1,300,000')
       expect(sheet).toHaveTextContent('목표 ₩1,260,000')
       expect(sheet).toHaveTextContent('주문 −$30.77')
-      expect(within(sheet).getByRole('link', { name: '종목 안 보기' })).toHaveAttribute('href', '/stocks/VOO')
+      expect(within(sheet).getByRole('link', { name: '종목 화면 열기' })).toHaveAttribute('href', '/stocks/VOO')
     } finally {
       forgetPhone()
     }
@@ -1057,8 +1057,8 @@ describe('날마다의 평가금액 안내 (0.44.0)', () => {
     const section = await openRecords()
     const line = section.querySelector('.value-record-line') as HTMLElement
     expect(line.textContent?.replace(/\s+/g, ' ')).toBe(
-      '리뷰 기록과 따로, 서버가 매일 아침 평가금액과 보유 모습(수량·평단가·종가·현금·환율)을 남깁니다 — ' +
-        '2026-10-05부터 12일치 쌓였습니다(쌓인 기록을 보는 화면은 아직 없습니다).',
+      '리뷰 기록과 따로, 서버가 매일 아침 평가금액과 보유 모습(수량·평단가·종가·현금·환율)을 남깁니다. ' +
+        '2026-10-05부터 12일치 쌓였습니다.',
     )
     // 날짜는 줄 끝에서 갈라지지 않는다
     expect(within(line).getByText('2026-10-05부터').classList.contains('nowrap')).toBe(true)
@@ -1215,6 +1215,28 @@ describe('리밸런싱 · 묶음 4 사용자 확인 보완', () => {
     expect(await screen.findByText(/VOO 1주 판 것을 반영했습니다/)).toHaveTextContent('판 돈은 현금에 저절로 더해지지 않습니다')
   })
 
+  it('주문 시트의 "거래 입력"을 누르면 거래 칸을 보이는 곳으로 끌어온다 — 폰 320 에서 화면 밖에 열렸다 (묶음 4 사용자 확인 2)', async () => {
+    mockApi()
+    const scroll = vi.fn()
+    const before = Element.prototype.scrollIntoView
+    Element.prototype.scrollIntoView = scroll
+    pretendPhone()
+    try {
+      const user = userEvent.setup()
+      renderPanel()
+      await user.click(await screen.findByRole('button', { name: /^VOO .* — 자세히$/ }))
+      const sheet = screen.getByRole('dialog', { name: 'VOO 주문 자세히' })
+      await user.click(within(sheet).getByRole('button', { name: 'VOO 거래 입력' }))
+      const toggle = within(sheet).getByRole('button', { name: 'VOO 거래 칸 닫기' })
+      expect(toggle).toHaveTextContent('거래 칸 닫기')
+      expect(scroll).toHaveBeenCalled()
+      expect(scroll.mock.contexts[0]).toHaveClass('order-trade-form')
+    } finally {
+      forgetPhone()
+      Element.prototype.scrollIntoView = before
+    }
+  })
+
   it('목표 · 밴드를 저장하면 시트에 "n줄을 저장했습니다" — 닫으면 지운다', async () => {
     mockApi()
     vi.spyOn(api, 'updateRebalanceTarget').mockResolvedValue({} as never)
@@ -1223,7 +1245,10 @@ describe('리밸런싱 · 묶음 4 사용자 확인 보완', () => {
     const sheet = await openTargets(user)
     await user.type(within(sheet).getByLabelText('VOO 밴드 임계값'), '3')
     await user.click(within(sheet).getByRole('button', { name: '바뀐 1줄 저장' }))
-    expect(await within(sheet).findByRole('status')).toHaveTextContent('1줄을 저장했습니다 — 주문 가이드를 새 목표로 다시 계산했습니다.')
+    const status = await within(sheet).findByRole('status')
+    expect(status).toHaveTextContent('1줄을 저장했습니다 — 주문 가이드를 새 목표로 다시 계산했습니다.')
+    // 목록보다 위 — 긴 목록 맨 아래에 있어 보이지 않았다 (묶음 4 사용자 확인 2)
+    expect(status.compareDocumentPosition(sheet.querySelector('.target-list')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     await user.click(within(sheet).getByRole('button', { name: '목표 · 밴드 닫기' }))
     const again = await openTargets(user)
     expect(within(again).queryByRole('status')).toBeNull()
@@ -1237,7 +1262,7 @@ describe('리밸런싱 · 묶음 4 사용자 확인 보완', () => {
       renderPanel()
       await user.click(await screen.findByRole('button', { name: /^VOO .*팔기 · .* — 자세히$/ }))
       const sheet = screen.getByRole('dialog', { name: 'VOO 주문 자세히' })
-      expect(sheet).toHaveTextContent('수량 · 평단가는 “종목 안 보기”의 “보유”에서 고칩니다.')
+      expect(sheet).toHaveTextContent('수량 · 평단가는 종목 화면의 “보유” 탭에서 고칩니다.')
       // 계산 소수는 따로 한 줄 — "1주 (1.35)" 괄호가 무엇인지 몰랐다
       expect(sheet.querySelector('.order-sheet-act b')).toHaveTextContent('−1주계산으로는 1.35주 · 1주 단위로 내림')
       // 기간 내 매도 배지는 시그널 매도 색(상승 빨강이면 ▼ 와 같이 바뀐다)

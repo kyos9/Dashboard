@@ -308,7 +308,7 @@ export function StockManager() {
     setOrderBusy(true)
     try {
       await api.updateStockOrder(next)
-      setSavedNote('순서를 저장했습니다 — 홈 표와 시그널 목록도 이 순서입니다.')
+      setSavedNote('순서를 저장했습니다. 시그널 목록과, 정렬을 "내가 정한 순서"로 둔 홈 표가 이 순서를 따릅니다.')
       notifyDataChanged()
     } catch (e) {
       setStocks(previous)
