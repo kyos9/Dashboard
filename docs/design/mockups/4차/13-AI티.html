@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>4차 AI 티 빼기</title>
+<!--
+  디자인 4차 목업 13 — AI 티 점검(../../4차-제로베이스/AI티-점검.md) 고친 모습. 주인: "목업 13 보여줘, 묶음 4 안에서 하자".
+  ① 색: 글자 회색 · 뜻 색이 Tailwind 기본값 그대로 → 가 지금 / 나 청람 먹 / 다 먹 회색 (라이트만 — 다크는 이미 따로 뽑은 값)
+  ② 카드 위계: 주인공 하나만 카드, 목록은 줄, 같은 것이 많으면 표 (홈 · 매크로)
+  ③ 단추: 알약은 "고르기"에만, 동작은 네모 단추 · 차트 기간은 한 줄 고르기
+  ④ 글: 띄어 쓴 " · " 메타 줄 · " — 풀이" · 글 끝 → / › · 반짝이 ✦ · 이모지 📐 ✎ · 같은 설명 여러 번
+  기본은 라이트(색 비교가 라이트라서). ?theme=dark 로 다크. 색 · 글꼴은 앱 tokens.css 를 불러 그린다. 데이터는 가짜.
+  ① 의 나 · 다 는 제안 값이라 이 파일 안에서만 칸 변수로 덮어쓴다 — 고르면 tokens.css 로 옮긴다.
+-->
+<link rel="stylesheet" href="../../../../frontend/src/styles/tokens.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:#6b7280}
+body{font-family:var(--font-sans);word-break:keep-all;padding:24px;display:flex;gap:24px;align-items:flex-start;justify-content:center;flex-wrap:wrap;max-width:1700px;margin:0 auto;color:var(--text)}
+.part{width:100%;color:#fff;font-size:20px;font-weight:700;padding:18px 0 0;border-top:1px solid rgba(255,255,255,.3)}
+.part:first-child{border-top:0;padding-top:0}
+.part small{display:block;font-size:13px;font-weight:400;opacity:.9;margin-top:4px;max-width:1100px;line-height:1.5}
+.col{display:flex;flex-direction:column;gap:10px;align-items:center}
+.cap{font-weight:600;font-size:15px;color:#fff;text-align:center;line-height:1.35;max-width:390px}
+.cap small{display:block;font-weight:400;font-size:12px;opacity:.88;margin-top:2px}
+.num{font-variant-numeric:tabular-nums;font-family:var(--font-num)}
+.phone{width:390px;height:844px;position:relative;border-radius:28px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.35);background:var(--bg);display:flex;flex-direction:column;color:var(--text)}
+.phone.short{height:auto;padding-bottom:16px}
+.scroll{flex:1;overflow:hidden;padding-bottom:84px}
+.status{height:44px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 28px;font-size:14px;font-weight:600;background:var(--brand);color:var(--on-brand)}
+.top{background:var(--brand);color:var(--on-brand);display:flex;align-items:center;gap:4px;padding:2px 8px 8px 16px;flex:none}
+.top b{font-size:17px;font-weight:700;flex:1}
+.top .fresh{font-size:12px;color:var(--on-brand-dim);margin-right:4px}
+.ic{width:44px;height:44px;display:grid;place-items:center;flex:none}
+svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+svg.i.s{width:16px;height:16px}
+.tabbar{position:absolute;left:0;right:0;bottom:0;height:84px;display:flex;padding:8px 6px 26px;background:var(--panel);border-top:1px solid var(--border);color:var(--text-faint)}
+.tabbar a{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:var(--fs-caption)}
+.tabbar .on{color:var(--accent);font-weight:600}
+.tabbar .on svg path.f{fill:currentColor}
+.shape{display:inline-block;width:.68em;height:.68em;margin-right:3px;vertical-align:0;background:currentColor}
+.tri-up{clip-path:polygon(50% 0,100% 100%,0 100%)}.tri-dn{clip-path:polygon(0 0,100% 0,50% 100%)}.dia{clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)}
+.badge{display:inline-flex;align-items:center;font-size:var(--fs-caption);font-weight:600;white-space:nowrap;border-radius:6px;padding:2px 6px}
+.b-buy{color:var(--signal-buy);background:var(--signal-buy-soft)}
+.b-sell{color:var(--signal-sell);background:var(--signal-sell-soft)}
+.b-wt{color:var(--signal-weight);background:var(--signal-weight-soft)}
+.up{color:var(--up)} .down{color:var(--down)} .faint{color:var(--text-faint)} .dim{color:var(--text-dim)}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius)}
+.hint{font-size:var(--fs-caption);color:var(--text-faint);line-height:1.5}
+.go{color:var(--text-faint);flex:none}
+a.lk{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
+.hl{outline:2px dashed var(--amber);outline-offset:2px;border-radius:4px}
+
+/* 홈 요약 (지금 · 바꾼 것 같음) */
+.sum{margin:12px 16px 0;padding:14px 16px}
+.sum .t{display:flex;justify-content:space-between;font-size:var(--fs-sub);font-weight:600}
+.sum .big{font-family:var(--font-summary-num);font-size:28px;font-weight:700;letter-spacing:-.02em;margin:6px 0 10px}
+.sum .g{display:grid;grid-template-columns:1fr 1fr;gap:10px 12px}
+.sum .g span{display:block;font-size:var(--fs-caption);color:var(--text-faint)}
+.sum .g b{font-family:var(--font-summary-num);font-size:var(--fs-strong);font-weight:700}
+.sum .foot{margin-top:10px}
+/* 신호 칸 셋 */
+.tiles3{display:grid;grid-template-columns:repeat(3,1fr);margin:8px 16px 0}
+.tiles3 > div{text-align:center;padding:10px 4px}
+.tiles3 > div + div{border-left:1px solid var(--border)}
+.tiles3 b{display:block;font-size:22px;font-weight:700}
+.tiles3 span{font-size:var(--fs-caption);font-weight:600}
+.tiles3.flat{margin:4px 16px 0}
+/* AI 줄 */
+.airow{display:flex;align-items:center;gap:10px;margin:8px 16px 0;padding:12px 14px}
+.airow b{display:block;font-size:var(--fs-body)}
+.airow small{display:block;font-size:var(--fs-caption);color:var(--text-faint);margin-top:2px}
+.airow .sp{color:var(--accent);font-size:18px}
+.airow.flat{margin:0;padding:12px 16px;border-top:1px solid var(--border);border-bottom:1px solid var(--border);background:var(--panel)}
+.airow.flat .go{margin-left:auto}
+/* 보유 목록 */
+.sech{display:flex;align-items:baseline;gap:6px;padding:16px 16px 8px;font-size:var(--fs-strong);font-weight:700}
+.sech small{font-size:var(--fs-caption);color:var(--text-faint);font-weight:600}
+.list{background:var(--panel)}
+.list.boxed{margin:0 16px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.list.flat{border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.lh{display:flex;justify-content:space-between;padding:8px 14px;font-size:var(--fs-caption);color:var(--text-faint);background:var(--panel-soft);border-bottom:1px solid var(--border)}
+.row{display:flex;gap:10px;padding:10px 14px;align-items:flex-start}
+.row + .row{border-top:1px solid var(--border)}
+.list.flat .row{padding:10px 16px}
+.row .nm{flex:1;min-width:0}
+.row .nm b{display:block;font-size:var(--fs-body);font-weight:600}
+.row .nm small{display:block;font-size:var(--fs-caption);color:var(--text-faint);margin-top:2px}
+.row .nm .badge{margin-top:6px}
+.row .v{text-align:right}
+.row .v b{display:block;font-size:var(--fs-body);font-weight:700}
+.row .v small{display:block;font-size:var(--fs-caption);margin-top:2px}
+
+/* 매크로 */
+.mh{padding:14px 16px 4px}
+.mh b{font-size:var(--fs-title);font-weight:700}
+.mh p{margin-top:4px}
+.band{display:flex;align-items:center;gap:8px;margin:8px 16px 0;padding:10px 12px;border:1px solid var(--accent-line);background:var(--accent-soft);border-radius:var(--radius);font-size:var(--fs-sub);color:var(--accent)}
+.mcard{margin:8px 16px 0;padding:12px 14px}
+.mcard .n{display:flex;justify-content:space-between;font-size:var(--fs-strong);font-weight:700}
+.mcard .n u{text-decoration:underline dotted;text-underline-offset:3px}
+.mcard .v{font-size:26px;font-weight:700;margin:6px 0 4px}
+.mcard .v small{font-size:var(--fs-sub);font-weight:500;margin-left:6px}
+.mrow{display:flex;align-items:center;gap:10px;padding:10px 16px;min-height:60px}
+.mrow + .mrow{border-top:1px solid var(--border)}
+.mrow .nm{flex:1;min-width:0}
+.mrow .nm b{display:block;font-size:var(--fs-body);font-weight:600}
+.mrow .nm small{display:block;font-size:var(--fs-caption);color:var(--text-faint);margin-top:2px}
+.mrow .v{text-align:right}
+.mrow .v b{display:block;font-size:var(--fs-strong);font-weight:700}
+.mrow .v small{display:block;font-size:var(--fs-caption);margin-top:1px}
+.mrow .st{width:20px;text-align:center;color:var(--text-faint)}
+.mrow .st.on{color:var(--amber)}
+.subh{display:flex;justify-content:space-between;padding:14px 16px 6px;font-size:var(--fs-caption);font-weight:600;color:var(--text-faint)}
+
+/* 단추 */
+.tb{display:flex;flex-wrap:wrap;gap:6px;padding:12px 16px}
+.pillb{border:1px solid var(--border-strong);background:var(--panel);border-radius:999px;height:40px;padding:0 14px;display:inline-flex;align-items:center;gap:4px;font-size:var(--fs-sub);font-weight:600}
+.pillb.on{border:2px solid var(--accent)}
+.pillb.amb{background:var(--amber-soft);border-color:transparent;color:var(--amber);border-radius:6px;height:28px;font-size:var(--fs-caption)}
+.seg{display:inline-flex;background:var(--panel-soft);border:1px solid var(--border);border-radius:var(--radius-sm);padding:3px;gap:2px}
+.seg span{height:34px;padding:0 14px;display:inline-flex;align-items:center;justify-content:center;font-size:var(--fs-sub);font-weight:600;color:var(--text-dim);border-radius:6px;flex:1}
+.seg span.on{background:var(--panel);color:var(--text);box-shadow:0 0 0 1px var(--border-strong)}
+.seg.full{display:flex;margin:0 16px}
+.sqb{height:40px;padding:0 12px;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);background:var(--panel);font-size:var(--fs-sub);font-weight:600}
+.txtb{height:40px;padding:0 6px;display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-sub);font-weight:600;color:var(--accent)}
+.chipf{border:1px solid var(--border);background:var(--panel);border-radius:999px;height:36px;padding:0 12px;display:inline-flex;align-items:center;font-size:var(--fs-sub);color:var(--text-dim)}
+.chipf.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft);font-weight:600}
+.per{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:0 16px}
+.per span{height:40px;border:1px solid var(--border);border-radius:999px;display:grid;place-items:center;font-size:var(--fs-sub);font-weight:600;background:var(--panel)}
+.per span.on{border:2px solid var(--accent-line);background:var(--accent-soft)}
+.lbl{padding:14px 16px 6px;font-size:var(--fs-caption);font-weight:600;color:var(--text-faint)}
+
+/* 글 고치기 표 */
+.words{width:1180px;padding:6px 0;overflow:hidden}
+.words table{width:100%;border-collapse:collapse;font-size:var(--fs-sub)}
+.words th{font-size:var(--fs-caption);color:var(--text-faint);font-weight:600;text-align:left;padding:10px 14px;background:var(--panel-soft);border-bottom:1px solid var(--border)}
+.words td{padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:top;line-height:1.5}
+.words tr:last-child td{border-bottom:0}
+.words td:first-child{color:var(--text-faint);font-size:var(--fs-caption);width:150px}
+.words td:nth-child(2){color:var(--text-dim)}
+.words td:nth-child(3){font-weight:600}
+.words td:nth-child(4){color:var(--text-faint);font-size:var(--fs-caption);width:230px}
+.words del{text-decoration:none;background:var(--red-soft);color:var(--red);border-radius:3px;padding:0 2px}
+
+/* 색 견본 */
+.sw{display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 12px}
+.sw i{display:inline-flex;flex-direction:column;gap:3px;font-style:normal;font-size:11px;color:var(--text-faint)}
+.sw i::before{content:'';width:40px;height:26px;border-radius:6px;background:var(--c);border:1px solid var(--border)}
+/* 로그인 */
+.login{margin:16px;padding:20px 18px;text-align:center}
+.login.dashed{border:1.5px dashed var(--border-strong);border-radius:var(--radius);background:var(--panel)}
+.login.plain{text-align:left;padding:8px 4px}
+.login h3{font-size:var(--fs-strong);font-weight:700;margin-bottom:12px}
+.login ul{text-align:left;font-size:var(--fs-sub);line-height:1.55;padding-left:18px;color:var(--text-dim)}
+.login.plain ul{list-style:none;padding:0;display:grid;gap:10px}
+.login.plain li b{display:block;color:var(--text)}
+.login .btnb{display:inline-flex;height:48px;align-items:center;justify-content:center;padding:0 22px;border-radius:var(--radius-sm);background:var(--brand);color:var(--on-brand);font-weight:700;font-size:var(--fs-body);margin:16px 0 10px}
+.login.plain .btnb{display:flex}
+.fine{padding:0 16px;font-size:var(--fs-caption);color:var(--text-faint);line-height:1.5}
+</style>
+</head>
+<body>
+<script>
+const q = new URLSearchParams(location.search)
+if (q.get('theme') !== 'dark') document.documentElement.dataset.theme = 'light'
+if (q.get('rise') === 'red') document.documentElement.dataset.rise = 'red'
+/* 앱 아이콘(iconPaths.ts)에서 가져온 그림 */
+const P = {
+  home: [['M3.8 11.2 10.7 5a2 2 0 0 1 2.6 0l6.9 6.2V19a1.5 1.5 0 0 1-1.5 1.5H5.3A1.5 1.5 0 0 1 3.8 19z', 1], ['M12 14.5v3']],
+  stocks: [['M7 3.5v3M7 15.5v4M17 4.5v4M17 15.5v4'], ['M5 6.5h4v9H5z', 1], ['M15 8.5h4v7h-4z', 1]],
+  rebalance: [['M20.5 12A8.5 8.5 0 1 1 12 3.5M17 12a5 5 0 1 1-5-5'], ['M12 3.5A8.5 8.5 0 0 1 20.5 12H17a5 5 0 0 0-5-5z', 1]],
+  macro: [['M3.5 16.5a8.5 8.5 0 1 1 17 0z', 1], ['M12 16.5l3.5-5'], ['M3.5 16.5h17']],
+  settings: [['M18.66 9.84L20.55 10.37Q21.60 12.00 20.55 13.63L18.66 14.16L17.20 16.68L17.68 18.59Q16.80 20.31 14.86 20.22L13.46 18.85L10.54 18.85L9.14 20.22Q7.20 20.31 6.32 18.59L6.80 16.68L5.34 14.16L3.45 13.63Q2.40 12.00 3.45 10.37L5.34 9.84L6.80 7.32L6.32 5.41Q7.20 3.69 9.14 3.78L10.54 5.15L13.46 5.15L14.86 3.78Q16.80 3.69 17.68 5.41L17.20 7.32Z'], ['M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z']],
+  more: [['M4.5 12a1 1 0 1 0 2 0 1 1 0 1 0-2 0M11 12a1 1 0 1 0 2 0 1 1 0 1 0-2 0M17.5 12a1 1 0 1 0 2 0 1 1 0 1 0-2 0']],
+  edit: [['M4 20h4L19 9l-4-4L4 16z'], ['M13.5 6.5l4 4']],
+  doc: [['M5.5 3.5h13v17h-13z'], ['M9 8.5h6M9 12h6M9 15.5h3.5']],
+  refresh: [['M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4']],
+  chev: [['M6 9l6 6 6-6']],
+}
+const ic = (n, cls = 'i') => `<svg class="${cls}" viewBox="0 0 24 24">${P[n].map(([d, f]) => `<path d="${d}"${f ? ' class="f"' : ''}/>`).join('')}</svg>`
+const status = () => `<div class="status"><span class="num">8:12</span><span>●●● ▮</span></div>`
+const topBar = () => `<div class="top"><b>자산관리</b><span class="fresh">방금 받음</span><span class="ic">${ic('refresh')}</span></div>`
+const TABS = [['home', '홈'], ['stocks', '종목'], ['rebalance', '리밸런싱'], ['macro', '매크로'], ['settings', '설정']]
+const tabbar = (on = 2) => `<nav class="tabbar">${TABS.map(([k, n], i) => `<a class="${i === on ? 'on' : ''}">${ic(k)}${n}</a>`).join('')}</nav>`
+const sh = { buy: '<i class="shape tri-up"></i>', sell: '<i class="shape tri-dn"></i>', wt: '<i class="shape dia"></i>' }
+const B = { buy: `<span class="badge b-buy">${sh.buy}매수</span>`, sell: `<span class="badge b-sell">${sh.sell}매도</span>`, over: `<span class="badge b-wt">${sh.wt}비중 초과</span>`, under: `<span class="badge b-wt">${sh.wt}비중 미달</span>` }
+const col = (cap, sub, body) => `<div class="col"><div class="cap">${cap}<small>${sub}</small></div>${body}</div>`
+const part = (t, s) => `<div class="part">${t}<small>${s}</small></div>`
+const phone = (inner, cls = '', style = '') => `<div class="phone ${cls}" style="${style}">${inner}</div>`
+const chev = `<svg class="i s" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>`
+const out = []
+
+/* ───────── ① 색 ───────── */
+const SETS = {
+  now: { text: '#111827', dim: '#374151', faint: '#5b6472', green: '#166534', red: '#b91c1c', amber: '#92400e', down: '#1d4ed8', teal: '#0f766e' },
+  ink: { text: '#0e1b2e', dim: '#334459', faint: '#5a6a7f', green: '#18694a', red: '#b02a2a', amber: '#8a4a0b', down: '#1f50c2', teal: '#0b6a6f' },
+  mok: { text: '#1a1d22', dim: '#40454d', faint: '#62676f', green: '#2a6a3e', red: '#a83a2e', amber: '#87520f', down: '#2b54b8', teal: '#24676a' },
+}
+const soft = (h, a) => { const n = parseInt(h.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})` }
+const vars = (s) => q.get('theme') === 'dark' ? '' : `--text:${s.text};--text-dim:${s.dim};--text-faint:${s.faint};--green:${s.green};--red:${s.red};--amber:${s.amber};--up:${s.green};--down:${s.red};--signal-buy:${s.green};--signal-sell:${s.red};--signal-buy-soft:${soft(s.green, .09)};--signal-sell-soft:${soft(s.red, .08)};--amber-soft:${soft(s.amber, .09)};--slate-soft:${soft(s.dim, .1)}`
+const swatch = (s) => `<div class="sw">${[['글자', s.text], ['흐린 글자', s.dim], ['더 흐린', s.faint], ['초록', s.green], ['빨강', s.red], ['호박', s.amber], ['파랑(상승빨강)', s.down], ['청록', s.teal]].map(([n, c]) => `<i style="--c:${c}">${n}<br>${c}</i>`).join('')}</div>`
+const STOCKS = [
+  ['TIGER 미국필라델피아반도체나스닥', '2,000주', '₩174,882,000', '+13.6%', '+₩20,985,840', 'up', [B.over]],
+  ['삼성전자', '1,500주', '₩65,515,500', '−7.4%', '−₩5,241,240', 'down', [B.buy]],
+  ['AAPL', '30주', '₩58,557,806', '+17.6%', '+$6,341.10', 'up', [B.sell, B.over]],
+  ['NVDA', '45주', '₩45,796,166', '+66.7%', '+$13,224.60', 'up', [B.buy]],
+]
+const summary = (sub) => `<div class="card sum"><div class="t"><span>총 평가금액</span><a class="lk" style="font-weight:400;font-size:12px">금액 가리기</a></div>
+  <div class="big num">₩515,890,971</div>
+  <div class="g"><div><span>평가손익</span><b class="up num">+₩57,963,643</b></div><div><span>수익률</span><b class="up num">+12.7%</b></div>
+  <div><span>최근 거래일 대비</span><b class="up num">+₩1,655,267</b> <small class="up num">+0.32%</small></div><div><span>다음 리뷰${sub.review}</span><b class="num">D-42</b> <a class="lk" style="font-size:12px">리밸런싱</a></div></div>
+  <p class="hint foot">${sub.foot}</p></div>`
+const colorPhone = (s) => phone(`${status()}${topBar()}<div class="scroll">${summary({ review: ' · 분기', foot: '현금 ₩0 · 현금 포함 · 원 기준' })}
+  <div class="sech" style="font-size:13px;padding-top:14px">이 칸의 색</div>${swatch(s)}
+  <div class="list boxed">${STOCKS.map(rowNow).join('')}</div></div>${tabbar(0)}`, '', vars(s))
+const rowNow = ([n, q2, v, p, pl, t, b]) => `<div class="row"><div class="nm"><b>${n}</b><small class="num">${q2}</small><div style="display:flex;gap:4px">${b.join('')}</div></div><div class="v"><b class="num">${v}</b><small class="${t} num">${p}</small><small class="${t} num">${pl}</small></div></div>`
+
+out.push(part('① 색 — 글자 회색과 뜻 색', '라이트의 글자 회색 셋과 초록 · 빨강 · 호박 · 파랑 · 청록이 Tailwind 기본 팔레트 값 그대로입니다(gray-900 · gray-700 · green-800 · red-700 · amber-800 · blue-700 · teal-700). 청람(#0051a8)은 그대로 두고 이 값들만 다시 뽑습니다. 셋 다 바탕 #eef2f6 · 흰 칸 위에서 대비 4.5 이상입니다. 다크는 이미 따로 뽑은 값이라 바꾸지 않습니다.'))
+out.push(col('가 · 지금 (Tailwind 기본값)', '푸른 기가 도는 회색 · 표준 초록 빨강', colorPhone(SETS.now)))
+out.push(col('나 · 청람 먹', '글자를 청람 쪽 먹색으로 — 머리줄 청람과 한 집안. 초록은 푸른 초록, 빨강은 조금 차분하게', colorPhone(SETS.ink)))
+out.push(col('다 · 먹 회색', '물들지 않은 먹색 — 청람만 색으로 남고 나머지는 무채색. 빨강은 벽돌 쪽', colorPhone(SETS.mok)))
+
+/* ───────── ② 카드 위계 ───────── */
+const homeNow = phone(`${status()}${topBar()}<div class="scroll">${summary({ review: ' · 분기', foot: '현금 ₩0 · 현금 포함 · 원 기준' })}
+  <div class="card tiles3"><div><b class="buy" style="color:var(--signal-buy)">3</b><span style="color:var(--signal-buy)">${sh.buy}매수 ›</span></div><div><b style="color:var(--signal-sell)">3</b><span style="color:var(--signal-sell)">${sh.sell}매도 ›</span></div><div><b style="color:var(--signal-weight)">5</b><span style="color:var(--signal-weight)">${sh.wt}비중조절 ›</span></div></div>
+  <div class="card airow"><span class="sp">✦</span><div><b>AI 포트폴리오 점검</b><small>내 비중 · 수익률로 전체를 점검</small></div><span class="go" style="margin-left:auto">${chev}</span></div>
+  <div class="sech">보유 종목 <small>15</small></div>
+  <div class="list boxed"><div class="lh"><span>종목 · 수량 · 신호</span><span>평가금액 · 비중</span></div>${STOCKS.map(rowNow).join('')}</div></div>${tabbar(0)}`)
+const homeNew = phone(`${status()}${topBar()}<div class="scroll">${summary({ review: ' (분기마다)', foot: '현금 ₩0 포함, 원화로 환산' })}
+  <div class="tiles3 flat"><div><b style="color:var(--signal-buy)">3</b><span style="color:var(--signal-buy)">${sh.buy}매수</span></div><div><b style="color:var(--signal-sell)">3</b><span style="color:var(--signal-sell)">${sh.sell}매도</span></div><div><b style="color:var(--signal-weight)">5</b><span style="color:var(--signal-weight)">${sh.wt}비중조절</span></div></div>
+  <div class="airow flat" style="margin-top:8px"><div><b>AI 포트폴리오 점검</b><small>비중과 수익률로 전체를 봅니다</small></div><span class="go">${chev}</span></div>
+  <div class="sech">보유 종목 <small>15</small></div>
+  <div class="list flat">${STOCKS.map(rowNow).join('')}</div></div>${tabbar(0)}`)
+out.push(part('② 카드 위계 — 주인공 하나만 카드', '지금은 화면의 상자가 거의 모두 같은 12px 테두리 카드입니다. 바꾼 것: 화면마다 주인공(홈은 총액 요약) 하나만 카드로 두고, 신호 칸 셋은 카드 없이 칸막이만, AI 줄과 보유 목록은 화면 끝까지 닿는 줄(위아래 선)로 그립니다. 매크로처럼 같은 것이 많으면 카드 격자 대신 목록으로.'))
+out.push(col('홈 · 지금', '요약 · 신호 칸 · AI · 목록이 모두 같은 카드', homeNow))
+out.push(col('홈 · 바꾼 것', '카드는 요약 하나 · 신호 칸에 꺾쇠(›)와 AI 반짝이(✦) 없음 · 표 머리 "종목 · 수량 · 신호" 없음', homeNew))
+
+const MAC = [
+  ['S&P 500', '미국 대형주 500개', '5,786.7', '+41.2', 'up', '일간', 0],
+  ['코스피', '한국 대표 지수', '3,294.7', '+53.4', 'up', '일간', 0],
+  ['VIX', '변동성 지수, 시장의 공포', '21.1', '−1.3', 'down', '일간', 1],
+  ['공포·탐욕 지수', '0 공포 ~ 100 탐욕', '43.1', '−0.1', 'down', '일간', 1],
+  ['미 10년물 금리', '장기 금리의 기준', '4.31%', '+0.06%p', 'up', '일간', 0],
+  ['근원 PCE', '연준이 보는 물가', '3.03%', '−0.10%p', 'down', '월간 · 10월', 0],
+  ['CPI', '소비자 물가', '2.92%', '+0.04%p', 'up', '월간 · 10월', 0],
+]
+const macNow = phone(`${status()}${topBar()}<div class="scroll"><div class="mh"><b>매크로 지표</b><p class="hint">지금이 어떤 국면인지 보는 곳입니다 — 여기 숫자는 매수·매도 시그널 판정에 들어가지 않습니다.</p></div>
+  <div class="band">📐 <span><b>장단기 금리차 +0.28%p</b> — 정상(장기 &gt; 단기)입니다. DGS10 − DGS2 · 2026-11-18 기준</span></div>
+  ${MAC.slice(0, 3).map(([n, s, v, d, t, f, st]) => `<div class="card mcard"><div class="n"><u>${n}</u><span style="color:${st ? 'var(--amber)' : 'var(--text-faint)'}">${st ? '★' : '☆'}</span></div><div class="hint">${s}</div><div class="v num">${v}<small class="num">${d}</small></div><div class="hint">2026-11-18 기준 · ${f}</div><div class="hint">11/18 04:47 확인 · dev</div></div>`).join('')}</div>${tabbar(3)}`)
+const macNew = phone(`${status()}${topBar()}<div class="scroll"><div class="mh"><b>매크로 지표</b><p class="hint">여기 숫자는 매수·매도 시그널에 들어가지 않습니다. 11/18 04:47에 받음.</p></div>
+  <div class="band"><span><b>장단기 금리차 +0.28%p</b>, 정상(장기 &gt; 단기)</span></div>
+  <div class="subh"><span>지표</span><span>11/18 기준</span></div>
+  <div class="list flat">${MAC.map(([n, s, v, d, t, f, st]) => `<div class="mrow"><span class="st${st ? ' on' : ''}">${st ? '★' : '☆'}</span><div class="nm"><b>${n}</b><small>${s}${f.startsWith('월') ? `, ${f.replace(' · ', ' ')}` : ''}</small></div><div class="v"><b class="num">${v}</b><small class="num faint">${d}</small></div><span class="go">${chev}</span></div>`).join('')}</div></div>${tabbar(3)}`)
+out.push(col('매크로 · 지금', '카드 12장 · 장마다 "기준 · 일간"과 "확인 · dev" 두 줄 · 📐 · 줄표', macNow))
+out.push(col('매크로 · 바꾼 것', '한 목록 · 받은 시각은 위에 한 번 · 월간만 "월간 10월"을 붙임 · 누르면 차트(지금과 같음)', macNew))
+
+/* ───────── ③ 단추 ───────── */
+const btnNow = phone(`<div class="lbl">종목 탭 도구 줄</div><div class="tb"><span class="pillb on">줄 보기</span><span class="pillb">카드 보기</span><span class="pillb">↕ 순서 바꾸기</span><span class="pillb">✎ 한 번에 수정</span><span class="pillb">재무 한눈에</span><span class="pillb amb">목표 비중 합계 90.0%</span></div>
+  <p class="fine">현금을 포함해 100%가 되게 맞추면 리밸런싱 계산이 맞습니다 — 한 번에 수정에서 고칩니다.</p>
+  <div class="tb"><span class="chipf on">전체 15</span><span class="chipf">신호 10</span><span class="chipf">보유 15</span></div>
+  <div class="lbl">종목 안 · 차트 기간</div><div class="per"><span>6개월</span><span class="on">1년</span><span>5년</span><span>전체</span></div>
+  <div class="lbl">매크로 머리</div><div class="tb"><span class="sqb">✦ AI 매크로 정리</span><span class="sqb" style="background:var(--brand);color:var(--on-brand);border-color:var(--brand)">지금 받아오기</span></div>`, 'short')
+const btnNew = phone(`<div class="lbl">종목 탭 도구 줄</div><div class="tb" style="align-items:center"><span class="seg"><span class="on">줄</span><span>카드</span></span><span style="flex:1"></span><span class="sqb">순서 바꾸기</span><span class="sqb">한 번에 수정</span><span class="sqb">재무</span></div>
+  <p class="fine"><b style="color:var(--amber)">목표 비중 합계 90.0%</b>. 현금을 포함해 100%가 되게 한 번에 수정에서 맞추세요.</p>
+  <div class="tb"><span class="chipf on">전체 15</span><span class="chipf">신호 10</span><span class="chipf">보유 15</span></div>
+  <div class="lbl">종목 안 · 차트 기간</div><div class="seg full"><span>6개월</span><span class="on">1년</span><span>5년</span><span>전체</span></div>
+  <div class="lbl">매크로 머리</div><div class="tb"><span class="sqb">AI 매크로 정리</span><span class="sqb" style="background:var(--brand);color:var(--on-brand);border-color:var(--brand)">지금 받아오기</span></div>`, 'short')
+out.push(part('③ 단추 모양 — 알약은 "고르기"에만', '지금은 보기 고르기 · 동작 · 경고 · 필터가 모두 같은 알약입니다. 바꾼 것: 하나를 고르는 것(줄/카드, 차트 기간)은 한 줄 고르기(세그먼트), 누르면 일이 일어나는 것은 네모 단추, 걸러 보기(전체 · 신호 · 보유)만 알약. 아이콘 글자(✎ ↕ ✦)는 뺍니다.'))
+out.push(col('지금', '모두 알약 · 차트 기간은 폭을 꽉 채운 큰 알약 넷', btnNow))
+out.push(col('바꾼 것', '고르기 = 세그먼트 · 동작 = 네모 · 필터 = 알약 · 목표 합계 경고는 안내 글 안으로', btnNew))
+
+/* ───────── ④ 글 ───────── */
+const W = [
+  ['종목 줄 (15번)', '미국<del> · $USD</del>', '미국', '값에 이미 $가 붙어 있음'],
+  ['홈 요약 아래', '현금 ₩0<del> · </del>현금 포함<del> · </del>원 기준', '현금 ₩0 포함, 원화로 환산', '문장으로'],
+  ['홈 요약 칸 이름', '다음 리뷰<del> · </del>분기', '다음 리뷰 (분기마다)', ''],
+  ['홈 표 머리', '종목<del> · 수량 · 신호</del>', '(없앰)', '줄을 보면 압니다'],
+  ['홈 신호 칸 · 시그널 줄', '▲ 매수<del> ›</del> · 시그널 10종목 모두 보기<del> ›</del> · 매수 조건<del> →</del>', '▲ 매수 · 시그널 10종목 모두 보기 · 매수 조건', '칸 전체가 눌리면 됨. 목록 줄 맨 끝의 › 는 둡니다'],
+  ['AI 단추 셋', '<del>✦ </del>AI 매크로 정리 · <del>✦ </del>AI 분석 · <del>✦ </del>AI 포트폴리오 점검', 'AI 매크로 정리 · AI 분석 · AI 포트폴리오 점검', '반짝이 = 가장 흔한 AI 티'],
+  ['수정 단추', '<del>✎ </del>수정 · <del>✎ </del>한 번에 수정 · <del>↕ </del>순서 바꾸기', '수정 · 한 번에 수정 · 순서 바꾸기', '이모지는 기기마다 모양이 다름'],
+  ['리밸런싱 요약', '전체 자금<del> · </del>현금 포함<del> · </del>원 기준', '전체 자금 (현금 포함, 원화)', ''],
+  ['리밸런싱 설정 줄', '주기<del> · </del>현금<del> · </del>환율<del> · </del>밴드', '주기, 현금, 환율, 밴드', ''],
+  ['매크로 안내', '지금이 어떤 국면인지 보는 곳입니다<del> — </del>여기 숫자는 매수·매도 시그널 판정에 들어가지 않습니다.', '여기 숫자는 매수·매도 시그널에 들어가지 않습니다.', '앞 문장은 제목이 이미 말함'],
+  ['매크로 금리차 띠', '<del>📐 </del>장단기 금리차 +0.28%p<del> — </del>정상(장기 &gt; 단기)입니다. DGS10 − DGS2 · 2026-11-18 기준', '장단기 금리차 +0.28%p, 정상(장기 &gt; 단기)', '코드 이름 · 날짜는 누르면 나오는 차트에'],
+  ['매크로 카드 (12번 × 2줄)', '2026-11-18 기준<del> · </del>일간 / 11/18 04:47 확인<del> · dev</del>', '위에 한 번 "11/18 04:47에 받음" · 월간만 "월간 10월"', ''],
+  ['종목 찾기 칸', '종목 찾아 추가<del> — </del>삼성전자, 005930, VOO…', '종목 이름이나 코드 (삼성전자, VOO)', ''],
+  ['종목 목표 합계 안내', '…리밸런싱 계산이 맞습니다<del> — </del>한 번에 수정에서 고칩니다.', '현금을 포함해 100%가 되게 한 번에 수정에서 맞추세요.', '한 문장'],
+  ['설정 · 정보', '만든 것들<del> · </del>글꼴<del> · </del>그림', '만든 이와 글꼴', ''],
+  ['AI 점검 화면', '"금액은 보내지 않습니다"를 제목 아래 · 본문 · 키 상자 아래에 <del>세 번</del>', '본문 한 번만', ''],
+  ['로그인', '면책 문구를 카드 안과 바닥에 <del>두 번</del> · <del>점선 상자</del> · "매수·매도 시그널<del> — </del>담은 종목마다…"', '바닥에 한 번 · 상자 없이 · 굵은 이름 아래 설명 줄', '아래 그림'],
+]
+out.push(part('④ 글 — 띄어 쓴 가운뎃점 · 줄표 · 끝 화살표 · 반짝이 · 이모지', '붙여 쓴 가운뎃점(수량·평단가, 매수·매도)은 한국어 문장부호라 둡니다. 띄어 쓴 " · " 로 낱말을 줄 세운 메타 줄과 " — 풀이" 꼴만 고칩니다. ₩a → ₩b 처럼 바뀜을 나타내는 화살표는 데이터라 둡니다. 빨간 칸이 빠지는 것.'))
+out.push(`<div class="col"><div class="card words"><table><thead><tr><th>어디</th><th>지금</th><th>바꾼 것</th><th>왜</th></tr></thead><tbody>${W.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`)
+
+const loginTop = `<div class="status"><span class="num">8:12</span><span>●●● ▮</span></div><div class="top"><b>자산관리</b><span class="ic" style="width:auto;padding:0 12px;border:1px solid var(--on-brand-line);border-radius:8px;height:36px;font-size:13px;font-weight:600">로그인</span></div>`
+const ITEMS = [['매수·매도 시그널', '담은 종목마다 기술적 타이밍 시그널과 마지막으로 뜬 날을 보여줍니다.'], ['리밸런싱', '목표 비중에서 얼마나 벗어났는지, 언제 조정할지 알려줍니다.'], ['매크로', '금리·물가·공포지수 같은 국면 지표.']]
+out.push(col('로그인 · 지금', '점선 상자 · " — " · 면책 두 번', phone(`${loginTop}<div class="scroll"><div class="login dashed"><h3>로그인하면 내 포트폴리오를 볼 수 있습니다</h3><ul>${ITEMS.map(([a, b]) => `<li><b>${a}</b> — ${b}</li>`).join('')}</ul><p class="hint" style="margin-top:12px">구글 계정으로 들어오면 계정마다 자기 종목과 포트폴리오가 따로 저장됩니다. 로그인 없이도 매크로 탭은 볼 수 있습니다.</p><span class="btnb">구글 계정으로 로그인</span><p class="hint">로그인하면 <a class="lk">개인정보처리방침·이용약관</a>에 동의하는 것으로 봅니다. 시그널은 참고용이며 투자 권유가 아닙니다.</p></div>
+  <p class="fine" style="margin-top:40px"><a class="lk">개인정보처리방침 · 이용약관</a>　시그널은 참고용이며 투자 권유가 아닙니다.</p></div>${tabbar(0)}`)))
+out.push(col('로그인 · 바꾼 것', '상자 없이 바탕에 · 이름 아래 설명 · 면책은 바닥 한 번', phone(`${loginTop}<div class="scroll"><div class="login plain"><h3 style="font-size:var(--fs-title)">로그인하면 내 포트폴리오를 볼 수 있습니다</h3><ul>${ITEMS.map(([a, b]) => `<li><b>${a}</b><span class="hint">${b}</span></li>`).join('')}</ul><span class="btnb">구글 계정으로 로그인</span><p class="hint">계정마다 자기 종목이 따로 저장됩니다. 로그인 없이도 매크로 탭은 볼 수 있습니다.</p></div>
+  <p class="fine" style="margin-top:24px">로그인하면 <a class="lk">개인정보처리방침과 이용약관</a>에 동의하는 것으로 봅니다. 시그널은 참고용이며 투자 권유가 아닙니다.</p></div>${tabbar(0)}`)))
+
+document.body.innerHTML = out.join('')
+</script>
+</body>
+</html>
