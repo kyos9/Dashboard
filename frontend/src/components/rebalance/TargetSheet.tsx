@@ -26,6 +26,7 @@ export function TargetSheet({
   dirtyCount,
   saving,
   note,
+  noteSeq = 0,
   onChange,
   onSave,
   onReset,
@@ -42,6 +43,8 @@ export function TargetSheet({
   saving: boolean
   /** 저장한 뒤 한 줄 — 버튼 글자만 바뀌어 저장됐는지 몰랐다 (사용자 확인 4) */
   note?: string | null
+  /** 저장할 때마다 바뀌는 수 — 같은 글이어도 다시 끌어오게 */
+  noteSeq?: number
   onChange: (ticker: string, patch: { target?: string; band?: string }) => void
   onSave: () => void
   onReset: () => void
@@ -51,7 +54,7 @@ export function TargetSheet({
   // 아래쪽 줄을 고치고 저장하면 시트가 내려간 채라 맨 위 줄이 화면 밖이었다 — 저장 줄을 보이는 곳으로 (묶음 4 검토 7 조건 1)
   useEffect(() => {
     if (note) noteRef.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' })
-  }, [note])
+  }, [note, noteSeq])
   return (
     <Sheet
       title="목표 비중 · 밴드"

@@ -746,6 +746,19 @@ describe('종목 탭 · 줄 / 카드 (묶음 3 — 주인: 사용자가 골라 �
     expect(screen.getByText('3개월')).toBeInTheDocument()
   })
 
+  it('카드 보기에서 순서 바꾸기를 켜면 카드 칸도 눌린 상태가 아니다 (검토 8 참고)', async () => {
+    orderApi(['VOO', 'QQQ'])
+    const user = userEvent.setup()
+    renderManager()
+    await screen.findByRole('list', { name: '담은 종목' })
+    await user.click(screen.getByRole('button', { name: '카드 보기' }))
+    expect(screen.getByRole('button', { name: '카드 보기' })).toHaveAttribute('aria-pressed', 'true')
+    await user.click(screen.getByRole('button', { name: '순서 바꾸기' }))
+    expect(screen.getByRole('button', { name: '카드 보기' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: '카드 보기' })).not.toHaveClass('active')
+    localStorage.clear() // 카드 보기를 이 기기에 기억한다 — 다음 테스트는 줄 보기에서
+  })
+
   it('거르기 칩 — 신호 뜬 종목만, 고른 칩은 눌린 상태', async () => {
     mockApi([stock({ ticker: 'VOO' }), stock({ ticker: 'QQQ' })])
     vi.spyOn(api, 'getDashboard').mockResolvedValue([

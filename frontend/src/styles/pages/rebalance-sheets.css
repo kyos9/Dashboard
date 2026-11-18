@@ -263,3 +263,12 @@ button.order-row:hover {
     margin-left: auto;
   }
 }
+
+/* 저장 줄을 끌어올 때 시트 맨 위에 딱 붙지 않게 — 노치 있는 폰의 위 가림까지 (검토 8 참고) */
+.target-sheet .saved-note {
+  scroll-margin-top: calc(12px + env(safe-area-inset-top, 0px));
+}
+/* PC 주문 표의 "거래 칸 닫기"가 두 줄로 꺾였다 (검토 8 조건 2) */
+.order-trade-toggle {
+  white-space: nowrap;
+}

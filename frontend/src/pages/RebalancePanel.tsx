@@ -725,7 +725,7 @@ function OrderTableRow({
         <td>
           {order.action !== 'hold' && (
             <button
-              className="sm"
+              className="sm order-trade-toggle"
               onClick={() => setOpen((o) => !o)}
               aria-expanded={open}
               aria-label={open ? `${shortLabel(row)} 거래 칸 닫기` : `${shortLabel(row)} 거래 입력`}
@@ -811,6 +811,8 @@ export function RebalancePanel() {
   const [moneyOpen, setMoneyOpen] = useState(false)
   const [holdOpen, setHoldOpen] = useState(false)
   const [targetNote, setTargetNote] = useState<string | null>(null)
+  // 저장할 때마다 하나씩 — 같은 줄 수면 글이 같아 저장 줄을 다시 끌어오지 않았다(묶음 4 검토 8 조건 1)
+  const [targetSaves, setTargetSaves] = useState(0)
   // 목업 12d A — 리뷰 · 기록과 설정은 화면 밖(시트)에서 연다. 화면에는 주문과 목록 한 장만
   const [recordsOpen, setRecordsOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -994,6 +996,7 @@ export function RebalancePanel() {
     if (firstError) setError(firstError.reason)
     const saved = dirtyTickers.length - failed.length
     setTargetNote(saved > 0 ? `${saved}줄을 저장했습니다 — 주문 가이드를 새 목표로 다시 계산했습니다.` : null)
+    setTargetSaves((n) => n + 1)
   }
 
   const resetDrafts = () => setDrafts(Object.fromEntries(rows.map((r) => [r.ticker, draftOf(r)])))
@@ -1654,6 +1657,7 @@ export function RebalancePanel() {
             })
           }
           note={targetNote}
+          noteSeq={targetSaves}
           onSave={() => void saveAll()}
           onReset={resetDrafts}
           onClose={() => {
