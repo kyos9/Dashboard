@@ -65,4 +65,27 @@ describe('색표 (tokens.css)', () => {
     )
     expect(found.map(({ f, n, line }) => `${f}:${n} ${line.trim()}`)).toEqual([])
   })
+
+  it('라이트의 글자 회색 · 뜻 색은 Tailwind 기본값이 아니다 — 청람 먹으로 다시 뽑았고 바탕 위 대비 4.5 이상 (목업 13 ①)', () => {
+    const light = tokens.slice(tokens.indexOf(":root[data-theme='light']"))
+    const block = light.slice(0, light.indexOf('}'))
+    const val = (name: string) => {
+      const m = new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{6})`).exec(block)
+      if (!m) throw new Error(`라이트에 --${name} 가 없다`)
+      return m[1].toLowerCase()
+    }
+    // gray-900 · gray-700 · green-800 · red-700 · amber-800 · blue-700 · teal-700
+    const TAILWIND = ['#111827', '#374151', '#166534', '#b91c1c', '#92400e', '#1d4ed8', '#0f766e']
+    const names = ['text', 'text-dim', 'text-faint', 'green', 'red', 'amber', 'rise-down', 'teal-sig']
+    for (const n of names) expect(TAILWIND).not.toContain(val(n))
+    const lum = (hex: string) => {
+      const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4))
+      return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
+    }
+    const ratio = (a: string, b: string) => {
+      const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p)
+      return (x + 0.05) / (y + 0.05)
+    }
+    for (const n of names) for (const bg of [val('bg'), val('panel'), val('panel-soft')]) expect(ratio(val(n), bg)).toBeGreaterThanOrEqual(4.5)
+  })
 })

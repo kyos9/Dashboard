@@ -1,0 +1,148 @@
+/* 매크로 지표 목록 — 디자인 4차 목업 13 ② (카드 열두 장 대신 한 목록, 주인 답 "홈 · 매크로 둘 다").
+   줄을 누르면 차트 · 별은 왼쪽 · 값은 오른쪽. 국면 구간 · 예상치 · 못 받은 까닭은 그 줄 아래에 */
+
+.macro-list-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+  flex-wrap: wrap;
+  margin: 16px 0 6px;
+}
+.macro-list-head h3 {
+  margin: 0;
+  font-size: var(--fs-sub);
+  color: var(--text-faint);
+}
+.macro-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.macro-row + .macro-row {
+  border-top: 1px solid var(--border);
+}
+.macro-row-main {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-left: 4px;
+}
+.macro-row-pad {
+  width: 8px;
+  flex: none;
+}
+.macro-row .pin-btn {
+  flex: none;
+}
+button.macro-row-open {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  min-height: 60px;
+  padding: 10px 12px 10px 4px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--text);
+  font-weight: 400;
+  text-align: left;
+}
+button.macro-row-open:hover {
+  background: var(--panel-soft);
+}
+.macro-row-name {
+  flex: 1;
+  min-width: 0;
+}
+.macro-row-name b {
+  display: block;
+  font-size: var(--fs-body);
+  font-weight: 600;
+  word-break: keep-all;
+}
+.macro-row-name small,
+.macro-row-value small {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--fs-caption);
+  color: var(--text-faint);
+  word-break: keep-all;
+}
+.macro-row-value {
+  flex: none;
+  text-align: right;
+}
+.macro-row-value b {
+  font-size: var(--fs-strong);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.macro-row-go {
+  flex: none;
+  color: var(--text-faint);
+}
+.macro-row-more {
+  display: grid;
+  gap: 8px;
+  padding: 0 16px 12px 52px;
+}
+.macro-row-more .macro-forecast,
+.macro-row-more .macro-zone {
+  margin: 0;
+}
+.macro-row-more .badge-row {
+  justify-content: flex-start;
+}
+/* 줄 안에서는 "예상치 입력"도 왼쪽 — 카드 가운데에 있던 자리 그대로면 줄 사이에 떠 보였다 */
+.macro-row-more .forecast-open {
+  justify-self: start;
+  min-height: 44px;
+  padding: 0;
+}
+
+/* PC 는 두 칸 — 열두 줄이 한 줄로 길게 서지 않게 */
+@media (min-width: 1100px) {
+  .macro-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 24px;
+    padding: 0 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+  .macro-row + .macro-row {
+    border-top: 0;
+  }
+  .macro-row:nth-child(n + 3) {
+    border-top: 1px solid var(--border);
+  }
+}
+
+/* 별은 누르는 칸 44px */
+.macro-row .pin-btn {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* 폰은 화면 끝까지 닿는 줄 — 카드처럼 떠 보이지 않게(홈 보유 목록과 같은 꼴) */
+@media (max-width: 720px) {
+  .macro-list {
+    margin-left: calc(-1 * var(--gutter-left));
+    margin-right: calc(-1 * var(--gutter-right));
+  }
+  .macro-row-main {
+    padding-left: calc(var(--gutter-left) - 12px);
+  }
+  button.macro-row-open {
+    padding-right: var(--gutter-right);
+  }
+  .macro-row-more {
+    padding-right: var(--gutter-right);
+  }
+}

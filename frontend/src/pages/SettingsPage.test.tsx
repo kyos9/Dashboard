@@ -20,7 +20,7 @@ it('만든 것들을 펼치면 글꼴 · 토스페이스의 저작권과 라이�
       <SettingsPage />
     </MemoryRouter>,
   )
-  await userEvent.click(screen.getByText('만든 것들 · 글꼴 · 그림'))
+  await userEvent.click(screen.getByText('만든 이와 글꼴'))
   const credits = document.querySelector('.settings-credits') as HTMLElement
   expect(credits).toHaveTextContent('© Viva Republica')
   const links = within(credits).getAllByRole('link', { name: '전문' }).map((a) => a.getAttribute('href'))

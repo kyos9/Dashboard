@@ -101,7 +101,7 @@ describe('폰 머리줄은 한 줄 — 메뉴 없음', () => {
     expect(await screen.findByText('친구')).toBeInTheDocument()
     expect(headerButtons()).toEqual([])
     expect(screen.queryByRole('button', { name: /^메뉴/ })).toBeNull()
-    expect(settingsRows()).toEqual(['화면', '알림', 'AI 키', '나가기', '모든 기기에서 나가기', '탈퇴', '개인정보처리방침 · 이용약관', '만든 것들 · 글꼴 · 그림'])
+    expect(settingsRows()).toEqual(['화면', '알림', 'AI 키', '나가기', '모든 기기에서 나가기', '탈퇴', '개인정보처리방침과 이용약관', '만든 이와 글꼴'])
     // 누구로 들어왔는지 · 버전은 설정 탭에
     expect(document.querySelector('.settings-account')).toHaveTextContent('friend@example.com')
     expect(await screen.findByText('v0.31.0')).toBeInTheDocument()
@@ -112,7 +112,7 @@ describe('폰 머리줄은 한 줄 — 메뉴 없음', () => {
     expect(await screen.findByLabelText('가입 신청 2건', { selector: '.tab-badge' })).toHaveTextContent('2')
     expect(headerButtons()).toEqual(['전체 새로고침'])
     expect(document.querySelector('.status-pill')).not.toBeNull()
-    expect(settingsRows()).toEqual(['화면', '알림', 'AI 키', '서버 상태', '사용자', '나가기', '모든 기기에서 나가기', '개인정보처리방침 · 이용약관', '만든 것들 · 글꼴 · 그림'])
+    expect(settingsRows()).toEqual(['화면', '알림', 'AI 키', '서버 상태', '사용자', '나가기', '모든 기기에서 나가기', '개인정보처리방침과 이용약관', '만든 이와 글꼴'])
     expect(within(screen.getByRole('button', { name: /^사용자/ })).getByLabelText('가입 신청 2건')).toBeInTheDocument()
   })
 
@@ -152,7 +152,7 @@ describe('폰 머리줄은 한 줄 — 메뉴 없음', () => {
     renderAs(GUEST)
     expect((await screen.findAllByRole('button', { name: '로그인' })).length).toBeGreaterThan(0)
     expect(headerButtons()).toEqual(['로그인'])
-    expect(settingsRows()).toEqual(['화면', '개인정보처리방침 · 이용약관', '만든 것들 · 글꼴 · 그림'])
+    expect(settingsRows()).toEqual(['화면', '개인정보처리방침과 이용약관', '만든 이와 글꼴'])
   })
 
   it('폰을 눕혀 넓어지면 PC 배치 — 탭은 왼쪽 메뉴로', async () => {

@@ -37,7 +37,7 @@
 @import './styles/pages/diagnostics.css';
 @import './styles/pages/push.css';
 @import './styles/pages/login.css';
-@import './styles/pages/macro-cards.css';
+@import './styles/pages/macro-list.css';
 @import './styles/components/regime-badge.css';
 @import './styles/components/home-star.css';
 @import './styles/components/zone-name.css';
@@ -57,4 +57,5 @@
 @import './styles/pages/shell.css';
 @import './styles/components/stock-detail.css';
 @import './styles/pages/stocks.css';
+@import './styles/pages/flat.css';
 @import './styles/overrides.css';

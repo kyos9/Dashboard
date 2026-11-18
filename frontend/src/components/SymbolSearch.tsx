@@ -161,7 +161,7 @@ export function SymbolSearch({ selected, onSelect, onSubmitRaw, onTypedChange, d
         aria-expanded={open}
         aria-controls={listId}
         aria-autocomplete="list"
-        placeholder="종목 찾아 추가 — 삼성전자, 005930, VOO…"
+        placeholder="종목 이름이나 코드 (삼성전자, VOO)"
         value={query}
         disabled={disabled}
         onChange={(e) => {

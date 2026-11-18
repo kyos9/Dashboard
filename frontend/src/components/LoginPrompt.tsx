@@ -92,14 +92,13 @@ export function LoginPrompt({ title, children }: { title: string; children?: Rea
     <div className="empty-state login-prompt">
       <h3>{title}</h3>
       {children}
-      <p className="hint">
-        구글 계정으로 들어오면 계정마다 자기 종목과 포트폴리오가 따로 저장됩니다. 로그인
-        없이도 <b>매크로</b> 탭은 볼 수 있습니다.
-      </p>
       <LoginButton />
+      {/* 면책("시그널은 참고용…")은 화면 바닥 줄에 늘 있다 — 여기와 두 번 나왔다 (목업 13 ④) */}
+      <p className="hint">
+        계정마다 자기 종목이 따로 저장됩니다. 로그인 없이도 <b>매크로</b> 탭은 볼 수 있습니다.
+      </p>
       <p className="hint consent-line">
-        로그인하면 <a href={POLICY_PATH}>개인정보처리방침·이용약관</a>에 동의하는 것으로 봅니다. 시그널은 참고용이며
-        투자 권유가 아닙니다.
+        로그인하면 <a href={POLICY_PATH}>개인정보처리방침과 이용약관</a>에 동의하는 것으로 봅니다.
       </p>
     </div>
   )

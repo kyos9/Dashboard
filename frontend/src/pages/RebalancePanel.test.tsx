@@ -801,7 +801,7 @@ describe('리밸런싱 · 폰', () => {
     expect(items.map((b) => b.textContent)).toEqual([
       '목표 · 밴드 고치기합계 100.0%',
       expect.stringMatching(/^리뷰 · 기록D-\d+ · 0건$/),
-      '리밸런싱 설정주기 · 현금 · 환율 · 밴드',
+      '리밸런싱 설정주기, 현금, 환율, 밴드',
     ])
     await user.click(items[2])
     const sheet = screen.getByRole('dialog', { name: '리밸런싱 설정' })
@@ -1425,7 +1425,7 @@ describe('리밸런싱 · 목업 12d (주인: 너무 길다)', () => {
       const split = await screen.findByRole('group', { name: '줄일 · 늘릴 합계' })
       expect(within(split).getByRole('button', { name: /^새로 넣을 돈/ })).toBeInTheDocument()
       const summary = screen.getByRole('region', { name: '내 자산' })
-      expect(summary.querySelector('.rb-summary-line')).toHaveTextContent(/^전체 자금 · 현금 포함 · 원 기준₩2,100,000$/)
+      expect(summary.querySelector('.rb-summary-line')).toHaveTextContent(/^전체 자금 \(현금 포함, 원 기준\)₩2,100,000$/)
       expect(within(summary).getByRole('button', { name: '금액 가리기' })).toBeInTheDocument()
     } finally {
       forgetPhone()

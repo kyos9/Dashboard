@@ -50,7 +50,8 @@
  *
  * 글자로 써도 되는 쌍 (대비, WCAG) — 다크: --text·--text-dim·--text-faint·--accent·--green·--red 는 --bg·--panel·
  * --panel-soft 위에서 4.5 이상. --on-brand(#fff)는 --brand(#002f67) 위 13.1. 주 단추는 --accent 바탕 + --on-accent(어두운 글자).
- * 라이트: 같은 이름들이 --bg(#eef2f6)·--panel(#fff) 위 4.5 이상(초록 #166534 5.9 · 빨강 #b91c1c 5.4 · 청람 #0051a8 6.4~7.7).
+ * 라이트: 같은 이름들이 --bg(#eef2f6)·--panel(#fff) 위 4.5 이상(초록 #18694a 5.9 · 빨강 #b02a2a 5.8 · 청람 #0051a8 6.4~7.7).
+ * 라이트의 글자 회색 · 뜻 색은 Tailwind 기본값을 버리고 청람 쪽 먹색으로 다시 뽑았다(목업 13 ① 나 "청람 먹", AI 티 점검).
  */
 :root {
   color-scheme: dark;
@@ -161,9 +162,9 @@
   --border: #dfe4ea;
   --border-strong: #c5cdd8;
 
-  --text: #111827;
-  --text-dim: #374151;
-  --text-faint: #5b6472;
+  --text: #0e1b2e;
+  --text-dim: #334459;
+  --text-faint: #5a6a7f;
 
   --brand: #0051a8;
   --on-brand: #ffffff;
@@ -179,24 +180,24 @@
   --accent-soft: rgba(0, 81, 168, 0.08);
   --accent-line: rgba(0, 81, 168, 0.35);
 
-  --green: #166534;
-  --green-soft: rgba(22, 101, 52, 0.09);
-  --green-line: rgba(22, 101, 52, 0.35);
-  --amber: #92400e;
-  --amber-soft: rgba(146, 64, 14, 0.09);
-  --amber-line: rgba(146, 64, 14, 0.35);
-  --on-amber: #ffffff; /* #92400e 위 7.1 */
-  --red: #b91c1c;
-  --red-soft: rgba(185, 28, 28, 0.08);
-  --red-line: rgba(185, 28, 28, 0.35);
-  --teal-sig: #0f766e;
-  --teal-sig-soft: rgba(15, 118, 110, 0.08);
-  --rise-down: #1d4ed8;
-  --rise-down-soft: rgba(29, 78, 216, 0.08);
-  --rise-down-line: rgba(29, 78, 216, 0.35);
-  --teal-sig-line: rgba(15, 118, 110, 0.35);
-  --slate-soft: rgba(55, 65, 81, 0.1);
-  --text-line: rgba(17, 24, 39, 0.18);
+  --green: #18694a;
+  --green-soft: rgba(24, 105, 74, 0.09);
+  --green-line: rgba(24, 105, 74, 0.35);
+  --amber: #8a4a0b;
+  --amber-soft: rgba(138, 74, 11, 0.09);
+  --amber-line: rgba(138, 74, 11, 0.35);
+  --on-amber: #ffffff; /* #8a4a0b 위 6.6 */
+  --red: #b02a2a;
+  --red-soft: rgba(176, 42, 42, 0.08);
+  --red-line: rgba(176, 42, 42, 0.35);
+  --teal-sig: #0b6a6f;
+  --teal-sig-soft: rgba(11, 106, 111, 0.08);
+  --rise-down: #1f50c2;
+  --rise-down-soft: rgba(31, 80, 194, 0.08);
+  --rise-down-line: rgba(31, 80, 194, 0.35);
+  --teal-sig-line: rgba(11, 106, 111, 0.35);
+  --slate-soft: rgba(51, 68, 89, 0.1);
+  --text-line: rgba(14, 27, 46, 0.18);
   --amber-tint: #f4eae1;
 
   --shadow-1: 0 4px 16px rgba(17, 24, 39, 0.12);

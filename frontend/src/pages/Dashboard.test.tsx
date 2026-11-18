@@ -1006,11 +1006,11 @@ describe('폰의 순서 편집 (ROADMAP 8-3)', () => {
     expect(screen.queryByRole('button', { name: /위로|아래로/ })).not.toBeInTheDocument()
 
     // 폰은 보기·설정을 머리의 ⋯ 로 접어 둔다 (목업 10) — 펴야 "순서 편집"이 보인다
-    expect(screen.queryByRole('button', { name: '↕ 순서 편집' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '순서 편집' })).not.toBeInTheDocument()
     const more = screen.getByRole('button', { name: '보기·설정' })
     expect(more).toHaveAttribute('aria-expanded', 'false')
     await userEvent.click(more)
-    await userEvent.click(screen.getByRole('button', { name: '↕ 순서 편집' }))
+    await userEvent.click(screen.getByRole('button', { name: '순서 편집' }))
     // 편집 중에는 접어도 끝내는 단추가 남는다
     await userEvent.click(screen.getByRole('button', { name: '보기·설정' }))
     expect(screen.getByRole('button', { name: '순서 편집 끝' })).toBeInTheDocument()

@@ -30,8 +30,9 @@ describe('AI 정리 화면', () => {
     const stream = vi.spyOn(api, 'aiAnalyzeStream')
     renderAt('/ai/portfolio')
     expect(screen.getByRole('heading', { name: 'AI 포트폴리오 점검' })).toBeInTheDocument()
-    expect(screen.getByText(/금액은 보내지 않습니다/)).toBeInTheDocument()
+    // 무엇을 보내는지는 AI 칸 소개 글 한 번만 — 제목 아래 한 줄과 겹쳤다 (목업 13 ④)
     expect(await screen.findByText(/평가금액·수량·평단가·현금 액수는 보내지 않습니다/)).toBeInTheDocument()
+    expect(screen.queryByText(/^담은 종목의 비중과 수익률\(%\)만 AI 에 보냅니다/)).toBeNull()
     expect(stream).not.toHaveBeenCalled()
   })
 

@@ -74,14 +74,16 @@ export function MacroChartModal({ code, name, onClose }: Props) {
             <h3>{name}</h3>
             <span className="hint">
               {code}
-              {history?.transform_label ? ` · ${history.transform_label}` : ''}
+              {history?.transform_label ? ` (${history.transform_label})` : ''}
             </span>
           </div>
-          <div className="chip-row">
+          <div className="seg" role="group" aria-label="기간">
             {MACRO_RANGES.map((option) => (
               <button
                 key={option.value}
-                className={`chip${range === option.value ? ' active' : ''}`}
+                type="button"
+                className={range === option.value ? 'active' : undefined}
+                aria-pressed={range === option.value}
                 onClick={() => setRange(option.value)}
               >
                 {option.label}

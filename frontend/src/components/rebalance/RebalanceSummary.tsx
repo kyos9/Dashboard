@@ -32,7 +32,7 @@ export function RebalanceSummary({
       <div className="rb-summary-line">
         <span className="kpi-title">
           전체 자금
-          {notes && <span className="hint rb-summary-note"> · {notes}</span>}
+          {notes && <span className="hint rb-summary-note"> ({notes})</span>}
         </span>
         <span className="rb-summary-big summary-num">{total}</span>
       </div>

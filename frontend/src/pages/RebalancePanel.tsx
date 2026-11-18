@@ -1179,7 +1179,7 @@ export function RebalancePanel() {
         <button type="button" onClick={() => setSettingsOpen(true)}>
           <Icon name="settings" />
           <span>리밸런싱 설정</span>
-          <small>주기 · 현금 · 환율 · 밴드</small>
+          <small>주기, 현금, 환율, 밴드</small>
           <Icon name="forward" size={18} className="rb-list-go" />
         </button>
       </li>
@@ -1342,7 +1342,7 @@ export function RebalancePanel() {
           band={`±${num(settings?.default_rebalance_band_pct ?? 0, 1)}%p`}
           targetSum={`${num(plan.targetSum, 1)}%`}
           targetOk={targetOk}
-          notes={`현금 포함 · ${CURRENCY_META[baseCurrency].label} 기준${plan.cash.targetPct > 0 ? ` · 현금 목표 ${num(plan.cash.targetPct, 0)}%` : ''}`}
+          notes={`현금 포함, ${CURRENCY_META[baseCurrency].label} 기준${plan.cash.targetPct > 0 ? `, 현금 목표 ${num(plan.cash.targetPct, 0)}%` : ''}`}
           onTargets={() => setTargetsOpen(true)}
         />
         {!narrow && (
@@ -1677,7 +1677,7 @@ export function RebalancePanel() {
           label="리밸런싱 설정"
           closeLabel="설정 닫기"
           className="settings-sheet"
-          sub="리뷰 주기 · 현금 · 기준통화·환율 · 밴드"
+          sub="리뷰 주기, 현금, 기준통화와 환율, 밴드"
           onClose={() => setSettingsOpen(false)}
         >
         <div className="kpi-grid">

@@ -121,7 +121,8 @@ describe('지표 카드', () => {
 
     await screen.findByText('미 10년물 금리')
     // 시간대는 보는 사람의 것이라 문자열을 못 박지 않는다. 확인할 것은 "붙었는가"다.
-    expect(screen.getByText(/\d+\/\d+ \d{2}:\d{2} 확인/)).toBeInTheDocument()
+    // 지표마다 같은 시각이면 목록 위에 한 번만 (목업 13 ④ — 카드마다 같은 두 줄이 반복됐다)
+    expect(screen.getByText(/^\d+\/\d+ \d{2}:\d{2}에 받음/)).toBeInTheDocument()
   })
 
   it('한 번도 안 받아봤으면 그렇다고 말한다', async () => {
@@ -212,6 +213,51 @@ describe('지표 카드', () => {
 
     await screen.findByText('미 10년물 금리')
     expect(screen.queryByText(/구간/)).not.toBeInTheDocument()
+  })
+})
+
+describe('지표 목록 (목업 13 ② — 카드 열두 장 대신 한 목록)', () => {
+  it('지표는 한 목록의 줄 — 받은 시각 · 출처가 같으면 위에 한 번, 다른 줄만 그 줄에 적는다', async () => {
+    mockMacro({
+      series: [
+        series({ code: 'DGS10', name: '미 10년물 금리', note: '장기 금리의 기준' }),
+        series({ code: 'DGS2', name: '미 2년물 금리' }),
+        series({ code: 'VIX', name: 'VIX', source: 'yahoo', last_checked_at: '2026-09-20T01:00:00' }),
+      ],
+    })
+    renderPanel()
+    const list = await screen.findByRole('list')
+    expect(within(list).getAllByRole('listitem')).toHaveLength(3)
+    expect(document.querySelector('.macro-card')).toBeNull()
+    // 공통 줄은 목록 위에 한 번
+    expect(screen.getByText(/^\d+\/\d+ \d{2}:\d{2}에 받음 \(출처 fred_api\)$/)).toBeInTheDocument()
+    const rows = within(list).getAllByRole('listitem')
+    // 같은 줄은 시각 · 출처를 다시 쓰지 않는다
+    expect(rows[0]).not.toHaveTextContent(/확인|fred_api/)
+    expect(rows[0]).toHaveTextContent('장기 금리의 기준')
+    // 다른 줄만 그 줄에
+    expect(rows[2]).toHaveTextContent(/\d+\/\d+ \d{2}:\d{2} 확인, 출처 yahoo/)
+    // 띄어 쓴 가운뎃점으로 잇지 않는다
+    for (const row of rows) expect(row.textContent).not.toMatch(/ · /)
+  })
+
+  it('월간 지표는 "월간 10월"처럼 어느 달 값인지 — 일간은 주기를 적지 않는다', async () => {
+    mockMacro({
+      series: [
+        series({ code: 'CPI', name: 'CPI', note: '소비자 물가', frequency: 'monthly', as_of: '2026-10-01' }),
+        series({ code: 'DGS10', name: '미 10년물 금리' }),
+      ],
+    })
+    renderPanel()
+    const rows = within(await screen.findByRole('list')).getAllByRole('listitem')
+    expect(rows[0]).toHaveTextContent('소비자 물가, 월간 10월')
+    expect(rows[1]).not.toHaveTextContent(/일간/)
+  })
+
+  it('줄 단추의 읽는 이름에 값과 변화가 같이 — 누르면 차트', async () => {
+    mockMacro()
+    renderPanel()
+    expect(await screen.findByRole('button', { name: '미 10년물 금리 4.11% +0.06%p — 차트' })).toBeInTheDocument()
   })
 })
 
@@ -336,6 +382,16 @@ describe('홈에 올리는 ☆', () => {
   })
 })
 
+describe('장단기 금리차 — 장식 없이 (목업 13 ④)', () => {
+  it('정상이면 📐 없이 "장단기 금리차 +0.28%p, 정상(장기 > 단기)" — 코드 이름은 글 대신 풀이(title)로', async () => {
+    mockMacro({ term_spread: { value: 0.28, as_of: '2026-11-18', long_code: 'DGS10', short_code: 'DGS2' } })
+    renderPanel()
+    const line = (await screen.findByText(/장단기 금리차 \+0\.28%p/)).closest('.callout')!
+    expect(line).toHaveTextContent('장단기 금리차 +0.28%p, 정상(장기 > 단기) (2026-11-18 기준)')
+    expect(line.textContent).not.toMatch(/📐|DGS10| — /)
+  })
+})
+
 describe('장단기 금리차', () => {
   it('역전되면 역전됐다고만 말한다 (사라/팔라를 말하지 않는다)', async () => {
     mockMacro({
@@ -372,7 +428,7 @@ describe('화면 전체', () => {
     renderPanel()
 
     expect(
-      await screen.findByText(/매수·매도 시그널 판정에\s*들어가지 않습니다/),
+      await screen.findByText('여기 숫자는 매수·매도 시그널에 들어가지 않습니다.'),
     ).toBeInTheDocument()
   })
 
@@ -417,7 +473,7 @@ describe('화면 전체', () => {
     const user = userEvent.setup()
     renderPanel()
 
-    await user.click(await screen.findByRole('button', { name: '미 10년물 금리' }))
+    await user.click(await screen.findByRole('button', { name: /^미 10년물 금리 .* — 차트$/ }))
 
     const dialog = await screen.findByRole('dialog')
     // 시세 차트는 1년으로 열지만 매크로는 5년이다 — 지금이 높은지 낮은지는
@@ -602,14 +658,14 @@ describe('손님·사용자·관리자', () => {
     expect(screen.queryByRole('button', { name: '지금 받아오기' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '예상치 입력' })).not.toBeInTheDocument()
     // AI 는 자기 키로 쓰는 사람만 — 손님에게는 버튼이 없다
-    expect(screen.queryByRole('button', { name: '✦ AI 매크로 정리' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'AI 매크로 정리' })).not.toBeInTheDocument()
   })
 
   it('사용자는 "AI 정리"로 매크로 정리 창을 연다 — 여는 것만으로 부르지는 않는다', async () => {
     const analyze = vi.spyOn(api, 'aiAnalyzeStream')
     renderAs({ authenticated: true, user: { email: 'f@x.y', name: '친구', is_owner: false } })
     const user = userEvent.setup()
-    await user.click(await screen.findByRole('button', { name: '✦ AI 매크로 정리' }))
+    await user.click(await screen.findByRole('button', { name: 'AI 매크로 정리' }))
     const dialog = await screen.findByRole('dialog', { name: 'AI 매크로 정리' })
     expect(within(dialog).getByText(/앞으로의 방향은 점치지 않도록/)).toBeInTheDocument()
     expect(analyze).not.toHaveBeenCalled()

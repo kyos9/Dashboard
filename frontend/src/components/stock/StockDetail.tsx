@@ -19,7 +19,6 @@ import { FundamentalsPanel } from '../FundamentalsPanel'
 import { AiPanel } from '../AiPanel'
 import { ReasonTag } from '../SignalShape'
 import { SignalBadges } from '../ui/SignalBadges'
-import { Icon } from '../icons/Icon'
 import { ChartCoverage } from './ChartCoverage'
 import { RANGE_OPTIONS, type Range } from '../../lib/chartRange'
 import { HoldingTab } from './HoldingTab'
@@ -141,7 +140,6 @@ export function StockDetail({ ticker, name, card, initialTab = 'chart', lead, tr
         {/* AI 분석은 머리 오른쪽 작은 한 줄 — 첫 화면에서 보이게(사용자 확인 찾지 못한 것 1). 시그널 목록 머리의 "AI 종목 정리"와 같은 모양 */}
         {member && (
           <button type="button" className={`ai-mini${activeTab === 'ai' ? ' active' : ''}`} aria-pressed={activeTab === 'ai'} onClick={() => setTab('ai')}>
-            <Icon name="ai" size={16} />
             AI 분석
           </button>
         )}
@@ -149,13 +147,10 @@ export function StockDetail({ ticker, name, card, initialTab = 'chart', lead, tr
       </div>
       <div className="stock-hero">
         <p className="stock-hero-sub">
-          {label !== ticker && <span className="nowrap">{ticker} · </span>}
-          {card && (
-            <span className="nowrap">
-              {MARKET_LABEL[card.market] ?? ''}
-              {card.category && ` · ${card.category}`}
-            </span>
-          )}
+          {/* 띄어 쓴 가운뎃점 대신 사이 띄움으로 (목업 13 ④) */}
+          {label !== ticker && <span className="nowrap">{ticker}</span>}
+          {card && <span className="nowrap">{MARKET_LABEL[card.market] ?? ''}</span>}
+          {card?.category && <span className="nowrap">{card.category}</span>}
         </p>
         {card && ind?.close != null && (
           <p className="stock-hero-price">
@@ -189,12 +184,13 @@ export function StockDetail({ ticker, name, card, initialTab = 'chart', lead, tr
       <div className="stock-detail-body">
         {activeTab === 'chart' && (
           <>
-            <div className="chip-row stock-ranges" aria-label="기간">
+            {/* 기간은 하나만 고르는 것이라 한 줄 고르기 (목업 13 ③) */}
+            <div className="seg full stock-ranges" role="group" aria-label="기간">
               {RANGE_OPTIONS.map((r) => (
                 <button
                   key={r.value}
                   type="button"
-                  className={`chip${range === r.value ? ' active' : ''}`}
+                  className={range === r.value ? 'active' : undefined}
                   aria-pressed={range === r.value}
                   onClick={() => setRange(r.value)}
                 >

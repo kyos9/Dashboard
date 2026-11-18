@@ -45,9 +45,13 @@ export function AiSummaryPage() {
           <span className="hint">{sub}</span>
         </div>
       </div>
-      <p className="ai-page-lead">{LEADS[kind]}</p>
+      {/* 무엇을 보내는지는 아래 AI 칸의 소개 글이 말한다 — 같은 말이 제목 아래 · 본문 · 키 칸에 세 번 있었다(목업 13 ④).
+          AI 칸이 없을 때만 여기 한 줄 */}
       {kind === 'portfolio' && !canAdvise ? (
-        <p className="callout">AI 포트폴리오 점검은 관리자가 열어 둔 동안 쓸 수 있습니다.</p>
+        <>
+          <p className="ai-page-lead">{LEADS[kind]}</p>
+          <p className="callout">AI 포트폴리오 점검은 관리자가 열어 둔 동안 쓸 수 있습니다.</p>
+        </>
       ) : (
         <AiPanel target={{ kind }} account={pushAccount(user)} />
       )}

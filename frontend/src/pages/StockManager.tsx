@@ -46,11 +46,9 @@ function keepDates(text: string) {
 function subLine(stock: Stock) {
   return (
     <>
-      {stockLabel(stock) !== stock.ticker && <>{stock.ticker} · </>}
-      <span className="nowrap">
-        {MARKET_LABEL[stock.market]} · {CURRENCY_META[stock.currency].symbol}
-        {stock.currency}
-      </span>
+      {/* 통화는 값에 이미 붙어 있다 — "미국 · $USD" 의 뒤를 뺐다 (목업 13 ④) */}
+      {stockLabel(stock) !== stock.ticker && <span className="stock-sub-ticker">{stock.ticker}</span>}
+      <span className="nowrap">{MARKET_LABEL[stock.market]}</span>
     </>
   )
 }
@@ -420,16 +418,20 @@ export function StockManager() {
       {stocks.length > 0 && (
         <>
           {toolsShown && (
-            <div className="chip-row view-tools stock-tools" id="stock-view-tools" role="group" aria-label="보기·설정">
-              <button type="button" className={`chip${view === 'list' && !ordering ? ' active' : ''}`} aria-pressed={view === 'list'} onClick={() => setView('list')}>
-                줄 보기
-              </button>
-              <button type="button" className={`chip${view === 'card' && !ordering ? ' active' : ''}`} aria-pressed={view === 'card'} onClick={() => setView('card')}>
-                카드 보기
-              </button>
+            // 목업 13 ③ (주인 답 "나누기") — 하나를 고르는 보기는 한 줄 고르기, 일이 일어나는 것은 네모 단추, 알약은 아래 거르기에만
+            <div className="view-tools stock-tools" id="stock-view-tools" role="group" aria-label="보기·설정">
+              <div className="seg" role="group" aria-label="보기">
+                <button type="button" className={view === 'list' && !ordering ? 'active' : undefined} aria-pressed={view === 'list'} onClick={() => setView('list')} aria-label="줄 보기">
+                  줄
+                </button>
+                <button type="button" className={view === 'card' && !ordering ? 'active' : undefined} aria-pressed={view === 'card'} onClick={() => setView('card')} aria-label="카드 보기">
+                  카드
+                </button>
+              </div>
+              <span className="stock-tools-gap" />
               <button
                 type="button"
-                className={`chip${ordering ? ' active' : ''}`}
+                className={`tool-btn${ordering ? ' active' : ''}`}
                 aria-pressed={ordering}
                 onClick={() => {
                   setMoved(null)
@@ -437,27 +439,29 @@ export function StockManager() {
                 }}
                 aria-label={ordering ? '순서 바꾸기 끝' : '순서 바꾸기'}
               >
-                {ordering ? '순서 바꾸기 끝' : '↕ 순서 바꾸기'}
+                {ordering ? '순서 바꾸기 끝' : '순서 바꾸기'}
               </button>
               <button
                 type="button"
-                className="chip"
+                className="tool-btn"
                 onClick={() => {
                   setSavedNote('')
                   setEditing(true)
                 }}
                 aria-label="종목 한 번에 수정"
               >
-                ✎ 한 번에 수정
+                한 번에 수정
               </button>
-              <Link to="/fundamentals" className="chip">
+              <Link to="/fundamentals" className="tool-btn">
                 재무 한눈에
               </Link>
-              {/* 목표 비중 합계 — 목표를 고치는 "한 번에 수정" 옆에, 100% 가 아니면 무엇을 하면 되는지 한 줄 (② 주인 답 · 사용자 확인 11) */}
-              <span className={`badge stock-target-sum ${sumOk ? 'badge-green' : 'badge-amber'}`}>
-                목표 비중 합계 {targetSum.toFixed(1)}%{cashTarget > 0 && ` (현금 ${cashTarget.toFixed(1)}% 포함)`}
-              </span>
-              {!sumOk && <span className="hint stock-target-hint">현금을 포함해 100%가 되게 맞추면 리밸런싱 계산이 맞습니다 — 한 번에 수정에서 고칩니다.</span>}
+              {/* 목표 비중 합계 — 알약 대신 안내 글 안에. 100% 가 아니면 무엇을 하면 되는지 한 문장 (② 주인 답 · 사용자 확인 11 · 목업 13) */}
+              <p className={`hint stock-target-hint${sumOk ? '' : ' warn'}`}>
+                <b className="stock-target-sum">
+                  목표 비중 합계 {targetSum.toFixed(1)}%{cashTarget > 0 && ` (현금 ${cashTarget.toFixed(1)}% 포함)`}
+                </b>
+                {!sumOk && '. 현금을 포함해 100%가 되게 한 번에 수정에서 맞추세요.'}
+              </p>
             </div>
           )}
           {savedNote && (

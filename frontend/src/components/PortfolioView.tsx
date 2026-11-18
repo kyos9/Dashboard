@@ -175,16 +175,16 @@ export function PortfolioView({ current, cards, stocks, narrow, onChart, onSigna
                 ))}
             </ul>
             <button type="button" className="rail-more" onClick={() => onOpenSignals()}>
-              시그널 {signalCount}종목 모두 보기 <Icon name="forward" size={16} />
+              시그널 {signalCount}종목 모두 보기
             </button>
           </div>
         )}
         {canAdvise && (
+          // 반짝이 표시(✦)는 뺐다 — AI 기능에 붙는 가장 흔한 장식이라(목업 13 ④)
           <Link to="/ai/portfolio" className="ai-row">
-            <Icon name="ai" size={22} className="ai-row-mark" />
             <span className="ai-row-text">
               AI 포트폴리오 점검
-              <span className="hint">내 비중 · 수익률로 전체를 점검</span>
+              <span className="hint">비중과 수익률로 전체를 봅니다</span>
             </span>
             <Icon name="forward" size={18} className="ai-row-go" />
           </Link>
@@ -225,7 +225,7 @@ export function PortfolioView({ current, cards, stocks, narrow, onChart, onSigna
             )}
             {editable.length > 0 && (
               <button className="sm" onClick={() => startEdit({ ticker: null, field: 'quantity' })} aria-label="종목 한 번에 수정">
-                ✎ 수정
+                수정
               </button>
             )}
           </div>
@@ -359,8 +359,8 @@ export function MoneyLine({ current, signalCount, review = false }: { current: R
   const next = current.review
 
   const notes = [
-    review && `현금 ${amount(current.cash.value_base, base)}`,
-    `현금 포함 · ${CURRENCY_META[base].label} 기준`,
+    // 띄어 쓴 가운뎃점으로 낱말을 줄 세우지 않고 문장으로 (목업 13 ④)
+    review ? `현금 ${amount(current.cash.value_base, base)} 포함, ${CURRENCY_META[base].label} 기준` : `현금 포함, ${CURRENCY_META[base].label} 기준`,
     unpriced > 0 && `평단가 없는 ${unpriced}종목은 손익에서 뺐습니다`,
     current.include_fx_effect && '손익에 환율 효과 포함',
     fxMissing > 0 && `환율 미반영 ${fxMissing}종목`,
@@ -413,7 +413,7 @@ export function MoneyLine({ current, signalCount, review = false }: { current: R
         {review ? (
           <div className={next.due ? 'review-due' : undefined}>
             <dt>
-              다음 리뷰 · {REVIEW_PERIOD_LABEL[next.period]}
+              다음 리뷰 ({next.period === 'annual' ? '1년에 한 번' : `${REVIEW_PERIOD_LABEL[next.period]}마다`})
             </dt>
             <dd>
               <span className="summary-num">{next.due ? '리뷰할 때' : reviewCountdown(next)}</span>{' '}
@@ -436,7 +436,7 @@ export function MoneyLine({ current, signalCount, review = false }: { current: R
           </div>
         )}
       </dl>
-      <p className="money-note hint">{notes.join(' · ')}</p>
+      <p className="money-note hint">{notes.join(', ')}</p>
     </section>
   )
 }
@@ -696,11 +696,6 @@ function HoldingList({ items, base, pnl: pnlCurrency, fx, onChart, onSignal, onE
 
   return (
     <>
-    <div className="holding-head" aria-hidden="true">
-      <span>종목 · 수량 · 신호</span>
-      <span>평가금액 · 비중</span>
-      <span>수익률</span>
-    </div>
     <ul className="holding-list">
       {items.map((item) => {
         const row = item.row
@@ -782,7 +777,7 @@ function HoldingList({ items, base, pnl: pnlCurrency, fx, onChart, onSignal, onE
                         <span className="hint">없음</span>
                       ) : (
                         <button className="link-like" onClick={() => onSignal(row.ticker)}>
-                          {signals.map((s) => s.label).join(' · ')} →
+                          {signals.map((s) => s.label).join(', ')}
                         </button>
                       )}
                     </dd>

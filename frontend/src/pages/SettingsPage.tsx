@@ -236,11 +236,11 @@ export function SettingsPage() {
       )}
 
       <Group title="정보">
-        <Row face={tfDoc} label="개인정보처리방침 · 이용약관" to={POLICY_PATH} />
+        <Row face={tfDoc} label="개인정보처리방침과 이용약관" to={POLICY_PATH} />
         <details className="settings-credits">
           <summary className="settings-row">
             <img className="settings-face" src={tfScroll} alt="" width={24} height={24} />
-            <span className="settings-label">만든 것들 · 글꼴 · 그림</span>
+            <span className="settings-label">만든 이와 글꼴</span>
             <Icon name="chevronDown" size={18} className="settings-go" />
           </summary>
           <ul>

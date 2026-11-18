@@ -7,7 +7,7 @@ import { AuthGate } from '../components/AuthGate'
 import { GuestNotice, LoginPrompt, PendingPrompt } from '../components/LoginPrompt'
 import type { AuthStatus } from '../types'
 
-/** 개인정보처리방침·이용약관과 문의처 (ROADMAP 4-4b). */
+/** 개인정보처리방침과 이용약관과 문의처 (ROADMAP 4-4b). */
 
 function guest(overrides: Partial<AuthStatus> = {}): AuthStatus {
   return { locked: true, authenticated: false, mode: 'google', user: null, config_problem: null, ...overrides }
@@ -42,7 +42,7 @@ describe('방침 화면', () => {
     render(<App />)
 
     const page = await screen.findByRole('article')
-    expect(within(page).getByRole('heading', { name: '개인정보처리방침 · 이용약관' })).toBeInTheDocument()
+    expect(within(page).getByRole('heading', { name: '개인정보처리방침과 이용약관' })).toBeInTheDocument()
     expect(within(page).getByRole('heading', { name: '이용약관' })).toBeInTheDocument()
     // 로그인을 권하는 안내로 바뀌지 않는다
     expect(screen.queryByRole('button', { name: '구글 계정으로 로그인' })).toBeNull()
@@ -73,8 +73,11 @@ describe('방침 화면', () => {
     mock(guest())
     vi.spyOn(api, 'getMacroPinned').mockResolvedValue({ codes: [], series: [], badges: [] })
     render(<App />)
-    const link = await screen.findByRole('link', { name: '개인정보처리방침 · 이용약관' })
+    const link = await within(await screen.findByRole('contentinfo')).findByRole('link', { name: '개인정보처리방침과 이용약관' })
     expect(link).toHaveAttribute('href', '/privacy')
+    // 면책은 바닥 줄에 늘 — 로그인 안내 안에서 두 번 나오던 것을 여기 하나로 (목업 13 ④)
+    expect(link.closest('footer')).toHaveTextContent('시그널은 참고용이며 투자 권유가 아닙니다.')
+    expect(screen.getAllByText(/투자 권유가 아닙니다/)).toHaveLength(1)
   })
 
   it('문의처를 적지 않았으면 "관리자에게 문의"라고만 쓴다 — 주인 이메일을 대신 꺼내지 않는다', async () => {
@@ -88,12 +91,13 @@ describe('방침 화면', () => {
 })
 
 describe('문의처와 동의 안내', () => {
-  it('로그인 안내 아래에 방침 링크와 "참고용"을 적는다', async () => {
+  it('로그인 안내 아래에 방침 링크 — "참고용"은 화면 바닥 줄에만(두 번 쓰지 않는다, 목업 13 ④)', async () => {
     mock(guest())
     inGate(<LoginPrompt title="로그인하면 내 포트폴리오를 볼 수 있습니다" />)
-    const link = await screen.findByRole('link', { name: '개인정보처리방침·이용약관' })
+    const link = await screen.findByRole('link', { name: '개인정보처리방침과 이용약관' })
     expect(link).toHaveAttribute('href', '/privacy')
-    expect(screen.getByText(/투자 권유가 아닙니다/)).toBeInTheDocument()
+    expect(link.closest('p')).toHaveTextContent('로그인하면 개인정보처리방침과 이용약관에 동의하는 것으로 봅니다.')
+    expect(screen.queryByText(/투자 권유가 아닙니다/)).toBeNull()
   })
 
   it('거절된 사람의 안내에 문의처를 붙인다', async () => {

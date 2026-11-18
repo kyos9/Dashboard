@@ -22,7 +22,7 @@ export function Policy() {
 
   return (
     <article className="policy">
-      <h2>개인정보처리방침 · 이용약관</h2>
+      <h2>개인정보처리방침과 이용약관</h2>
       <p className="hint">시행일 {POLICY_EFFECTIVE}</p>
 
       <p>

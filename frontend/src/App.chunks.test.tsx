@@ -47,7 +47,7 @@ describe('탭 조각을 못 받으면', () => {
     expect(within(alert).getByRole('button', { name: '다시 불러오기' })).toBeInTheDocument()
     // 다른 탭으로 갈 길이 남아 있다
     expect(screen.getAllByRole('link', { name: /^홈/ }).length).toBeGreaterThan(0)
-    expect(screen.getByRole('link', { name: '개인정보처리방침 · 이용약관' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '개인정보처리방침과 이용약관' })).toBeInTheDocument()
   })
 
   it('다른 탭으로 옮기면 그 탭은 제대로 그린다 — 안내가 따라오지 않는다', async () => {
@@ -87,7 +87,7 @@ describe('다른 탭 코드를 미리 받기', () => {
     resetPreload() // 앞 테스트의 앱이 이미 한 번 걸어 두었다
     try {
       render(<App />)
-      await screen.findByRole('link', { name: '개인정보처리방침 · 이용약관' })
+      await within(await screen.findByRole('contentinfo')).findByRole('link', { name: '개인정보처리방침과 이용약관' })
       // useEffect 는 그림이 나간 뒤에 돈다 — 화면이 보인 순간에는 아직일 수 있다(한 번에 확인하면 가끔 빈손)
       await waitFor(() => expect(idle).toHaveBeenCalledWith(expect.any(Function), { timeout: 4000 }))
     } finally {

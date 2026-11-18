@@ -86,7 +86,7 @@ function mockApi(
 
 /** 종목 검색창. 화면의 <select>들도 combobox 역할이라 placeholder로 특정한다 */
 function symbolInput() {
-  return screen.getByPlaceholderText(/삼성전자, 005930, VOO/)
+  return screen.getByPlaceholderText(/종목 이름이나 코드/)
 }
 
 /** 바텀 시트의 추가 단추 (묶음 3 — 찾기 칸에서 고르거나 Enter 로 시트를 연다) */
@@ -415,21 +415,25 @@ describe('등록된 종목 목록', () => {
     mockApi([stock({ ticker: 'VOO' })])
     vi.spyOn(api, 'listHoldings').mockRejectedValue(new Error('down'))
     renderManager()
-    expect(await screen.findByText(/미국 · \$USD/)).toBeInTheDocument()
+    expect(await screen.findByText('미국')).toBeInTheDocument()
     // 보유를 모르면 모두 관심으로 센다 — 목록은 그대로
     expect(screen.queryByRole('button', { name: /^보유 / })).toBeNull()
     expect(screen.getByRole('button', { name: '관심 1' })).toBeInTheDocument()
   })
 
-  it('종목마다 시장과 통화를 보여준다', async () => {
+  it('종목마다 시장을 보여준다 — 통화는 값에 이미 붙어 있어 아래 줄에 다시 쓰지 않는다 (목업 13 ④ "미국 · $USD" → "미국")', async () => {
     mockApi([
       stock({ ticker: '005930.KS', name: '삼성전자', market: 'KR', currency: 'KRW' }),
       stock({ ticker: 'VOO' }),
     ])
     renderManager()
 
-    expect(await screen.findByText(/한국 · ₩KRW/)).toBeInTheDocument()
-    expect(screen.getByText(/미국 · \$USD/)).toBeInTheDocument()
+    expect(await screen.findByText('한국')).toBeInTheDocument()
+    expect(screen.getByText('미국')).toBeInTheDocument()
+    // 이름 ≠ 티커면 티커는 따로 — 띄어 쓴 가운뎃점으로 잇지 않는다
+    expect(screen.getByText('005930.KS')).toHaveClass('stock-sub-ticker')
+    expect(screen.queryByText(/₩KRW|\$USD/)).toBeNull()
+    for (const sub of document.querySelectorAll('.stock-row-sub')) expect(sub.textContent).not.toMatch(/ · /)
   })
 
   it('미국 종목은 이름 칸이 없다 — 티커가 곧 이름이다', async () => {
@@ -437,7 +441,7 @@ describe('등록된 종목 목록', () => {
     const user = userEvent.setup()
     renderManager()
 
-    await screen.findByText(/미국 · \$USD/)
+    await screen.findByText('미국')
     await user.click(screen.getByRole('button', { name: '종목 한 번에 수정' }))
     const dialog = await screen.findByRole('dialog', { name: '종목 한 번에 수정' })
     expect(within(dialog).queryByLabelText('VOO 표시 이름')).not.toBeInTheDocument()
@@ -674,7 +678,7 @@ describe('종목 관리 · 정돈 (디자인 2차)', () => {
     const voo = document.querySelector('li[data-ticker="VOO"]')!
     expect(voo.querySelector('.stock-row-sub')!.textContent).not.toMatch(/VOO/)
     const samsung = document.querySelector('li[data-ticker="005930.KS"]')!
-    expect(samsung.querySelector('.stock-row-sub')).toHaveTextContent(/^005930\.KS ·/)
+    expect(samsung.querySelector('.stock-row-sub')).toHaveTextContent(/^005930\.KS\s*한국$/)
   })
 
   it('평단가 칸 안내는 숫자 칸 글꼴이 아니라 본문 글꼴을 쓰도록 폼에 표시가 있다', async () => {
@@ -699,6 +703,24 @@ describe('종목 탭 · 줄 / 카드 (묶음 3 — 주인: 사용자가 골라 �
     expect(screen.queryByRole('table')).toBeNull()
   })
 
+  it('도구 줄: 보기는 한 줄 고르기, 동작은 네모 단추, 알약은 거르기에만 — 기호(↕ ✎)도 없다 (목업 13 ③)', async () => {
+    mockApi([stock({ ticker: 'VOO' })])
+    renderManager()
+    await screen.findByText('미국')
+    const view = screen.getByRole('group', { name: '보기' })
+    expect(view).toHaveClass('seg')
+    expect(within(view).getByRole('button', { name: '줄 보기' })).toHaveAttribute('aria-pressed', 'true')
+    expect(within(view).getByRole('button', { name: '카드 보기' })).toHaveTextContent(/^카드$/)
+    for (const name of ['순서 바꾸기', '종목 한 번에 수정']) {
+      const b = screen.getByRole('button', { name })
+      expect(b).toHaveClass('tool-btn')
+      expect(b).not.toHaveClass('chip')
+      expect(b.textContent).not.toMatch(/[↕✎]/)
+    }
+    expect(screen.getByRole('link', { name: '재무 한눈에' })).toHaveClass('tool-btn')
+    for (const b of within(screen.getByRole('group', { name: '거르기' })).getAllByRole('button')) expect(b).toHaveClass('chip')
+  })
+
   it('카드 보기를 고르면 카드로, 이 기기에 기억한다 — 다시 열어도 카드', async () => {
     mockApi([stock({ ticker: 'VOO' })])
     vi.spyOn(api, 'getHistory').mockResolvedValue({
@@ -717,7 +739,7 @@ describe('종목 탭 · 줄 / 카드 (묶음 3 — 주인: 사용자가 골라 �
     await waitFor(() => expect(api.getHistory).toHaveBeenCalledWith('VOO', '6mo'))
     view.unmount()
     renderManager()
-    await screen.findByText(/미국 · \$USD/)
+    await screen.findByText('미국')
     expect(document.querySelector('.stock-tiles')).not.toBeNull()
     expect(screen.getByRole('button', { name: '카드 보기' })).toHaveAttribute('aria-pressed', 'true')
     // 선은 석 달 — 하루 등락과 색이 달라도 헷갈리지 않게 이름이 붙는다
@@ -903,15 +925,17 @@ describe('종목 탭 · 줄 / 카드 (묶음 3 — 주인: 사용자가 골라 �
     const badge = await screen.findByText(/목표 비중 합계 90\.0%/)
     expect(badge.closest('[aria-label="보기·설정"]')).not.toBeNull()
     expect(badge.closest('[aria-label="거르기"]')).toBeNull()
-    expect(screen.getByText(/현금을 포함해 100%가 되게 맞추면/)).toBeInTheDocument()
+    expect(screen.getByText(/현금을 포함해 100%가 되게 한 번에 수정에서 맞추세요/)).toBeInTheDocument()
+    // 알약(배지)이 아니라 안내 글 안 — 호박 글자 (목업 13 ③)
+    expect(badge.closest('p')).toHaveClass('warn')
   })
 
-  it('목표 비중 합계가 100% 면 초록, 풀이 줄은 없다', async () => {
+  it('목표 비중 합계가 100% 면 경고 색 없이, 풀이 문장도 없다', async () => {
     mockApi([stock({ ticker: 'VOO', target_weight_pct: 60 }), stock({ ticker: 'QQQ', target_weight_pct: 40 })])
     renderManager()
     const badge = await screen.findByText(/목표 비중 합계 100\.0%/)
-    expect(badge).toHaveClass('badge-green')
-    expect(screen.queryByText(/현금을 포함해 100%가 되게 맞추면/)).toBeNull()
+    expect(badge.closest('p')).not.toHaveClass('warn')
+    expect(screen.queryByText(/현금을 포함해 100%가 되게/)).toBeNull()
   })
 
   it('담는 시트 — 수량을 넣고 목표를 비우면 넣기 전에 "전부 파는 계산" 한 줄 (사용자 확인 헷갈린 말 4)', async () => {

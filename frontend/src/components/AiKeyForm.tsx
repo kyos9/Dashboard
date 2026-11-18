@@ -214,7 +214,7 @@ function SavedKey({
 
       <label className="check-line">
         <input type="checkbox" checked={saved.remember} onChange={(e) => pickRemember(e.target.checked)} />
-        이 기기에 기억 (끄면 이 탭을 닫을 때 지워집니다 — 공용 PC 라면 끄세요)
+        이 기기에 기억 (끄면 이 탭을 닫을 때 지워집니다. 공용 PC라면 끄세요)
       </label>
       {notice && <p className="ok-text">{notice}</p>}
     </>
@@ -312,7 +312,7 @@ function NewKey({
 
       <label className="check-line">
         <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
-        이 기기에 기억 (끄면 이 탭을 닫을 때 지워집니다 — 공용 PC 라면 끄세요)
+        이 기기에 기억 (끄면 이 탭을 닫을 때 지워집니다. 공용 PC라면 끄세요)
       </label>
 
       <div className="ai-key-actions">

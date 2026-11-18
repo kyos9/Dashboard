@@ -823,6 +823,42 @@ describe('위 탭 없음 (디자인 4차 묶음 2 — 보기 전환 "다")', () 
   })
 })
 
+describe('홈 — AI 티 빼기 (목업 13 ②④)', () => {
+  it('요약 아래 줄은 문장으로 — 띄어 쓴 가운뎃점으로 낱말을 줄 세우지 않는다', async () => {
+    mockApi()
+    renderDashboard()
+    const line = await screen.findByRole('region', { name: '내 자산' })
+    const note = line.querySelector('.money-note')!
+    expect(note.textContent).toMatch(/^현금 ₩17,400,000 포함, 원 기준/)
+    expect(note.textContent).not.toMatch(/ · /)
+    expect(line).toHaveTextContent('다음 리뷰 (분기마다)')
+  })
+
+  it('AI 점검 줄에 반짝이 표시가 없고, 시그널 칸 글자 끝에 꺾쇠가 붙지 않는다', async () => {
+    localStorage.clear()
+    mockApi()
+    renderDashboard()
+    const ai = await screen.findByRole('link', { name: /AI 포트폴리오 점검/ })
+    expect(ai.querySelector('.ai-row-mark')).toBeNull()
+    expect(ai).toHaveTextContent('비중과 수익률로 전체를 봅니다')
+    const signals = screen.getByRole('region', { name: '확인할 신호' })
+    for (const b of within(signals).getAllByRole('button')) expect(b.textContent).not.toMatch(/[›→]/)
+  })
+
+  it('폰 보유 목록에 머리줄("종목 · 수량 · 신호")이 없다 — 줄을 보면 안다', async () => {
+    pretendPhone()
+    try {
+      mockApi()
+      renderDashboard()
+      await screen.findByRole('button', { name: 'SCHD 자세히' })
+      expect(document.querySelector('.holding-head')).toBeNull()
+      expect(screen.queryByText('종목 · 수량 · 신호')).toBeNull()
+    } finally {
+      forgetPhone()
+    }
+  })
+})
+
 describe('폰 — 한 종목이 두 줄', () => {
   beforeEach(() => {
     pretendPhone()
@@ -851,7 +887,7 @@ describe('폰 — 한 종목이 두 줄', () => {
     expect(within(detail).getByRole('button', { name: '차트' })).toBeInTheDocument()
 
     // 펼친 곳의 신호 글도 시그널 보기로 간다
-    await userEvent.click(within(detail).getByRole('button', { name: /매수 시그널 · 비중 초과/ }))
+    await userEvent.click(within(detail).getByRole('button', { name: /매수 시그널, 비중 초과/ }))
     expect(screen.getByTestId('where')).toHaveTextContent('/?view=signal')
   })
 

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Fragment } from 'react'
 import { BrowserRouter, Link, MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
@@ -101,7 +101,7 @@ describe('종목 안 화면 (/stocks/:ticker — 묶음 3, 목업 11 가)', () =
     renderAt('/stocks/VOO')
     expect(await screen.findByText('$100.00')).toBeInTheDocument()
     expect(screen.getByText('+1.01%')).toBeInTheDocument()
-    expect(document.querySelector('.stock-hero-sub')).toHaveTextContent('미국 · 지수')
+    expect(document.querySelector('.stock-hero-sub')).toHaveTextContent(/^미국\s*지수$/)
     expect(document.querySelector('.stock-hero-badges')).toHaveTextContent('매수')
     expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['차트', '신호 (신호 있음)', '재무', '보유'])
     expect(screen.getByRole('tab', { name: '차트' })).toHaveAttribute('aria-selected', 'true')
@@ -143,6 +143,19 @@ describe('종목 안 화면 (/stocks/:ticker — 묶음 3, 목업 11 가)', () =
     expect(await screen.findByRole('heading', { name: 'NEW' })).toBeInTheDocument()
     await user.click(screen.getByRole('tab', { name: '신호' }))
     expect(screen.getByText(/시세를 받으면 이 종목의 매수·매도 조건이/)).toBeInTheDocument()
+  })
+})
+
+describe('종목 안 — 차트 기간은 한 줄 고르기 (목업 13 ③)', () => {
+  it('기간 넷은 알약이 아니라 한 줄 고르기 — 고른 것은 눌린 상태로 읽힌다', async () => {
+    vi.spyOn(api, 'getDashboard').mockResolvedValue([dashCard({ ticker: 'VOO', category: '지수' })])
+    renderAt('/stocks/VOO')
+    const ranges = await screen.findByRole('group', { name: '기간' })
+    expect(ranges).toHaveClass('seg')
+    const buttons = within(ranges).getAllByRole('button')
+    expect(buttons.map((b) => b.textContent)).toEqual(['6개월', '1년', '5년', '전체'])
+    for (const b of buttons) expect(b).not.toHaveClass('chip')
+    expect(buttons.filter((b) => b.getAttribute('aria-pressed') === 'true')).toHaveLength(1)
   })
 })
 

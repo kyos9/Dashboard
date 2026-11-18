@@ -158,7 +158,7 @@ function App() {
             </Routes>
           </main>
           <footer className="site-footer">
-            <a href={POLICY_PATH}>개인정보처리방침 · 이용약관</a>
+            <a href={POLICY_PATH}>개인정보처리방침과 이용약관</a>
             <span>시그널은 참고용이며 투자 권유가 아닙니다.</span>
           </footer>
         </BrowserRouter>

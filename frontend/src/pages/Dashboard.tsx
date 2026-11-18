@@ -792,7 +792,6 @@ export function Dashboard() {
             )}
             {/* AI 는 작은 한 줄 링크 — 카드가 첫 화면에 들어오게 (목업 10) */}
             <Link to="/ai/watchlist" className="ai-mini">
-              <Icon name="ai" size={16} />
               AI 종목 정리
             </Link>
           </div>
@@ -977,7 +976,7 @@ export function Dashboard() {
               aria-pressed={ordering}
               onClick={() => setOrdering((o) => !o)}
             >
-              {ordering ? '순서 편집 끝' : '↕ 순서 편집'}
+              {ordering ? '순서 편집 끝' : '순서 편집'}
             </button>
           )}
         </div>
@@ -1170,7 +1169,7 @@ function SignalMatrix({
             <th style={{ width: 44 }} aria-label="순서" />
             <th style={{ width: 146 }}>
               구분 / 종목
-              <span className="th-cond">매수 조건 →</span>
+              <span className="th-cond">매수 조건</span>
             </th>
             <th style={{ width: 128 }}>
               <MetricHead title="현재가" sub="(전일 대비)" />
