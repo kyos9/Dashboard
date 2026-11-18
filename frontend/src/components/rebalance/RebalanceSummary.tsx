@@ -28,14 +28,14 @@ export function RebalanceSummary({
   const { hideAmounts } = usePrefs()
   return (
     <section className="rb-summary" aria-label="내 자산">
-      <div className="rb-summary-title">
-        <span className="kpi-title">전체 자금</span>
-        <button className="link-like money-hide" aria-pressed={hideAmounts} onClick={() => setHideAmounts(!hideAmounts)}>
-          {hideAmounts ? '금액 보기' : '금액 가리기'}
-        </button>
+      {/* 목업 12d A — 이름과 큰 금액을 한 줄에, 알약은 글로 한 줄 (주인: "너무 길게 나온다") */}
+      <div className="rb-summary-line">
+        <span className="kpi-title">
+          전체 자금
+          {notes && <span className="hint rb-summary-note"> · {notes}</span>}
+        </span>
+        <span className="rb-summary-big summary-num">{total}</span>
       </div>
-      <div className="rb-summary-big summary-num">{total}</div>
-      {notes && <p className="hint rb-summary-note">{notes}</p>}
       <div className="rb-pills">
         <span className="rb-pill static">
           현금 <b className="mono">{cash}</b>
@@ -50,6 +50,9 @@ export function RebalanceSummary({
           aria-label={`목표 합계 ${targetSum}${targetOk ? '' : ' — 100%가 아님'} · 목표 · 밴드 고치기`}
         >
           {!targetOk && '⚠ '}목표 합계 <b className="mono">{targetSum}</b>
+        </button>
+        <button className="link-like money-hide" aria-pressed={hideAmounts} onClick={() => setHideAmounts(!hideAmounts)}>
+          {hideAmounts ? '금액 보기' : '금액 가리기'}
         </button>
       </div>
     </section>

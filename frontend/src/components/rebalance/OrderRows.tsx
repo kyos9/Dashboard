@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Icon } from '../icons/Icon'
 
 /** 한 주문 줄에 보일 것 — 계산은 리밸런싱 화면(buildOrderPlan)이 하고 여기는 그리기만 한다 */
@@ -55,6 +55,7 @@ export function OrderGroup({
   total,
   tone,
   items,
+  limit,
   onOpen,
   children,
 }: {
@@ -62,21 +63,34 @@ export function OrderGroup({
   total?: string
   tone: 'buy' | 'sell' | 'hold'
   items: OrderRowItem[]
+  /** 처음에 보일 줄 수 — 나머지는 "n종목 더 보기" (목업 12d A, 주인: "너무 길게 나온다") */
+  limit?: number
   onOpen: (ticker: string) => void
   children?: ReactNode
 }) {
+  const [all, setAll] = useState(false)
   if (items.length === 0) return null
+  const folded = limit !== undefined && items.length > limit
+  const shown = folded && !all ? items.slice(0, limit) : items
   return (
     <section className="order-group" aria-label={title}>
       <div className="order-group-head">
         <h4>{title}</h4>
         {total && <span className={`mono tone-${tone}`}>{total}</span>}
       </div>
-      <ul className="order-card">
-        {items.map((item) => (
-          <OrderRowButton key={item.ticker} item={item} onOpen={onOpen} />
-        ))}
-      </ul>
+      <div className="order-card">
+        <ul className="order-list">
+          {shown.map((item) => (
+            <OrderRowButton key={item.ticker} item={item} onOpen={onOpen} />
+          ))}
+        </ul>
+        {folded && (
+          <button type="button" className="order-more" aria-expanded={all} onClick={() => setAll((a) => !a)}>
+            {all ? '접기' : `${items.length - limit!}종목 더 보기`}
+            <Icon name="forward" size={16} className={`order-more-go${all ? ' open' : ''}`} />
+          </button>
+        )}
+      </div>
       {children}
     </section>
   )
@@ -91,6 +105,7 @@ export function OrderSplit({
   buyTotal,
   sellText,
   buyText,
+  money,
 }: {
   sellCount: number
   buyCount: number
@@ -99,6 +114,8 @@ export function OrderSplit({
   buyTotal: number
   sellText: string
   buyText: string
+  /** 폰: 새로 넣을 돈 한 줄을 이 카드 안 아래에 (목업 12d A) */
+  money?: ReactNode
 }) {
   const both = sellTotal + buyTotal
   return (
@@ -125,6 +142,7 @@ export function OrderSplit({
           <i className="weight-dot" aria-hidden="true" /> = 비중이 밴드 밖
         </span>
       </div>
+      {money && <div className="order-split-money">{money}</div>}
     </div>
   )
 }

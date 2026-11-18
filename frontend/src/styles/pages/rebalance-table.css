@@ -33,46 +33,24 @@
 .order-shares {
   font-weight: 700;
 }
-.wb-track {
-  position: relative;
-  display: block;
-  width: 180px;
-  height: 10px;
-  margin: 2px 0 4px;
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  background: var(--panel-soft);
+/* 비중 차이 칩 — 지금 · 목표 · 차이 세 칸 (목업 12d 3) */
+.drift-chip {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  white-space: nowrap;
 }
-.wb-track i {
-  position: absolute;
-  display: block;
+.drift-chip.over {
+  color: var(--signal-sell);
+  background: var(--signal-sell-soft);
 }
-.wb-band {
-  top: -1px;
-  bottom: -1px;
-  background: var(--signal-weight-soft);
+.drift-chip.under {
+  color: var(--signal-buy);
+  background: var(--signal-buy-soft);
 }
-.wb-fill {
-  left: 0;
-  top: 1px;
-  bottom: 1px;
-  border-radius: 4px;
-  background: var(--text-faint);
-}
-.wb-fill.over {
-  background: var(--signal-sell);
-}
-.wb-fill.under {
-  background: var(--signal-buy);
-}
-.wb-fill.ok {
-  background: var(--signal-weight);
-}
-.wb-target {
-  top: -4px;
-  bottom: -4px;
-  width: 2px;
-  margin-left: -1px;
-  border-radius: 1px;
-  background: var(--text);
+.drift-chip.ok {
+  color: var(--text-faint);
+  background: var(--slate-soft);
 }

@@ -804,6 +804,9 @@ export function RebalancePanel() {
   const [moneyOpen, setMoneyOpen] = useState(false)
   const [holdOpen, setHoldOpen] = useState(false)
   const [targetNote, setTargetNote] = useState<string | null>(null)
+  // 목업 12d A — 리뷰 · 기록과 설정은 화면 밖(시트)에서 연다. 화면에는 주문과 목록 한 장만
+  const [recordsOpen, setRecordsOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [settings, setSettings] = useState<Settings | null>(null)
   const [snapshots, setSnapshots] = useState<RebalanceSnapshot[]>([])
   const [bandInput, setBandInput] = useState('')
@@ -1151,11 +1154,37 @@ export function RebalancePanel() {
   const openOrder = openTicker ? plan.orders.find((o) => o.ticker === openTicker) : undefined
   const openRow = openTicker ? rowByTicker.get(openTicker) : undefined
 
-  const goTo = (id: string) => {
-    const el = document.getElementById(id)
-    if (el instanceof HTMLDetailsElement) el.open = true
-    el?.scrollIntoView?.({ block: 'start', behavior: 'smooth' })
-  }
+  /** 목업 12d α — 세 카드 대신 목록 한 장(설정 탭처럼). 오른쪽에 지금 값 */
+  const moreList = (
+    <ul className="rb-list" aria-label="리밸런싱 더 보기">
+      <li>
+        <button type="button" onClick={() => setTargetsOpen(true)}>
+          <Icon name="edit" />
+          <span>목표 · 밴드 고치기</span>
+          <small className="mono">합계 {num(plan.targetSum, 1)}%</small>
+          <Icon name="forward" size={18} className="rb-list-go" />
+        </button>
+      </li>
+      <li>
+        <button type="button" onClick={() => setRecordsOpen(true)}>
+          <Icon name="doc" />
+          <span>리뷰 · 기록</span>
+          <small className="mono">
+            {reviewCountdown(current.review)} · {snapshots.length}건
+          </small>
+          <Icon name="forward" size={18} className="rb-list-go" />
+        </button>
+      </li>
+      <li>
+        <button type="button" onClick={() => setSettingsOpen(true)}>
+          <Icon name="settings" />
+          <span>리밸런싱 설정</span>
+          <small>주기 · 현금 · 환율 · 밴드</small>
+          <Icon name="forward" size={18} className="rb-list-go" />
+        </button>
+      </li>
+    </ul>
+  )
 
   const newMoneyToggle = (
     <button
@@ -1178,21 +1207,11 @@ export function RebalancePanel() {
     </button>
   )
 
-  /** PC 표 한 줄의 비중 막대 — 지금(채움) · 목표(눈금) · 밴드(옅은 칸). 보이기만 */
-  const weightMax = Math.max(1, ...rows.map((r) => Math.max(weightNowOf(r), r.current.target_weight_pct + r.current.band_pct))) * 1.05
-  const weightBar = (row: Row) => {
-    const now = weightNowOf(row)
-    const target = row.current.target_weight_pct
-    const band = row.current.band_pct
-    const at = (v: number) => `${(Math.max(0, Math.min(v, weightMax)) / weightMax) * 100}%`
-    const tone = row.current.rebalance_signal.active ? (now > target ? 'over' : 'under') : 'ok'
-    return (
-      <span className="wb-track" aria-hidden="true">
-        <i className="wb-band" style={{ left: at(target - band), width: `calc(${at(target + band)} - ${at(target - band)})` }} />
-        <i className={`wb-fill ${tone}`} style={{ width: at(now) }} />
-        <i className="wb-target" style={{ left: at(target) }} />
-      </span>
-    )
+  /** PC 비중 차이 칩 — 밴드 밖이면 많음(줄일 색) · 적음(늘릴 색), 안이면 회색 (목업 12d 3 세 칸, 주인: "막대가 와닿지 않아") */
+  const driftChip = (row: Row) => {
+    const d = weightNowOf(row) - row.current.target_weight_pct
+    const tone = row.current.rebalance_signal.active ? (d > 0 ? 'over' : 'under') : 'ok'
+    return <span className={`drift-chip ${tone} mono`}>{signed(d, 1, '%p')}</span>
   }
 
   const tableRow = (order: OrderLine) => {
@@ -1207,7 +1226,7 @@ export function RebalancePanel() {
         row={row}
         order={order}
         fxNow={fxNowOf(native)}
-        columns={6}
+        columns={8}
         onSaved={orderSaved(row)}
         onError={setError}
       >
@@ -1229,14 +1248,9 @@ export function RebalancePanel() {
             </span>
           </div>
         </td>
-        <td>
-          <div className="metric">
-            {weightBar(row)}
-            <span className="metric-note mono">
-              {num(now, 1)}% → {num(row.current.target_weight_pct, 0)}% ({signed(now - row.current.target_weight_pct, 1, '%p')})
-            </span>
-          </div>
-        </td>
+        <td className="num-cell mono">{num(now, 1)}%</td>
+        <td className="num-cell mono">{num(row.current.target_weight_pct, 0)}%</td>
+        <td className="num-cell">{driftChip(row)}</td>
         <td className={`num-cell order-shares tone-${order.action}`} aria-label={orderTitle(shortLabel(row), order)}>
           {rowShares(order)}
           {zeroNote(order, row.current.target_weight_pct)}
@@ -1261,7 +1275,7 @@ export function RebalancePanel() {
   const groupRow = (title: string, orders: OrderLine[], total?: string) =>
     orders.length > 0 && (
       <tr className="order-group-row">
-        <th colSpan={6} scope="colgroup">
+        <th colSpan={8} scope="colgroup">
           {title} {orders.length}
           {total && <span className="mono"> · {total}</span>}
         </th>
@@ -1302,22 +1316,9 @@ export function RebalancePanel() {
             사고파는 것은 리뷰 때 정합니다. 줄을 누르면 자세히와 거래 입력이, &ldquo;목표 · 밴드&rdquo;에서 목표 비중을 한 번에 고칩니다.
           </PageIntro>
         </div>
-        <button type="button" className="rb-pill rb-review" onClick={() => goTo('records')}>
+        <button type="button" className="rb-pill rb-review" onClick={() => setRecordsOpen(true)}>
           다음 리뷰 <b className="mono">{reviewCountdown(current.review)}</b>
         </button>
-        {!narrow && (
-          <div className="btn-group tight rb-head-actions">
-            <button className="sm" onClick={() => setTargetsOpen(true)}>
-              <Icon name="edit" size={16} /> 목표 · 밴드
-            </button>
-            <button className="sm" onClick={() => goTo('records')}>
-              기록
-            </button>
-            <button className="sm" onClick={() => goTo('rebalance-settings')}>
-              설정
-            </button>
-          </div>
-        )}
       </div>
 
       <ErrorNotice error={error} onDismiss={() => setError(null)} />
@@ -1361,13 +1362,6 @@ export function RebalancePanel() {
         </p>
       )}
 
-      {!targetOk && (
-        <p className="hint rb-target-warn">
-          목표 비중 합계가 {num(plan.targetSum, 1)}%입니다
-          {plan.cash.targetPct > 0 && ` (현금 ${num(plan.cash.targetPct, 1)}% 포함)`} — 100%에서{' '}
-          {signed(plan.targetSum - 100, 1, '%p')} 벗어나 목표 금액이 전체 자금과 어긋납니다.
-        </p>
-      )}
 
       <section className="section rb-orders" aria-labelledby="orders-title">
         <div className="section-head">
@@ -1378,6 +1372,14 @@ export function RebalancePanel() {
           </span>
         </div>
         <OrderSplit
+          money={
+            narrow ? (
+              <>
+                {newMoneyToggle}
+                {moneyOpen && <div id="new-money-block">{newMoneyBlock}</div>}
+              </>
+            ) : undefined
+          }
           sellCount={sells.length}
           buyCount={buys.length}
           holdCount={holds.length}
@@ -1386,12 +1388,6 @@ export function RebalancePanel() {
           sellText={signedAmount(-sellTotal, baseCurrency)}
           buyText={signedAmount(buyTotal, baseCurrency)}
         />
-        {narrow && (
-          <div className="rb-money">
-            {newMoneyToggle}
-            {moneyOpen && <div id="new-money-block">{newMoneyBlock}</div>}
-          </div>
-        )}
         {newMoneyLine}
         {tradeNote && (
           <p className="new-money-line" role="status">
@@ -1410,6 +1406,7 @@ export function RebalancePanel() {
               tone="sell"
               total={signedAmount(-sellTotal, baseCurrency)}
               items={items(sells)}
+              limit={3}
               onOpen={setOpenTicker}
             />
             <OrderGroup
@@ -1417,6 +1414,7 @@ export function RebalancePanel() {
               tone="buy"
               total={signedAmount(buyTotal, baseCurrency)}
               items={items(buys)}
+              limit={3}
               onOpen={setOpenTicker}
             />
             {holds.length > 0 && (
@@ -1461,27 +1459,6 @@ export function RebalancePanel() {
                 </div>
               </div>
             </div>
-            {narrow && (
-            <div className="rb-tiles">
-              <button type="button" className="rb-tile" onClick={() => setTargetsOpen(true)}>
-                <Icon name="edit" />
-                <b>목표 · 밴드</b>{' '}
-                <span>한 번에 고치기</span>
-              </button>
-              <button type="button" className="rb-tile" onClick={() => goTo('records')}>
-                <Icon name="doc" />
-                <b>리뷰 · 기록</b>{' '}
-                <span>
-                  {reviewCountdown(current.review)} · {snapshots.length}건
-                </span>
-              </button>
-              <button type="button" className="rb-tile" onClick={() => goTo('rebalance-settings')}>
-                <Icon name="settings" />
-                <b>설정</b>{' '}
-                <span>주기 · 현금 · 환율</span>
-              </button>
-            </div>
-            )}
           </>
         ) : (
           <div className="table-scroll">
@@ -1489,7 +1466,9 @@ export function RebalancePanel() {
               <thead>
                 <tr>
                   <th style={{ minWidth: 220 }}>구분 / 종목</th>
-                  <th style={{ minWidth: 190 }}>비중 · 지금 → 목표</th>
+                  <th className="num-cell" style={{ minWidth: 64 }}>지금</th>
+                  <th className="num-cell" style={{ minWidth: 56 }}>목표</th>
+                  <th className="num-cell" style={{ minWidth: 80 }}>차이</th>
                   <th style={{ minWidth: 110 }}>주문</th>
                   <th style={{ minWidth: 150 }}>조정 금액</th>
                   <th style={{ minWidth: 150 }}>비중조절 신호</th>
@@ -1514,14 +1493,9 @@ export function RebalancePanel() {
                       </span>
                     </div>
                   </td>
-                  <td>
-                    <div className="metric">
-                      <span className="metric-value">
-                        {num(plan.total > 0 ? (plan.cash.current / plan.total) * 100 : 0, 1)}%
-                      </span>
-                      <span className="metric-note">목표 {num(plan.cash.targetPct, 0)}%</span>
-                    </div>
-                  </td>
+                  <td className="num-cell mono">{num(plan.total > 0 ? (plan.cash.current / plan.total) * 100 : 0, 1)}%</td>
+                  <td className="num-cell mono">{num(plan.cash.targetPct, 0)}%</td>
+                  <td />
                   <td />
                   <td className={`num-cell ${plan.cash.adjust > 0 ? 'tone-buy' : plan.cash.adjust < 0 ? 'tone-sell' : ''}`}>
                     <div className="metric">
@@ -1545,7 +1519,9 @@ export function RebalancePanel() {
               <tfoot>
                 <tr>
                   <td>합계 ({CURRENCY_META[baseCurrency].symbol})</td>
-                  <td className="num-cell">{amount(plan.total, baseCurrency)}</td>
+                  <td className="num-cell" colSpan={3}>
+                    {amount(plan.total, baseCurrency)}
+                  </td>
                   <td />
                   <td className="num-cell">
                     {signedAmount(plan.orders.reduce((s, o) => s + o.adjust, 0) + plan.cash.adjust, baseCurrency)}
@@ -1556,6 +1532,8 @@ export function RebalancePanel() {
             </table>
           </div>
         )}
+        {moreList}
+        <p className="hint rb-foot">지금 가격으로 목표에 맞추는 참고입니다. 실제로 사고파는 것은 리뷰 때 정합니다.</p>
       </section>
 
       {openOrder && openRow && (
@@ -1678,21 +1656,30 @@ export function RebalancePanel() {
         />
       )}
 
-      <section className="section" id="records" aria-labelledby="records-title">
-        <div className="section-head">
-          <h3 id="records-title">리뷰 · 기록 {snapshots.length > 0 && `${snapshots.length}건`}</h3>
-          <span className="hint">리뷰할 때 남긴 모습 그대로입니다. 종목을 지우거나 목표를 바꿔도 달라지지 않습니다.</span>
-        </div>
-        <RecordPanel review={current.review} onSaved={handleSaved} onError={setError} />
-        <SnapshotList snapshots={snapshots} onDeleted={handleSaved} onError={setError} />
-        <ValueRecordLine record={current.value_record} />
-      </section>
+      {recordsOpen && (
+        <Sheet
+          title={`리뷰 · 기록${snapshots.length > 0 ? ` ${snapshots.length}건` : ''}`}
+          label="리뷰 · 기록"
+          closeLabel="리뷰 · 기록 닫기"
+          className="records-sheet"
+          sub="리뷰할 때 남긴 모습 그대로입니다. 종목을 지우거나 목표를 바꿔도 달라지지 않습니다."
+          onClose={() => setRecordsOpen(false)}
+        >
+          <RecordPanel review={current.review} onSaved={handleSaved} onError={setError} />
+          <SnapshotList snapshots={snapshots} onDeleted={handleSaved} onError={setError} />
+          <ValueRecordLine record={current.value_record} />
+        </Sheet>
+      )}
 
-      <details className="section settings-fold" id="rebalance-settings">
-        <summary>
-          <h3>설정</h3>
-          <span className="hint">리뷰 주기 · 현금 · 기준통화·환율 · 밴드</span>
-        </summary>
+      {settingsOpen && (
+        <Sheet
+          title="리밸런싱 설정"
+          label="리밸런싱 설정"
+          closeLabel="설정 닫기"
+          className="settings-sheet"
+          sub="리뷰 주기 · 현금 · 기준통화·환율 · 밴드"
+          onClose={() => setSettingsOpen(false)}
+        >
         <div className="kpi-grid">
           {settings && (
             <ReviewSettings
@@ -1830,7 +1817,8 @@ export function RebalancePanel() {
             </p>
           </div>
         </div>
-      </details>
+        </Sheet>
+      )}
     </div>
   )
 }

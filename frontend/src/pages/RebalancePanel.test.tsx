@@ -121,11 +121,19 @@ function act(tr: HTMLElement) {
   return tr.querySelector('.order-shares')?.getAttribute('aria-label') ?? ''
 }
 
-/** PC 머리의 "목표 · 밴드"로 시트를 연다 */
+/** 주문 아래 목록 한 장(목업 12d α)의 "목표 · 밴드 고치기"로 시트를 연다 */
 async function openTargets(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(await screen.findByRole('button', { name: '목표 · 밴드' }))
+  await user.click(await screen.findByRole('button', { name: /^목표 · 밴드 고치기/ }))
   return screen.getByRole('dialog', { name: '목표 비중 · 밴드 고치기' })
 }
+
+/** 설정 · 리뷰 기록은 화면 밖 시트(목업 12d A) — 목록에서 연다 */
+async function openSheet(name: RegExp, dialog: string) {
+  await userEvent.setup().click(await screen.findByRole('button', { name }))
+  return screen.getByRole('dialog', { name: dialog })
+}
+const openSettings = () => openSheet(/^리밸런싱 설정/, '리밸런싱 설정')
+const openRecords = () => openSheet(/^리뷰 · 기록/, '리뷰 · 기록')
 
 beforeEach(() => {
   vi.restoreAllMocks()
@@ -172,6 +180,7 @@ describe('리밸런싱 · 통화 표기', () => {
   it('적용 중인 환율과 출처를 밝힌다', async () => {
     mockApi()
     renderPanel()
+    await openSettings()
     expect(await screen.findByText(/1달러 = 1,300.00원 · 자동 조회값/)).toBeInTheDocument()
   })
 
@@ -232,6 +241,7 @@ describe('리밸런싱 · 통화 표기', () => {
       rows: [...CURRENT.rows, row({ ticker: '7203.T', name: '도요타', currency: 'JPY' })],
     })
     renderPanel()
+    await openSettings()
 
     expect(await screen.findByLabelText('원/엔 환율 직접 입력')).toBeInTheDocument()
     expect(screen.getByText(/1엔 = 9.30원/)).toBeInTheDocument()
@@ -240,6 +250,7 @@ describe('리밸런싱 · 통화 표기', () => {
   it('일본 종목이 없으면 엔 칸은 뜨지 않는다 — 쓰지 않는 환율은 안 보여준다', async () => {
     mockApi()
     renderPanel()
+    await openSettings()
 
     expect(await screen.findByLabelText('원/달러 환율 직접 입력')).toBeInTheDocument()
     expect(screen.queryByLabelText('원/엔 환율 직접 입력')).not.toBeInTheDocument()
@@ -283,6 +294,7 @@ describe('리밸런싱 · 현금', () => {
     const update = vi.spyOn(api, 'updateSettings').mockResolvedValue(SETTINGS)
     const user = userEvent.setup()
     renderPanel()
+    await openSettings()
 
     await user.type(await screen.findByLabelText('원 현금'), '3000000')
     await user.type(screen.getByLabelText('현금 목표 비중'), '10')
@@ -452,6 +464,7 @@ describe('리밸런싱 · 리뷰와 기록', () => {
     const create = vi.spyOn(api, 'createSnapshot').mockResolvedValue(SNAPSHOT)
     const user = userEvent.setup()
     renderPanel()
+    await openRecords()
 
     expect(await screen.findByText('리뷰할 때')).toBeInTheDocument()
     await user.type(screen.getByLabelText('기록 메모'), '3분기 리뷰')
@@ -465,6 +478,7 @@ describe('리밸런싱 · 리뷰와 기록', () => {
     const update = vi.spyOn(api, 'updateSettings').mockResolvedValue(SETTINGS)
     const user = userEvent.setup()
     renderPanel()
+    await openSettings()
 
     await user.selectOptions(await screen.findByLabelText('리뷰 주기'), '연 1회')
     await waitFor(() => expect(update).toHaveBeenCalledWith({ review_period: 'annual' }))
@@ -473,6 +487,7 @@ describe('리밸런싱 · 리뷰와 기록', () => {
   it('지난 기록을 펼쳐 그날의 비중과 수익률을 본다', async () => {
     mockApi(CURRENT, SETTINGS, [SNAPSHOT])
     renderPanel()
+    await openRecords()
 
     expect(await screen.findByText('2분기 리뷰')).toBeInTheDocument()
     expect(screen.getByText('62.4% (60.0%)')).toBeInTheDocument()
@@ -484,6 +499,7 @@ describe('리밸런싱 · 리뷰와 기록', () => {
     const remove = vi.spyOn(api, 'deleteSnapshot').mockResolvedValue(undefined)
     const user = userEvent.setup()
     renderPanel()
+    await openRecords()
 
     await user.click(await screen.findByRole('button', { name: '기록 삭제' }))
     expect(remove).not.toHaveBeenCalled()
@@ -496,15 +512,16 @@ describe('리밸런싱 · 리뷰와 기록', () => {
 /* ---------- 8-3 — 답을 먼저 · 한 번에 저장 · 산 환율 · 폰 카드 ---------- */
 
 describe('리밸런싱 · 답을 먼저 (ROADMAP 8-3)', () => {
-  it('순서는 요약 → 주문 가이드 → 기록 → 설정(접힘) — 보유 · 목표 칸은 시트로 (디자인 4차 12c)', async () => {
+  it('순서는 요약 → 주문 가이드 → 목록 한 장 — 기록 · 설정 · 목표는 시트로 (디자인 4차 12c · 12d)', async () => {
     mockApi()
     const { container } = renderPanel()
     await screen.findByRole('region', { name: '주문 가이드' })
-    const order = Array.from(container.querySelectorAll('[aria-label="내 자산"], section h3, details summary h3')).map(
+    const order = Array.from(container.querySelectorAll('[aria-label="내 자산"], section h3, [aria-label="리밸런싱 더 보기"]')).map(
       (el) => (el.getAttribute('aria-label') ?? el.textContent ?? '').trim(),
     )
-    expect(order).toEqual(['내 자산', '주문 가이드', '리뷰 · 기록', '설정'])
-    expect(container.querySelector('details.settings-fold')).not.toHaveAttribute('open')
+    // 리뷰 · 기록 · 설정은 화면 밖 시트 — 주문 아래 목록 한 장에서 연다 (목업 12d A · α)
+    expect(order).toEqual(['내 자산', '주문 가이드', '리밸런싱 더 보기'])
+    expect(screen.queryByRole('heading', { name: /^리뷰 · 기록/ })).toBeNull()
   })
 
   it('요약은 전체 자금 · 현금 · 기본 밴드 · 목표 합계 — 손익은 홈에 (디자인 4차 12c)', async () => {
@@ -522,7 +539,8 @@ describe('리밸런싱 · 답을 먼저 (ROADMAP 8-3)', () => {
   it('목표 합계가 100 이 아니면 주문 가이드 위에서 알린다', async () => {
     mockApi({ ...CURRENT, rows: CURRENT.rows.map((r) => ({ ...r, target_weight_pct: 30 })) })
     renderPanel()
-    expect(await screen.findByText(/목표 비중 합계가 60.0%입니다/)).toBeInTheDocument()
+    // 긴 경고 줄은 뺐다(목업 12d A) — 요약 알약이 호박 ⚠, 시트에서 무엇을 하면 되는지
+    expect(await screen.findByRole('button', { name: /^목표 합계 60\.0% — 100%가 아님/ })).toHaveClass('warn')
   })
 })
 
@@ -649,6 +667,7 @@ describe('리밸런싱 · 산 환율과 환율 효과', () => {
   it('원화 종목만 있으면 산 환율 칸도 환율 효과 설정도 없다', async () => {
     mockApi({ ...CURRENT, rows: [CURRENT.rows[0]] })
     renderPanel()
+    await openSettings()
     await screen.findByRole('region', { name: '주문 가이드' })
     expect(screen.queryByText('산 환율')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('수익률에 환율 효과 포함')).not.toBeInTheDocument()
@@ -686,6 +705,7 @@ describe('리밸런싱 · 산 환율과 환율 효과', () => {
       .mockReturnValue(new Promise<Settings>((resolve) => (answer = resolve)))
     const user = userEvent.setup()
     renderPanel()
+    await openSettings()
     await user.click(await screen.findByLabelText('수익률에 환율 효과 포함'))
     expect(update).toHaveBeenCalledWith({ include_fx_effect: true })
     // 서버가 답하기 전에도 켜진 것으로 보인다 — 다시 받을 때까지 꺼진 채로 있으면 안 눌린 것 같다
@@ -701,6 +721,7 @@ describe('리밸런싱 · 산 환율과 환율 효과', () => {
     vi.spyOn(api, 'updateSettings').mockRejectedValue(new Error('환율 효과 저장 실패'))
     const user = userEvent.setup()
     renderPanel()
+    await openSettings()
     await user.click(await screen.findByLabelText('수익률에 환율 효과 포함'))
     expect(await screen.findByText(/환율 효과 저장 실패/)).toBeInTheDocument()
     expect(screen.getByLabelText('수익률에 환율 효과 포함')).not.toBeChecked()
@@ -709,6 +730,7 @@ describe('리밸런싱 · 산 환율과 환율 효과', () => {
   it('달러 기준이면 흐리게 두고 이유를 적는다', async () => {
     mockApi({ ...JP, base_currency: 'USD' }, { ...SETTINGS, base_currency: 'USD', include_fx_effect: true })
     renderPanel()
+    await openSettings()
     expect(await screen.findByLabelText('수익률에 환율 효과 포함')).toBeDisabled()
     expect(screen.getByText(/기준통화가 원일 때만 켤 수 있습니다/)).toBeInTheDocument()
   })
@@ -751,14 +773,23 @@ describe('리밸런싱 · 폰', () => {
     expect(guide).not.toHaveTextContent(/사기|팔기/)
   })
 
-  it('타일 셋 — 목표 · 밴드는 시트, 설정은 접힌 설정을 펼친다', async () => {
-    mockApi()
+  it('목록 한 장 — 목표 · 밴드 / 리뷰 · 기록 / 설정, 오른쪽에 지금 값 · 누르면 각 시트 (목업 12d α)', async () => {
+    mockApi(CURRENT, SETTINGS, [])
     const user = userEvent.setup()
-    const { container } = renderPanel()
-    await user.click(await screen.findByRole('button', { name: /^설정 주기 · 현금 · 환율$/ }))
-    expect(container.querySelector('details.settings-fold')).toHaveAttribute('open')
-    await user.click(screen.getByRole('button', { name: /^목표 · 밴드 한 번에 고치기$/ }))
-    expect(screen.getByRole('dialog', { name: '목표 비중 · 밴드 고치기' })).toBeInTheDocument()
+    renderPanel()
+    const list = await screen.findByRole('list', { name: '리밸런싱 더 보기' })
+    const items = within(list).getAllByRole('button')
+    expect(items.map((b) => b.textContent)).toEqual([
+      '목표 · 밴드 고치기합계 100.0%',
+      expect.stringMatching(/^리뷰 · 기록D-\d+ · 0건$/),
+      '리밸런싱 설정주기 · 현금 · 환율 · 밴드',
+    ])
+    await user.click(items[2])
+    const sheet = screen.getByRole('dialog', { name: '리밸런싱 설정' })
+    expect(within(sheet).getByLabelText('전역 기본 밴드')).toBeInTheDocument()
+    await user.click(within(sheet).getByRole('button', { name: '설정 닫기' }))
+    await user.click(items[1])
+    expect(screen.getByRole('dialog', { name: '리뷰 · 기록' })).toHaveTextContent('지금 상태 기록하기')
   })
 
 })
@@ -982,16 +1013,20 @@ describe('리밸런싱 · 주문 옆 거래 입력 (디자인 2차, 주인 결�
     }
   })
 
-  it('PC 주문 표는 6열 · 종목 칸이 고정된다 — 보유 표는 없다 (디자인 4차 12c)', async () => {
+  it('PC 주문 표 — 비중은 지금 · 목표 · 차이 세 칸(막대 없음) · 종목 칸이 고정된다 · 보유 표는 없다 (목업 12d 3)', async () => {
     mockApi(SKEW)
     renderPanel()
     const tables = await screen.findAllByRole('table')
     expect(tables).toHaveLength(1)
     expect(tables[0]).toHaveClass('sticky-first')
     expect(Array.from(tables[0].querySelectorAll('thead th')).map((h) => h.textContent)).toEqual([
-      '구분 / 종목', '비중 · 지금 → 목표', '주문', '조정 금액', '비중조절 신호', '거래',
+      '구분 / 종목', '지금', '목표', '차이', '주문', '조정 금액', '비중조절 신호', '거래',
     ])
     expect(within(tables[0]).getAllByRole('columnheader', { name: /줄일 종목|늘릴 종목/ })).toHaveLength(2)
+    const voo = await orderRow('VOO')
+    // VOO 61.9% → 20% — 밴드(5) 밖이 아니면 회색 칩, 막대는 없다
+    expect(voo.querySelector('.drift-chip')).toHaveTextContent('+41.9%p')
+    expect(voo.querySelector('.wb-track')).toBeNull()
   })
 
 })
@@ -1000,7 +1035,7 @@ describe('날마다의 평가금액 안내 (0.44.0)', () => {
   it('리뷰 · 기록 안에, 리뷰 기록과 따로라는 말과 며칠치인지 (0.45.0 D3 — 방침과 같은 말, 볼 화면은 아직 없음)', async () => {
     mockApi({ ...CURRENT, value_record: { enabled: true, days: 12, since: '2026-10-05' } })
     renderPanel()
-    const section = (await screen.findByRole('heading', { name: /리뷰 · 기록/ })).closest('section') as HTMLElement
+    const section = await openRecords()
     const line = section.querySelector('.value-record-line') as HTMLElement
     expect(line.textContent?.replace(/\s+/g, ' ')).toBe(
       '리뷰 기록과 따로, 서버가 매일 아침 평가금액과 보유 모습(수량·평단가·종가·현금·환율)을 남깁니다 — ' +
@@ -1102,21 +1137,12 @@ describe('목표 0%라 전부 파는 계산 (0.45.4 C)', () => {
 })
 
 describe('리밸런싱 · 디자인 4차 목업 12c', () => {
-  it('머리의 "다음 리뷰 D-n" 알약 — 누르면 리뷰 · 기록 칸으로', async () => {
+  it('머리의 "다음 리뷰 D-n" 알약 — 누르면 리뷰 · 기록 시트', async () => {
     mockApi()
-    const before = Element.prototype.scrollIntoView
-    const scroll = vi.fn()
-    Element.prototype.scrollIntoView = scroll
-    try {
-      const user = userEvent.setup()
-      renderPanel()
-      const pill = await screen.findByRole('button', { name: /^다음 리뷰 D-\d+$/ })
-      await user.click(pill)
-      expect(scroll).toHaveBeenCalled()
-      expect(scroll.mock.contexts[0]).toBe(document.getElementById('records'))
-    } finally {
-      Element.prototype.scrollIntoView = before
-    }
+    const user = userEvent.setup()
+    renderPanel()
+    await user.click(await screen.findByRole('button', { name: /^다음 리뷰 D-\d+$/ }))
+    expect(screen.getByRole('dialog', { name: '리뷰 · 기록' })).toBeInTheDocument()
   })
 
   it('줄을 눌러 연 시트 — Tab 은 시트 안에서 돌고, Esc 로 닫힌다 (새 팝업 가두기)', async () => {
@@ -1280,7 +1306,7 @@ describe('리밸런싱 · 묶음 4 검토 보완', () => {
 })
 
 describe('리밸런싱 · 묶음 4 재검토 보완', () => {
-  it('좁은 PC(1100px 아래, 확대 150% 등)는 표 대신 줄 묶음 — 머리 단추는 남고 폰 타일은 없다 (재검토 조건 2)', async () => {
+  it('좁은 PC(1100px 아래, 확대 150% 등)는 표 대신 줄 묶음 — 목록 한 장은 같다 (재검토 조건 2)', async () => {
     const before = window.matchMedia
     // 1100px 질의만 맞다 — 폰(720px) 질의는 아니다
     window.matchMedia = ((media: string) => ({
@@ -1299,12 +1325,63 @@ describe('리밸런싱 · 묶음 4 재검토 보완', () => {
       const guide = await screen.findByRole('region', { name: '주문 가이드' })
       expect(within(guide).queryByRole('table')).toBeNull()
       expect(within(guide).getByRole('button', { name: /^VOO .* — 자세히$/ })).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: '목표 · 밴드' })).toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: /^목표 · 밴드 한 번에 고치기$/ })).toBeNull()
+      expect(screen.getByRole('list', { name: '리밸런싱 더 보기' })).toBeInTheDocument()
       // PC 처럼 새로 넣을 돈 칸은 위에 펼쳐져 있다
       expect(screen.getByLabelText(/이번에 새로 넣을 돈/)).toBeInTheDocument()
     } finally {
       window.matchMedia = before
+    }
+  })
+})
+
+describe('리밸런싱 · 목업 12d (주인: 너무 길다)', () => {
+  // 늘릴 종목 다섯 — 큰 것 셋만 보이고 "2종목 더 보기"
+  const MANY: RebalanceCurrent = {
+    ...CURRENT,
+    total_value_base: 2_100_000,
+    rows: [
+      { ...CURRENT.rows[1], target_weight_pct: 10 },
+      ...['A1', 'A2', 'A3', 'A4', 'A5'].map((t, i) =>
+        row({ ticker: t, currency: 'KRW', target_weight_pct: 20 - i * 2, quantity: 0, last_close: 1000 }),
+      ),
+      { ...CURRENT.rows[0], target_weight_pct: 0 },
+    ],
+  }
+
+  it('폰: 묶음마다 큰 것 셋 + "n종목 더 보기", 누르면 다 · "접기"', async () => {
+    pretendPhone()
+    try {
+      mockApi(MANY)
+      const user = userEvent.setup()
+      renderPanel()
+      const buy = await screen.findByRole('region', { name: '늘릴 종목' })
+      expect(within(buy).getAllByRole('listitem')).toHaveLength(3)
+      // 큰 것부터 — A1(20%) · A2 · A3
+      expect(within(buy).getAllByRole('listitem').map((li) => li.querySelector('.order-row-label')?.textContent)).toEqual(['A1', 'A2', 'A3'])
+      const more = within(buy).getByRole('button', { name: /^2종목 더 보기/ })
+      expect(more).toHaveAttribute('aria-expanded', 'false')
+      await user.click(more)
+      expect(within(buy).getAllByRole('listitem')).toHaveLength(5)
+      expect(within(buy).getByRole('button', { name: /^접기/ })).toHaveAttribute('aria-expanded', 'true')
+      // 셋 이하인 묶음에는 더 보기가 없다
+      expect(within(screen.getByRole('region', { name: '줄일 종목' })).queryByRole('button', { name: /더 보기/ })).toBeNull()
+    } finally {
+      forgetPhone()
+    }
+  })
+
+  it('폰: 새로 넣을 돈은 줄일 · 늘릴 막대 카드 안 한 줄 — 요약은 한 줄(전체 자금 · 큰 금액)과 알약 줄', async () => {
+    pretendPhone()
+    try {
+      mockApi()
+      renderPanel()
+      const split = await screen.findByRole('group', { name: '줄일 · 늘릴 합계' })
+      expect(within(split).getByRole('button', { name: /^새로 넣을 돈/ })).toBeInTheDocument()
+      const summary = screen.getByRole('region', { name: '내 자산' })
+      expect(summary.querySelector('.rb-summary-line')).toHaveTextContent(/^전체 자금 · 현금 포함 · 원 기준₩2,100,000$/)
+      expect(within(summary).getByRole('button', { name: '금액 가리기' })).toBeInTheDocument()
+    } finally {
+      forgetPhone()
     }
   })
 })

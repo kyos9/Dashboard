@@ -86,36 +86,6 @@ button.order-row:hover {
   color: var(--text-faint);
 }
 
-/* 타일 셋 — 목표 · 밴드 / 리뷰 · 기록 / 설정 */
-.rb-tiles {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 16px;
-}
-.rb-tile {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-  min-height: 84px;
-  padding: 12px 10px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  color: var(--text-dim);
-  font-size: var(--fs-caption);
-  font-weight: 400;
-  text-align: left;
-}
-.rb-tile .icon {
-  color: var(--accent);
-}
-.rb-tile b {
-  color: var(--text);
-  font-size: var(--fs-sub);
-}
-
 /* 줄을 누르면 — 자세히 + 거래 입력 */
 .order-sheet-act {
   --c: var(--text-faint);
