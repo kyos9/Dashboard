@@ -148,7 +148,7 @@ const SCREENS = [
     who: 'owner@example.com',
     path: '/stocks',
     act: async (page) => {
-      await page.getByPlaceholder(/삼성전자, 005930/).fill('삼성')
+      await page.getByPlaceholder(/종목 이름이나 코드/).fill('삼성')
       await page.locator('.symbol-option').nth(2).click()
       await page.waitForSelector('.add-sheet')
     },
@@ -215,7 +215,7 @@ const SCREENS = [
     who: 'owner@example.com',
     path: '/macro',
     act: async (page) => {
-      await page.locator('button.macro-title').first().click()
+      await page.locator('button.macro-row-open').first().click()
       await page.waitForSelector('canvas', { timeout: 15000 }).catch(() => {})
     },
   },
