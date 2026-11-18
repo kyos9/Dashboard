@@ -69,8 +69,8 @@ export function TermSpreadLine({
           {spread.value.toFixed(2)}%p
         </b>
         {inverted ? ', 장단기 금리가 역전돼 있습니다.' : ', 정상(장기 > 단기)'}
-        <span className="hint" title={`${spread.long_code} − ${spread.short_code}`}>
-          {' '}
+        {' '}
+        <span className="hint nowrap" title={`${spread.long_code} − ${spread.short_code}`}>
           ({spread.as_of} 기준)
         </span>
       </div>

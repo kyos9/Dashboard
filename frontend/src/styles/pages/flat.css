@@ -66,7 +66,7 @@ button.signal-count .signal-count-label::after {
 }
 .seg > button {
   flex: 1;
-  min-height: 38px;
+  min-height: 44px;
   padding: 0 14px;
   border: 0;
   border-radius: 6px;
@@ -112,9 +112,6 @@ button.signal-count .signal-count-label::after {
   align-items: center;
   gap: 8px;
 }
-.stock-tools .seg > button {
-  min-height: 38px;
-}
 .stock-tools-gap {
   flex: 1;
 }
@@ -123,9 +120,6 @@ button.signal-count .signal-count-label::after {
 }
 .stock-target-hint.warn .stock-target-sum {
   color: var(--amber);
-}
-.stock-ranges.seg > button {
-  min-height: 38px;
 }
 
 /* 띄어 쓴 가운뎃점 대신 사이 띄움 — 종목 아래 줄 "005930.KS  한국", 종목 머리 "AAPL  미국  알파" (목업 13 ④) */
@@ -170,4 +164,11 @@ button.signal-count .signal-count-label::after {
 }
 .login-prompt .consent-line {
   text-align: left;
+}
+
+/* 매크로 차트 창 — 기간 고르기는 제목 · 닫기 아래 한 줄을 다 쓴다(제목 옆에 두면 "S&P 500"이 접혔다, audit orphan) */
+.chart-modal .modal-head > .seg {
+  order: 100;
+  flex-basis: 100%;
+  display: flex;
 }
