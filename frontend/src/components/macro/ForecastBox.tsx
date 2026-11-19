@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from 'react'
-import { macroChange, macroValue } from '../../lib/macro'
+import { macroValue } from '../../lib/macro'
 import type { MacroSeriesInfo } from '../../types'
 import { NumberInput } from '../NumberInput'
-import { monthOf } from './period'
+import { forecastSource, monthOf, surpriseWord } from './period'
 
 /**
  * 입력칸에 처음 들어가 있을 달.
@@ -56,38 +56,42 @@ export function ForecastBox({
     }
   }
 
-  const remove = async () => {
+  // 지우기는 나와 있는 예상마다 — 입력칸의 "지우기"는 칸이 다음 달로 잡혀 있어 지난달 예상이 안 지워졌다(묶음 5 사용자 확인)
+  const remove = async (target: string) => {
     if (busy) return
     setBusy(true)
-    const ok = await onClear(series.code, month)
+    await onClear(series.code, target)
     setBusy(false)
-    if (ok) {
-      setOpen(false)
-      setValue('')
-    }
   }
+  const removeButton = (asOf: string) =>
+    editable && (
+      <button type="button" className="link-btn forecast-remove" onClick={() => void remove(monthOf(asOf))} disabled={busy} aria-label={`${monthOf(asOf)} 예상 지우기`}>
+        지우기
+      </button>
+    )
 
   return (
     <>
       {forecast && (
         <p className="macro-forecast">
-          예상 {macroValue(forecast.value, series.unit)}
-          {forecast.surprise !== null && (
-            /* 실제 − 예상. 색은 안 쓴다 — 물가가 높은 게 좋은 일인지는 무엇을 들고
-               있느냐에 따라 다르고, 그 판단은 이 화면이 할 일이 아니다. */
-            <span className="macro-surprise mono">
-              실제 {macroChange(forecast.surprise, series.unit)}
-            </span>
-          )}
-          <span className="hint"> {forecast.source_label}</span>
+          {/* "예상 2.50%, 실제 +0.15%p"는 실제 값이 +0.15% 처럼 읽혔다 — "예상보다 얼마 높음 · 낮음"으로 (묶음 5 사용자 확인).
+              색은 안 쓴다 — 물가가 높은 게 좋은 일인지는 무엇을 들고 있느냐에 따라 다르고, 그 판단은 이 화면이 할 일이 아니다. */}
+          <span className="hint">{monthOf(forecast.as_of)}</span> 예상 {macroValue(forecast.value, series.unit)}
+          {forecast.surprise !== null && <span className="macro-surprise mono">{surpriseWord(forecast.surprise, series.unit)}</span>}
+          <span className="hint"> ({forecastSource(forecast)})</span>
+          {removeButton(forecast.as_of)}
         </p>
       )}
       {pending && (
         <p className="macro-forecast">
-          <span className="hint">{monthOf(pending.as_of)} 예상</span>{' '}
-          {macroValue(pending.value, series.unit)}
-          <span className="hint"> {pending.source_label} · 아직 발표 전</span>
+          <span className="hint">{monthOf(pending.as_of)}</span> 예상 {macroValue(pending.value, series.unit)}
+          <span className="hint"> (아직 발표 전, {forecastSource(pending)})</span>
+          {removeButton(pending.as_of)}
         </p>
+      )}
+      {!forecast && !pending && !editable && (
+        // 지인 · 손님은 관리자가 넣기 전에는 아무것도 없어 "예상보다 높았나"를 찾다 헤맸다 (묶음 5 사용자 확인)
+        <p className="hint macro-forecast">아직 넣은 예상치가 없습니다. 관리자가 넣으면 발표 뒤 예상보다 높았는지 낮았는지 붙습니다.</p>
       )}
 
       {open ? (
@@ -108,16 +112,13 @@ export function ForecastBox({
               value={value}
               onChange={setValue}
               allowNegative
-              placeholder="2.7"
+              placeholder="예: 2.7"
               aria-label={`${series.name} 예상치`}
             />
           </label>
           <div className="forecast-actions">
             <button type="submit" className="primary" disabled={!canSave || busy}>
               저장
-            </button>
-            <button type="button" onClick={() => void remove()} disabled={busy}>
-              지우기
             </button>
             <button type="button" onClick={() => setOpen(false)} disabled={busy}>
               닫기
@@ -128,8 +129,11 @@ export function ForecastBox({
         <button
           className="link-btn forecast-open"
           onClick={() => {
-            setMonth(defaultMonth(series))
-            setValue('')
+            const target = defaultMonth(series)
+            setMonth(target)
+            // 그 달 예상이 이미 있으면 그 값으로 — 빈 칸에 회색 예시만 보여 저장값이 바뀐 것처럼 읽혔다 (묶음 5 사용자 확인)
+            const same = [series.pending_forecast, series.forecast].find((f) => f && monthOf(f.as_of) === target)
+            setValue(same ? String(same.value) : '')
             setOpen(true)
           }}
         >

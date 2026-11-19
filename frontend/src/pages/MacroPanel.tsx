@@ -2,7 +2,7 @@ import { Suspense, useCallback, useState } from 'react'
 import { api } from '../api/client'
 import { useAuth } from '../components/AuthGate'
 import { ErrorNotice } from '../components/ErrorNotice'
-import { monthOf, periodOf } from '../components/macro/period'
+import { monthOf, periodOf, surpriseWord } from '../components/macro/period'
 import { Icon } from '../components/icons/Icon'
 import { RegimeBadges } from '../components/RegimeBadges'
 import { useAppState } from '../AppState'
@@ -88,7 +88,7 @@ function forecastWord(series: MacroSeriesInfo): string {
   const { forecast, pending_forecast: pending } = series
   if (forecast) {
     const base = `예상 ${macroValue(forecast.value, series.unit)}`
-    return forecast.surprise !== null ? `${base}, 실제 ${macroChange(forecast.surprise, series.unit)}` : base
+    return forecast.surprise !== null ? `${base}, ${surpriseWord(forecast.surprise, series.unit)}` : base
   }
   if (pending) return `${monthOf(pending.as_of)} 예상 ${macroValue(pending.value, series.unit)}(발표 전)`
   return ''
@@ -140,6 +140,7 @@ function MacroRow({
           // ★ = 자주 보는 지표 — 켜면 목록 맨 위 "내 지표"로 모인다(목업 14 ① 가). 홈에 올리던 뜻은 4차 ㉡ 에서 홈 줄을 빼며 없어졌다
           <button
             className={`pin-btn${pinned ? ' on' : ''}`}
+            data-pin={series.code}
             onClick={onTogglePin}
             aria-pressed={pinned}
             title={pinned ? '내 지표에서 빼기' : '내 지표로 — 목록 맨 위에 모입니다'}
@@ -209,6 +210,7 @@ export function MacroPanel() {
   const [error, setError] = useState<unknown>(null)
   const [open, setOpen] = useState<MacroSeriesInfo | null>(null)
   const [pinning, setPinning] = useState(false)
+  const [pinNote, setPinNote] = useState('')
 
   // 탭을 옮겨 와도 들고 있던 값을 먼저 그린다 (ROADMAP 8-1)
   const { loading } = useCachedLoad('page:macro', api.getMacro, setData, setError, [refreshKey])
@@ -247,6 +249,15 @@ export function MacroPanel() {
     const before = data.pinned
     setData({ ...data, pinned: next })
     setPinning(true)
+    // 줄이 "내 지표" ↔ "모든 지표"로 옮겨 간다 — 폰 320 에서 누른 줄이 화면 밖으로 사라져 어디 갔는지 몰랐다(묶음 5 사용자 확인).
+    // 옮긴 자리의 별로 포커스와 화면을 데려간다
+    const name = data.series.find((item) => item.code === code)?.name ?? code
+    setPinNote(next.includes(code) ? `${name} 을(를) 맨 위 내 지표로 옮겼습니다` : `${name} 을(를) 내 지표에서 뺐습니다`)
+    requestAnimationFrame(() => {
+      const star = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-pin]')).find((el) => el.dataset.pin === code)
+      star?.focus({ preventScroll: true })
+      star?.scrollIntoView?.({ block: 'center', behavior: 'smooth' })
+    })
     try {
       const saved = await api.setMacroPinned(next)
       setData((current) => (current ? { ...current, pinned: saved.codes } : current))
@@ -361,6 +372,9 @@ export function MacroPanel() {
             <p className="hint regime-quiet">지금 눈에 띄는 국면은 없습니다.</p>
           )}
           <TermSpreadLine spread={data?.term_spread ?? null} />
+          <p className="sr-only" role="status">
+            {pinNote}
+          </p>
           {/* "언제 받아본 것인가"는 "값이 언제 것인가"와 다른 질문이다 — 대부분 같아서 위에 한 번, 다른 줄만 줄에 적는다 */}
           {mine.length > 0 && (
             <>

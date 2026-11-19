@@ -345,6 +345,31 @@ describe('국면 배지', () => {
 })
 
 describe('홈에 올리는 ☆', () => {
+  it('★ 을 누르면 옮겨 간 자리의 별로 포커스 · 화면이 따라간다 — 폰에서 누른 줄이 화면 밖으로 사라졌다 (묶음 5 사용자 확인)', async () => {
+    const two = [series({ code: 'DGS10', name: '미 10년물 금리' }), series({ code: 'VIX', name: 'VIX' })]
+    mockMacro({ series: two, pinned: [] })
+    // 저장 뒤 화면이 다시 읽을 때는 서버가 바뀐 별을 준다
+    vi.spyOn(api, 'setMacroPinned').mockImplementation(async () => {
+      vi.mocked(api.getMacro).mockResolvedValue({ series: two, term_spread: null, badges: [], pinned: ['VIX'] })
+      return { codes: ['VIX'], series: [], badges: [] }
+    })
+    const scroll = vi.fn()
+    const before = Element.prototype.scrollIntoView
+    Element.prototype.scrollIntoView = scroll
+    try {
+      const user = userEvent.setup()
+      renderPanel()
+      await user.click(await screen.findByRole('button', { name: 'VIX 내 지표로' }))
+      const mine = await screen.findByRole('list', { name: '내 지표' })
+      const star = within(mine).getByRole('button', { name: 'VIX 내 지표로' })
+      await waitFor(() => expect(star).toHaveFocus())
+      expect(scroll.mock.contexts).toContain(star)
+      expect(screen.getByRole('status')).toHaveTextContent('VIX 을(를) 맨 위 내 지표로 옮겼습니다')
+    } finally {
+      Element.prototype.scrollIntoView = before
+    }
+  })
+
   it('고른 지표는 별이 켜져 있다', async () => {
     mockMacro({ pinned: ['DGS10'] })
     renderPanel()
@@ -570,16 +595,23 @@ describe('예상치 — 줄에는 한 마디, 입력은 차트 창 안 (목업 1
     ...overrides,
   })
 
-  it('예상치가 있으면 값 옆에 예상과 실제 차이를 적는다', async () => {
+  it('예상치가 있으면 예상보다 얼마나 높았는지 · 낮았는지 말로 — "실제 +0.20%p"는 실제 값처럼 읽혔다 (묶음 5 사용자 확인)', async () => {
     mockMacro({ series: [cpi({ forecast: forecast() })] })
     renderPanel()
 
     // 줄에는 한 마디 — 0.2%가 아니라 0.2%p다(전년비끼리의 차이라 %로 읽으면 다른 숫자가 된다)
-    expect(await screen.findByText('예상 3.00%, 실제 +0.20%p')).toBeInTheDocument()
-    // 누가 넣은 예상인지는 창 안에
+    expect(await screen.findByText('예상 3.00%, 예상보다 0.20%p 높음')).toBeInTheDocument()
+    // 누가 넣은 예상인지는 창 안에 — "직접 입력"은 누가 넣었는지 몰랐다
     const dialog = await openChart()
-    expect(within(dialog).getByText(/직접 입력/)).toBeInTheDocument()
-    expect(within(dialog).getByText(/\+0.20%p/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/관리자가 넣음/)).toBeInTheDocument()
+    expect(within(dialog).getByText('예상보다 0.20%p 높음')).toBeInTheDocument()
+    expect(dialog.textContent).not.toMatch(/실제 \+/)
+  })
+
+  it('예상보다 낮으면 "낮음", 같으면 "예상과 같음"', async () => {
+    mockMacro({ series: [cpi({ forecast: forecast({ surprise: -0.07 }) })] })
+    renderPanel()
+    expect(await screen.findByText('예상 3.00%, 예상보다 0.07%p 낮음')).toBeInTheDocument()
   })
 
   it('아직 발표 전인 달의 예상치는 그렇다고 말한다', async () => {
@@ -596,8 +628,8 @@ describe('예상치 — 줄에는 한 마디, 입력은 차트 창 안 (목업 1
     // 줄에는 이번 발표 결과 한 마디, 창 안에는 둘 다 — 한 칸에 합치면 하나가 다른 하나를 가린다
     expect(await screen.findByText(/예상 3.00%/)).toBeInTheDocument()
     const dialog = await openChart()
-    expect(within(dialog).getByText(/2026-09 예상/)).toBeInTheDocument()
-    expect(within(dialog).getByText(/아직 발표 전/)).toBeInTheDocument()
+    const lines = Array.from(dialog.querySelectorAll('.macro-forecast')).map((p) => p.textContent)
+    expect(lines).toEqual([expect.stringMatching(/^2026-08 예상 3.00%예상보다 0.20%p 높음 \(관리자가 넣음\)/), expect.stringMatching(/^2026-09 예상 2.90% \(아직 발표 전, 관리자가 넣음\)/)])
   })
 
   it('예상치만 있고 아직 발표 전이면 줄에도 그 한 마디 — "2026-09 예상 2.90%(발표 전)"', async () => {
@@ -662,17 +694,43 @@ describe('예상치 — 줄에는 한 마디, 입력은 차트 창 안 (목업 1
     await waitFor(() => expect(api.getMacro).toHaveBeenCalledTimes(2))
   })
 
-  it('지우면 그 달 예상치를 지운다', async () => {
+  it('지우기는 나와 있는 예상마다 — 입력칸이 다음 달로 잡혀 지난달 예상이 안 지워졌다 (묶음 5 사용자 확인)', async () => {
     mockMacro({ series: [cpi({ forecast: forecast() })] })
     const clear = vi.spyOn(api, 'clearMacroForecast').mockResolvedValue(cpi())
     renderPanel()
-
-    await userEvent.click(within(await openChart()).getByRole('button', { name: '예상치 입력' }))
-    await userEvent.clear(screen.getByLabelText('CPI 예상치가 가리키는 달'))
-    await userEvent.type(screen.getByLabelText('CPI 예상치가 가리키는 달'), '2026-08')
-    await userEvent.click(screen.getByRole('button', { name: '지우기' }))
-
+    const dialog = await openChart()
+    await userEvent.click(within(dialog).getByRole('button', { name: '2026-08 예상 지우기' }))
     await waitFor(() => expect(clear).toHaveBeenCalledWith('CPIAUCSL', '2026-08-01'))
+    // 입력칸에는 지우기가 없다 — 무엇을 지우는지 모호했다
+    await userEvent.click(within(dialog).getByRole('button', { name: '예상치 입력' }))
+    expect(within(dialog).queryByRole('button', { name: '지우기' })).toBeNull()
+  })
+
+  it('그 달 예상이 이미 있으면 입력칸을 그 값으로 연다 — 빈 칸에 회색 예시만 보여 바뀐 것처럼 읽혔다', async () => {
+    mockMacro({ series: [cpi({ pending_forecast: forecast({ as_of: '2026-09-01', value: 2.9, surprise: null }) })] })
+    renderPanel()
+    const dialog = await openChart()
+    await userEvent.click(within(dialog).getByRole('button', { name: '예상치 입력' }))
+    expect(within(dialog).getByLabelText('CPI 예상치')).toHaveValue('2.9')
+    expect(within(dialog).getByLabelText('CPI 예상치')).toHaveAttribute('placeholder', '예: 2.7')
+  })
+
+  it('예상치가 없으면 지인에게 그렇다고 말한다 — 어디서 찾아도 없어 헤맸다 (묶음 5 사용자 확인)', async () => {
+    vi.spyOn(api, 'getAuthStatus').mockResolvedValue({
+      locked: true, authenticated: true, mode: 'google', user: { email: 'f@x.y', name: '친구', is_owner: false }, config_problem: null,
+    })
+    mockMacro({ series: [cpi()] })
+    render(
+      <MemoryRouter>
+        <AuthGate>
+          <AppStateProvider>
+            <MacroPanel />
+          </AppStateProvider>
+        </AuthGate>
+      </MemoryRouter>,
+    )
+    const dialog = await openChart()
+    expect(within(dialog).getByText(/아직 넣은 예상치가 없습니다/)).toBeInTheDocument()
   })
 
   it('빈 칸으로는 저장할 수 없다', async () => {
