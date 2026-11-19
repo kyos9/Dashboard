@@ -451,6 +451,8 @@ describe('대시보드 · 신호 칸은 짧게, 모양으로도 (ROADMAP 8-4)', 
       </MemoryRouter>,
     )
     expect(await screen.findByRole('heading', { name: '오늘은 신호가 뜬 종목이 없습니다' })).toBeInTheDocument()
+    // 띄어 쓴 가운뎃점 대신 쉼표 (목업 15 ④, 검토 6 참고)
+    expect(screen.getByText('매수, 매도, 비중조절 모두 조용합니다.')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: '전체 2종목 보기' }))
     await waitFor(() => expect(document.querySelector('[data-ticker="QQQ"]')).not.toBeNull())
   })

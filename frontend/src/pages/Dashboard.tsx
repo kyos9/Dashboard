@@ -746,7 +746,7 @@ export function Dashboard() {
         <img className="first-steps-face" src={tfSeedling} alt="" width={64} height={64} />
         <h3 id="first-steps-title">종목을 담으면 시작합니다</h3>
         <p>담은 종목마다 매수, 매도 신호와 비중을 보여 줍니다.</p>
-        <ol className="first-steps-list">
+        <ol className="first-steps-list" role="list">
           <li>
             <b>종목 담기</b>
             <span>종목 탭에서 이름이나 코드로 찾습니다. 시세는 알아서 받습니다.</span>
@@ -763,7 +763,8 @@ export function Dashboard() {
         <Link to="/stocks" state={{ focusSearch: true }} className="link-button first-steps-go">
           종목 담으러 가기
         </Link>
-        <p className="hint">30개까지 담을 수 있습니다.</p>
+        {/* "종목은 30개까지" — 서버 한도와 같은 말인지 backend/tests/test_policy_page.py 가 본다 */}
+        <p className="hint">종목은 30개까지 담을 수 있습니다.</p>
       </section>
     )
   }

@@ -194,6 +194,9 @@ describe('손님 첫 화면 매크로 목록 (목업 15 ③ 나)', () => {
     renderList()
 
     expect(await screen.findByText('뉴스에 나오는 물가, 전년비, 2026년 10월분')).toBeInTheDocument()
+    // "%p" 는 금리차에만 — 물가 같은 % 지표는 % 그대로 (검토 6 조건 2)
+    expect(screen.getByText('2.65%')).toBeInTheDocument()
+    expect(screen.queryByText('2.65%p')).toBeNull()
   })
 
   it('머리에 가장 늦은 기준일 하나', async () => {

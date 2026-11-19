@@ -84,7 +84,7 @@ export function GuestMacroList() {
   if (!data || (data.series.length === 0 && data.badges.length === 0)) return null
 
   return (
-    <section className="guest-macro" aria-label="오늘 매크로">
+    <section className="guest-macro">
       <RegimeBadges badges={data.badges} />
       {data.series.length > 0 && (
         <>
@@ -92,7 +92,8 @@ export function GuestMacroList() {
             <h3 id="guest-macro-title">오늘 매크로</h3>
             <span className="hint">{latestDay(data.series)}</span>
           </div>
-          <ul className="macro-list" aria-labelledby="guest-macro-title">
+          {/* role="list" — list-style 을 끄면 iOS VoiceOver 가 목록으로 읽지 않는다 (검토 6 참고) */}
+          <ul className="macro-list" role="list" aria-labelledby="guest-macro-title">
             {data.series.map((series) => (
               <Row key={series.code} series={series} />
             ))}
