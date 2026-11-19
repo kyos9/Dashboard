@@ -120,6 +120,31 @@ describe('종목 0개 (목업 15 ④)', () => {
   })
 })
 
+describe('빈 화면에서 넘어오면 찾기 칸에 커서 (묶음 6 사용자 확인)', () => {
+  function renderWith(state: unknown) {
+    return render(
+      <MemoryRouter initialEntries={[{ pathname: '/stocks', state }]}>
+        <AppStateProvider>
+          <StockManager />
+        </AppStateProvider>
+      </MemoryRouter>,
+    )
+  }
+
+  it('"종목 담으러 가기"로 오면 찾기 칸에 바로 친다', async () => {
+    mockApi([])
+    renderWith({ focusSearch: true })
+    await waitFor(() => expect(symbolInput()).toHaveFocus())
+  })
+
+  it('그냥 탭으로 오면 커서를 옮기지 않는다 — 폰 자판이 저절로 뜨지 않게', async () => {
+    mockApi([])
+    renderWith(null)
+    await screen.findByRole('heading', { name: '담은 종목이 없습니다' })
+    expect(symbolInput()).not.toHaveFocus()
+  })
+})
+
 describe('종목 등록', () => {
   it('이름으로 찾아 고른 뒤 등록하면 해석된 티커를 알려준다', async () => {
     mockApi()

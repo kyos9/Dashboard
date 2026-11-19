@@ -239,7 +239,7 @@ export function PortfolioView({ current, cards, stocks, narrow, onChart, onSigna
         {held.length === 0 ? (
           <div className="empty-state compact">
             <p>
-              아직 보유수량을 적은 종목이 없습니다. 위의 "수정"이나 <Link to="/rebalance">리밸런싱</Link>에서 수량과 평단가를
+              아직 보유수량을 적은 종목이 없습니다. 보유 종목의 "수정"이나 <Link to="/rebalance">리밸런싱</Link>에서 수량과 평단가를
               적으면 여기에 평가금액·수익률이 나옵니다.
             </p>
           </div>

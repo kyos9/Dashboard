@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { POLICY_PATH } from '../lib/policy'
 import { LOGIN_ERRORS, browser, useAuth } from './AuthGate'
 
@@ -64,8 +64,32 @@ export function GuestNotice() {
  * 가입 신청을 하고 승인을 기다리는 사람에게. 로그인 버튼 자리에 "기다리는 중"을 둔다 —
  * 로그인 버튼을 또 보여주면 눌러도 같은 화면이라 고장 난 것으로 보인다.
  */
+/** "승인됐는지 확인"을 누른 때 — 다시 읽은 뒤에도 대기면 "아직 승인 전"을 보인다 (묶음 6 사용자 확인: 눌러도 아무것도 안 바뀌어 눌렸는지 몰랐다) */
+const PENDING_CHECKED_KEY = 'dashboard.pending-checked'
+
+function takePendingChecked(): string | null {
+  try {
+    const at = sessionStorage.getItem(PENDING_CHECKED_KEY)
+    sessionStorage.removeItem(PENDING_CHECKED_KEY)
+    if (!at) return null
+    const d = new Date(Number(at))
+    return Number.isNaN(d.getTime()) ? null : `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`
+  } catch {
+    return null
+  }
+}
+
 export function PendingPrompt() {
   const { user } = useAuth()
+  const [checkedAt] = useState(takePendingChecked)
+  const check = () => {
+    try {
+      sessionStorage.setItem(PENDING_CHECKED_KEY, String(Date.now()))
+    } catch {
+      // 저장이 막힌 브라우저 — 알림만 없을 뿐 확인은 된다
+    }
+    browser.go('/')
+  }
   // 세 문장을 한 문장으로 — 다시 로그인할 필요가 없다는 말은 단추 이름("승인됐는지 확인")이 대신한다 (목업 15 ④)
   return (
     <div className="empty-state login-prompt">
@@ -74,9 +98,14 @@ export function PendingPrompt() {
         {user?.email ? <b>{user.email}</b> : '이 계정'}으로 신청했습니다. 관리자가 승인하면 바로 쓸 수 있고, 그동안{' '}
         <b>매크로</b> 탭은 볼 수 있습니다. <ContactLine />
       </p>
-      <button type="button" className="primary" onClick={() => browser.go('/')}>
+      <button type="button" className="primary" onClick={check}>
         승인됐는지 확인
       </button>
+      {checkedAt && (
+        <p className="hint" role="status">
+          아직 승인 전입니다 ({checkedAt}에 확인).
+        </p>
+      )}
     </div>
   )
 }

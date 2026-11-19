@@ -35,6 +35,8 @@ interface Props {
   disabled?: boolean
   /** 이미 담은 티커 — 후보에 "담음"을 붙인다(고르면 서버가 "이미 담은 종목"이라 알린다) */
   owned?: Set<string>
+  /** 그려지자마자 칸에 커서 — 빈 화면의 "종목 담으러 가기"로 왔을 때 (묶음 6 사용자 확인: 한 번 더 눌러야 했다) */
+  focusOnMount?: boolean
 }
 
 /**
@@ -44,14 +46,21 @@ interface Props {
  * 회사의 시세를 받아오는데, 그건 "못 찾았다"보다 나쁘다. 그래서 사용자가 눈으로
  * 확인하고 고르게 한다.
  */
-export function SymbolSearch({ selected, onSelect, onSubmitRaw, onTypedChange, disabled, owned }: Props) {
+export function SymbolSearch({ selected, onSelect, onSubmitRaw, onTypedChange, disabled, owned, focusOnMount }: Props) {
   const [query, setQuery] = useState('')
   const [matches, setMatches] = useState<SymbolMatch[]>([])
   const [open, setOpen] = useState(false)
   const [highlight, setHighlight] = useState(0)
   const [searching, setSearching] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
   const listId = useId()
+
+  useEffect(() => {
+    if (focusOnMount) inputRef.current?.focus()
+    // 처음 그릴 때 한 번만
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // 검색어가 바뀌면 잠깐 기다렸다가 조회한다 (타이핑마다 요청하지 않도록)
   useEffect(() => {
@@ -156,6 +165,7 @@ export function SymbolSearch({ selected, onSelect, onSubmitRaw, onTypedChange, d
   return (
     <div className="symbol-search" ref={containerRef}>
       <input
+        ref={inputRef}
         type="text"
         role="combobox"
         aria-expanded={open}

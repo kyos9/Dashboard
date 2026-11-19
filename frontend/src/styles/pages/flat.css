@@ -151,10 +151,17 @@ button.signal-count .signal-count-label::after {
   margin: -8px 0 0;
   color: var(--text-dim);
 }
-/* 손님 첫 화면 — 위 매크로 목록과 로그인 안내 사이 선 하나 (목업 15 ③ 나) */
+/* 손님 첫 화면 — 위 매크로 목록과 로그인 안내 사이 선 하나 (목업 15 ③ 나). 둥근 모서리면 잘린 카드처럼 보였다 */
 .guest-macro + .login-prompt {
   margin-top: 8px;
   border-top: 1px solid var(--border);
+  border-radius: 0;
+}
+/* PC 에서 로그인 안내 폭은 어느 탭이든 같게(홈 720 · 다른 탭 990 이었다 — 사용자 확인) */
+@media (min-width: 1100px) {
+  .login-prompt {
+    max-width: 720px;
+  }
 }
 .login-prompt .login-button,
 .login-prompt > button {

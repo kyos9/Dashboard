@@ -760,7 +760,7 @@ export function Dashboard() {
             <span>평가금액, 수익률, 오늘 뜬 신호가 여기에 나옵니다.</span>
           </li>
         </ol>
-        <Link to="/stocks" className="link-button first-steps-go">
+        <Link to="/stocks" state={{ focusSearch: true }} className="link-button first-steps-go">
           종목 담으러 가기
         </Link>
         <p className="hint">30개까지 담을 수 있습니다.</p>

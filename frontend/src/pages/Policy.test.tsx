@@ -3,7 +3,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../App'
 import { api } from '../api/client'
-import { AuthGate } from '../components/AuthGate'
+import { AuthGate, browser } from '../components/AuthGate'
 import { GuestNotice, LoginPrompt, PendingPrompt } from '../components/LoginPrompt'
 import type { AuthStatus } from '../types'
 
@@ -121,6 +121,24 @@ describe('문의처와 동의 안내', () => {
     expect(screen.getByText(/관리자가 승인하면 바로 쓸 수 있고, 그동안/)).toBeInTheDocument()
     expect(screen.queryByText(/다시 로그인할 필요 없이/)).toBeNull()
     expect(screen.getByRole('button', { name: '승인됐는지 확인' })).toBeInTheDocument()
+    // 처음 열었을 때는 "아직 승인 전"이 없다
+    expect(screen.queryByText(/아직 승인 전입니다/)).toBeNull()
+  })
+
+  it('"승인됐는지 확인"을 눌러 다시 읽었는데도 대기면 "아직 승인 전입니다 (시각에 확인)" (묶음 6 사용자 확인)', async () => {
+    const go = vi.spyOn(browser, 'go').mockImplementation(() => {})
+    mock(guest({ user: { email: 'new@example.com', name: null, is_owner: false, status: 'pending' } }))
+    const first = inGate(<PendingPrompt />)
+    const button = await screen.findByRole('button', { name: '승인됐는지 확인' })
+    button.click()
+    expect(go).toHaveBeenCalledWith('/')
+    expect(sessionStorage.getItem('dashboard.pending-checked')).not.toBeNull()
+    first.unmount()
+
+    // 다시 읽은 화면 — 눌렀다는 표시를 한 번만 보이고 지운다
+    inGate(<PendingPrompt />)
+    expect(await screen.findByRole('status')).toHaveTextContent(/^아직 승인 전입니다 \(\d{1,2}:\d{2}에 확인\)\.$/)
+    expect(sessionStorage.getItem('dashboard.pending-checked')).toBeNull()
   })
 
   it('문의처가 없으면 문의 줄을 그리지 않는다', async () => {

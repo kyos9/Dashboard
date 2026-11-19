@@ -85,7 +85,7 @@ export function StockDetailPage() {
           {/* 티커는 바로 위 제목에 있다 — "‘NOPE’은(는)"의 받침 괄호를 뺐다 (목업 15 ④) */}
           <h3>담은 종목에 없는 종목입니다</h3>
           <p>종목 탭에서 찾아 담으면 차트, 신호, 재무를 볼 수 있습니다.</p>
-          <Link to="/stocks" className="link-button">
+          <Link to="/stocks" state={{ focusSearch: true }} className="link-button">
             종목 탭으로
           </Link>
         </div>

@@ -97,7 +97,10 @@ export function StockManager() {
   const [cashTarget, setCashTarget] = useState(0)
   const [error, setError] = useState<unknown>(null)
   // 종목 안에서 지우고 돌아오면 한 줄 — 줄만 사라지던 것(사용자 확인 찾지 못한 것 4)
-  const purged = (useLocation().state as { purged?: string } | null)?.purged
+  const navState = useLocation().state as { purged?: string; focusSearch?: boolean } | null
+  const purged = navState?.purged
+  // 빈 화면의 "종목 담으러 가기" · "종목 탭으로"로 왔으면 찾기 칸에 커서 (묶음 6 사용자 확인)
+  const focusSearch = navState?.focusSearch === true
   const [notice, setNotice] = useState<{ tone: 'green' | 'amber'; text: string; detail?: string } | null>(() =>
     purged ? { tone: 'green', text: `${purged}을(를) 지웠습니다.` } : null,
   )
@@ -392,6 +395,7 @@ export function StockManager() {
       <section className="stock-find" aria-label="종목 추가">
         <SymbolSearch
           key={searchKey}
+          focusOnMount={focusSearch && searchKey === 0}
           selected={null}
           owned={ownedTickers}
           onSelect={(match) => {

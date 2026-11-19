@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, useNavigate } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppStateProvider } from '../AppState'
 import { api } from '../api/client'
@@ -1257,6 +1257,26 @@ describe('대시보드 · 처음 온 사람의 모양 (디자인 4차 목업 15 
     expect(first.querySelector('span')).toHaveTextContent('종목 탭에서 이름이나 코드로 찾습니다.')
     // 면책은 바닥 줄에 늘 있다 — 여기서 두 번 말하지 않는다
     expect(box).not.toHaveTextContent('투자 권유')
+  })
+
+  it('"종목 담으러 가기"는 찾기 칸에 커서를 두라는 표시를 같이 넘긴다 (묶음 6 사용자 확인)', async () => {
+    mockApi([])
+    function StocksProbe() {
+      const state = useLocation().state as { focusSearch?: boolean } | null
+      return <p>종목 탭 {state?.focusSearch ? '커서' : '그냥'}</p>
+    }
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <AppStateProvider>
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/stocks" element={<StocksProbe />} />
+          </Routes>
+        </AppStateProvider>
+      </MemoryRouter>,
+    )
+    await userEvent.click(await screen.findByRole('link', { name: '종목 담으러 가기' }))
+    expect(await screen.findByText('종목 탭 커서')).toBeInTheDocument()
   })
 })
 

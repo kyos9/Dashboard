@@ -47,11 +47,16 @@ a.macro-row-open:hover {
     display: block;
   }
   /* 머리 · 목록 · 아래 로그인 안내가 같은 폭으로 — 목록만 좁으면 "11/19 기준"이 오른쪽 끝에 홀로 떴다 */
-  .guest-macro,
-  .guest-macro + .login-prompt {
+  .guest-macro {
     max-width: 720px;
   }
   .guest-macro .macro-row + .macro-row {
     border-top: 1px solid var(--border);
   }
+}
+
+/* 링크 색은 앱의 강조색 — 브라우저 기본(진한 파랑 · 다녀간 보라)이 다른 링크와 달랐다 (묶음 6 사용자 확인) */
+.guest-macro-all,
+.login-prompt .consent-line a {
+  color: var(--accent);
 }
