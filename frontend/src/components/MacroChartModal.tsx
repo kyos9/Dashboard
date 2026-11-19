@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { useBackToClose } from '../lib/backToClose'
 import { macroValue } from '../lib/macro'
-import type { MacroHistory } from '../types'
+import type { MacroHistory, MacroSeriesInfo } from '../types'
+import { ForecastBox } from './macro/ForecastBox'
 import { ErrorNotice } from './ErrorNotice'
 import { MacroChart } from './MacroChart'
 import { lockBodyScroll } from '../lib/scrollLock'
@@ -17,6 +18,15 @@ export const MACRO_RANGES = [
 interface Props {
   code: string
   name: string
+  /** 매크로 탭에서 열면 지표 정보 — 제목 옆 풀이와 예상치(목업 14 ②: 입력칸은 줄 아래가 아니라 여기) */
+  series?: MacroSeriesInfo
+  /** 예상치는 전원이 같이 보는 값이라 관리자만 넣는다 */
+  canEditForecast?: boolean
+  onSaveForecast?: (code: string, month: string, value: number) => Promise<boolean>
+  onClearForecast?: (code: string, month: string) => Promise<boolean>
+  /** 예상치 저장이 실패한 까닭 — 창 뒤 화면에 띄우면 가려서 못 본다 */
+  forecastError?: unknown
+  onForecastErrorDismiss?: () => void
   onClose: () => void
 }
 
@@ -27,7 +37,17 @@ interface Props {
  * 어느 정도인지"를 보는 것이고, 금리 4%가 높은지 낮은지는 2020년이 화면에 있어야
  * 보인다. 1년만 띄우면 모든 지표가 "요즘 좀 오르네/내리네"로만 읽힌다.
  */
-export function MacroChartModal({ code, name, onClose }: Props) {
+export function MacroChartModal({
+  code,
+  name,
+  series,
+  canEditForecast = false,
+  onSaveForecast,
+  onClearForecast,
+  forecastError = null,
+  onForecastErrorDismiss,
+  onClose,
+}: Props) {
   const [range, setRange] = useState<string>('5y')
   const [history, setHistory] = useState<MacroHistory | null>(null)
   const [loading, setLoading] = useState(true)
@@ -72,9 +92,9 @@ export function MacroChartModal({ code, name, onClose }: Props) {
         <div className="modal-head">
           <div className="modal-title">
             <h3>{name}</h3>
-            <span className="hint">
-              {code}
-              {history?.transform_label ? ` (${history.transform_label})` : ''}
+            {/* 출처의 코드(CPIAUCSL) 대신 풀이 — 코드는 마우스를 올리면 (목업 14 ③ 가) */}
+            <span className="hint" title={code}>
+              {[series?.note, history?.transform_label ?? series?.transform_label].filter(Boolean).join(', ') || code}
             </span>
           </div>
           <div className="seg" role="group" aria-label="기간">
@@ -109,6 +129,12 @@ export function MacroChartModal({ code, name, onClose }: Props) {
             <span className="mono">최근 {macroValue(last.value, history.unit)}</span>
           )}
         </div>
+        {series?.forecastable && onSaveForecast && onClearForecast && (
+          <div className="macro-forecast-box">
+            <ErrorNotice error={forecastError} onDismiss={() => onForecastErrorDismiss?.()} />
+            <ForecastBox series={series} editable={canEditForecast} onSave={onSaveForecast} onClear={onClearForecast} />
+          </div>
+        )}
       </div>
     </div>
   )

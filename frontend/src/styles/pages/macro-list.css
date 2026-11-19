@@ -92,18 +92,8 @@ button.macro-row-open:hover {
   gap: 8px;
   padding: 0 16px 12px 52px;
 }
-.macro-row-more .macro-forecast,
-.macro-row-more .macro-zone {
-  margin: 0;
-}
 .macro-row-more .badge-row {
   justify-content: flex-start;
-}
-/* 줄 안에서는 "예상치 입력"도 왼쪽 — 카드 가운데에 있던 자리 그대로면 줄 사이에 떠 보였다 */
-.macro-row-more .forecast-open {
-  justify-self: start;
-  min-height: 44px;
-  padding: 0;
 }
 
 /* PC 는 두 칸 — 열두 줄이 한 줄로 길게 서지 않게 */
@@ -145,4 +135,38 @@ button.macro-row-open:hover {
   .macro-row-more {
     padding-right: var(--gutter-right);
   }
+}
+
+/* 묶음 5 (목업 14) — 국면 구간은 이름 옆 꼬리표, 예상 · 주기는 풀이 줄 안, 예상치 입력은 차트 창 안 */
+.macro-zone-tag {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  vertical-align: 1px;
+  white-space: nowrap;
+}
+.macro-mine-hint {
+  margin: 0 0 6px;
+}
+.macro-forecast-box {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.macro-forecast-box .macro-forecast {
+  margin: 0;
+}
+/* "예상치 입력"은 왼쪽 · 누르는 칸 44px */
+.macro-forecast-box .forecast-open {
+  justify-self: start;
+  min-height: 44px;
+  padding: 0;
 }

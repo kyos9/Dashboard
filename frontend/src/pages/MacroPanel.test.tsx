@@ -7,6 +7,7 @@ import { AppStateProvider } from '../AppState'
 import { AuthGate } from '../components/AuthGate'
 import type { AuthStatus, MacroOverview, MacroSeriesInfo } from '../types'
 import { MacroPanel } from './MacroPanel'
+import { periodOf } from '../components/macro/period'
 
 /** 별을 켜고 끄면 홈에 알려야 하므로 이 화면은 AppState 안에서 산다 */
 function renderPanel() {
@@ -70,7 +71,7 @@ describe('지표 카드', () => {
     expect(screen.getByText('+0.06%p')).toBeInTheDocument()
   })
 
-  it('전년비로 바꾼 지표는 그렇다고 말한다', async () => {
+  it('전년비로 바꾼 지표는 그렇다고 말한다 — 꼬리표 · 어느 달 · 발표일은 풀이 한 줄 안 (목업 14 ②)', async () => {
     mockMacro({
       series: [
         series({
@@ -89,9 +90,10 @@ describe('지표 카드', () => {
     renderPanel()
 
     expect(await screen.findByText('2.91%')).toBeInTheDocument()
-    expect(screen.getByText('전년비')).toBeInTheDocument()
+    expect(screen.getByRole('listitem').querySelector('.macro-row-name small')).toHaveTextContent('전년비, 2026년 9월분, 2026-09-11 발표')
     expect(screen.getByText('−0.12%p')).toBeInTheDocument()
-    expect(screen.getByText(/2026-09-11 발표/)).toBeInTheDocument()
+    // 배지가 줄 아래 따로 붙지 않는다
+    expect(screen.getByRole('listitem').querySelector('.macro-row-more')).toBeNull()
   })
 
   it('못 받은 지표는 사유를 접어서 보여준다 — "값 없음"만으로는 할 일을 모른다', async () => {
@@ -241,7 +243,7 @@ describe('지표 목록 (목업 13 ② — 카드 열두 장 대신 한 목록)'
     for (const row of rows) expect(row.textContent).not.toMatch(/ · /)
   })
 
-  it('월간 지표는 "월간 10월"처럼 어느 달 값인지 — 일간은 주기를 적지 않는다', async () => {
+  it('월간 지표는 "2026년 10월분"처럼 어느 해 어느 달 값인지 — 일간은 주기를 적지 않는다 (목업 14 ③ 가)', async () => {
     mockMacro({
       series: [
         series({ code: 'CPI', name: 'CPI', note: '소비자 물가', frequency: 'monthly', as_of: '2026-10-01' }),
@@ -250,7 +252,7 @@ describe('지표 목록 (목업 13 ② — 카드 열두 장 대신 한 목록)'
     })
     renderPanel()
     const rows = within(await screen.findByRole('list')).getAllByRole('listitem')
-    expect(rows[0]).toHaveTextContent('소비자 물가, 월간 10월')
+    expect(rows[0]).toHaveTextContent('소비자 물가, 2026년 10월분')
     expect(rows[1]).not.toHaveTextContent(/일간/)
   })
 
@@ -264,6 +266,27 @@ describe('지표 목록 (목업 13 ② — 카드 열두 장 대신 한 목록)'
     mockMacro({ series: [series({ code: 'FEARGREED', name: '공포·탐욕 지수', value: null, as_of: null, last_checked_at: null })] })
     renderPanel()
     expect(await screen.findByRole('button', { name: /^공포·탐욕 지수, 받아본 적 없음, / })).toBeInTheDocument()
+  })
+})
+
+describe('달 표시 · 지표 코드 (목업 14 ③ 가)', () => {
+  it('분기는 "2026년 3분기분", 주간은 "날짜 주", 일간은 적지 않는다', () => {
+    expect(periodOf({ frequency: 'monthly', as_of: '2027-01-01' })).toBe('2027년 1월분')
+    expect(periodOf({ frequency: 'quarterly', as_of: '2026-07-01' })).toBe('2026년 3분기분')
+    expect(periodOf({ frequency: 'weekly', as_of: '2026-11-14' })).toBe('2026-11-14 주')
+    expect(periodOf({ frequency: 'daily', as_of: '2026-11-18' })).toBe('')
+    expect(periodOf({ frequency: 'monthly', as_of: null })).toBe('')
+  })
+
+  it('차트 창 제목 옆은 출처의 코드(CPIAUCSL) 대신 풀이 · 꼬리표 — 코드는 마우스를 올리면', async () => {
+    mockMacro({ series: [series({ code: 'CPIAUCSL', name: 'CPI', note: '뉴스에 나오는 물가', frequency: 'monthly' })] })
+    vi.spyOn(api, 'getMacroHistory').mockResolvedValue({ code: 'CPIAUCSL', name: 'CPI', unit: 'percent', transform: 'yoy', transform_label: '전년비', points: [] })
+    renderPanel()
+    await userEvent.click(await screen.findByRole('button', { name: /^CPI, .* — 차트$/ }))
+    const dialog = await screen.findByRole('dialog')
+    const sub = within(dialog).getByText('뉴스에 나오는 물가, 전년비')
+    expect(sub).toHaveAttribute('title', 'CPIAUCSL')
+    expect(dialog.textContent).not.toMatch(/CPIAUCSL/)
   })
 })
 
@@ -326,7 +349,7 @@ describe('홈에 올리는 ☆', () => {
     mockMacro({ pinned: ['DGS10'] })
     renderPanel()
 
-    expect(await screen.findByRole('button', { name: /홈 화면에 올리기/ })).toHaveAttribute(
+    expect(await screen.findByRole('button', { name: /내 지표로/ })).toHaveAttribute(
       'aria-pressed',
       'true',
     )
@@ -340,7 +363,7 @@ describe('홈에 올리는 ☆', () => {
     const user = userEvent.setup()
     renderPanel()
 
-    await user.click(await screen.findByRole('button', { name: /홈 화면에 올리기/ }))
+    await user.click(await screen.findByRole('button', { name: /내 지표로/ }))
 
     expect(save).toHaveBeenCalledWith(['DGS10'])
   })
@@ -351,26 +374,42 @@ describe('홈에 올리는 ☆', () => {
     const user = userEvent.setup()
     renderPanel()
 
-    await user.click(await screen.findByRole('button', { name: /홈 화면에 올리기/ }))
+    await user.click(await screen.findByRole('button', { name: /내 지표로/ }))
 
     // **빈 목록을 그대로 보낸다** — "다 껐다"는 선택이고, 안 보내면 기본값으로 되돌아간다
     expect(save).toHaveBeenCalledWith([])
   })
 
-  it('장단기 금리차도 홈에 올릴 수 있다 — 계산값이지만 사용자에겐 지표 하나다', async () => {
+  it('장단기 금리차에는 별이 없다 — 늘 목록 맨 위라 "내 지표"로 모을 줄이 아니다 (목업 14 ① 가)', async () => {
     mockMacro({
       term_spread: { as_of: '2026-09-21', value: -0.25, long_code: 'DGS10', short_code: 'DGS2' },
       pinned: [],
     })
-    const save = vi
-      .spyOn(api, 'setMacroPinned')
-      .mockResolvedValue({ codes: ['TERM_SPREAD'], series: [], badges: [] })
-    const user = userEvent.setup()
     renderPanel()
+    await screen.findByText(/장단기 금리차/)
+    expect(screen.queryByRole('button', { name: /장단기 금리차/ })).toBeNull()
+  })
 
-    await user.click(await screen.findByRole('button', { name: /장단기 금리차 홈 화면에/ }))
+  it('★ 켠 지표는 맨 위 "내 지표"로 모이고 나머지는 "모든 지표" — 홈에 올리던 뜻은 없어졌다 (목업 14 ① 가)', async () => {
+    mockMacro({
+      series: [series({ code: 'DGS10', name: '미 10년물 금리' }), series({ code: 'VIX', name: 'VIX' })],
+      pinned: ['VIX'],
+    })
+    renderPanel()
+    const mine = await screen.findByRole('list', { name: '내 지표' })
+    expect(within(mine).getAllByRole('listitem').map((li) => li.querySelector('b')?.firstChild?.textContent)).toEqual(['VIX'])
+    const all = screen.getByRole('list', { name: '모든 지표' })
+    expect(within(all).getAllByRole('listitem').map((li) => li.querySelector('b')?.firstChild?.textContent)).toEqual(['미 10년물 금리'])
+    expect(within(mine).getByRole('button', { name: 'VIX 내 지표로' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByText(/홈 화면/)).toBeNull()
+  })
 
-    expect(save).toHaveBeenCalledWith(['TERM_SPREAD'])
+  it('★ 을 하나도 안 켰으면 "내 지표" 칸 없이 한 목록 — 별을 누르면 무엇이 되는지 한 줄', async () => {
+    mockMacro({ pinned: [] })
+    renderPanel()
+    expect(await screen.findByRole('list', { name: '지표' })).toBeInTheDocument()
+    expect(screen.queryByRole('list', { name: '내 지표' })).toBeNull()
+    expect(screen.getByText(/★ 을 누르면 그 지표가 맨 위 “내 지표”로 모입니다/)).toBeInTheDocument()
   })
 
   it('저장에 실패하면 별을 원래대로 되돌린다', async () => {
@@ -379,11 +418,11 @@ describe('홈에 올리는 ☆', () => {
     const user = userEvent.setup()
     renderPanel()
 
-    const star = await screen.findByRole('button', { name: /홈 화면에 올리기/ })
-    await user.click(star)
+    await user.click(await screen.findByRole('button', { name: /내 지표로/ }))
 
-    // 켜진 채로 두면 홈에 왜 안 뜨는지 알 수 없게 된다
-    await waitFor(() => expect(star).toHaveAttribute('aria-pressed', 'false'))
+    // 켜진 채로 두면 왜 맨 위에 남는지 알 수 없게 된다 — 줄이 "내 지표"로 갔다가 돌아온다
+    await waitFor(() => expect(screen.getByRole('button', { name: /내 지표로/ })).toHaveAttribute('aria-pressed', 'false'))
+    expect(screen.queryByRole('list', { name: '내 지표' })).toBeNull()
     expect(screen.getByText(/저장하지 못했습니다/)).toBeInTheDocument()
   })
 })
@@ -494,7 +533,20 @@ describe('화면 전체', () => {
   })
 })
 
-describe('예상치', () => {
+describe('예상치 — 줄에는 한 마디, 입력은 차트 창 안 (목업 14 ②)', () => {
+  /** 줄을 눌러 차트 창을 연다 — 예상치 입력칸은 창 안에 있다 */
+  async function openChart(name = 'CPI') {
+    vi.spyOn(api, 'getMacroHistory').mockResolvedValue({
+      code: 'CPIAUCSL',
+      name,
+      unit: 'percent',
+      transform: 'yoy',
+      transform_label: '전년비',
+      points: [],
+    })
+    await userEvent.click(await screen.findByRole('button', { name: new RegExp(`^${name}, .* — 차트$`) }))
+    return screen.findByRole('dialog')
+  }
   const cpi = (overrides: Partial<MacroSeriesInfo> = {}): MacroSeriesInfo =>
     series({
       code: 'CPIAUCSL',
@@ -522,10 +574,12 @@ describe('예상치', () => {
     mockMacro({ series: [cpi({ forecast: forecast() })] })
     renderPanel()
 
-    expect(await screen.findByText(/예상 3.00%/)).toBeInTheDocument()
-    // 0.2%가 아니라 0.2%p다 — 전년비끼리의 차이라 %로 읽으면 다른 숫자가 된다
-    expect(screen.getByText(/\+0.20%p/)).toBeInTheDocument()
-    expect(screen.getByText(/직접 입력/)).toBeInTheDocument()
+    // 줄에는 한 마디 — 0.2%가 아니라 0.2%p다(전년비끼리의 차이라 %로 읽으면 다른 숫자가 된다)
+    expect(await screen.findByText('예상 3.00%, 실제 +0.20%p')).toBeInTheDocument()
+    // 누가 넣은 예상인지는 창 안에
+    const dialog = await openChart()
+    expect(within(dialog).getByText(/직접 입력/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/\+0.20%p/)).toBeInTheDocument()
   })
 
   it('아직 발표 전인 달의 예상치는 그렇다고 말한다', async () => {
@@ -539,10 +593,17 @@ describe('예상치', () => {
     })
     renderPanel()
 
-    // 이번 발표 결과와 다음 달 예상이 둘 다 보인다 — 한 칸에 합치면 하나가 다른 하나를 가린다
+    // 줄에는 이번 발표 결과 한 마디, 창 안에는 둘 다 — 한 칸에 합치면 하나가 다른 하나를 가린다
     expect(await screen.findByText(/예상 3.00%/)).toBeInTheDocument()
-    expect(screen.getByText(/2026-09 예상/)).toBeInTheDocument()
-    expect(screen.getByText(/아직 발표 전/)).toBeInTheDocument()
+    const dialog = await openChart()
+    expect(within(dialog).getByText(/2026-09 예상/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/아직 발표 전/)).toBeInTheDocument()
+  })
+
+  it('예상치만 있고 아직 발표 전이면 줄에도 그 한 마디 — "2026-09 예상 2.90%(발표 전)"', async () => {
+    mockMacro({ series: [cpi({ pending_forecast: forecast({ as_of: '2026-09-01', value: 2.9, surprise: null }) })] })
+    renderPanel()
+    expect(await screen.findByText('2026-09 예상 2.90%(발표 전)')).toBeInTheDocument()
   })
 
   it('매일 나오는 값에는 입력칸을 띄우지 않는다', async () => {
@@ -557,7 +618,7 @@ describe('예상치', () => {
     mockMacro({ series: [cpi()] })
     renderPanel()
 
-    await userEvent.click(await screen.findByRole('button', { name: '예상치 입력' }))
+    await userEvent.click(within(await openChart()).getByRole('button', { name: '예상치 입력' }))
 
     // 예상치를 적는 때는 보통 발표 전이고, 그때 궁금한 건 아직 안 나온 달이다
     expect(screen.getByLabelText('CPI 예상치가 가리키는 달')).toHaveValue('2026-09')
@@ -568,7 +629,7 @@ describe('예상치', () => {
     const save = vi.spyOn(api, 'setMacroForecast').mockResolvedValue(cpi())
     renderPanel()
 
-    await userEvent.click(await screen.findByRole('button', { name: '예상치 입력' }))
+    await userEvent.click(within(await openChart()).getByRole('button', { name: '예상치 입력' }))
     await userEvent.type(screen.getByLabelText('CPI 예상치'), '2.7')
     await userEvent.click(screen.getByRole('button', { name: '저장' }))
 
@@ -581,7 +642,7 @@ describe('예상치', () => {
     const save = vi.spyOn(api, 'setMacroForecast').mockResolvedValue(cpi())
     renderPanel()
 
-    await userEvent.click(await screen.findByRole('button', { name: '예상치 입력' }))
+    await userEvent.click(within(await openChart()).getByRole('button', { name: '예상치 입력' }))
     await userEvent.type(screen.getByLabelText('CPI 예상치'), '-0.2')
     await userEvent.click(screen.getByRole('button', { name: '저장' }))
 
@@ -594,7 +655,7 @@ describe('예상치', () => {
     vi.spyOn(api, 'setMacroForecast').mockResolvedValue(cpi())
     renderPanel()
 
-    await userEvent.click(await screen.findByRole('button', { name: '예상치 입력' }))
+    await userEvent.click(within(await openChart()).getByRole('button', { name: '예상치 입력' }))
     await userEvent.type(screen.getByLabelText('CPI 예상치'), '2.7')
     await userEvent.click(screen.getByRole('button', { name: '저장' }))
 
@@ -606,7 +667,7 @@ describe('예상치', () => {
     const clear = vi.spyOn(api, 'clearMacroForecast').mockResolvedValue(cpi())
     renderPanel()
 
-    await userEvent.click(await screen.findByRole('button', { name: '예상치 입력' }))
+    await userEvent.click(within(await openChart()).getByRole('button', { name: '예상치 입력' }))
     await userEvent.clear(screen.getByLabelText('CPI 예상치가 가리키는 달'))
     await userEvent.type(screen.getByLabelText('CPI 예상치가 가리키는 달'), '2026-08')
     await userEvent.click(screen.getByRole('button', { name: '지우기' }))
@@ -618,7 +679,7 @@ describe('예상치', () => {
     mockMacro({ series: [cpi()] })
     renderPanel()
 
-    await userEvent.click(await screen.findByRole('button', { name: '예상치 입력' }))
+    await userEvent.click(within(await openChart()).getByRole('button', { name: '예상치 입력' }))
 
     expect(screen.getByRole('button', { name: '저장' })).toBeDisabled()
   })
@@ -628,7 +689,7 @@ describe('예상치', () => {
     vi.spyOn(api, 'setMacroForecast').mockRejectedValue(new Error('너무 먼 미래입니다'))
     renderPanel()
 
-    await userEvent.click(await screen.findByRole('button', { name: '예상치 입력' }))
+    await userEvent.click(within(await openChart()).getByRole('button', { name: '예상치 입력' }))
     await userEvent.type(screen.getByLabelText('CPI 예상치'), '2.7')
     await userEvent.click(screen.getByRole('button', { name: '저장' }))
 
@@ -665,9 +726,11 @@ describe('손님·사용자·관리자', () => {
   it('손님은 둘러보기만 — 별도 받아오기도 예상치 입력도 없다', async () => {
     renderAs({})
     expect(await screen.findByText('CPI')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /홈 화면에 올리기/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /내 지표로/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '지금 받아오기' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '예상치 입력' })).not.toBeInTheDocument()
+    // 손님은 "내 지표" 칸이 없다 — 별이 없으니 한 목록
+    expect(screen.queryByRole('list', { name: '내 지표' })).toBeNull()
     // AI 는 자기 키로 쓰는 사람만 — 손님에게는 버튼이 없다
     expect(screen.queryByRole('button', { name: 'AI 매크로 정리' })).not.toBeInTheDocument()
   })
@@ -684,20 +747,25 @@ describe('손님·사용자·관리자', () => {
     expect(screen.queryByRole('dialog', { name: 'AI 매크로 정리' })).not.toBeInTheDocument()
   })
 
-  it('사용자는 내 홈의 별까지 — 전원이 보는 받아오기·예상치는 관리자 몫이다', async () => {
+  it('사용자는 내 지표 별까지 — 전원이 보는 받아오기·예상치는 관리자 몫이다', async () => {
     renderAs({ authenticated: true, user: { email: 'f@x.y', name: '친구', is_owner: false } })
     expect(await screen.findByText('CPI')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'CPI 홈 화면에 올리기' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '장단기 금리차 홈 화면에 올리기' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'CPI 내 지표로' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '지금 받아오기' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '예상치 입력' })).not.toBeInTheDocument()
+    // 차트 창을 열어도 예상치 입력이 없다
+    vi.spyOn(api, 'getMacroHistory').mockResolvedValue({ code: 'CPIAUCSL', name: 'CPI', unit: 'percent', transform: 'none', transform_label: null, points: [] })
+    await userEvent.click(screen.getByRole('button', { name: /^CPI, .* — 차트$/ }))
+    expect(within(await screen.findByRole('dialog')).queryByRole('button', { name: '예상치 입력' })).not.toBeInTheDocument()
   })
 
-  it('관리자는 전부', async () => {
+  it('관리자는 전부 — 예상치 입력은 줄 아래가 아니라 차트 창 안 (목업 14 ②)', async () => {
     renderAs({ authenticated: true, user: { email: 'me@x.y', name: '나', is_owner: true } })
     expect(await screen.findByText('CPI')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'CPI 홈 화면에 올리기' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'CPI 내 지표로' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '지금 받아오기' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '예상치 입력' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '예상치 입력' })).not.toBeInTheDocument()
+    vi.spyOn(api, 'getMacroHistory').mockResolvedValue({ code: 'CPIAUCSL', name: 'CPI', unit: 'percent', transform: 'none', transform_label: null, points: [] })
+    await userEvent.click(screen.getByRole('button', { name: /^CPI, .* — 차트$/ }))
+    expect(within(await screen.findByRole('dialog')).getByRole('button', { name: '예상치 입력' })).toBeInTheDocument()
   })
 })
