@@ -366,11 +366,16 @@ export function MacroPanel() {
       ) : series.length === 0 ? (
         <div className="empty-state">
           <h3>아직 지표가 없습니다</h3>
-          <p>
-            서버를 다시 띄우면 기본 지표 목록이 채워집니다. 그래도 비어 있으면
-            <code> docker compose exec app python diagnose.py </code>
-            로 어디서 막히는지 볼 수 있습니다.
-          </p>
+          {/* 서버 명령은 관리자만 쓸 수 있다 — 지인 · 손님에게는 기다리면 된다는 말만 (목업 15 ④) */}
+          {isAdmin ? (
+            <p>
+              서버를 다시 띄우면 기본 지표 목록이 채워집니다. 그래도 비어 있으면
+              <code> docker compose exec app python diagnose.py </code>
+              로 어디서 막히는지 볼 수 있습니다.
+            </p>
+          ) : (
+            <p>아직 지표를 받지 못했습니다. 잠시 뒤 다시 열어 주세요.</p>
+          )}
         </div>
       ) : (
         <>

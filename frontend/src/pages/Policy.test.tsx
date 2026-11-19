@@ -114,6 +114,15 @@ describe('문의처와 동의 안내', () => {
     expect(await screen.findByText('문의: help@example.org')).toBeInTheDocument()
   })
 
+  it('승인 대기 안내는 한 문장 — 승인되면 바로 쓰고, 그동안 매크로 (목업 15 ④)', async () => {
+    mock(guest({ user: { email: 'new@example.com', name: null, is_owner: false, status: 'pending' } }))
+    inGate(<PendingPrompt />)
+    await screen.findByRole('heading', { name: '가입 신청을 받았습니다' })
+    expect(screen.getByText(/관리자가 승인하면 바로 쓸 수 있고, 그동안/)).toBeInTheDocument()
+    expect(screen.queryByText(/다시 로그인할 필요 없이/)).toBeNull()
+    expect(screen.getByRole('button', { name: '승인됐는지 확인' })).toBeInTheDocument()
+  })
+
   it('문의처가 없으면 문의 줄을 그리지 않는다', async () => {
     mock(guest({ user: { email: 'new@example.com', name: null, is_owner: false, status: 'pending' } }))
     inGate(<PendingPrompt />)

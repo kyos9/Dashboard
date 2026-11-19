@@ -83,19 +83,6 @@
   overflow-wrap: break-word;
 }
 
-.guest-features {
-  margin: 0;
-  padding-left: 16px;
-  max-width: 460px;
-  text-align: left;
-  font-size: var(--fs-sub);
-  line-height: 1.6;
-}
-
-.guest-features b {
-  color: var(--text);
-}
-
 /* 안내 닫기 버튼은 글줄을 밀어내지 않고 오른쪽 끝에 붙는다 */
 .header-alert > button {
   margin-left: auto;

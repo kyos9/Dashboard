@@ -512,6 +512,25 @@ describe('화면 전체', () => {
     expect(screen.getByText(/diagnose.py/)).toBeInTheDocument()
   })
 
+  it('지표가 없을 때 서버 명령은 관리자에게만 — 지인에게는 기다리면 된다는 말 (목업 15 ④)', async () => {
+    vi.spyOn(api, 'getAuthStatus').mockResolvedValue({
+      locked: true, authenticated: true, mode: 'google', user: { email: 'f@x.y', name: '친구', is_owner: false }, config_problem: null,
+    })
+    mockMacro({ series: [] })
+    render(
+      <MemoryRouter>
+        <AuthGate>
+          <AppStateProvider>
+            <MacroPanel />
+          </AppStateProvider>
+        </AuthGate>
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText('아직 지표를 받지 못했습니다. 잠시 뒤 다시 열어 주세요.')).toBeInTheDocument()
+    expect(screen.queryByText(/diagnose.py/)).toBeNull()
+  })
+
   it('"지금 받아오기"를 누르면 받아오고 다시 읽는다', async () => {
     mockMacro()
     const refresh = vi.spyOn(api, 'refreshMacro').mockResolvedValue([])

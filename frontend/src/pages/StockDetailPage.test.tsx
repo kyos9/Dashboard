@@ -248,7 +248,7 @@ describe('주소의 종목 — 옛 차트 화면(0.45.1 B2·BCD)이 하던 일�
     vi.spyOn(api, 'getDashboard').mockResolvedValue([])
     vi.spyOn(api, 'getHistory').mockRejectedValue(new ApiError(404, null, 'stock not found'))
     renderAt('/stocks/NOPE')
-    expect(await screen.findByRole('heading', { name: '‘NOPE’은(는) 담은 종목에 없습니다' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '담은 종목에 없는 종목입니다' })).toBeInTheDocument()
     expect(screen.queryByText(/stock not found/)).toBeNull()
     expect(screen.queryByText(/매수 0일/)).toBeNull()
     expect(screen.getByRole('link', { name: '종목 탭으로' })).toHaveAttribute('href', '/stocks')
@@ -261,7 +261,7 @@ describe('주소의 종목 — 옛 차트 화면(0.45.1 B2·BCD)이 하던 일�
     vi.spyOn(api, 'getDashboard').mockResolvedValue([])
     const history = vi.spyOn(api, 'getHistory')
     renderAt('/stocks/NOPE')
-    await screen.findByText(/담은 종목에 없습니다/)
+    await screen.findByText(/담은 종목에 없는 종목입니다/)
     expect(history).not.toHaveBeenCalled()
   })
 
@@ -272,7 +272,7 @@ describe('주소의 종목 — 옛 차트 화면(0.45.1 B2·BCD)이 하던 일�
     renderAt('/stocks/005930.KS')
     await waitFor(() => expect(history).toHaveBeenCalledWith('005930.KS', '1y'))
     expect(screen.getByText(/목록 실패/)).toBeInTheDocument()
-    expect(screen.queryByText(/담은 종목에 없습니다/)).toBeNull()
+    expect(screen.queryByText(/담은 종목에 없는 종목입니다/)).toBeNull()
   })
 
   it('소문자·이름 주소는 담은 종목의 티커로 — 시세도 그 티커로 한 번만, 비활성 종목도 연다', async () => {
@@ -294,7 +294,7 @@ describe('주소의 종목 — 옛 차트 화면(0.45.1 B2·BCD)이 하던 일�
 
     renderAt('/stocks/TSLA')
     await waitFor(() => expect(history).toHaveBeenCalledWith('TSLA', '1y'))
-    expect(screen.queryByText(/담은 종목에 없습니다/)).toBeNull()
+    expect(screen.queryByText(/담은 종목에 없는 종목입니다/)).toBeNull()
   })
 })
 

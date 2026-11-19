@@ -149,7 +149,7 @@ function mockApi(cards = CARDS, rebalance = REBALANCE) {
   vi.spyOn(api, 'getDashboard').mockResolvedValue(cards)
   vi.spyOn(api, 'getRebalanceCurrent').mockResolvedValue(rebalance)
   vi.spyOn(api, 'listStocks').mockResolvedValue(cards.map(stockOf))
-  // 홈 위쪽 매크로 한 줄 (components/MacroStrip.tsx) — 기본은 빈 줄로 둔다
+  // 손님 첫 화면 매크로 목록 (components/macro/GuestMacroList.tsx) — 기본은 빈 줄로 둔다
   vi.spyOn(api, 'getMacroPinned').mockResolvedValue({ codes: [], series: [], badges: [] })
   vi.spyOn(api, 'getHealth').mockResolvedValue({
     status: 'ok',
@@ -272,11 +272,12 @@ describe('대시보드 · 상태 표시', () => {
     mockApi([], { ...REBALANCE, rows: [], total_value_base: 0 })
     renderDashboard()
 
-    expect(await screen.findByRole('heading', { name: /아직 담은 종목이 없습니다/ })).toBeInTheDocument()
+    // 목업 15 ② 나 — 새싹 그림 · 제목 · 한 줄 · 이름과 풀이로 된 세 단계 · 단추 하나
+    expect(await screen.findByRole('heading', { name: '종목을 담으면 시작합니다' })).toBeInTheDocument()
     const steps = screen.getAllByRole('listitem').map((li) => li.textContent)
     expect(steps).toHaveLength(3)
     expect(steps[0]).toMatch(/^종목 담기/)
-    expect(screen.getByRole('link', { name: '종목 추가하러 가기' })).toHaveAttribute('href', '/stocks')
+    expect(screen.getByRole('link', { name: '종목 담으러 가기' })).toHaveAttribute('href', '/stocks')
     expect(screen.getByText(/30개까지/)).toBeInTheDocument()
   })
 
@@ -1229,14 +1230,33 @@ describe('대시보드 · 0종목 안내 (0.42.0 B4)', () => {
   it('없는 단추를 가리키지 않는다 — 시그널은 종목을 담으면 생기는 신호 칸에서 (디자인 4차 묶음 2, 사용자 확인)', async () => {
     mockApi([])
     renderDashboard()
-    const guide = await screen.findByText(/세 단계면 시작합니다/)
+    const guide = await screen.findByText('종목을 담으면 시작합니다')
     const box = guide.closest('.first-steps')!
     expect(box).not.toHaveTextContent('위의 "시그널"')
     expect(box).toHaveTextContent('종목을 담으면')
     expect(box).not.toHaveTextContent('포트폴리오 / 시그널')
-    expect(box).toHaveTextContent('신호 칸을 누르면')
+    expect(box).toHaveTextContent('오늘 뜬 신호가 여기에 나옵니다')
     // 0종목 화면에는 그 단추가 실제로 없다 — 안내가 거짓말을 하지 않는지
     expect(screen.queryByRole('group', { name: '대시보드 보기' })).toBeNull()
+  })
+})
+
+describe('대시보드 · 처음 온 사람의 모양 (디자인 4차 목업 15 ② 나)', () => {
+  it('점선 상자 없이 새싹 그림 하나 — 그림은 읽지 않고, 단계는 이름과 풀이 두 줄 · 줄표 없음', async () => {
+    mockApi([])
+    renderDashboard()
+    const heading = await screen.findByRole('heading', { name: '종목을 담으면 시작합니다' })
+    const box = heading.closest('.first-steps')!
+    expect(box).not.toHaveClass('empty-state')
+    const img = box.querySelector('img')!
+    expect(img).toHaveAttribute('alt', '')
+    expect(img.getAttribute('src')).toMatch(/svg/) // 작은 SVG 는 빌드가 data: 로 넣는다(토스페이스 원본 u1F331)
+    expect(box).not.toHaveTextContent('—')
+    const first = within(box as HTMLElement).getAllByRole('listitem')[0]
+    expect(first.querySelector('b')).toHaveTextContent('종목 담기')
+    expect(first.querySelector('span')).toHaveTextContent('종목 탭에서 이름이나 코드로 찾습니다.')
+    // 면책은 바닥 줄에 늘 있다 — 여기서 두 번 말하지 않는다
+    expect(box).not.toHaveTextContent('투자 권유')
   })
 })
 

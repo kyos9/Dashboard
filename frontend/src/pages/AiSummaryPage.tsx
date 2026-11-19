@@ -1,4 +1,4 @@
-import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { AiPanel } from '../components/AiPanel'
 import { TITLES } from '../lib/aiTitles'
 import { useAuth } from '../components/AuthGate'
@@ -29,8 +29,13 @@ export function AiSummaryPage() {
 
   if (!kind)
     return (
+      // 다른 없는 화면(App NotFound)과 같게 — 단추가 없어 막다른 곳이었다 (목업 15 ④)
       <div className="empty-state">
         <h3>없는 화면입니다</h3>
+        <p>주소가 바뀌었거나 잘못 들어왔습니다.</p>
+        <Link to="/" className="link-button">
+          첫 화면으로
+        </Link>
       </div>
     )
   const { title, sub } = TITLES[kind]

@@ -142,20 +142,19 @@ button.signal-count .signal-count-label::after {
 .login-prompt h3 {
   font-size: var(--fs-title);
 }
-.guest-features {
-  padding: 0;
-  list-style: none;
-  display: grid;
-  gap: 10px;
+/* 글줄은 왼쪽 끝에 — .empty-state p 의 margin auto 가 짧은 줄을 가운데로 띄웠다 (목업 15 ③ 넣기 확인) */
+.login-prompt p {
+  margin-left: 0;
+  margin-right: 0;
 }
-.guest-features b,
-.guest-features span {
-  display: block;
+.login-prompt .login-lead {
+  margin: -8px 0 0;
+  color: var(--text-dim);
 }
-.guest-features span {
-  color: var(--text-faint);
-  font-size: var(--fs-caption);
-  line-height: 1.5;
+/* 손님 첫 화면 — 위 매크로 목록과 로그인 안내 사이 선 하나 (목업 15 ③ 나) */
+.guest-macro + .login-prompt {
+  margin-top: 8px;
+  border-top: 1px solid var(--border);
 }
 .login-prompt .login-button,
 .login-prompt > button {
@@ -170,4 +169,78 @@ button.signal-count .signal-count-label::after {
   order: 100;
   flex-basis: 100%;
   display: flex;
+}
+
+/* 처음 온 사람(종목 0개)의 홈 — 목업 15 ② 나. 상자 없이 바탕에 바로: 새싹 그림 · 제목 · 한 줄 · 세 단계 줄 · 단추 하나 */
+.first-steps {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 32px 4px 24px;
+  text-align: center;
+  color: var(--text-dim);
+}
+.first-steps-face {
+  display: block;
+  margin: 0 auto 16px;
+}
+.first-steps h3 {
+  margin: 0 0 8px;
+  font-size: var(--fs-title);
+  color: var(--text);
+}
+.first-steps p {
+  margin: 0;
+  font-size: var(--fs-sub);
+}
+.first-steps-list {
+  margin: 20px 0 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+  text-align: left;
+  border-top: 1px solid var(--border);
+}
+.first-steps-list li {
+  counter-increment: step;
+  position: relative;
+  padding: 14px 4px 14px 42px;
+  border-bottom: 1px solid var(--border);
+}
+/* 번호 동그라미 — 글자로 된 번호(읽기 프로그램은 목록 번호를 따로 읽는다) */
+.first-steps-list li::before {
+  content: counter(step);
+  position: absolute;
+  left: 4px;
+  top: 14px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.first-steps-list b {
+  display: block;
+  font-size: var(--fs-body);
+  color: var(--text);
+}
+.first-steps-list span {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--fs-caption);
+  color: var(--text-faint);
+  line-height: 1.5;
+}
+.first-steps .first-steps-go {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  margin-top: 16px;
+}
+.first-steps .hint {
+  margin-top: 12px;
 }

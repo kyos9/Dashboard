@@ -158,7 +158,7 @@ export function StockManager() {
   )
 
   // 탭을 옮겨 와도 들고 있던 값을 먼저 그린다 (ROADMAP 8-1)
-  const { loading: stocksLoading } = useCachedLoad('page:stocks', api.listStocks, applyStocks, setError, [refreshKey])
+  useCachedLoad('page:stocks', api.listStocks, applyStocks, setError, [refreshKey])
   // 줄의 현재가 · 등락 · 신호 — 홈과 같은 카드 응답. 못 읽으면 그 칸만 빈다
   useCachedLoad('page:stocks:cards', api.getDashboard, setCards, () => setCards([]), [refreshKey])
 
@@ -342,7 +342,8 @@ export function StockManager() {
           <h2>
             종목 <span className="sub-count">{stocks.length}개</span>
           </h2>
-          <PageIntro line="찾아서 담으면 지난 시세를 받아 지표·시그널을 계산합니다." firstVisit={stocksLoading ? null : stocks.length === 0}>
+          {/* 0개여도 접힌 채 — 펼친 도움말과 아래 빈 상자가 같은 말("찾기 칸에 삼성전자 · VOO")을 두 번 했다 (목업 15 ④) */}
+          <PageIntro line="찾아서 담으면 지난 시세를 받아 지표·시그널을 계산합니다." firstVisit={false}>
             국내주식은 종목명(삼성전자)이나 종목코드(005930)로, 미국주식은 티커(VOO)나 영문 이름(Agilent)으로 찾을 수
             있습니다. 구분(지수/알파/안전자산 등)은 자유 입력이며 시그널 목록의 거르기로 쓰입니다. 종목을 누르면 차트 · 신호 ·
             재무 · 보유가 있는 종목 안으로 갑니다. <span className="stock-listing-hint">{keepDates(listingHint(listing, isAdmin))}</span>
@@ -489,7 +490,7 @@ export function StockManager() {
       {stocks.length === 0 ? (
         <div className="empty-state">
           <h3>담은 종목이 없습니다</h3>
-          <p>위 찾기 칸에 종목명(삼성전자)이나 티커(VOO)를 넣어 추가해주세요.</p>
+          <p>위 찾기 칸에 이름이나 코드를 넣어 담습니다.</p>
         </div>
       ) : ordering ? (
         <DragOrderList

@@ -51,5 +51,7 @@ describe('AI 정리 화면', () => {
   it('모르는 종류는 없는 화면', () => {
     renderAt('/ai/macro')
     expect(screen.getByRole('heading', { name: '없는 화면입니다' })).toBeInTheDocument()
+    // 막다른 곳이 아니게 — 다른 없는 화면과 같은 단추 (목업 15 ④)
+    expect(screen.getByRole('link', { name: '첫 화면으로' })).toHaveAttribute('href', '/')
   })
 })

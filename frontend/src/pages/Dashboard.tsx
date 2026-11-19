@@ -26,6 +26,7 @@ import { useRecheck } from '../lib/recheck'
 const SignalThresholdsModal = lazyChunk(() => import('../components/SignalThresholdsModal'), 'SignalThresholdsModal')
 import { useAuth } from '../components/AuthGate'
 import { ErrorNotice } from '../components/ErrorNotice'
+import tfSeedling from '../assets/tossface/u1F331.svg'
 import {
   CATEGORY_UNSET,
   categoryOf,
@@ -739,30 +740,31 @@ export function Dashboard() {
   if (cards.length === 0) {
     return (
       // 처음 들어온 사람의 첫 화면이다. 빈 표만 두면 무엇을 해야 하는지 모른다 (ROADMAP 4단계 8-2)
-      <div className="empty-state first-steps">
-        <h3>아직 담은 종목이 없습니다 — 세 단계면 시작합니다</h3>
-        <ol>
+      // 디자인 4차 목업 15 ② 나 — 새싹 그림 하나 · 한 줄 소개 · 이름과 한 줄 풀이로 된 세 단계 · 단추 하나.
+      // 점선 상자는 뺐다(다른 빈 화면은 상자 그대로 — 주인 답 ① 가). 면책 한 줄은 바닥 줄에 늘 있다
+      <section className="first-steps" aria-labelledby="first-steps-title">
+        <img className="first-steps-face" src={tfSeedling} alt="" width={64} height={64} />
+        <h3 id="first-steps-title">종목을 담으면 시작합니다</h3>
+        <p>담은 종목마다 매수, 매도 신호와 비중을 보여 줍니다.</p>
+        <ol className="first-steps-list">
           <li>
-            <b>종목 담기</b> — <Link to="/stocks">종목 탭</Link>의 찾기 칸에서 이름이나 티커로 찾아 추가합니다 (예:
-            삼성전자, VOO). 시세와 지표는 알아서 받습니다.
+            <b>종목 담기</b>
+            <span>종목 탭에서 이름이나 코드로 찾습니다. 시세는 알아서 받습니다.</span>
           </li>
           <li>
-            <b>보유수량 적기</b> — 추가할 때나 종목 안의 '보유'에서 수량·평단가·목표 비중을
-            적으면 비중이 얼마나 벗어났는지 알려줍니다.
+            <b>보유수량 적기</b>
+            <span>수량과 목표 비중을 적으면 비중이 얼마나 벗어났는지 봅니다.</span>
           </li>
           <li>
-            {/* 위 탭이 없어졌다(디자인 4차 묶음 2) — 시그널은 신호 칸을 눌러 들어간다 */}
-            <b>내 포트폴리오 보기</b> — 종목을 담으면 이 화면에 평가금액·수익률이 나오고, 매수·매도·비중조절 신호
-            칸을 누르면 종목마다 시그널이 보입니다. 시세는 장 마감 뒤 매일 새로 받습니다.
+            <b>홈에서 보기</b>
+            <span>평가금액, 수익률, 오늘 뜬 신호가 여기에 나옵니다.</span>
           </li>
         </ol>
-        <Link to="/stocks" className="link-button">
-          종목 추가하러 가기
+        <Link to="/stocks" className="link-button first-steps-go">
+          종목 담으러 가기
         </Link>
-        <p className="hint">
-          종목은 30개까지 담을 수 있습니다. 시그널은 참고용이며 투자 권유가 아닙니다.
-        </p>
-      </div>
+        <p className="hint">30개까지 담을 수 있습니다.</p>
+      </section>
     )
   }
 
@@ -993,7 +995,7 @@ export function Dashboard() {
         quick === 'signal' && category === '전체' && cards.length > 0 ? (
           <div className="empty-state">
             <h3>오늘은 신호가 뜬 종목이 없습니다</h3>
-            <p>매수 · 매도 · 비중조절 모두 조용합니다.</p>
+            <p>매수, 매도, 비중조절 모두 조용합니다.</p>
             <button type="button" className="btn" onClick={() => setQuick('all')}>
               전체 {cards.length}종목 보기
             </button>

@@ -109,6 +109,17 @@ beforeEach(() => {
   vi.restoreAllMocks()
 })
 
+describe('종목 0개 (목업 15 ④)', () => {
+  it('도움말은 접힌 채, 빈 상자는 한 줄 — 같은 안내를 두 번 하지 않는다', async () => {
+    mockApi([])
+    renderManager()
+
+    expect(await screen.findByRole('heading', { name: '담은 종목이 없습니다' })).toBeInTheDocument()
+    expect(screen.getByText('위 찾기 칸에 이름이나 코드를 넣어 담습니다.')).toBeInTheDocument()
+    expect(document.querySelector('details.page-intro')).not.toHaveAttribute('open')
+  })
+})
+
 describe('종목 등록', () => {
   it('이름으로 찾아 고른 뒤 등록하면 해석된 티커를 알려준다', async () => {
     mockApi()

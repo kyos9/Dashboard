@@ -1,33 +1,22 @@
-import { MacroStrip } from '../components/MacroStrip'
+import { GuestMacroList } from '../components/macro/GuestMacroList'
 import { LoginPrompt } from '../components/LoginPrompt'
 
 /**
- * 손님(로그인 전)의 첫 화면.
+ * 손님(로그인 전)의 첫 화면 — 디자인 4차 목업 15 ③ 나 "매크로 목록 먼저".
  *
- * 대시보드와 같은 자리에 매크로 한 줄을 그대로 두고, 종목 표 자리에 "무엇을 하는 도구인지"와
- * 로그인 버튼을 둔다. 로그인하면 같은 자리가 내 종목으로 바뀐다 — 화면이 어디로 튀지 않는다.
+ * 첫인상 정답은 "매크로는 볼 수 있고, 내 종목은 구글 로그인"이다. 맨 위에 매크로 탭과 같은 줄 셋과
+ * "모두 보기", 그 아래에 로그인 안내를 둔다. 로그인하면 같은 자리가 내 포트폴리오로 바뀐다.
+ * 기능 소개 셋(시그널 · 리밸런싱 · 매크로)은 한 줄로 줄였다 — 매크로는 바로 위에 보인다.
  */
 export function GuestHome() {
   return (
     <>
-      <MacroStrip />
-      <LoginPrompt title="로그인하면 내 포트폴리오를 볼 수 있습니다">
-        <ul className="guest-features">
-          {/* 이름 아래 설명 한 줄 — "이름 — 풀이" 꼴을 뺐다 (목업 13 ④) */}
-          <li>
-            <b>매수·매도 시그널</b>
-            <span>담은 종목마다 기술적 타이밍 시그널과 마지막으로 뜬 날을 보여줍니다.</span>
-          </li>
-          <li>
-            <b>리밸런싱</b>
-            <span>목표 비중에서 얼마나 벗어났는지, 언제 조정할지 알려줍니다.</span>
-          </li>
-          <li>
-            <b>매크로</b>
-            <span>금리·물가·공포지수 같은 국면 지표를 봅니다.</span>
-          </li>
-        </ul>
-      </LoginPrompt>
+      <GuestMacroList />
+      <LoginPrompt
+        title="로그인하면 내 포트폴리오를 볼 수 있습니다"
+        lead="담은 종목의 매수, 매도 시그널과 리밸런싱을 봅니다."
+        macroHint={false}
+      />
     </>
   )
 }

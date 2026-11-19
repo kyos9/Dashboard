@@ -66,16 +66,13 @@ export function GuestNotice() {
  */
 export function PendingPrompt() {
   const { user } = useAuth()
+  // 세 문장을 한 문장으로 — 다시 로그인할 필요가 없다는 말은 단추 이름("승인됐는지 확인")이 대신한다 (목업 15 ④)
   return (
     <div className="empty-state login-prompt">
       <h3>가입 신청을 받았습니다</h3>
       <p>
-        {user?.email ? <b>{user.email}</b> : '이 계정'}으로 신청했습니다. 관리자가 승인하면 내 종목과
-        포트폴리오를 만들 수 있습니다.
-      </p>
-      <p className="hint">
-        승인을 기다리는 동안에도 <b>매크로</b> 탭은 볼 수 있습니다. 승인된 뒤에는 다시 로그인할 필요 없이
-        아래 버튼이나 새로고침으로 바로 들어옵니다. <ContactLine />
+        {user?.email ? <b>{user.email}</b> : '이 계정'}으로 신청했습니다. 관리자가 승인하면 바로 쓸 수 있고, 그동안{' '}
+        <b>매크로</b> 탭은 볼 수 있습니다. <ContactLine />
       </p>
       <button type="button" className="primary" onClick={() => browser.go('/')}>
         승인됐는지 확인
@@ -84,18 +81,37 @@ export function PendingPrompt() {
   )
 }
 
-/** 내 종목이 있어야 뜻이 있는 화면을 대신하는 안내. */
-export function LoginPrompt({ title, children }: { title: string; children?: ReactNode }) {
+/**
+ * 내 종목이 있어야 뜻이 있는 화면을 대신하는 안내.
+ * `lead` 는 제목 아래 한 줄, `macroHint` 는 "로그인 없이도 매크로 탭은" 안내 — 손님 첫 화면은 매크로가 바로 위에 있어 끈다.
+ */
+export function LoginPrompt({
+  title,
+  lead,
+  macroHint = true,
+  children,
+}: {
+  title: string
+  lead?: string
+  macroHint?: boolean
+  children?: ReactNode
+}) {
   const { pending } = useAuth()
   if (pending) return <PendingPrompt />
   return (
     <div className="empty-state login-prompt">
       <h3>{title}</h3>
+      {lead && <p className="login-lead">{lead}</p>}
       {children}
       <LoginButton />
       {/* 면책("시그널은 참고용…")은 화면 바닥 줄에 늘 있다 — 여기와 두 번 나왔다 (목업 13 ④) */}
       <p className="hint">
-        계정마다 자기 종목이 따로 저장됩니다. 로그인 없이도 <b>매크로</b> 탭은 볼 수 있습니다.
+        계정마다 자기 종목이 따로 저장됩니다.
+        {macroHint && (
+          <>
+            {' '}로그인 없이도 <b>매크로</b> 탭은 볼 수 있습니다.
+          </>
+        )}
       </p>
       <p className="hint consent-line">
         로그인하면 <a href={POLICY_PATH}>개인정보처리방침과 이용약관</a>에 동의하는 것으로 봅니다.

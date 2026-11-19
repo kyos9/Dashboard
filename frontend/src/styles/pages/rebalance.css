@@ -151,29 +151,6 @@
   color: var(--text-faint);
 }
 
-/* 처음 들어온 사람의 빈 대시보드 — 무엇부터 할지 세 단계 (pages/Dashboard.tsx) */
-.first-steps {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-  padding: 36px 20px;
-}
-
-.first-steps ol {
-  margin: 0;
-  padding-left: 20px;
-  max-width: 520px;
-  text-align: left;
-  font-size: var(--fs-sub);
-  line-height: 1.7;
-  overflow-wrap: break-word;
-}
-
-.first-steps b {
-  color: var(--text);
-}
-
 /* 버튼처럼 보이는 링크 — 다른 화면으로 가는 것이라 <button> 이 아니다 */
 .link-button {
   display: inline-block;
