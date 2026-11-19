@@ -257,7 +257,9 @@ export function MacroPanel() {
     requestAnimationFrame(() => {
       const star = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-pin]')).find((el) => el.dataset.pin === code)
       star?.focus({ preventScroll: true })
-      star?.scrollIntoView?.({ block: 'center', behavior: 'smooth' })
+      // 움직임 줄이기를 켠 사람에게는 부드럽게 굴리지 않는다 (재검토 참고)
+      const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+      star?.scrollIntoView?.({ block: 'center', behavior: still ? 'auto' : 'smooth' })
     })
     try {
       const saved = await api.setMacroPinned(next)
@@ -266,6 +268,7 @@ export function MacroPanel() {
       notifyDataChanged()
     } catch (e) {
       setData((current) => (current ? { ...current, pinned: before } : current))
+      setPinNote(`${name} 을(를) 옮기지 못했습니다`) // "옮겼습니다"로 남아 있었다 (재검토 참고)
       setError(e)
     } finally {
       setPinning(false)

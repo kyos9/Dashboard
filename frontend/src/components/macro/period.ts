@@ -25,8 +25,9 @@ export function periodOf(series: Pick<MacroSeriesInfo, 'frequency' | 'as_of'>): 
 
 /** 실제 − 예상을 말로 — "예상보다 0.15%p 높음"(묶음 5 사용자 확인: "실제 +0.15%p"가 실제 값처럼 읽혔다) */
 export function surpriseWord(surprise: number, unit: string): string {
-  if (surprise === 0) return '예상과 같음'
   const size = macroChange(Math.abs(surprise), unit).replace(/^[+±]/, '')
+  // 보이는 자리에서 0 이면 같다 — 2.65 를 넣었는데 실제가 2.64988… 이라 "0.00%p 낮음"이 났다(묶음 5 재검토 조건 2)
+  if (Number(size.replace(/[^\d.]/g, '')) === 0) return '예상과 같음'
   return `예상보다 ${size} ${surprise > 0 ? '높음' : '낮음'}`
 }
 

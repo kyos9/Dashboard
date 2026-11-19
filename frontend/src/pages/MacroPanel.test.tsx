@@ -761,6 +761,85 @@ describe('예상치 — 줄에는 한 마디, 입력은 차트 창 안 (목업 1
     expect(within(dialog).getByLabelText('CPI 예상치')).toBeInTheDocument()
   })
 
+  it('저장이 실패해도 포커스가 폼 안에 남고, Esc 는 폼만 닫는다 — 단추가 잠기며 body 로 떨어져 창째 닫혔다 (재검토 조건 1)', async () => {
+    mockMacro({ series: [cpi()] })
+    vi.spyOn(api, 'setMacroForecast').mockRejectedValue(new Error('너무 먼 미래입니다'))
+    renderPanel()
+    const dialog = await openChart()
+    await userEvent.click(within(dialog).getByRole('button', { name: '예상치 입력' }))
+    await userEvent.type(within(dialog).getByLabelText('CPI 예상치'), '2.7')
+    await userEvent.click(within(dialog).getByRole('button', { name: '저장' }))
+    await within(dialog).findByText(/너무 먼 미래입니다/)
+    expect(within(dialog).getByRole('button', { name: '저장' })).toHaveFocus()
+    await userEvent.keyboard('{Escape}')
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(within(dialog).queryByLabelText('CPI 예상치')).toBeNull()
+  })
+
+  it('저장하는 동안 단추는 잠긴 것으로 읽히되 disabled 는 아니다 — disabled 면 브라우저가 포커스를 body 로 뺀다 (재검토 조건 1)', async () => {
+    mockMacro({ series: [cpi()] })
+    let finish = () => {}
+    vi.spyOn(api, 'setMacroForecast').mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = () => resolve(cpi())
+        }),
+    )
+    renderPanel()
+    const dialog = await openChart()
+    await userEvent.click(within(dialog).getByRole('button', { name: '예상치 입력' }))
+    await userEvent.type(within(dialog).getByLabelText('CPI 예상치'), '2.7')
+    await userEvent.click(within(dialog).getByRole('button', { name: '저장' }))
+    const save = within(dialog).getByRole('button', { name: '저장' })
+    expect(save).toHaveAttribute('aria-disabled', 'true')
+    expect(save).not.toBeDisabled()
+    finish()
+    await waitFor(() => expect(within(dialog).queryByLabelText('CPI 예상치')).toBeNull())
+  })
+
+  it('지우면 포커스가 "예상치 입력"으로 — 지운 줄의 단추가 사라져 body 로 떨어졌다 (재검토 조건 1)', async () => {
+    mockMacro({ series: [cpi({ forecast: forecast() })] })
+    vi.spyOn(api, 'clearMacroForecast').mockResolvedValue(cpi())
+    renderPanel()
+    const dialog = await openChart()
+    await userEvent.click(within(dialog).getByRole('button', { name: '2026-08 예상 지우기' }))
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: '예상치 입력' })).toHaveFocus())
+  })
+
+  it('보이는 자리에서 차이가 0 이면 "예상과 같음" — 2.65 를 넣었는데 "0.00%p 낮음"이 났다 (재검토 조건 2)', async () => {
+    mockMacro({ series: [cpi({ forecast: forecast({ surprise: -0.00012 }) })] })
+    renderPanel()
+    expect(await screen.findByText('예상 3.00%, 예상과 같음')).toBeInTheDocument()
+    expect(screen.queryByText(/0\.00%p/)).toBeNull()
+  })
+
+  it('예상 지우기는 관리자만 — 지인 창에는 예상 줄만, 관리자 창에는 "예상 없음" 안내가 없다 (재검토 조건 3)', async () => {
+    vi.spyOn(api, 'getAuthStatus').mockResolvedValue({
+      locked: true, authenticated: true, mode: 'google', user: { email: 'f@x.y', name: '친구', is_owner: false }, config_problem: null,
+    })
+    mockMacro({ series: [cpi({ forecast: forecast() })] })
+    render(
+      <MemoryRouter>
+        <AuthGate>
+          <AppStateProvider>
+            <MacroPanel />
+          </AppStateProvider>
+        </AuthGate>
+      </MemoryRouter>,
+    )
+    const dialog = await openChart()
+    expect(within(dialog).getByText(/예상 3.00%/)).toBeInTheDocument()
+    expect(within(dialog).queryByRole('button', { name: /지우기/ })).toBeNull()
+  })
+
+  it('관리자 창에는 "아직 넣은 예상치가 없습니다"가 없다 — 대신 입력 단추', async () => {
+    mockMacro({ series: [cpi()] })
+    renderPanel()
+    const dialog = await openChart()
+    expect(within(dialog).queryByText(/아직 넣은 예상치가 없습니다/)).toBeNull()
+    expect(within(dialog).getByRole('button', { name: '예상치 입력' })).toBeInTheDocument()
+  })
+
   it('실패 까닭은 그 창 것 — 닫고 다른 지표 창을 열면 남아 있지 않다 (검토 5 조건 1)', async () => {
     mockMacro({ series: [cpi(), cpi({ code: 'PCEPILFE', name: '근원 PCE' })] })
     vi.spyOn(api, 'setMacroForecast').mockRejectedValue(new Error('너무 먼 미래입니다'))

@@ -78,10 +78,12 @@ export function ForecastBox({
     setBusy(true)
     await onClear(series.code, target)
     setBusy(false)
+    // 지운 줄의 단추가 사라지면 포커스가 body 로 떨어졌다 — "예상치 입력"으로 (묶음 5 재검토 조건 1)
+    openRef.current?.focus()
   }
   const removeButton = (asOf: string) =>
     editable && (
-      <button type="button" className="link-btn forecast-remove" onClick={() => void remove(monthOf(asOf))} disabled={busy} aria-label={`${monthOf(asOf)} 예상 지우기`}>
+      <button type="button" className="link-btn forecast-remove" onClick={() => void remove(monthOf(asOf))} aria-disabled={busy} aria-label={`${monthOf(asOf)} 예상 지우기`}>
         지우기
       </button>
     )
@@ -134,11 +136,12 @@ export function ForecastBox({
             />
           </label>
           <div className="forecast-actions">
-            <button type="submit" className="primary" disabled={!canSave || busy}>
+            {/* busy 동안은 aria-disabled — disabled 면 포커스가 body 로 떨어져 실패 뒤 Esc 가 창째 닫았다(묶음 5 재검토 조건 1) */}
+            <button type="submit" className="primary" disabled={!canSave} aria-disabled={busy}>
               저장
             </button>
             {/* 창의 ✕ "닫기"와 이름이 겹쳤다 — 무엇을 닫는지 (묶음 5 검토 참고) */}
-            <button type="button" onClick={() => setOpen(false)} disabled={busy}>
+            <button type="button" onClick={() => !busy && setOpen(false)} aria-disabled={busy}>
               입력 닫기
             </button>
           </div>

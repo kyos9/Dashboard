@@ -170,3 +170,7 @@ button.macro-row-open:hover {
   min-height: 44px;
   padding: 0;
 }
+/* 예상 줄 끝의 "지우기" — "(관리자가 넣음)지우기"로 붙어 보였다 (재검토 참고) */
+.macro-forecast .forecast-remove {
+  margin-left: 8px;
+}
