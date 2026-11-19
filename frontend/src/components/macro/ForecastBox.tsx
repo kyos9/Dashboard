@@ -78,8 +78,9 @@ export function ForecastBox({
     setBusy(true)
     await onClear(series.code, target)
     setBusy(false)
-    // 지운 줄의 단추가 사라지면 포커스가 body 로 떨어졌다 — "예상치 입력"으로 (묶음 5 재검토 조건 1)
-    openRef.current?.focus()
+    // 지운 줄의 단추가 사라지면 포커스가 body 로 떨어졌다 — "예상치 입력"으로, 폼이 열려 있으면 달 칸으로 (묶음 5 재검토 조건 1 · 세 번째 검토 조건 1)
+    const back = openRef.current ?? monthRef.current
+    back?.focus()
   }
   const removeButton = (asOf: string) =>
     editable && (

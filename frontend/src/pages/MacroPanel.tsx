@@ -254,13 +254,15 @@ export function MacroPanel() {
     // 옮긴 자리의 별로 포커스와 화면을 데려간다
     const name = data.series.find((item) => item.code === code)?.name ?? code
     setPinNote(next.includes(code) ? `${name} 을(를) 맨 위 내 지표로 옮겼습니다` : `${name} 을(를) 내 지표에서 뺐습니다`)
-    requestAnimationFrame(() => {
-      const star = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-pin]')).find((el) => el.dataset.pin === code)
-      star?.focus({ preventScroll: true })
-      // 움직임 줄이기를 켠 사람에게는 부드럽게 굴리지 않는다 (재검토 참고)
-      const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-      star?.scrollIntoView?.({ block: 'center', behavior: still ? 'auto' : 'smooth' })
-    })
+    const followStar = () =>
+      requestAnimationFrame(() => {
+        const star = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-pin]')).find((el) => el.dataset.pin === code)
+        star?.focus({ preventScroll: true })
+        // 움직임 줄이기를 켠 사람에게는 부드럽게 굴리지 않는다 (재검토 참고)
+        const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+        star?.scrollIntoView?.({ block: 'center', behavior: still ? 'auto' : 'smooth' })
+      })
+    followStar()
     try {
       const saved = await api.setMacroPinned(next)
       setData((current) => (current ? { ...current, pinned: saved.codes } : current))
@@ -270,6 +272,7 @@ export function MacroPanel() {
       setData((current) => (current ? { ...current, pinned: before } : current))
       setPinNote(`${name} 을(를) 옮기지 못했습니다`) // "옮겼습니다"로 남아 있었다 (재검토 참고)
       setError(e)
+      followStar() // 되돌아간 자리의 별로 — 폰에서 포커스가 body 로 떨어졌다 (세 번째 검토 참고)
     } finally {
       setPinning(false)
     }

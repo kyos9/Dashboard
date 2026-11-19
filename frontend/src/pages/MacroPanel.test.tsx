@@ -793,8 +793,64 @@ describe('예상치 — 줄에는 한 마디, 입력은 차트 창 안 (목업 1
     const save = within(dialog).getByRole('button', { name: '저장' })
     expect(save).toHaveAttribute('aria-disabled', 'true')
     expect(save).not.toBeDisabled()
+    // 눌리긴 해도 한 번만 저장한다 — 막는 것은 busy (세 번째 검토 조건 2)
+    await userEvent.click(save)
+    expect(api.setMacroForecast).toHaveBeenCalledTimes(1)
     finish()
     await waitFor(() => expect(within(dialog).queryByLabelText('CPI 예상치')).toBeNull())
+  })
+
+  it('지우는 동안 두 번 눌러도 한 번만 지운다 (세 번째 검토 조건 2)', async () => {
+    mockMacro({ series: [cpi({ forecast: forecast() })] })
+    let finish = () => {}
+    const clear = vi.spyOn(api, 'clearMacroForecast').mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = () => resolve(cpi())
+        }),
+    )
+    renderPanel()
+    const dialog = await openChart()
+    const remove = within(dialog).getByRole('button', { name: '2026-08 예상 지우기' })
+    await userEvent.click(remove)
+    expect(remove).toHaveAttribute('aria-disabled', 'true')
+    await userEvent.click(remove)
+    expect(clear).toHaveBeenCalledTimes(1)
+    finish()
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: '예상치 입력' })).toHaveFocus())
+  })
+
+  it('폼이 열린 채 위 줄의 "지우기"를 눌러도 포커스는 폼의 달 칸 — body 로 떨어져 Esc 가 창째 닫았다 (세 번째 검토 조건 1)', async () => {
+    mockMacro({ series: [cpi({ forecast: forecast() })] })
+    vi.spyOn(api, 'clearMacroForecast').mockResolvedValue(cpi())
+    renderPanel()
+    const dialog = await openChart()
+    await userEvent.click(within(dialog).getByRole('button', { name: '예상치 입력' }))
+    await userEvent.type(within(dialog).getByLabelText('CPI 예상치'), '2.8')
+    await userEvent.click(within(dialog).getByRole('button', { name: '2026-08 예상 지우기' }))
+    await waitFor(() => expect(within(dialog).getByLabelText('CPI 예상치가 가리키는 달')).toHaveFocus())
+    await userEvent.keyboard('{Escape}')
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+
+  it('★ 저장이 실패하면 되돌아간 자리의 별로 포커스 · 알림 "옮기지 못했습니다" (세 번째 검토 참고)', async () => {
+    mockMacro({ series: [series({ code: 'VIX', name: 'VIX' })], pinned: [] })
+    // 서버가 늦게 실패한다 — 먼저 "내 지표"로 옮긴 별에 포커스가 간 뒤 되돌아간다(실제 화면 순서)
+    let fail = () => {}
+    vi.spyOn(api, 'setMacroPinned').mockImplementation(
+      () =>
+        new Promise((_, reject) => {
+          fail = () => reject(new Error('저장하지 못했습니다'))
+        }),
+    )
+    renderPanel()
+    await userEvent.click(await screen.findByRole('button', { name: 'VIX 내 지표로' }))
+    const mine = await screen.findByRole('list', { name: '내 지표' })
+    await waitFor(() => expect(within(mine).getByRole('button', { name: 'VIX 내 지표로' })).toHaveFocus())
+    fail()
+    await waitFor(() => expect(screen.getByRole('button', { name: 'VIX 내 지표로' })).toHaveAttribute('aria-pressed', 'false'))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'VIX 내 지표로' })).toHaveFocus())
+    expect(screen.getByRole('status')).toHaveTextContent('VIX 을(를) 옮기지 못했습니다')
   })
 
   it('지우면 포커스가 "예상치 입력"으로 — 지운 줄의 단추가 사라져 body 로 떨어졌다 (재검토 조건 1)', async () => {

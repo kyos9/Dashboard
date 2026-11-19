@@ -174,3 +174,9 @@ button.macro-row-open:hover {
 .macro-forecast .forecast-remove {
   margin-left: 8px;
 }
+/* 저장 · 지우는 동안 — disabled 대신 aria-disabled 라 흐려지지 않아 저장 중인지 몰랐다 (세 번째 검토 참고) */
+.forecast-form button[aria-disabled='true'],
+.macro-forecast .forecast-remove[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: default;
+}
