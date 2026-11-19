@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { macroValue } from '../../lib/macro'
 import type { MacroSeriesInfo } from '../../types'
 import { NumberInput } from '../NumberInput'
@@ -39,6 +39,22 @@ export function ForecastBox({
   const [month, setMonth] = useState(() => defaultMonth(series))
   const [value, setValue] = useState('')
   const [busy, setBusy] = useState(false)
+  const monthRef = useRef<HTMLInputElement>(null)
+  const openRef = useRef<HTMLButtonElement>(null)
+  const wasOpen = useRef(false)
+  // 입력칸을 열면 첫 칸으로, 닫으면 "예상치 입력"으로 — 포커스가 body 로 떨어졌다(묶음 5 검토 조건 3)
+  useEffect(() => {
+    if (open) monthRef.current?.focus()
+    else if (wasOpen.current) openRef.current?.focus()
+    wasOpen.current = open
+  }, [open])
+  // 폼이 열린 채 Esc 는 폼만 닫는다 — 창째 닫혀 친 값이 사라졌다(검토 참고)
+  const onFormKey = (event: KeyboardEvent) => {
+    if (event.key !== 'Escape') return
+    event.stopPropagation()
+    event.nativeEvent.stopImmediatePropagation()
+    setOpen(false)
+  }
 
   const { forecast, pending_forecast: pending } = series
   const number = Number(value)
@@ -95,10 +111,11 @@ export function ForecastBox({
       )}
 
       {open ? (
-        <form className="forecast-form" onSubmit={(event) => void submit(event)}>
+        <form className="forecast-form" onSubmit={(event) => void submit(event)} onKeyDown={onFormKey}>
           <label>
             <span className="hint">달</span>
             <input
+              ref={monthRef}
               type="month"
               value={month}
               onChange={(event) => setMonth(event.target.value)}
@@ -120,13 +137,15 @@ export function ForecastBox({
             <button type="submit" className="primary" disabled={!canSave || busy}>
               저장
             </button>
+            {/* 창의 ✕ "닫기"와 이름이 겹쳤다 — 무엇을 닫는지 (묶음 5 검토 참고) */}
             <button type="button" onClick={() => setOpen(false)} disabled={busy}>
-              닫기
+              입력 닫기
             </button>
           </div>
         </form>
       ) : editable ? (
         <button
+          ref={openRef}
           className="link-btn forecast-open"
           onClick={() => {
             const target = defaultMonth(series)

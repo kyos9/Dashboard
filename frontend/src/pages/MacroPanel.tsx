@@ -78,11 +78,6 @@ function mostCommon(values: string[]): string {
   return best
 }
 
-/**
- * 지표 한 줄 (디자인 4차 목업 13 ② — 카드 열두 장 대신 한 목록, 주인 답 "홈 · 매크로 둘 다").
- * 줄을 누르면 차트. 별 · 국면 구간 · 예상치 · 못 받은 까닭은 그 줄 아래에 그대로 붙는다.
- * 받은 시각 · 출처가 위의 공통 줄과 같으면 줄에는 적지 않는다 — 카드마다 같은 두 줄이 반복됐다.
- */
 /** 예상치를 줄 안 한 마디로 — 넣는 칸은 차트 창 안에 있다(목업 14 ②) */
 function forecastWord(series: MacroSeriesInfo): string {
   const { forecast, pending_forecast: pending } = series
@@ -211,6 +206,12 @@ export function MacroPanel() {
   const [open, setOpen] = useState<MacroSeriesInfo | null>(null)
   const [pinning, setPinning] = useState(false)
   const [pinNote, setPinNote] = useState('')
+  // 예상치 저장 실패 까닭은 그 창 것 — 화면 까닭과 하나를 같이 쓰면 다른 지표 창에도 남아 떴다(묶음 5 검토 조건 1)
+  const [forecastError, setForecastError] = useState<unknown>(null)
+  const openChart = (item: MacroSeriesInfo | null) => {
+    setForecastError(null)
+    setOpen(item)
+  }
 
   // 탭을 옮겨 와도 들고 있던 값을 먼저 그린다 (ROADMAP 8-1)
   const { loading } = useCachedLoad('page:macro', api.getMacro, setData, setError, [refreshKey])
@@ -279,7 +280,7 @@ export function MacroPanel() {
    * 화면이 된다. 요청 한 번이고 이 화면은 자주 여는 곳이 아니다.
    */
   const afterForecast = async (run: () => Promise<unknown>): Promise<boolean> => {
-    setError(null)
+    setForecastError(null)
     try {
       await run()
       await load()
@@ -287,7 +288,7 @@ export function MacroPanel() {
       // 다음에 열릴 때 새로 읽는다. 여기서 또 다시 읽게 하면 같은 요청을 두 번 보낸다.
       return true
     } catch (e) {
-      setError(e)
+      setForecastError(e)
       return false
     }
   }
@@ -314,7 +315,7 @@ export function MacroPanel() {
       pinned={pinned.includes(item.code)}
       commonChecked={commonChecked}
       commonSource={commonSource}
-      onOpen={() => setOpen(item)}
+      onOpen={() => openChart(item)}
       onTogglePin={guest ? undefined : () => void togglePin(item.code)}
     />
   )
@@ -348,8 +349,7 @@ export function MacroPanel() {
         </Suspense>
       )}
 
-      {/* 차트 창이 열려 있으면 까닭은 창 안에(예상치 저장 실패) — 뒤에 띄우면 가려진다 */}
-      {!open && <ErrorNotice error={error} onDismiss={() => setError(null)} />}
+      <ErrorNotice error={error} onDismiss={() => setError(null)} />
 
       {loading ? (
         <PageSkeleton blocks={6} rows={0} />
@@ -411,9 +411,9 @@ export function MacroPanel() {
             canEditForecast={isAdmin}
             onSaveForecast={saveForecast}
             onClearForecast={clearForecast}
-            forecastError={error}
-            onForecastErrorDismiss={() => setError(null)}
-            onClose={() => setOpen(null)}
+            forecastError={forecastError}
+            onForecastErrorDismiss={() => setForecastError(null)}
+            onClose={() => openChart(null)}
           />
         </Suspense>
       )}

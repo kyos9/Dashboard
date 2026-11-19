@@ -14,7 +14,7 @@ import type { MacroPinned, MacroSeriesInfo } from '../types'
  * 아니라 한 줄이고 폰에서는 가로로 밀어서 본다. 여기서 자세한 것을 다 보여주려 들면
  * 매크로 탭이 두 개가 된다.
  *
- * 무엇을 띄울지는 매크로 탭의 ☆ 로 고른다 (`portfolio_settings.pinned_macro`).
+ * 무엇을 띄울지는 `pinned_macro` — 손님은 서버의 기본값. (4차 묶음 5 부터 로그인한 사람의 ★ 은 매크로 탭의 "내 지표" 순서만 바꾼다)
  */
 function Chip({ series }: { series: MacroSeriesInfo }) {
   const change = macroChange(series.change, series.unit)

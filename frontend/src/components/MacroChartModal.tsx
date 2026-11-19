@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
 import { useBackToClose } from '../lib/backToClose'
 import { macroValue } from '../lib/macro'
@@ -7,6 +7,7 @@ import { ForecastBox } from './macro/ForecastBox'
 import { ErrorNotice } from './ErrorNotice'
 import { MacroChart } from './MacroChart'
 import { lockBodyScroll } from '../lib/scrollLock'
+import { useFocusTrap } from '../lib/focusTrap'
 
 export const MACRO_RANGES = [
   { value: '1y', label: '1년' },
@@ -66,6 +67,10 @@ export function MacroChartModal({
   // 폰의 뒤로가기로도 닫힌다
   useBackToClose(onClose)
 
+  // Tab 은 창 안에서만 돈다 · 열면 포커스를 창으로, 닫으면 연 줄로 — 예상치 폼을 넣으며 키보드가 창 밖으로 샜다(묶음 5 검토 조건 3)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(dialogRef)
+
   // ESC로 닫기 + 뒤 화면이 같이 스크롤되지 않게
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -83,6 +88,8 @@ export function MacroChartModal({
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div
+        ref={dialogRef}
+        tabIndex={-1}
         className="modal chart-modal"
         role="dialog"
         aria-modal="true"

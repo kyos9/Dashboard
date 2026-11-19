@@ -638,12 +638,16 @@ describe('예상치 — 줄에는 한 마디, 입력은 차트 창 안 (목업 1
     expect(await screen.findByText('2026-09 예상 2.90%(발표 전)')).toBeInTheDocument()
   })
 
-  it('매일 나오는 값에는 입력칸을 띄우지 않는다', async () => {
+  it('매일 나오는 값에는 입력칸을 띄우지 않는다 — 차트 창 안에도 (검토 5 조건 2)', async () => {
     mockMacro()
     renderPanel()
-
     await screen.findByText('미 10년물 금리')
     expect(screen.queryByRole('button', { name: '예상치 입력' })).not.toBeInTheDocument()
+    vi.spyOn(api, 'getMacroHistory').mockResolvedValue({ code: 'DGS10', name: '미 10년물 금리', unit: 'percent', transform: 'none', transform_label: null, points: [] })
+    await userEvent.click(screen.getByRole('button', { name: /^미 10년물 금리, .* — 차트$/ }))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).queryByRole('button', { name: '예상치 입력' })).toBeNull()
+    expect(dialog.querySelector('.macro-forecast-box')).toBeNull()
   })
 
   it('입력칸은 마지막 발표의 다음 달로 열린다', async () => {
@@ -742,18 +746,73 @@ describe('예상치 — 줄에는 한 마디, 입력은 차트 창 안 (목업 1
     expect(screen.getByRole('button', { name: '저장' })).toBeDisabled()
   })
 
-  it('저장이 실패하면 이유를 띄우고 입력칸을 닫지 않는다', async () => {
+  it('저장이 실패하면 이유를 창 안에 띄우고 입력칸을 닫지 않는다 — 창 뒤에 띄우면 가려진다', async () => {
     mockMacro({ series: [cpi()] })
     vi.spyOn(api, 'setMacroForecast').mockRejectedValue(new Error('너무 먼 미래입니다'))
     renderPanel()
 
-    await userEvent.click(within(await openChart()).getByRole('button', { name: '예상치 입력' }))
-    await userEvent.type(screen.getByLabelText('CPI 예상치'), '2.7')
-    await userEvent.click(screen.getByRole('button', { name: '저장' }))
+    const dialog = await openChart()
+    await userEvent.click(within(dialog).getByRole('button', { name: '예상치 입력' }))
+    await userEvent.type(within(dialog).getByLabelText('CPI 예상치'), '2.7')
+    await userEvent.click(within(dialog).getByRole('button', { name: '저장' }))
 
-    expect(await screen.findByText(/너무 먼 미래입니다/)).toBeInTheDocument()
+    expect(await within(dialog).findByText(/너무 먼 미래입니다/)).toBeInTheDocument()
     // 닫아버리면 방금 친 숫자를 다시 쳐야 한다
-    expect(screen.getByLabelText('CPI 예상치')).toBeInTheDocument()
+    expect(within(dialog).getByLabelText('CPI 예상치')).toBeInTheDocument()
+  })
+
+  it('실패 까닭은 그 창 것 — 닫고 다른 지표 창을 열면 남아 있지 않다 (검토 5 조건 1)', async () => {
+    mockMacro({ series: [cpi(), cpi({ code: 'PCEPILFE', name: '근원 PCE' })] })
+    vi.spyOn(api, 'setMacroForecast').mockRejectedValue(new Error('너무 먼 미래입니다'))
+    renderPanel()
+
+    const first = await openChart()
+    await userEvent.click(within(first).getByRole('button', { name: '예상치 입력' }))
+    await userEvent.type(within(first).getByLabelText('CPI 예상치'), '2.7')
+    await userEvent.click(within(first).getByRole('button', { name: '저장' }))
+    await within(first).findByText(/너무 먼 미래입니다/)
+    await userEvent.click(within(first).getByRole('button', { name: '닫기' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    // 창 밖 화면에도 남지 않는다
+    expect(screen.queryByText(/너무 먼 미래입니다/)).toBeNull()
+    const second = await openChart('근원 PCE')
+    expect(within(second).queryByText(/너무 먼 미래입니다/)).toBeNull()
+  })
+
+  it('저장하면 열린 창 안의 예상이 새 값으로 바뀐다 — 창은 목록의 새 값을 읽는다 (검토 5 조건 2)', async () => {
+    mockMacro({ series: [cpi()] })
+    vi.spyOn(api, 'setMacroForecast').mockImplementation(async () => {
+      vi.mocked(api.getMacro).mockResolvedValue({
+        series: [cpi({ pending_forecast: forecast({ as_of: '2026-09-01', value: 2.7, surprise: null }) })],
+        term_spread: null,
+        badges: [],
+        pinned: [],
+      })
+      return cpi()
+    })
+    renderPanel()
+    const dialog = await openChart()
+    await userEvent.click(within(dialog).getByRole('button', { name: '예상치 입력' }))
+    await userEvent.type(within(dialog).getByLabelText('CPI 예상치'), '2.7')
+    await userEvent.click(within(dialog).getByRole('button', { name: '저장' }))
+    expect(await within(dialog).findByText(/2026-09/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/예상 2.70%/)).toBeInTheDocument()
+  })
+
+  it('키보드: 창을 열면 포커스가 창 안, "예상치 입력"을 누르면 달 칸, 폼에서 Esc 는 폼만 닫고 "예상치 입력"으로 (검토 5 조건 3)', async () => {
+    mockMacro({ series: [cpi()] })
+    renderPanel()
+    const dialog = await openChart()
+    await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true))
+    await userEvent.click(within(dialog).getByRole('button', { name: '예상치 입력' }))
+    expect(within(dialog).getByLabelText('CPI 예상치가 가리키는 달')).toHaveFocus()
+    await userEvent.keyboard('{Escape}')
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(within(dialog).queryByLabelText('CPI 예상치')).toBeNull()
+    expect(within(dialog).getByRole('button', { name: '예상치 입력' })).toHaveFocus()
+    // 폼이 닫혀 있으면 Esc 는 창을 닫는다
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   })
 })
 
@@ -781,16 +840,35 @@ describe('손님·사용자·관리자', () => {
     )
   }
 
-  it('손님은 둘러보기만 — 별도 받아오기도 예상치 입력도 없다', async () => {
-    renderAs({})
+  it('손님은 둘러보기만 — 별도 받아오기도 예상치 입력도 없다(차트 창 안에도), 서버가 기본 별을 줘도 "내 지표" 칸이 없다', async () => {
+    vi.spyOn(api, 'getAuthStatus').mockResolvedValue({
+      locked: true, authenticated: false, mode: 'google', user: null, config_problem: null,
+    })
+    // 서버는 손님에게도 기본 별(VIX · 금리차 · 공포·탐욕)을 준다 (검토 5 조건 2)
+    mockMacro({
+      series: [series({ code: 'CPIAUCSL', name: 'CPI', frequency: 'monthly', forecastable: true }), series({ code: 'VIX', name: 'VIX' })],
+      term_spread: { as_of: '2026-09-21', value: 0.5, long_code: 'DGS10', short_code: 'DGS2' },
+      pinned: ['VIX', 'TERM_SPREAD', 'FEARGREED'],
+    })
+    render(
+      <MemoryRouter>
+        <AuthGate>
+          <AppStateProvider>
+            <MacroPanel />
+          </AppStateProvider>
+        </AuthGate>
+      </MemoryRouter>,
+    )
     expect(await screen.findByText('CPI')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /내 지표로/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '지금 받아오기' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '예상치 입력' })).not.toBeInTheDocument()
-    // 손님은 "내 지표" 칸이 없다 — 별이 없으니 한 목록
     expect(screen.queryByRole('list', { name: '내 지표' })).toBeNull()
+    expect(screen.getByRole('list', { name: '지표' })).toBeInTheDocument()
     // AI 는 자기 키로 쓰는 사람만 — 손님에게는 버튼이 없다
     expect(screen.queryByRole('button', { name: 'AI 매크로 정리' })).not.toBeInTheDocument()
+    vi.spyOn(api, 'getMacroHistory').mockResolvedValue({ code: 'CPIAUCSL', name: 'CPI', unit: 'percent', transform: 'none', transform_label: null, points: [] })
+    await userEvent.click(screen.getByRole('button', { name: /^CPI, .* — 차트$/ }))
+    expect(within(await screen.findByRole('dialog')).queryByRole('button', { name: '예상치 입력' })).toBeNull()
   })
 
   it('사용자는 "AI 정리"로 매크로 정리 창을 연다 — 여는 것만으로 부르지는 않는다', async () => {
