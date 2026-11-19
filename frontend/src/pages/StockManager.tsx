@@ -1,5 +1,5 @@
-import { Link, useLocation } from 'react-router-dom'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAppState } from '../AppState'
 import { ApiError, api } from '../api/client'
 import { useAuth } from '../components/AuthGate'
@@ -97,10 +97,22 @@ export function StockManager() {
   const [cashTarget, setCashTarget] = useState(0)
   const [error, setError] = useState<unknown>(null)
   // 종목 안에서 지우고 돌아오면 한 줄 — 줄만 사라지던 것(사용자 확인 찾지 못한 것 4)
-  const navState = useLocation().state as { purged?: string; focusSearch?: boolean } | null
+  const location = useLocation()
+  const navigate = useNavigate()
+  const navState = location.state as { purged?: string; focusSearch?: boolean } | null
   const purged = navState?.purged
   // 빈 화면의 "종목 담으러 가기" · "종목 탭으로"로 왔으면 찾기 칸에 커서 (묶음 6 사용자 확인)
   const focusSearch = navState?.focusSearch === true
+  // 커서를 옮긴 뒤 표시를 기록에서 지운다 — 남아 있으면 ‹ · 뒤로 · 새로 고침으로 돌아올 때마다 폰 자판이 떴다 (검토 6-2 조건 2).
+  // 찾기 칸(자식)의 포커스 effect 가 먼저 돈 다음이다
+  useEffect(() => {
+    if (!focusSearch) return
+    const rest: { purged?: string; focusSearch?: boolean } = { ...navState }
+    delete rest.focusSearch
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: rest.purged ? rest : null })
+    // 처음 들어올 때 한 번만
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [notice, setNotice] = useState<{ tone: 'green' | 'amber'; text: string; detail?: string } | null>(() =>
     purged ? { tone: 'green', text: `${purged}을(를) 지웠습니다.` } : null,
   )
@@ -395,7 +407,8 @@ export function StockManager() {
       <section className="stock-find" aria-label="종목 추가">
         <SymbolSearch
           key={searchKey}
-          focusOnMount={focusSearch && searchKey === 0}
+          // 담은 뒤 칸이 다시 그려질 때는 위 effect 가 표시를 이미 지워 false 다
+          focusOnMount={focusSearch}
           selected={null}
           owned={ownedTickers}
           onSelect={(match) => {

@@ -278,7 +278,8 @@ describe('대시보드 · 상태 표시', () => {
     expect(steps).toHaveLength(3)
     expect(steps[0]).toMatch(/^종목 담기/)
     expect(screen.getByRole('link', { name: '종목 담으러 가기' })).toHaveAttribute('href', '/stocks')
-    expect(screen.getByText(/30개까지/)).toBeInTheDocument()
+    // 보이는 글로 — 서버 한도 테스트(backend test_policy_page)는 파일 원문을 보니 주석에도 속는다 (검토 6-2 조건 1)
+    expect(screen.getByText('종목은 30개까지 담을 수 있습니다.')).toBeInTheDocument()
   })
 
   it('시세가 오래된 종목은 판정에서 제외됐다고 알린다', async () => {

@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppStateProvider } from '../AppState'
 import { api, ApiError } from '../api/client'
@@ -135,6 +135,51 @@ describe('빈 화면에서 넘어오면 찾기 칸에 커서 (묶음 6 사용자
     mockApi([])
     renderWith({ focusSearch: true })
     await waitFor(() => expect(symbolInput()).toHaveFocus())
+  })
+
+  it('한 번 옮긴 뒤 표시를 지운다 — 종목 안에 갔다가 뒤로 와도 다시 안 옮긴다 (검토 6-2 조건 2)', async () => {
+    mockApi([])
+    function Go() {
+      const navigate = useNavigate()
+      return (
+        <>
+          <button type="button" onClick={() => navigate('/stocks/VOO')}>종목 안으로</button>
+          <button type="button" onClick={() => navigate(-1)}>뒤로</button>
+        </>
+      )
+    }
+    render(
+      <MemoryRouter initialEntries={[{ pathname: '/stocks', state: { focusSearch: true } }]}>
+        <AppStateProvider>
+          <Routes>
+            <Route path="/stocks" element={<StockManager />} />
+            <Route path="/stocks/:ticker" element={<p>종목 안</p>} />
+          </Routes>
+          <Go />
+        </AppStateProvider>
+      </MemoryRouter>,
+    )
+    await waitFor(() => expect(symbolInput()).toHaveFocus())
+    await userEvent.click(screen.getByRole('button', { name: '종목 안으로' }))
+    await screen.findByText('종목 안')
+    await userEvent.click(screen.getByRole('button', { name: '뒤로' }))
+    await screen.findByRole('heading', { name: '담은 종목이 없습니다' })
+    expect(symbolInput()).not.toHaveFocus()
+  })
+
+  it('담은 뒤 찾기 칸이 다시 그려져도 커서를 다시 옮기지 않는다', async () => {
+    mockApi([])
+    const create = vi.spyOn(api, 'createStock').mockResolvedValue(created())
+    const user = userEvent.setup()
+    renderWith({ focusSearch: true })
+    await waitFor(() => expect(symbolInput()).toHaveFocus())
+
+    await user.type(symbolInput(), '삼성전자')
+    await user.click(await screen.findByText('삼성전자'))
+    await user.click(screen.getByRole('button', { name: /종목 추가/ }))
+    await waitFor(() => expect(create).toHaveBeenCalled())
+    await waitFor(() => expect(symbolInput()).toHaveValue(''))
+    expect(symbolInput()).not.toHaveFocus()
   })
 
   it('그냥 탭으로 오면 커서를 옮기지 않는다 — 폰 자판이 저절로 뜨지 않게', async () => {

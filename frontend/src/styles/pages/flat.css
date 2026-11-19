@@ -251,3 +251,8 @@ button.signal-count .signal-count-label::after {
 .first-steps .hint {
   margin-top: 12px;
 }
+
+/* 빈 화면 글 속 링크도 강조색 — "보유 없음"의 리밸런싱 링크가 브라우저 기본 파랑이었다 (검토 6-2 참고) */
+.empty-state a:not(.link-button) {
+  color: var(--accent);
+}

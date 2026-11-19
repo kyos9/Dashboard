@@ -53,6 +53,12 @@ function Where() {
   return <span data-testid="where">{pathname}</span>
 }
 
+/** 종목 목록 자리 — 찾기 칸에 커서를 두라는 표시(묶음 6)가 같이 왔는지도 보인다 */
+function StocksList() {
+  const state = useLocation().state as { focusSearch?: boolean } | null
+  return <p>종목 목록{state?.focusSearch ? ' (찾기 칸 커서)' : ''}</p>
+}
+
 /** 앱처럼 주소가 바뀌면 화면을 새로 만든다(App 의 PageBoundary key={pathname}) */
 function Keyed() {
   const { pathname } = useLocation()
@@ -70,7 +76,7 @@ function renderAt(path: string) {
       <AppStateProvider>
         <Routes>
           <Route path="/stocks/:ticker" element={<Keyed />} />
-          <Route path="/stocks" element={<p>종목 목록</p>} />
+          <Route path="/stocks" element={<StocksList />} />
         </Routes>
         <Where />
       </AppStateProvider>
@@ -254,6 +260,9 @@ describe('주소의 종목 — 옛 차트 화면(0.45.1 B2·BCD)이 하던 일�
     expect(screen.getByRole('link', { name: '종목 탭으로' })).toHaveAttribute('href', '/stocks')
     // 담을 길이 없는 종목에 AI 분석 단추를 두지 않는다(사용자 확인 막힌 곳 1)
     expect(screen.queryByRole('button', { name: /AI 분석/ })).toBeNull()
+    // 누르면 찾기 칸에 바로 친다 (묶음 6 사용자 확인 · 검토 6-2 조건 3)
+    await userEvent.click(screen.getByRole('link', { name: '종목 탭으로' }))
+    expect(await screen.findByText('종목 목록 (찾기 칸 커서)')).toBeInTheDocument()
   })
 
   it('없는 티커의 시세는 부르지 않는다 — 목록을 받기 전에도', async () => {

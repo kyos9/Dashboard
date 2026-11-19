@@ -763,7 +763,7 @@ export function Dashboard() {
         <Link to="/stocks" state={{ focusSearch: true }} className="link-button first-steps-go">
           종목 담으러 가기
         </Link>
-        {/* "종목은 30개까지" — 서버 한도와 같은 말인지 backend/tests/test_policy_page.py 가 본다 */}
+        {/* 서버 한도와 같은 숫자인지 backend/tests/test_policy_page.py 가 이 글을 본다 — 주석에 같은 말을 적으면 테스트가 주석만 보고 통과한다(검토 6-2) */}
         <p className="hint">종목은 30개까지 담을 수 있습니다.</p>
       </section>
     )
