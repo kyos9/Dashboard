@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -831,6 +831,27 @@ describe('예상치 — 줄에는 한 마디, 입력은 차트 창 안 (목업 1
     await waitFor(() => expect(within(dialog).getByLabelText('CPI 예상치가 가리키는 달')).toHaveFocus())
     await userEvent.keyboard('{Escape}')
     expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+
+  it('★ 뒤 다른 칸으로 옮겨 간 다음 화면을 다시 읽어도 포커스를 빼앗지 않는다 — 별을 누를 때만 데려간다 (검토 5 참고)', async () => {
+    const two = [series({ code: 'DGS10', name: '미 10년물 금리' }), series({ code: 'VIX', name: 'VIX' })]
+    mockMacro({ series: two, pinned: [] })
+    vi.spyOn(api, 'setMacroPinned').mockImplementation(async () => {
+      vi.mocked(api.getMacro).mockResolvedValue({ series: two, term_spread: null, badges: [], pinned: ['VIX'] })
+      return { codes: ['VIX'], series: [], badges: [] }
+    })
+    vi.spyOn(api, 'refreshMacro').mockResolvedValue([])
+    renderPanel()
+    await userEvent.click(await screen.findByRole('button', { name: 'VIX 내 지표로' }))
+    const mine = await screen.findByRole('list', { name: '내 지표' })
+    await waitFor(() => expect(within(mine).getByRole('button', { name: 'VIX 내 지표로' })).toHaveFocus())
+    // 다른 칸으로 옮긴 뒤 화면을 다시 읽는다(받아오기 — 누름은 포커스를 옮기지 않는 이벤트로)
+    screen.getByRole('button', { name: '미 10년물 금리 내 지표로' }).focus()
+    const calls = vi.mocked(api.getMacro).mock.calls.length
+    fireEvent.click(screen.getByRole('button', { name: '지금 받아오기' }))
+    await waitFor(() => expect(vi.mocked(api.getMacro).mock.calls.length).toBeGreaterThan(calls))
+    await waitFor(() => expect(screen.getByRole('button', { name: '지금 받아오기' })).not.toBeDisabled())
+    expect(screen.getByRole('button', { name: '미 10년물 금리 내 지표로' })).toHaveFocus()
   })
 
   it('★ 저장이 실패하면 되돌아간 자리의 별로 포커스 · 알림 "옮기지 못했습니다" (세 번째 검토 참고)', async () => {
