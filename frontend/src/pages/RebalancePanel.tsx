@@ -774,7 +774,8 @@ function SignalBadges({ current }: { current: RebalanceRow }) {
       {current.shoulder_signal_fired_in_period && (
         <span className="badge-group">
           <span className="badge-group-label">참고</span>
-          <span className="badge badge-sell badge-nowrap" title="이번 리뷰 기간에 매도 시그널(참고)이 한 번 이상 떴습니다.">
+          {/* 참고 꼬리표는 회색 — 빨강이면 "늘릴 종목" 줄에서 팔라는 말로 읽혔다(② 주인 답, 사용자 확인 2) */}
+          <span className="badge badge-grey badge-nowrap" title="이번 리뷰 기간에 매도 시그널(참고)이 한 번 이상 떴습니다.">
             <SignalShape kind="sell" size={9} />
             기간 내 매도
           </span>

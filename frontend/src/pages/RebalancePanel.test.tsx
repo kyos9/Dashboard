@@ -1285,8 +1285,9 @@ describe('리밸런싱 · 묶음 4 사용자 확인 보완', () => {
       expect(sheet).toHaveTextContent('수량 · 평단가는 종목 화면의 “보유” 탭에서 고칩니다.')
       // 계산 소수는 따로 한 줄 — "1주 (1.35)" 괄호가 무엇인지 몰랐다
       expect(sheet.querySelector('.order-sheet-act b')).toHaveTextContent('−1주계산으로는 1.35주 · 1주 단위로 내림')
-      // 기간 내 매도 배지는 시그널 매도 색(상승 빨강이면 ▼ 와 같이 바뀐다)
-      expect(within(sheet).getByText('기간 내 매도')).toHaveClass('badge-sell')
+      // 기간 내 매도는 참고 꼬리표라 회색 — 빨강이면 늘릴 종목 줄에서 팔라는 말로 읽혔다 (② 주인 답 "회색으로")
+      expect(within(sheet).getByText('기간 내 매도')).toHaveClass('badge-grey')
+      expect(within(sheet).getByText('기간 내 매도')).not.toHaveClass('badge-sell')
       await user.click(within(sheet).getByRole('button', { name: '목표 · 밴드 고치기' }))
       expect(screen.queryByRole('dialog', { name: 'VOO 주문 자세히' })).toBeNull()
       expect(screen.getByRole('dialog', { name: '목표 비중 · 밴드 고치기' })).toBeInTheDocument()

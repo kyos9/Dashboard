@@ -84,9 +84,3 @@
   word-break: keep-all;
 }
 
-/* 매도 시그널 뜻 — 상승 빨강 설정이면 ▼ 모양과 같이 따라간다 (디자인 4차 묶음 4 사용자 확인) */
-.badge-sell {
-  color: var(--signal-sell);
-  background: var(--signal-sell-soft);
-  border-color: var(--signal-sell-line);
-}
