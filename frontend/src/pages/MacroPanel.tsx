@@ -1,4 +1,4 @@
-import { Suspense, useCallback, useState } from 'react'
+import { Suspense, useCallback, useLayoutEffect, useState } from 'react'
 import { api } from '../api/client'
 import { useAuth } from '../components/AuthGate'
 import { ErrorNotice } from '../components/ErrorNotice'
@@ -206,6 +206,17 @@ export function MacroPanel() {
   const [open, setOpen] = useState<MacroSeriesInfo | null>(null)
   const [pinning, setPinning] = useState(false)
   const [pinNote, setPinNote] = useState('')
+  // 포커스 · 화면을 데려갈 별 — 줄이 옮겨 그려진 "다음"에 옮긴다. rAF 로 하면 되돌림이 그려지기 전에 돌아
+  // 곧 사라질 옛 별에 포커스가 갔다(묶음 5 네 번째 검토 조건 1)
+  const [follow, setFollow] = useState<{ code: string; n: number } | null>(null)
+  useLayoutEffect(() => {
+    if (!follow) return
+    const star = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-pin]')).find((el) => el.dataset.pin === follow.code)
+    star?.focus({ preventScroll: true })
+    // 움직임 줄이기를 켠 사람에게는 부드럽게 굴리지 않는다 (재검토 참고)
+    const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    star?.scrollIntoView?.({ block: 'center', behavior: still ? 'auto' : 'smooth' })
+  }, [follow])
   // 예상치 저장 실패 까닭은 그 창 것 — 화면 까닭과 하나를 같이 쓰면 다른 지표 창에도 남아 떴다(묶음 5 검토 조건 1)
   const [forecastError, setForecastError] = useState<unknown>(null)
   const openChart = (item: MacroSeriesInfo | null) => {
@@ -254,15 +265,7 @@ export function MacroPanel() {
     // 옮긴 자리의 별로 포커스와 화면을 데려간다
     const name = data.series.find((item) => item.code === code)?.name ?? code
     setPinNote(next.includes(code) ? `${name} 을(를) 맨 위 내 지표로 옮겼습니다` : `${name} 을(를) 내 지표에서 뺐습니다`)
-    const followStar = () =>
-      requestAnimationFrame(() => {
-        const star = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-pin]')).find((el) => el.dataset.pin === code)
-        star?.focus({ preventScroll: true })
-        // 움직임 줄이기를 켠 사람에게는 부드럽게 굴리지 않는다 (재검토 참고)
-        const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-        star?.scrollIntoView?.({ block: 'center', behavior: still ? 'auto' : 'smooth' })
-      })
-    followStar()
+    setFollow((n) => ({ code, n: (n?.n ?? 0) + 1 }))
     try {
       const saved = await api.setMacroPinned(next)
       setData((current) => (current ? { ...current, pinned: saved.codes } : current))
@@ -272,7 +275,8 @@ export function MacroPanel() {
       setData((current) => (current ? { ...current, pinned: before } : current))
       setPinNote(`${name} 을(를) 옮기지 못했습니다`) // "옮겼습니다"로 남아 있었다 (재검토 참고)
       setError(e)
-      followStar() // 되돌아간 자리의 별로 — 폰에서 포커스가 body 로 떨어졌다 (세 번째 검토 참고)
+      // 되돌아간 자리의 별로 — 폰에서 포커스가 body 로 떨어졌다 (세 번째 검토 참고). 되돌림과 같은 그림에서 옮긴다
+      setFollow((n) => ({ code, n: (n?.n ?? 0) + 1 }))
     } finally {
       setPinning(false)
     }
