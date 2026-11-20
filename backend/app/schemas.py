@@ -732,6 +732,8 @@ class PerRange(BaseModel):
     min: float
     max: float
     median: float
+    # 지난 기간 날마다 PER 의 평균 (적자인 날 뺌)
+    mean: Optional[float] = None
     current: Optional[float] = None
     # 지난 기간 중 지금 PER 이하였던 날의 비율 (%)
     position_pct: Optional[float] = None

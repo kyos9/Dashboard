@@ -1,10 +1,11 @@
 import { MemoryRouter } from 'react-router-dom'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../api/client'
 import { AppStateProvider } from '../AppState'
 import { FUNDAMENTALS } from '../test/fundamentalsFixture'
+import { forgetPhone, pretendPhone } from '../test/phone'
 import type { FundamentalsResponse } from '../types'
 import { FundamentalsPage } from './FundamentalsPage'
 
@@ -41,9 +42,12 @@ const ETF: FundamentalsResponse = {
 }
 const NOT_YET: FundamentalsResponse = { ...ETF, ticker: 'NEW', name: null, currency: 'USD', state: null, message: null }
 
+// 아래는 폰 재무 화면 (표 + PER 그래프) — PC 는 DesktopFundamentals.test.tsx (디자인 5차)
 beforeEach(() => {
   vi.restoreAllMocks()
+  pretendPhone()
 })
+afterEach(() => forgetPhone())
 
 describe('재무 화면', () => {
   it('재무가 있는 종목은 표 한 줄 — 지표와 몇 분기까지인지', async () => {

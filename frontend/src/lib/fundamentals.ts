@@ -225,3 +225,15 @@ export function perTooltip(row: FundamentalsResponse): string {
   }
   return parts.join(' · ')
 }
+
+/** "2026-09-30" → "2026년 3분기" (결산 달이 든 달력 분기) */
+export function quarterName(periodEnd: string): string {
+  const [y, m] = periodEnd.split('-').map(Number)
+  return `${y}년 ${Math.ceil(m / 3)}분기`
+}
+
+/** 둘 다 있고 앞이 0보다 클 때만 비율이 뜻이 있다 */
+export function growth(now: number | null | undefined, before: number | null | undefined): number | null {
+  if (now == null || before == null || before <= 0) return null
+  return (now / before - 1) * 100
+}

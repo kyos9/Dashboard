@@ -458,6 +458,8 @@ def per_history(facts: list[Fact], prices: list[tuple[dt.date, float]], current:
         "min": ordered[0],
         "max": ordered[-1],
         "median": statistics.median(ordered),
+        # 재무 화면의 "5년 평균" (디자인 5차) — 적자인 날은 위에서 이미 뺐다
+        "mean": statistics.fmean(ordered),
         "current": current,
         "position_pct": position,
         "since": first_day,

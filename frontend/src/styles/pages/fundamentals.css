@@ -419,3 +419,211 @@
   }
 }
 
+
+/* ── PC 재무 (디자인 5차 목업 04 나 · 04c) — 홈 시그널 탭의 sig-panel · sig-list · sig-detail 을 같이 쓴다 ── */
+.sig-panel.fd-panel {
+  grid-template-columns: 240px 1fr;
+}
+
+button.sig-item.fd-item {
+  font-weight: 600;
+  white-space: normal;
+  text-align: left;
+}
+
+button.sig-item.fd-item.active {
+  color: var(--accent);
+}
+
+button.sig-item.fd-item.off {
+  font-weight: 400;
+  color: var(--text-faint);
+}
+
+.sig-list li.fd-group {
+  padding: 8px 16px;
+  font-size: var(--fs-caption);
+  color: var(--text-faint);
+  background: var(--panel-soft);
+}
+
+.fd-detail .sig-detail-head {
+  align-items: baseline;
+}
+
+.fd-empty {
+  margin-top: 14px;
+}
+
+.fd-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.fd-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.fd-card h4 {
+  margin: 0;
+  padding: 9px 14px;
+  font-size: 14px;
+  background: var(--panel-soft);
+}
+
+.fd-card ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fd-card li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.fd-card li span {
+  color: var(--text-dim);
+}
+
+.fd-card li b {
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+.fd-sec {
+  margin-top: 22px;
+}
+
+.fd-sec h4 {
+  margin: 0 0 10px;
+  font-size: 15px;
+}
+
+.fd-per {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.3fr;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.fd-per > div {
+  padding: 16px 20px;
+}
+
+.fd-per > div + div {
+  border-left: 1px solid var(--border);
+}
+
+.fd-per > div > span {
+  display: block;
+  font-size: 13px;
+  color: var(--text-faint);
+}
+
+.fd-per b {
+  display: block;
+  margin-top: 4px;
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+
+.fd-per b small {
+  margin-left: 2px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.fd-per .now b {
+  color: var(--accent);
+}
+
+.fd-per p {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.fd-none {
+  margin: 0;
+  padding: 14px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  font-size: 13px;
+  color: var(--text-faint);
+}
+
+.fd-table-wrap {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: auto;
+}
+
+.fd-quarters {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.fd-quarters th,
+.fd-quarters td {
+  padding: 10px 8px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.fd-quarters thead th {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dim);
+  background: var(--panel-soft);
+  border-bottom: 1px solid var(--border);
+}
+
+.fd-quarters thead th:first-child,
+.fd-quarters tbody th {
+  text-align: left;
+  padding-left: 16px;
+}
+
+.fd-quarters tbody tr + tr > * {
+  border-top: 1px solid var(--border);
+}
+
+.fd-quarters tbody th {
+  font-weight: 600;
+}
+
+.fd-quarters tbody th small,
+.fd-quarters td small {
+  display: block;
+  font-size: var(--fs-caption);
+  font-weight: 400;
+  color: var(--text-faint);
+}
+
+.fd-quarters td b {
+  display: block;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+.fd-quarters td small {
+  margin-top: 2px;
+}
+
+.fd-quarters td small em {
+  font-style: normal;
+}

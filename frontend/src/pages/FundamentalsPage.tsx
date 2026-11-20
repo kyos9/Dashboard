@@ -1,5 +1,6 @@
 import { Icon } from '../components/icons/Icon'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
+import { DesktopFundamentals } from '../components/fundamentals/DesktopFundamentals'
 import { NoStocksYet } from '../components/NoStocksYet'
 import { Suspense, useEffect, useState } from 'react'
 import { useNarrow } from '../lib/narrow'
@@ -54,6 +55,7 @@ export function FundamentalsPage() {
   }, [rows])
 
   const narrow = useNarrow()
+  const [params, setParams] = useSearchParams()
   const shown = (rows ?? []).filter((r) => r.metrics.length > 0)
   const hidden = (rows ?? []).filter((r) => r.metrics.length === 0)
   const priceDate = shown.map((r) => r.price_date).find(Boolean)
@@ -74,10 +76,12 @@ export function FundamentalsPage() {
           ) : (
             <h2>재무</h2>
           )}
+          {narrow && (
           <PageIntro line="공시된 숫자로 계산한 가치·성장입니다." firstVisit={rows === null ? null : rows.length === 0}>
             PER·PBR·배당수익률은 최근 종가{priceDate ? `(${priceDate})` : ''} 기준이고, 성장은 1년 전 같은 분기와
             비교한 값입니다. 종목 이름을 누르면 분기 표와 PER 5년 위치가 열립니다.
           </PageIntro>
+          )}
         </div>
       </div>
 
@@ -87,6 +91,13 @@ export function FundamentalsPage() {
         !error && <PageSkeleton blocks={0} rows={5} />
       ) : rows.length === 0 ? (
         <NoStocksYet title="담은 종목이 없습니다" shows="재무가" />
+      ) : !narrow ? (
+        // PC (디자인 5차 목업 04 나 · 04c): 왼쪽 종목, 오른쪽 자세히 — 팝업 없이 화면에 바로
+        <DesktopFundamentals
+          rows={rows}
+          selected={params.get('ticker')}
+          onSelect={(ticker) => setParams({ ticker }, { replace: true })}
+        />
       ) : (
         <>
           <PerChart rows={shown} onOpen={setOpen} />

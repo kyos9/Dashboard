@@ -202,6 +202,7 @@ def test_per_history_uses_eps_known_on_each_day():
     # 2025년 분기가 하나씩 공시될 때마다 TTM 이 5, 6, 7, 8 로 오른다 → PER 10 … 5
     assert got["max"] == pytest.approx(10.0)
     assert got["min"] == pytest.approx(5.0)
+    assert got["min"] < got["mean"] < got["max"]
     assert 0 < got["position_pct"] < 50
     assert got["since"] >= D(2024, 1, 1)
 

@@ -264,6 +264,8 @@ export interface PerRange {
   min: number
   max: number
   median: number
+  /** 지난 기간 날마다 PER 의 평균 (적자인 날 뺌) */
+  mean?: number | null
   current: number | null
   /** 지난 기간 중 지금 PER 이하였던 날의 비율 (%) */
   position_pct: number | null
