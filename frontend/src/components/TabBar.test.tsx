@@ -2,14 +2,14 @@
  * 화면 탭 (디자인 4차 묶음 2 — 주인: 탭 구성 B, "처음부터 없는 상태로 디자인한다고 생각해").
  *
  * 홈 · 종목 · 리밸런싱 · 매크로 · 설정 다섯. 더보기도 머리줄 ⋯ 메뉴도 없다.
- * PC 는 왼쪽 메뉴(목업 09b A), 폰은 화면 아래. 재무 · 차트는 종목 안으로 갈 때까지 종목 탭에 속한다.
+ * 폰은 화면 아래. PC 는 디자인 5차부터 위 메뉴(AppHeader) — 홈 · 재무 · 리밸런싱 · 매크로. 재무 · 차트는 종목 안으로 갈 때까지 종목 탭에 속한다.
  */
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, describe, expect, it } from 'vitest'
 import { forgetPhone, pretendPhone } from '../test/phone'
-import { activeTab } from '../lib/tabs'
+import { activePcTab, activeTab } from '../lib/tabs'
 import { TabBar } from './TabBar'
 
 function Where() {
@@ -33,22 +33,10 @@ function names(nav: HTMLElement) {
 
 afterEach(() => forgetPhone())
 
-describe('PC — 왼쪽 메뉴', () => {
-  it('다섯 탭이 주인이 고른 순서로, 아이콘과 이름. 더보기 없음', () => {
+describe('PC — 아래 탭은 그리지 않는다 (디자인 5차: 위 메뉴는 AppHeader)', () => {
+  it('PC 폭에서는 탭 줄이 없다', () => {
     renderTabs()
-    const nav = screen.getByRole('navigation', { name: '화면' })
-    expect(nav).toHaveClass('side-nav')
-    expect(names(nav)).toEqual(['홈', '종목', '리밸런싱', '매크로', '설정'])
-    expect(nav.querySelectorAll('svg[data-icon]')).toHaveLength(5)
-    expect(screen.queryByRole('button', { name: /더보기/ })).not.toBeInTheDocument()
-  })
-
-  it('켜진 탭은 그림 속을 채운다 — 나머지는 선만', () => {
-    renderTabs('/macro')
-    const on = screen.getByRole('link', { name: '매크로' })
-    expect(on).toHaveAttribute('aria-current', 'page')
-    expect(on.querySelector('path[fill="currentColor"]')).not.toBeNull()
-    expect(screen.getByRole('link', { name: '홈' }).querySelector('path[fill="currentColor"]')).toBeNull()
+    expect(screen.queryByRole('navigation', { name: '화면' })).not.toBeInTheDocument()
   })
 })
 
@@ -65,15 +53,30 @@ describe('폰 — 아래 탭', () => {
   })
 })
 
-describe('제 주소가 아니어도 켜진 탭은 aria-current (묶음 2 검토 조건 2)', () => {
+describe('제 주소가 아니어도 켜진 탭은 aria-current (묶음 2 검토 조건 2) — 폰', () => {
   it.each([
     ['/fundamentals', '종목'],
     ['/stocks/VOO', '종목'],
     ['/ai/portfolio', '홈'],
   ])('%s → %s', (path, name) => {
+    pretendPhone()
     renderTabs(path)
     expect(screen.getByRole('link', { name })).toHaveAttribute('aria-current', 'page')
     expect(screen.getAllByRole('link').filter((a) => a.getAttribute('aria-current') === 'page')).toHaveLength(1)
+  })
+})
+
+describe('PC 위 메뉴 — 어느 메뉴가 켜지나 (디자인 5차)', () => {
+  it.each([
+    ['/', '/'],
+    ['/ai/portfolio', '/'],
+    ['/stocks/005930.KS', '/'],
+    ['/fundamentals', '/fundamentals'],
+    ['/rebalance', '/rebalance'],
+    ['/macro', '/macro'],
+    ['/settings', ''],
+  ])('%s → %s', (path, tab) => {
+    expect(activePcTab(path)).toBe(tab)
   })
 })
 

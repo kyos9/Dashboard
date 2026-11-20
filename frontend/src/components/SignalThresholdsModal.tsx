@@ -139,6 +139,48 @@ export function SignalThresholdsModal({
     }
   }
 
+  const fieldRow = (f: (typeof FIELDS)[number]) => {
+    const id = `threshold-${f.key}`
+    const changed = Number(draft[f.key]) !== defaults[f.key]
+    return (
+      <section key={f.key} className="threshold-row">
+        <label htmlFor={id}>{f.label}</label>
+        <div className="threshold-input">
+          <NumberInput
+            id={id}
+            inputMode="decimal"
+            value={draft[f.key]}
+            allowDecimal={f.decimal}
+            allowNegative={f.negative}
+            aria-describedby={`${id}-help`}
+            aria-invalid={problems[f.key] ? true : undefined}
+            onChange={(v) => setDraft((d) => ({ ...d, [f.key]: v }))}
+          />
+          {f.unit && <span className="unit">{f.unit}</span>}
+          <span className={`hint${changed ? ' changed' : ''}`}>
+            기본 {show(defaults[f.key])}
+            {f.unit}
+            {changed && ' · 바꿈'}
+          </span>
+          {/* 넣을 수 있는 범위를 틀리기 전에 보이게 (0.42.0 사용자 확인) */}
+          {limits?.[f.key] && (
+            <span className="hint">
+              {show(limits[f.key].min)} ~ {show(limits[f.key].max)}
+            </span>
+          )}
+        </div>
+        {problems[f.key] && (
+          <p className="field-error" role="alert">
+            {problems[f.key]}
+          </p>
+        )}
+        <p className="hint" id={`${id}-help`}>
+          {f.help}
+        </p>
+      </section>
+    )
+  }
+
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div
@@ -163,47 +205,32 @@ export function SignalThresholdsModal({
           따르고, 다른 사람에게는 영향이 없습니다. 바꾼 순간 이미 켜진 매수는 알림을 보내지 않습니다.
         </p>
 
-        {FIELDS.map((f) => {
-          const id = `threshold-${f.key}`
-          const changed = Number(draft[f.key]) !== defaults[f.key]
-          return (
-            <section key={f.key} className="threshold-row">
-              <label htmlFor={id}>{f.label}</label>
-              <div className="threshold-input">
-                <NumberInput
-                  id={id}
-                  inputMode="decimal"
-                  value={draft[f.key]}
-                  allowDecimal={f.decimal}
-                  allowNegative={f.negative}
-                  aria-describedby={`${id}-help`}
-                  aria-invalid={problems[f.key] ? true : undefined}
-                  onChange={(v) => setDraft((d) => ({ ...d, [f.key]: v }))}
-                />
-                {f.unit && <span className="unit">{f.unit}</span>}
-                <span className={`hint${changed ? ' changed' : ''}`}>
-                  기본 {show(defaults[f.key])}
-                  {f.unit}
-                  {changed && ' · 바꿈'}
-                </span>
-                {/* 넣을 수 있는 범위를 틀리기 전에 보이게 (0.42.0 사용자 확인) */}
-                {limits?.[f.key] && (
-                  <span className="hint">
-                    {show(limits[f.key].min)} ~ {show(limits[f.key].max)}
-                  </span>
-                )}
-              </div>
-              {problems[f.key] && (
-                <p className="field-error" role="alert">
-                  {problems[f.key]}
-                </p>
-              )}
-              <p className="hint" id={`${id}-help`}>
-                {f.help}
-              </p>
-            </section>
-          )
-        })}
+        {/* 매수 · 매도 · 비중조절을 색 띠 머리로 나눈다 (디자인 5차 목업 02e — 주인: 머리가 구분 없이 보였다) */}
+        <section className="threshold-group buy" aria-label="매수 조건">
+          <h4 className="threshold-group-head">매수 조건</h4>
+          <p className="threshold-fixed">
+            <span>하락 우세</span>
+            <span>−DI 가 +DI 보다 클 때</span>
+          </p>
+          {FIELDS.filter((f) => f.key !== 'lookback_days').map(fieldRow)}
+          {FIELDS.filter((f) => f.key === 'lookback_days').map(fieldRow)}
+        </section>
+        <section className="threshold-group sell" aria-label="매도 조건">
+          <h4 className="threshold-group-head">매도 조건 (참고)</h4>
+          <p className="threshold-fixed">
+            <span>MA50 대비</span>
+            <span>종가가 MA50 보다 클 때</span>
+          </p>
+          <p className="threshold-fixed">
+            <span>ADX 오름</span>
+            <span>비교 기간 전보다 클 때</span>
+          </p>
+          <p className="threshold-fixed">
+            <span>5일 거래량</span>
+            <span>20일 평균보다 클 때</span>
+          </p>
+          <p className="hint threshold-group-note">매도 조건의 기준은 지금 바꿀 수 없습니다.</p>
+        </section>
 
         {error && (
           <p className="field-error" role="alert">

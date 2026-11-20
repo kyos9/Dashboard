@@ -2,6 +2,7 @@ import { Icon } from '../components/icons/Icon'
 import { Link } from 'react-router-dom'
 import { NoStocksYet } from '../components/NoStocksYet'
 import { Suspense, useEffect, useState } from 'react'
+import { useNarrow } from '../lib/narrow'
 import { api } from '../api/client'
 import { useAppState } from '../AppState'
 import { ErrorNotice } from '../components/ErrorNotice'
@@ -52,6 +53,7 @@ export function FundamentalsPage() {
     if (rows && rows.length > 0) preloadChartModal()
   }, [rows])
 
+  const narrow = useNarrow()
   const shown = (rows ?? []).filter((r) => r.metrics.length > 0)
   const hidden = (rows ?? []).filter((r) => r.metrics.length === 0)
   const priceDate = shown.map((r) => r.price_date).find(Boolean)
@@ -60,13 +62,18 @@ export function FundamentalsPage() {
     <>
       <div className="page-head">
         <div>
-          {/* 종목 탭 ⋯ 의 "재무 한눈에"로 온다 — 단추와 같은 이름, 폰에는 ‹ 로 돌아갈 길 (묶음 3 사용자 확인 헷갈린 말 7) */}
-          <div className="sub-head">
-            <Link to="/stocks" className="sub-back" aria-label="종목 탭으로">
-              <Icon name="back" size={22} />
-            </Link>
-            <h2>재무 한눈에</h2>
-          </div>
+          {/* 폰: 종목 탭 ⋯ 의 "재무 한눈에"로 온다 — ‹ 로 돌아갈 길 (묶음 3 사용자 확인 헷갈린 말 7).
+              PC: 위 메뉴 "재무"가 이 화면이다(디자인 5차) — 돌아갈 곳이 없으니 ‹ 없이 "재무" */}
+          {narrow ? (
+            <div className="sub-head">
+              <Link to="/stocks" className="sub-back" aria-label="종목 탭으로">
+                <Icon name="back" size={22} />
+              </Link>
+              <h2>재무 한눈에</h2>
+            </div>
+          ) : (
+            <h2>재무</h2>
+          )}
           <PageIntro line="공시된 숫자로 계산한 가치·성장입니다." firstVisit={rows === null ? null : rows.length === 0}>
             PER·PBR·배당수익률은 최근 종가{priceDate ? `(${priceDate})` : ''} 기준이고, 성장은 1년 전 같은 분기와
             비교한 값입니다. 종목 이름을 누르면 분기 표와 PER 5년 위치가 열립니다.

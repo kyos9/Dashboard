@@ -1,5 +1,6 @@
 import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { DesktopHome } from '../components/home/DesktopHome'
 import { PortfolioView, type SignalFilter } from '../components/PortfolioView'
 import { ReasonTag, SellTooTag, SignalShape } from '../components/SignalShape'
 import { BuyConditions } from '../components/BuyConditions'
@@ -772,7 +773,7 @@ export function Dashboard() {
   return (
     <div>
       {/* 위 탭 없음 (디자인 4차 ② — 주인: 보기 전환 "다"). 시그널 목록은 홈의 시그널 칸 · 신호 배지로 들어오고 ‹ 로 돌아간다 */}
-      {mode === 'signal' && (
+      {mode === 'signal' && narrow && (
         <>
           <div className="sub-head">
             <button type="button" className="sub-back" onClick={leaveSignals} aria-label="홈으로">
@@ -813,7 +814,20 @@ export function Dashboard() {
         </div>
       )}
 
-      {mode === 'portfolio' && current ? (
+      {!narrow && current ? (
+        // PC 홈 — 디자인 5차(목업 01 · 02). 보유 종목 · 관심 종목 · 시그널이 홈 안의 탭이다. 폰은 5차 ④ 까지 아래 그대로
+        <DesktopHome
+          current={current}
+          cards={cards}
+          stocks={stocks}
+          canAdvise={canAdvise}
+          canEditThresholds={canCustomize(rules)}
+          onThresholds={() => setShowThresholds(true)}
+          onChart={openChart}
+          onSaved={notifyDataChanged}
+          onError={setError}
+        />
+      ) : mode === 'portfolio' && current ? (
         <PortfolioView
           current={current}
           cards={cards}

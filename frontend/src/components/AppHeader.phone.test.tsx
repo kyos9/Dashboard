@@ -155,14 +155,14 @@ describe('폰 머리줄은 한 줄 — 메뉴 없음', () => {
     expect(settingsRows()).toEqual(['화면', '개인정보처리방침과 이용약관', '만든 이와 글꼴'])
   })
 
-  it('폰을 눕혀 넓어지면 PC 배치 — 탭은 왼쪽 메뉴로', async () => {
+  it('폰을 눕혀 넓어지면 PC 배치 — 탭은 위 메뉴로 (디자인 5차)', async () => {
     const phone = pretendPhone()
     renderAs(FRIEND)
     await screen.findByText('친구')
     expect(screen.getByRole('navigation', { name: '화면' })).toHaveClass('bottom-tabs')
     phone.setNarrow(false)
     // 바뀐 배치는 다음 그리기에 온다
-    expect(await screen.findByRole('navigation', { name: '화면' })).toHaveClass('side-nav')
+    expect(await screen.findByRole('navigation', { name: '화면' })).toHaveClass('top-menu')
   })
 })
 

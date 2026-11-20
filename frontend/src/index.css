@@ -52,6 +52,7 @@
 @import './styles/pages/ai.css';
 @import './styles/components/placeholder.css';
 @import './styles/pages/dashboard.css';
+@import './styles/pages/home.css';
 @import './styles/pages/display-settings.css';
 @import './styles/pages/signal-thresholds.css';
 @import './styles/pages/shell.css';

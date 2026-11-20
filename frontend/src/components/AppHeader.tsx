@@ -6,6 +6,10 @@ import { GuestNotice, LoginButton } from './LoginPrompt'
 import { pushAccount, syncPush } from '../lib/push'
 import { lastLoadedAt, loadedAgoLabel, subscribeCache } from '../lib/cache'
 import { useNarrow } from '../lib/narrow'
+import { Link, useLocation } from 'react-router-dom'
+import { api } from '../api/client'
+import { diagnosticsReason } from '../lib/refreshText'
+import { PC_TABS, activePcTab } from '../lib/tabs'
 
 /** 이미지를 만든 시각을 "9/21 16:11" 로. 읽을 수 없는 값이면 빈 문자열.
  *
@@ -27,7 +31,8 @@ export function buildLabel(builtAt?: string | null): string {
 
 export function AppHeader() {
   const { refreshAll, refreshing, lastSync, refreshError } = useAppState()
-  const { user, guest, pending, isAdmin } = useAuth()
+  const { user, guest, pending, isAdmin, mode, pendingCount, backupAttention, refreshAttention } = useAuth()
+  const { pathname } = useLocation()
   // 들어와 쓰는 사람만 알림이 있다 (손님·승인 대기에게는 보낼 것이 없다)
   const member = !guest && !pending
   const account = pushAccount(user)
@@ -88,6 +93,34 @@ export function AppHeader() {
     </button>
   )
 
+  // PC 새로고침 — 아이콘 하나(5차: 글씨와 아이콘을 같이 쓰지 않는다). 시세와 거래소 목록을 같이 받는다(주인 답 — "거래소 목록 갱신"을 여기로)
+  const wideRefresh = isAdmin && (
+    <button
+      type="button"
+      className="top-icon"
+      onClick={() => void Promise.allSettled([refreshAll(), api.refreshSymbolListing()])}
+      disabled={refreshing}
+      aria-label="새로고침 — 시세와 거래소 목록"
+      title={refreshing ? '갱신 중…' : '새로고침 — 시세와 거래소 목록'}
+    >
+      <Icon name="refresh" size={20} className={refreshing ? 'spin' : undefined} />
+    </button>
+  )
+
+  // 관리자가 볼 것이 있으면 설정 톱니에 점 · 숫자 — 폰 아래 탭과 같은 규칙(TabBar)
+  const diag = isAdmin ? diagnosticsReason(backupAttention, refreshAttention) : null
+  const count = isAdmin ? pendingCount : 0
+  const settingsMark = (
+    <>
+      {count > 0 && (
+        <span className="badge badge-amber count-badge tab-badge" aria-label={`가입 신청 ${count}건`}>
+          {count}
+        </span>
+      )}
+      {diag && <span className={`tab-dot${count > 0 ? ' tab-dot-aside' : ''}`} aria-label={`서버 상태를 확인하세요 — ${diag}`} role="img" />}
+    </>
+  )
+
   return (
     <>
       {narrow ? (
@@ -107,13 +140,40 @@ export function AppHeader() {
           </div>
         </header>
       ) : (
-        // PC: 이름은 왼쪽 메뉴에 있다(목업 09b A). 머리줄은 본문 위 오른쪽 한 줄
-        <header className="app-header wide">
-          <h1 className="sr-only">자산관리</h1>
+        // PC: 위 한 줄 — 로고 · 메뉴(홈 · 재무 · 리밸런싱 · 매크로) · 오른쪽 상태 · 새로고침 · 설정 · 계정 (디자인 5차 목업 01 다)
+        <header className="app-header wide top-nav">
+          <Link to="/" className="top-brand">
+            <span className="top-logo" aria-hidden="true">
+              ₩
+            </span>
+            <h1 className="top-brand-name">자산관리</h1>
+          </Link>
+          <nav className="top-menu" aria-label="화면">
+            {PC_TABS.map((tab) => {
+              const on = activePcTab(pathname) === tab.to
+              return (
+                <Link key={tab.to} to={tab.to} className={`top-tab${on ? ' active' : ''}`} aria-current={on ? 'page' : undefined}>
+                  {tab.label}
+                </Link>
+              )
+            })}
+          </nav>
           <div className="header-right">
             {statusPill}
-            {refreshButton}
+            {wideRefresh}
             {guest && !pending && <LoginButton label="로그인" />}
+            <Link to="/settings" className={`top-icon${pathname.startsWith('/settings') ? ' active' : ''}`} aria-label="설정" title="설정">
+              <Icon name="settings" size={20} />
+              {settingsMark}
+            </Link>
+            {mode === 'google' && user && (
+              <Link to="/settings" className="top-account" title={user.email ?? undefined}>
+                <span className="top-avatar" aria-hidden="true">
+                  {(user.name || user.email || '?').slice(0, 1)}
+                </span>
+                <span className="top-account-name">{user.name || user.email}</span>
+              </Link>
+            )}
           </div>
         </header>
       )}

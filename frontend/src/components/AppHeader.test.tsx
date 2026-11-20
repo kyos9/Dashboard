@@ -38,6 +38,7 @@ function renderHeader() {
 
 beforeEach(() => {
   vi.restoreAllMocks()
+  vi.spyOn(api, 'refreshSymbolListing').mockResolvedValue({} as never)
   localStorage.clear()
   document.documentElement.removeAttribute('data-theme')
 })
@@ -121,14 +122,15 @@ describe('화면 설정', () => {
   })
 })
 
-describe('전체 새로고침', () => {
+// 디자인 5차 — PC 위 메뉴의 새로고침은 아이콘 하나, 시세와 거래소 목록을 같이 받는다
+describe('새로고침 (PC 위 메뉴)', () => {
   it('성공하면 갱신 시각을 보여준다', async () => {
     mockHealth()
     vi.spyOn(api, 'refreshAll').mockResolvedValue([refreshResult({ ticker: 'VOO' })])
     const user = userEvent.setup()
     renderHeader()
 
-    await user.click(screen.getByRole('button', { name: '전체 새로고침' }))
+    await user.click(screen.getByRole('button', { name: /^새로고침/ }))
     expect(await screen.findByText(/시세 연동 정상/)).toBeInTheDocument()
   })
 
@@ -143,7 +145,7 @@ describe('전체 새로고침', () => {
     const user = userEvent.setup()
     renderHeader()
 
-    await user.click(screen.getByRole('button', { name: '전체 새로고침' }))
+    await user.click(screen.getByRole('button', { name: /^새로고침/ }))
 
     const alert = await screen.findByText(/3개 종목 갱신 실패/)
     expect(alert.textContent).toContain('VOO, QQQ, 005930.KS')
@@ -160,7 +162,7 @@ describe('전체 새로고침', () => {
     const user = userEvent.setup()
     renderHeader()
 
-    await user.click(screen.getByRole('button', { name: '전체 새로고침' }))
+    await user.click(screen.getByRole('button', { name: /^새로고침/ }))
 
     const alert = await screen.findByText(/2개 종목 갱신 실패/)
     expect(alert.textContent).toContain('티커 철자를 확인해주세요.')
@@ -173,7 +175,7 @@ describe('전체 새로고침', () => {
     const user = userEvent.setup()
     renderHeader()
 
-    await user.click(screen.getByRole('button', { name: '전체 새로고침' }))
+    await user.click(screen.getByRole('button', { name: /^새로고침/ }))
     expect(await screen.findByText(/백엔드가 응답하지 않습니다/)).toBeInTheDocument()
   })
 })
@@ -202,25 +204,26 @@ describe('구글 계정', () => {
 
   it('누구로 들어와 있는지 설정 탭 맨 위에 — 계정이 여럿인 폰에서 헷갈리지 않게', async () => {
     renderSignedIn({ email: 'friend@example.com', name: '친구', is_owner: false })
-    const name = await screen.findByText('친구')
-    expect(name.closest('.settings-account')).toHaveTextContent('friend@example.com')
+    // PC 위 메뉴에도 이름이 있다(디자인 5차) — 설정 탭 맨 위의 것을 본다
+    const names = await screen.findAllByText('친구')
+    expect(names.find((n) => n.closest('.settings-account'))!.closest('.settings-account')).toHaveTextContent('friend@example.com')
   })
 
   it('관리자에게는 탈퇴 버튼이 없고, 관리자 버튼(전체 새로고침·진단)이 있다', async () => {
     renderSignedIn({ email: 'me@example.com', name: '나', is_owner: true })
-    await screen.findByText('나')
+    await screen.findAllByText('나')
     expect(screen.getByText('관리자')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '탈퇴' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '전체 새로고침' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^새로고침/ })).toBeInTheDocument()
     // 진단은 설정 탭에 (디자인 4차 묶음 2 — 숨은 메뉴 없음)
     expect(screen.getByRole('button', { name: /^서버 상태/ })).toBeInTheDocument()
   })
 
   it('사용자에게는 관리자 버튼이 없다 — 전원의 시세 갱신·남의 로그', async () => {
     renderSignedIn({ email: 'friend@example.com', name: '친구', is_owner: false })
-    await screen.findByText('친구')
+    await screen.findAllByText('친구')
     expect(screen.queryByText('관리자')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '전체 새로고침' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /새로고침/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^서버 상태/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^사용자/ })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '나가기' })).toBeInTheDocument()
@@ -309,7 +312,7 @@ describe('구글 계정', () => {
 
     expect(await screen.findByText('서버 오류')).toBeInTheDocument()
     expect(screen.getByRole('alertdialog')).toBeInTheDocument()
-    expect(screen.getByText('친구')).toBeInTheDocument()
+    expect(screen.getAllByText('친구').length).toBeGreaterThan(0)
   })
 })
 

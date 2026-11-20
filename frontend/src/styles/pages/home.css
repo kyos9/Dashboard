@@ -1,0 +1,589 @@
+/* ---------- PC 홈 (디자인 5차 목업 01 · 02 — 주인이 고른 것) ----------
+   총액 → AI 띠 → 보기 탭 셋(보유 종목 · 관심 종목 · 시그널) + 오른쪽 도구 → 표 / 시그널 판.
+   폰 홈은 5차 ④ 까지 예전 그대로(PortfolioView · dashboard.css). */
+
+.desktop-home {
+  max-width: 1240px;
+  margin: 0 auto;
+}
+
+/* 총액 A — 큰 금액, 아래 손익(수익률), 오른쪽 다음 리뷰 */
+.home-sum {
+  display: flex;
+  align-items: flex-end;
+  gap: 40px;
+  padding: 24px 28px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.home-sum-label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: var(--fs-sub);
+  font-weight: 600;
+  color: var(--text-faint);
+}
+
+.home-sum-label .link-like {
+  font-weight: 500;
+}
+
+.home-sum-big {
+  margin-top: 6px;
+  font-size: 38px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: var(--text);
+}
+
+.home-sum-pnl {
+  margin-top: 8px;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.home-sum-review {
+  margin-left: auto;
+  padding-bottom: 4px;
+  text-align: right;
+}
+
+.home-sum-review span {
+  display: block;
+  margin-bottom: 4px;
+  font-size: var(--fs-caption);
+  color: var(--text-faint);
+}
+
+.home-sum-review b {
+  font-size: var(--fs-strong);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.home-sum-review.due b {
+  color: var(--amber);
+}
+
+/* AI 띠 (목업 01g 나) */
+.ai-band {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 14px;
+  padding: 14px 20px;
+  border: 1px solid var(--accent-line);
+  background: var(--accent-soft);
+  border-radius: var(--radius);
+}
+
+.ai-band-ico {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--panel);
+  color: var(--accent);
+}
+
+.ai-band-text b {
+  display: block;
+  color: var(--accent);
+  font-size: 15px;
+}
+
+.ai-band-text span {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--fs-caption);
+  color: var(--text-dim);
+}
+
+.ai-band-go {
+  margin-left: auto;
+  flex: none;
+}
+
+/* 보기 탭 줄 — 왼쪽 탭 셋, 오른쪽 도구 */
+.home-tabs-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  margin: 26px 0 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.home-tabs {
+  display: flex;
+  gap: 2px;
+}
+
+button.home-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: -1px;
+  padding: 12px 18px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  border-radius: 0;
+  background: none;
+  color: var(--text-dim);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+button.home-tab:hover:not(:disabled) {
+  background: none;
+  color: var(--text);
+}
+
+button.home-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.home-tab-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: var(--panel-soft);
+  color: var(--text-dim);
+  font-size: var(--fs-caption);
+  font-weight: 700;
+}
+
+.home-tab-count.sig {
+  background: var(--signal-sell-soft);
+  color: var(--signal-sell);
+}
+
+.home-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  padding-bottom: 8px;
+}
+
+button.home-tool {
+  min-height: 40px;
+  padding: 0 14px;
+  background: var(--panel);
+  border-color: var(--border-strong);
+  font-size: var(--fs-sub);
+}
+
+button.home-tool.icon-only {
+  width: 40px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  color: var(--text-dim);
+}
+
+.home-tools .money-seg > button {
+  min-height: 32px;
+  padding: 0 12px;
+}
+
+.home-tools .money-seg > button.active {
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: none;
+}
+
+.pop-wrap {
+  position: relative;
+}
+
+.pop-menu {
+  position: absolute;
+  z-index: 30;
+  right: 0;
+  top: calc(100% + 6px);
+  display: flex;
+  flex-direction: column;
+  min-width: 120px;
+  width: max-content;
+  padding: 6px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-pop);
+}
+
+.pop-menu > button {
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  text-align: left;
+  font-size: var(--fs-body);
+  font-weight: 500;
+}
+
+.pop-menu > button:hover:not(:disabled) {
+  background: var(--panel-soft);
+}
+
+.pop-menu > button.on {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* 종목 수정 — 고른 수 · 전체 고르기 · 삭제 · 완료 · 수정 (n) */
+.pick-bar {
+  gap: 10px;
+}
+
+.pick-bar .hint {
+  margin-right: 6px;
+}
+
+.pick-count {
+  font-size: var(--fs-sub);
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.pick-bar button.sm {
+  min-height: 36px;
+  padding: 0 14px;
+  font-size: var(--fs-sub);
+}
+
+button.danger-text {
+  color: var(--red);
+}
+
+/* 보유 · 관심 표 — 가운데 정렬, 종목 칸만 왼쪽 (주인 답). 제목은 한 줄 이름만 */
+.desktop-home .home-table {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow: hidden;
+}
+
+.desktop-home .home-table th,
+.desktop-home .home-table td {
+  text-align: center;
+}
+
+.desktop-home .home-table th {
+  position: static;
+  vertical-align: middle;
+  border-bottom-color: var(--border);
+}
+
+.desktop-home .home-table th.name-cell,
+.desktop-home .home-table td.name-cell {
+  width: 26%;
+  text-align: left;
+  padding-left: 20px;
+}
+
+.desktop-home .home-table td b {
+  font-weight: 700;
+}
+
+.cell-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--fs-caption);
+  color: var(--text-faint);
+}
+
+.stock-name.plain {
+  font-weight: 700;
+}
+
+button.badge-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+button.badge-btn:hover:not(:disabled) {
+  background: none;
+}
+
+.desktop-home .home-table td.pick-cell,
+.desktop-home .home-table th.pick-cell {
+  width: 96px;
+  min-width: 96px;
+  padding-left: 16px;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.row-grip {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 32px;
+  margin-right: 8px;
+  vertical-align: middle;
+  color: var(--text-dim);
+  cursor: grab;
+}
+
+.desktop-home .pick-cell input[type='checkbox'] {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  vertical-align: middle;
+}
+
+.desktop-home th.pick-cell input[type='checkbox'] {
+  margin-left: 36px;
+}
+
+.desktop-home .home-table tr.picked td {
+  background: var(--accent-soft);
+}
+
+.desktop-home .home-table tr.dragging td {
+  background: var(--panel-soft);
+  opacity: 0.7;
+}
+
+/* 관심 종목 — 매수 조건 몇 개 채웠나 (점 넷) */
+.cond-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cond-dots i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--border-strong);
+}
+
+.cond-dots i.on {
+  background: var(--signal-buy);
+}
+
+.cond-dots small {
+  margin-left: 6px;
+  font-size: var(--fs-caption);
+  color: var(--text-faint);
+}
+
+/* ---------- 시그널 탭 (목업 02 다 · 02e) ---------- */
+.sig-panel {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.sig-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.sig-list li + li {
+  border-top: 1px solid var(--border);
+}
+
+button.sig-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 11px 16px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  text-align: left;
+}
+
+button.sig-item:hover:not(:disabled) {
+  background: var(--panel-soft);
+}
+
+button.sig-item.active {
+  background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.sig-item-name b {
+  display: block;
+  font-size: var(--fs-body);
+}
+
+.sig-item-name small {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--fs-caption);
+  font-weight: 500;
+  color: var(--text-dim);
+}
+
+.sig-item .signal-badge-list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.sig-detail {
+  padding: 22px 24px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.sig-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sig-detail-head h3 {
+  margin: 0;
+  font-size: var(--fs-title);
+}
+
+.sig-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.sig-card {
+  display: flex;
+  flex-direction: column;
+  height: 248px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.sig-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 12px 16px;
+  color: var(--on-brand);
+}
+
+.sig-card.buy .sig-card-head {
+  background: var(--signal-buy);
+}
+
+.sig-card.sell .sig-card-head {
+  background: var(--signal-sell);
+}
+
+.sig-card.weight .sig-card-head {
+  background: var(--signal-weight);
+}
+
+.sig-card-head h4 {
+  margin: 0;
+  font-size: 15px;
+  color: inherit;
+}
+
+.sig-card-count {
+  font-weight: 700;
+}
+
+.sig-card-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0 16px;
+  list-style: none;
+}
+
+.sig-line {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-sub);
+}
+
+.sig-line + .sig-line {
+  border-top: 1px solid var(--border);
+}
+
+.sig-mark {
+  width: 14px;
+  text-align: center;
+  font-weight: 800;
+  color: var(--text-faint);
+}
+
+.sig-name {
+  color: var(--text-dim);
+}
+
+.sig-value {
+  margin-left: auto;
+  font-size: 17px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.sig-card.buy .sig-line.ok .sig-mark,
+.sig-card.buy .sig-line.ok .sig-value {
+  color: var(--signal-buy);
+}
+
+.sig-card.sell .sig-line.ok .sig-mark,
+.sig-card.sell .sig-line.ok .sig-value {
+  color: var(--signal-sell);
+}
+
+.sig-detail-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 16px;
+}
+
+.sig-detail-foot button.sm {
+  min-height: 38px;
+  padding: 0 14px;
+  font-size: var(--fs-sub);
+}
+
+/* 종목 추가 창 — 찾기 칸 하나 */
+.add-stock-modal {
+  width: min(560px, 92vw);
+  overflow: visible;
+}
+
+.add-stock-modal .modal-body {
+  overflow: visible;
+  padding-bottom: 20px;
+}

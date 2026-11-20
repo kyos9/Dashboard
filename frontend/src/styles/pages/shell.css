@@ -1,14 +1,76 @@
-/* ---------- 묶음 2 뼈대 화면들 (디자인 4차 목업 09 · 09b) ---------- */
-
-/* PC 머리줄 — 이름은 왼쪽 메뉴에. 본문 위 오른쪽에 상태 · 새로고침 · 로그인만 */
-.app-header.wide {
-  background: transparent;
+/* ---------- PC 위 한 줄 메뉴 (디자인 5차 목업 01 다 · 01e) ----------
+   로고 · 메뉴(홈 · 재무 · 리밸런싱 · 매크로) · 오른쪽 상태 · 새로고침 · 설정 · 계정. 왼쪽 메뉴는 없앴다(주인: 왼쪽이 불편) */
+.app-header.wide.top-nav {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  flex-wrap: nowrap;
+  gap: 6px;
+  min-height: 60px;
+  padding: 0 var(--gutter-right) 0 var(--gutter-left);
+  background: var(--bg-elevated);
   color: var(--text);
-  border-bottom: 0;
-  padding-top: 16px;
-  padding-bottom: 0;
-  max-width: 1440px;
-  margin: 0 auto;
+  border-bottom: 1px solid var(--border);
+}
+
+.top-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-right: 24px;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.top-logo {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--brand);
+  color: var(--on-brand);
+  font-weight: 800;
+}
+
+.top-brand-name {
+  margin: 0;
+  font-size: var(--fs-strong);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.top-menu {
+  display: flex;
+  align-self: stretch;
+  gap: 4px;
+}
+
+.top-tab {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 14px;
+  margin-bottom: -1px;
+  border-bottom: 3px solid transparent;
+  color: var(--text-dim);
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.top-tab:hover {
+  color: var(--text);
+}
+
+.top-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.app-header.wide.top-nav .header-right {
+  flex-wrap: nowrap;
 }
 
 .app-header.wide .status-pill,
@@ -16,14 +78,82 @@
   color: var(--text-faint);
 }
 
-.app-header.wide > .header-right > button {
-  color: var(--text);
-  border-color: var(--border);
+/* 아이콘 단추 — 새로고침 · 설정 (글씨 없이) */
+.top-icon,
+button.top-icon {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  color: var(--text-dim);
 }
 
-.app-header.wide > .header-right > button:hover:not(:disabled) {
+.top-icon:hover,
+button.top-icon:hover:not(:disabled) {
   background: var(--panel-soft);
   color: var(--text);
+}
+
+.top-icon.active {
+  color: var(--accent);
+  border-color: var(--accent-line);
+}
+
+.top-icon .tab-badge {
+  top: -8px;
+  right: -8px;
+}
+
+.top-icon .tab-dot {
+  top: 4px;
+  right: 4px;
+}
+
+.top-account {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 4px;
+  min-height: 40px;
+  max-width: 200px;
+  color: var(--text);
+  font-size: var(--fs-sub);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.top-avatar {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.top-account-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 좁은 PC — 계정 이름은 숨기고 동그라미만 */
+@media (max-width: 1000px) {
+  .top-account-name {
+    display: none;
+  }
+  .top-brand {
+    margin-right: 8px;
+  }
 }
 
 .header-refresh {
@@ -597,4 +727,21 @@ button.signal-card-toggle[aria-expanded='true'] .signal-card-chev {
     grid-row: 2;
     padding: 0 22px 16px;
   }
+}
+
+/* 위 메뉴는 흰 바탕 — 청람 머리줄용 흰 글자 규칙(app-header.css)을 덮는다 */
+.app-header.top-nav > .header-right > button.top-icon {
+  background: var(--panel);
+  color: var(--text-dim);
+  border-color: var(--border);
+}
+
+.app-header.top-nav > .header-right > button.top-icon:hover:not(:disabled) {
+  background: var(--panel-soft);
+  color: var(--text);
+}
+
+.top-icon .tab-dot.tab-dot-aside {
+  top: auto;
+  bottom: 4px;
 }

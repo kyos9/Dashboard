@@ -124,3 +124,60 @@
   }
 }
 
+
+/* 매수 · 매도 묶음 — 색 띠 머리 (디자인 5차 목업 02e) */
+.thresholds-modal {
+  max-width: 560px;
+}
+
+.threshold-group {
+  margin-top: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.threshold-group-head {
+  margin: 0;
+  padding: 10px 14px;
+  color: var(--on-brand);
+  font-size: var(--fs-body);
+}
+
+.threshold-group.buy .threshold-group-head {
+  background: var(--signal-buy);
+}
+
+.threshold-group.sell .threshold-group-head {
+  background: var(--signal-sell);
+}
+
+.threshold-group .threshold-row {
+  padding: 12px 14px;
+}
+
+.threshold-group .threshold-row:first-of-type {
+  border-top: 0;
+}
+
+.threshold-fixed {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--fs-body);
+}
+
+.threshold-fixed span:first-child {
+  font-weight: 600;
+}
+
+.threshold-fixed span:last-child {
+  color: var(--text-dim);
+}
+
+.threshold-group-note {
+  padding: 10px 14px;
+}

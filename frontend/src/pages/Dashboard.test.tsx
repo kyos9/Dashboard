@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -189,33 +189,7 @@ async function cardRow(label: string) {
   return row
 }
 
-/** jsdom에는 DataTransfer가 없다 — 끌어다 놓기에 필요한 만큼만 흉내 낸다 */
-function fakeDataTransfer() {
-  const store: Record<string, string> = {}
-  return {
-    effectAllowed: '',
-    dropEffect: '',
-    setData: (key: string, value: string) => {
-      store[key] = value
-    },
-    getData: (key: string) => store[key] ?? '',
-  }
-}
 
-/** 핸들을 잡아 다른 행 위로 끈다 (아직 놓지는 않는다) */
-function dragOver(handle: HTMLElement, target: HTMLElement) {
-  const dataTransfer = fakeDataTransfer()
-  fireEvent.dragStart(handle, { dataTransfer })
-  // jsdom에는 레이아웃이 없어 행의 크기가 0이다 — clientX가 0이면 앞, 크면 뒤가 된다
-  fireEvent.dragOver(target, { dataTransfer, clientX: 0, clientY: 0 })
-  return dataTransfer
-}
-
-/** 핸들을 잡아 다른 행 위에 놓는다 */
-function dragOnto(handle: HTMLElement, target: HTMLElement) {
-  const dataTransfer = dragOver(handle, target)
-  fireEvent.drop(target, { dataTransfer })
-}
 
 beforeEach(() => {
   vi.restoreAllMocks()
@@ -223,7 +197,11 @@ beforeEach(() => {
   vi.stubGlobal('innerWidth', 1440)
   // 이 파일은 시그널 보기(예전 대시보드)를 본다 — 포트폴리오 보기는 Dashboard.portfolio.test.tsx
   localStorage.setItem('dashboard.view', 'signal')
+  // 디자인 5차 — PC 홈은 새 부품(DesktopHome, components/home/DesktopHome.test.tsx). 이 파일은 폰 홈(예전 그대로)을 본다
+  pretendPhone()
 })
+
+afterEach(() => forgetPhone())
 
 describe('대시보드 · 통화 구분', () => {
   it('국내 종목은 원화 정수, 해외 종목은 달러 소수 2자리로 보여준다', async () => {
@@ -308,45 +286,6 @@ describe('대시보드 · 상태 표시', () => {
     expect(within(row).getByLabelText('DI 약세 충족')).toBeInTheDocument()
     expect(within(row).getByLabelText('변동성·거래량 미충족')).toBeInTheDocument()
     expect(row.textContent).not.toMatch(/\d\/4/)
-  })
-})
-
-describe('대시보드 · 카드의 비중 줄에 숫자 (0.45.3 B)', () => {
-  it('비중 줄 끝에 지금·목표·밴드 — 리밸런싱 행의 수, 그 종목 행이 없으면 숫자 없이', async () => {
-    mockApi(
-      [
-        card({ ticker: 'VOO', rebalance_signal: { active: true, reasons: ['밴드 초과(매도 검토)'] } }),
-        card({ ticker: 'QQQ', rebalance_signal: { active: true, reasons: ['밴드 미달(매수 검토)'] } }),
-        card({ ticker: 'SCHD' }),
-        card({ ticker: 'MSFT', rebalance_signal: { active: true, reasons: ['밴드 미달(매수 검토)'] } }),
-      ],
-      {
-        ...REBALANCE,
-        rows: [
-          weightRow({ ticker: 'VOO', actual_weight_pct: 35.34, target_weight_pct: 20, band_pct: 2.5, excess_pct: 15.34 }),
-          // 미달은 빼기 그대로, 목표·밴드는 적은 그대로(반올림하면 차이와 셈이 안 맞았다 — 끝 검토)
-          weightRow({ ticker: 'QQQ', actual_weight_pct: 1, target_weight_pct: 2.5, band_pct: 2.25, excess_pct: -1.5 }),
-          weightRow({ ticker: 'SCHD', actual_weight_pct: 10, target_weight_pct: 10 }),
-        ],
-      },
-    )
-    renderDashboard()
-    await userEvent.click(await screen.findByRole('button', { name: '카드 보기' }))
-    const cardOf = (t: string) => screen.getAllByText(t, { selector: '.stock-name, .stock-name *' })[0].closest('.card, article, li') as HTMLElement
-    const voo = cardOf('VOO')
-    expect(voo.querySelector('.weight-numbers')?.textContent?.replace(/\s+/g, ' ')).toBe('지금 35.3% · 목표 20% · +15.3%p (허용 ±2.5%p)')
-    expect(cardOf('QQQ').querySelector('.weight-numbers')?.textContent?.replace(/\s+/g, ' ')).toBe('지금 1.0% · 목표 2.5% · -1.5%p (허용 ±2.25%p)')
-    // 조각 사이에서 꺾인다 — 한 덩어리면 카드 테두리 밖으로 나갔다(끝 검토)
-    expect(voo.querySelector('.weight-numbers')).not.toHaveClass('nowrap')
-    expect(voo.querySelectorAll('.weight-numbers > .nowrap')).toHaveLength(4)
-    // 행이 없으면(옛·다른 자료) 숫자 없이 배지만
-    expect(cardOf('MSFT').querySelector('.weight-numbers')).toBeNull()
-    expect(within(cardOf('MSFT')).getByText('비중 미달')).toBeInTheDocument()
-    // 비중 줄이 없는 종목에는 숫자도 없다
-    expect(cardOf('SCHD').querySelector('.weight-numbers')).toBeNull()
-    // 카드의 매수 조건 이름표는 단추가 아니다 — 펼치는 풀이는 차트 팝업에만(카드 높이 그대로, 0.45.3 D)
-    expect(document.querySelector('.cond-toggle')).toBeNull()
-    expect(within(voo).getByText('매수 조건')).toBeInTheDocument()
   })
 })
 
@@ -736,193 +675,6 @@ describe('대시보드 · 차트 열기', () => {
     expect(analyze).not.toHaveBeenCalled()
   })
 
-  it('카드 보기에도 "AI 분석" 버튼이 있다', async () => {
-    mockApi()
-    const user = userEvent.setup()
-    renderDashboard()
-    await user.click(await screen.findByRole('button', { name: '카드 보기' }))
-    expect(await screen.findByRole('button', { name: '삼성전자 AI 분석' })).toBeInTheDocument()
-  })
-})
-
-describe('대시보드 · 종목 순서', () => {
-  it('끌어다 놓으면 그 자리로 옮겨지고 저장된다', async () => {
-    mockApi()
-    const save = vi.spyOn(api, 'updateStockOrder').mockResolvedValue([])
-    renderDashboard()
-
-    expect(await nameOrder()).toEqual(['삼성전자', 'VOO'])
-
-    const handle = screen.getByRole('button', { name: 'VOO 순서 바꾸기' })
-    dragOnto(handle, await cardRow('삼성전자'))
-
-    // 응답을 기다리지 않고 바로 바뀌어 보여야 한다
-    expect(await nameOrder()).toEqual(['VOO', '삼성전자'])
-    await waitFor(() => expect(save).toHaveBeenCalledWith(['VOO', '005930.KS']))
-  })
-
-  it('키보드 화살표로도 옮길 수 있다', async () => {
-    // 끌어다 놓기만 되면 키보드를 쓰는 사람은 순서를 바꿀 방법이 없다
-    mockApi()
-    const save = vi.spyOn(api, 'updateStockOrder').mockResolvedValue([])
-    const user = userEvent.setup()
-    renderDashboard()
-
-    const handle = await screen.findByRole('button', { name: 'VOO 순서 바꾸기' })
-    handle.focus()
-    await user.keyboard('{ArrowUp}')
-
-    expect(await nameOrder()).toEqual(['VOO', '삼성전자'])
-    await waitFor(() => expect(save).toHaveBeenCalledWith(['VOO', '005930.KS']))
-  })
-
-  it('맨 위에서 더 올려도 아무 일도 일어나지 않는다', async () => {
-    mockApi()
-    const save = vi.spyOn(api, 'updateStockOrder').mockResolvedValue([])
-    const user = userEvent.setup()
-    renderDashboard()
-
-    const handle = await screen.findByRole('button', { name: '삼성전자 순서 바꾸기' })
-    handle.focus()
-    await user.keyboard('{ArrowUp}')
-
-    expect(await nameOrder()).toEqual(['삼성전자', 'VOO'])
-    expect(save).not.toHaveBeenCalled()
-  })
-
-  it('끄는 동안 자리가 미리 벌어진다 — 놓기 전에 어디로 갈지 보인다', async () => {
-    mockApi()
-    const save = vi.spyOn(api, 'updateStockOrder').mockResolvedValue([])
-    renderDashboard()
-
-    expect(await nameOrder()).toEqual(['삼성전자', 'VOO'])
-    dragOver(screen.getByRole('button', { name: 'VOO 순서 바꾸기' }), await cardRow('삼성전자'))
-
-    expect(await nameOrder()).toEqual(['VOO', '삼성전자'])
-    // 아직 손을 놓지 않았다 — 저장할 순서가 아니다
-    expect(save).not.toHaveBeenCalled()
-  })
-
-  it('끌다 말면 원래 순서로 돌아온다', async () => {
-    mockApi()
-    const save = vi.spyOn(api, 'updateStockOrder').mockResolvedValue([])
-    renderDashboard()
-
-    const handle = await screen.findByRole('button', { name: 'VOO 순서 바꾸기' })
-    dragOver(handle, await cardRow('삼성전자'))
-    expect(await nameOrder()).toEqual(['VOO', '삼성전자'])
-
-    fireEvent.dragEnd(handle)
-
-    expect(await nameOrder()).toEqual(['삼성전자', 'VOO'])
-    expect(save).not.toHaveBeenCalled()
-  })
-
-  it('저장에 실패하면 순서를 되돌리고 이유를 보여준다', async () => {
-    mockApi()
-    vi.spyOn(api, 'updateStockOrder').mockRejectedValue(new Error('백엔드가 응답하지 않습니다'))
-    renderDashboard()
-
-    await cardRow('VOO')
-    dragOnto(screen.getByRole('button', { name: 'VOO 순서 바꾸기' }), await cardRow('삼성전자'))
-
-    expect(await screen.findByText(/백엔드가 응답하지 않습니다/)).toBeInTheDocument()
-    expect(await nameOrder()).toEqual(['삼성전자', 'VOO'])
-  })
-})
-
-describe('대시보드 · 설정 모드', () => {
-  async function openSettings(user: ReturnType<typeof userEvent.setup>) {
-    await user.click(await screen.findByRole('button', { name: /설정/ }))
-  }
-
-  it('보던 표가 그 자리에서 입력칸으로 바뀐다', async () => {
-    mockApi()
-    const user = userEvent.setup()
-    renderDashboard()
-    await openSettings(user)
-
-    // 종목은 그대로 있고, 값만 고칠 수 있게 된다
-    expect(await nameOrder()).toEqual(['삼성전자', 'VOO'])
-    expect(screen.getByLabelText('삼성전자 목표 비중')).toBeInTheDocument()
-    expect(screen.getByLabelText('VOO 밴드 임계값')).toBeInTheDocument()
-    // 적립 금액·주기, 종목별 리뷰일은 없어졌다
-    expect(screen.queryByLabelText('VOO DCA 금액')).not.toBeInTheDocument()
-    expect(screen.queryByLabelText('VOO 리뷰 마감일')).not.toBeInTheDocument()
-  })
-
-  it('고친 종목만 저장한다', async () => {
-    mockApi()
-    const update = vi.spyOn(api, 'updateStock').mockResolvedValue({} as never)
-    const user = userEvent.setup()
-    renderDashboard()
-    await openSettings(user)
-
-    await user.type(screen.getByLabelText('삼성전자 목표 비중'), '35')
-    await user.click(screen.getByRole('button', { name: '저장' }))
-
-    await waitFor(() => expect(update).toHaveBeenCalledTimes(1))
-    expect(update).toHaveBeenCalledWith('005930.KS', expect.objectContaining({ target_weight_pct: 35 }))
-  })
-
-  it('고친 값이 없으면 저장할 것도 없다', async () => {
-    mockApi()
-    const user = userEvent.setup()
-    renderDashboard()
-    await openSettings(user)
-
-    expect(screen.getByRole('button', { name: '저장' })).toBeDisabled()
-  })
-
-  it('되돌리기를 누르면 고치던 값이 원래대로 돌아간다', async () => {
-    mockApi()
-    const update = vi.spyOn(api, 'updateStock').mockResolvedValue({} as never)
-    const user = userEvent.setup()
-    renderDashboard()
-    await openSettings(user)
-
-    await user.type(screen.getByLabelText('VOO 목표 비중'), '5')
-    await user.click(screen.getByRole('button', { name: '되돌리기' }))
-
-    expect(screen.getByLabelText('VOO 목표 비중')).toHaveValue('0')
-    expect(update).not.toHaveBeenCalled()
-  })
-
-  it('삭제는 한 번 더 확인을 받는다 — 내 목록에서만 빼고 시세는 남긴다고 알린다', async () => {
-    mockApi()
-    const purge = vi.spyOn(api, 'purgeStock').mockResolvedValue(undefined)
-    const user = userEvent.setup()
-    renderDashboard()
-    await openSettings(user)
-
-    const row = await cardRow('VOO')
-    await user.click(within(row).getByRole('button', { name: '삭제' }))
-
-    // 아직 지우면 안 된다 — 되돌릴 수 없는 동작이다
-    expect(purge).not.toHaveBeenCalled()
-    // 확인은 표 아래가 아니라 화면 위에 떠야 한다 (종목이 많으면 표 아래는 안 보인다)
-    const dialog = screen.getByRole('alertdialog')
-    expect(within(dialog).getByText(/되돌릴 수 없습니다/)).toBeInTheDocument()
-    // 시세는 공용이라 남는다 — "처음부터 새로 받아야 한다"는 더 이상 사실이 아니다
-    expect(within(dialog).getByText(/시세·지표는 모두가 같이 쓰는 기록이라 남겨/)).toBeInTheDocument()
-    expect(within(dialog).queryByText(/처음부터 새로/)).toBeNull()
-
-    await user.click(within(dialog).getByRole('button', { name: '네, 지웁니다' }))
-    await waitFor(() => expect(purge).toHaveBeenCalledWith('VOO'))
-  })
-
-  it('감추기는 확인 없이 바로 내린다 (되돌릴 수 있는 동작이다)', async () => {
-    mockApi()
-    const hide = vi.spyOn(api, 'deactivateStock').mockResolvedValue({} as never)
-    const user = userEvent.setup()
-    renderDashboard()
-    await openSettings(user)
-
-    const row = await cardRow('VOO')
-    await user.click(within(row).getByRole('button', { name: '감추기' }))
-
-    await waitFor(() => expect(hide).toHaveBeenCalledWith('VOO'))
-  })
 })
 
 describe('방금 등록한 종목의 시세를 받는 동안', () => {
@@ -1159,45 +911,6 @@ describe('대시보드 · 시그널 기준 내 설정 (0.42.0)', () => {
     }
   }
 
-  it('0.41.0 서버(custom 없음)·0.40.0 서버(404)에는 "시그널 기준" 버튼이 없다', async () => {
-    mockApi()
-    vi.spyOn(api, 'getSignalRules').mockResolvedValue({ ...LEGACY_SIGNAL_RULES, change_notice: null })
-    const { unmount } = renderDashboard()
-    await screen.findByText('⚙ 종목 설정')
-    await waitFor(() => expect(api.getSignalRules).toHaveBeenCalled())
-    expect(screen.queryByRole('button', { name: /시그널 기준/ })).toBeNull()
-    unmount()
-
-    resetSignalRules()
-    vi.spyOn(api, 'getSignalRules').mockRejectedValue(new ApiError(404, null, 'Not Found', null))
-    renderDashboard()
-    await screen.findByText('⚙ 종목 설정')
-    expect(screen.queryByRole('button', { name: /시그널 기준/ })).toBeNull()
-  })
-
-  it('기본 기준인 사람은 버튼만 더해지고 "내 기준" 줄·표시는 없다', async () => {
-    mockApi()
-    vi.spyOn(api, 'getSignalRules').mockResolvedValue(rulesOf(false))
-    renderDashboard()
-    expect(await screen.findByRole('button', { name: '시그널 기준' })).toBeInTheDocument()
-    expect(screen.queryByText(/내 기준/)).toBeNull()
-  })
-
-  it('내 기준인 사람에게는 신호 요약에 "내 기준 · 오늘 매수 N개 (기본 기준이면 M개)"와 설명 줄 앞 "내 기준"', async () => {
-    mockApi([
-      card({ ticker: 'VOO', knee_buy_v2: true, knee_buy_v2_default: false, signal_rules_version: 'mine' }),
-      card({ ticker: 'QQQ', knee_buy_v2: true, knee_buy_v2_default: true, signal_rules_version: 'mine' }),
-    ])
-    vi.spyOn(api, 'getSignalRules').mockResolvedValue(rulesOf(true))
-    renderDashboard()
-    const note = await screen.findByText((_, el) => !!el?.classList.contains('mine-note'))
-    expect(note).toHaveTextContent('내 기준으로 본 판정 · 오늘 매수 2개 (기본 기준이면 1개)')
-    // 어느 종목이 달라졌는지도 (0.42.0 사용자 확인)
-    expect(note).toHaveTextContent('다른 종목: VOO')
-    expect(screen.getByRole('button', { name: '시그널 기준 · 내 기준' })).toBeInTheDocument()
-    expect(screen.getByText((_, el) => el?.tagName === 'P' && !!el.textContent?.startsWith('내 기준: 매수 시그널 ='))).toBeInTheDocument()
-  })
-
   it('내 기준과 기본 기준의 매수 수가 같으면 그렇다고 말한다 ("4개 (기본 기준이면 4개)"가 아니게)', async () => {
     mockApi([card({ ticker: 'VOO', knee_buy_v2: true, knee_buy_v2_default: true, signal_rules_version: 'mine' })])
     vi.spyOn(api, 'getSignalRules').mockResolvedValue(rulesOf(true))
@@ -1206,27 +919,6 @@ describe('대시보드 · 시그널 기준 내 설정 (0.42.0)', () => {
     expect(note).toHaveTextContent('오늘 매수 1개 · 기본 기준과 같습니다')
   })
 
-  it('저장하면 돌려받은 규칙으로 바로 바꾸고 화면을 다시 받는다', async () => {
-    mockApi()
-    vi.spyOn(api, 'getSignalRules').mockResolvedValue(rulesOf(false))
-    const put = vi.spyOn(api, 'putSignalThresholds').mockResolvedValue(rulesOf(true))
-    renderDashboard()
-    await userEvent.click(await screen.findByRole('button', { name: '시그널 기준' }))
-    const dialog = await screen.findByRole('dialog', { name: '시그널 기준' })
-    const adx = within(dialog).getByLabelText('ADX 기준')
-    await userEvent.clear(adx)
-    await userEvent.type(adx, '15')
-    const before = (api.getDashboard as unknown as { mock: { calls: unknown[] } }).mock.calls.length
-    await userEvent.click(within(dialog).getByRole('button', { name: '저장' }))
-    expect(put).toHaveBeenCalledWith({ ...DEFAULTS, adx_trend: 15 })
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
-    expect(await screen.findByRole('button', { name: '시그널 기준 · 내 기준' })).toBeInTheDocument()
-    // 비교 기간만 바꾸면 숫자가 그대로일 수 있다 — 저장했다는 한 줄
-    expect(screen.getByRole('status')).toHaveTextContent('시그널 기준을 저장했습니다')
-    await waitFor(() =>
-      expect((api.getDashboard as unknown as { mock: { calls: unknown[] } }).mock.calls.length).toBeGreaterThan(before),
-    )
-  })
 })
 
 describe('대시보드 · 0종목 안내 (0.42.0 B4)', () => {
@@ -1283,26 +975,6 @@ describe('대시보드 · 처음 온 사람의 모양 (디자인 4차 목업 15 
   })
 })
 
-describe('대시보드 · 카드 보기의 부호 색 (0.42.0 B)', () => {
-  it('DI 와 200일선 숫자는 표의 칩처럼 오르내림 색 — 오르면 up, 내리면 down', async () => {
-    mockApi([
-      card({ ticker: 'VOO', indicators: { ...INDICATORS, close: 110, ma200: 100, plus_di: 30, minus_di: 20 } }),
-      card({ ticker: 'SCHD', indicators: { ...INDICATORS, close: 90, ma200: 100, plus_di: 15, minus_di: 25 } }),
-    ])
-    renderDashboard()
-    await userEvent.click(await screen.findByRole('button', { name: '카드 보기' }))
-
-    const value = (label: string) =>
-      screen.getAllByText(label).map((k) => k.closest('.stat-box')!.querySelector('.v')!)
-    const [vooDi, schdDi] = value('DI 방향 (+DI / -DI)')
-    const [vooMa, schdMa] = value('200일선 대비')
-    expect(vooDi).toHaveClass('up')
-    expect(schdDi).toHaveClass('down')
-    expect(vooMa).toHaveClass('up')
-    expect(schdMa).toHaveClass('down')
-  })
-})
-
 describe('대시보드 · 시그널 보기 정돈 (디자인 2차)', () => {
   const SELLING = card({ ticker: 'VOO', shoulder_sell_ref: true })
   const BUYING = card({ ticker: 'QQQ', knee_buy_v2: true })
@@ -1334,37 +1006,6 @@ describe('대시보드 · 시그널 보기 정돈 (디자인 2차)', () => {
     expect(within(summary).queryByRole('button', { name: /관망/ })).toBeNull()
   })
 
-  it('카드: 시그널 · 비중 · 매수 조건 줄 — 비중은 사유가 있을 때만, 조건은 규칙의 조건 전부와 맞춘 수', async () => {
-    mockApi([
-      card({
-        ticker: 'VOO',
-        shoulder_sell_ref: true,
-        rebalance_signal: { active: true, reasons: ['밴드 미달(매수 검토)'] },
-        knee_conditions: { di_bearish: false, disparity_negative: false, volatility_or_volume: false, adx_trending: true },
-      }),
-      card({ ticker: 'QQQ' }),
-    ])
-    renderDashboard()
-    await userEvent.click(await screen.findByRole('button', { name: '카드 보기' }))
-    const [voo, qqq] = Array.from(document.querySelectorAll('article.signal-card')) as HTMLElement[]
-    const rows = (el: HTMLElement) =>
-      Array.from(el.querySelectorAll('.signal-row-label')).map((l) => l.textContent?.replace(/\s+/g, ' ').trim())
-    expect(rows(voo)).toEqual(['시그널', '비중', '매수 조건 1/4'])
-    expect(rows(qqq)).toEqual(['시그널', '매수 조건 0/4'])
-    // 칩은 표의 칸 순서 — 이격도 · ADX · DI · 변동성·거래량
-    expect(Array.from(voo.querySelectorAll('.cond')).map((c) => c.getAttribute('aria-label'))).toEqual([
-      '이격도 < 0 미충족',
-      'ADX > 20 충족',
-      'DI 약세 미충족',
-      '변동성·거래량 미충족',
-    ])
-    // 지표 줄에는 더 이상 칩이 없다
-    expect(voo.querySelector('.stat-box .cond')).toBeNull()
-    // "▼ 매도"는 시그널 줄, "◆ 비중 미달"은 비중 줄
-    const [signalItems, weightItems] = Array.from(voo.querySelectorAll('.signal-row-items'))
-    expect(signalItems).toHaveTextContent('매도')
-    expect(weightItems).toHaveTextContent('비중 미달')
-  })
 })
 
 describe('대시보드 · 정기 리뷰 날의 비중조절 수 (디자인 2차, 주인 결정)', () => {

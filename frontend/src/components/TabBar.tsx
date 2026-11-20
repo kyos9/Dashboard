@@ -6,12 +6,12 @@ import { Icon } from './icons/Icon'
 import { TABS, activeTab } from '../lib/tabs'
 
 /**
- * 폰은 화면 아래(엄지가 닿는 자리), PC 는 왼쪽 메뉴(목업 09b A). 그리는 것 자체를 가른다(같은 단추 두 벌을 만들지 않는다).
+ * 폰 화면 아래 탭(엄지가 닿는 자리). PC 는 위 메뉴(AppHeader, 디자인 5차 목업 01 다) — 여기서는 그리지 않는다.
  */
 export function TabBar() {
   const narrow = useNarrow()
   const { pathname } = useLocation()
-  const { isAdmin, pendingCount, backupAttention, refreshAttention, user, mode, pending } = useAuth()
+  const { isAdmin, pendingCount, backupAttention, refreshAttention } = useAuth()
   const current = activeTab(pathname)
   // 관리자가 볼 것이 있으면 설정 탭에 점 — 예전 ⋯ 메뉴의 점과 숫자
   const diag = isAdmin ? diagnosticsReason(backupAttention, refreshAttention) : null
@@ -49,30 +49,11 @@ export function TabBar() {
     )
   })
 
-  if (narrow)
-    return (
-      <nav className="bottom-tabs" aria-label="화면">
-        {links}
-      </nav>
-    )
+  // PC 는 위 메뉴(AppHeader, 디자인 5차) — 여기서는 폰 아래 탭만 그린다
+  if (!narrow) return null
   return (
-    <nav className="side-nav" aria-label="화면">
-      <div className="side-brand">
-        <span className="side-logo" aria-hidden="true">
-          ₩
-        </span>
-        <span className="side-brand-name">자산관리</span>
-      </div>
+    <nav className="bottom-tabs" aria-label="화면">
       {links}
-      {/* 누구로 들어와 있는지 — 예전 PC 머리줄 이름 칸이 하던 일 (목업 09b A, 묶음 2 검토 조건 6). 누르면 설정 */}
-      {mode === 'google' && user && (
-        <Link to="/settings" className="side-account" title={user.email ?? undefined}>
-          <span className="side-account-name">{user.name || user.email}</span>
-          <span className="side-account-sub">
-            {user.is_owner ? '관리자' : pending ? '승인 대기' : user.email}
-          </span>
-        </Link>
-      )}
     </nav>
   )
 }

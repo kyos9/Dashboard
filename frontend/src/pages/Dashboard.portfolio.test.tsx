@@ -14,7 +14,7 @@
  */
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppStateProvider } from '../AppState'
 import { AuthGate } from '../components/AuthGate'
@@ -193,11 +193,6 @@ function mockApi(current: RebalanceCurrent = CURRENT, cards: DashboardCard[] = C
   vi.spyOn(api, 'getMacroPinned').mockResolvedValue({ codes: [], series: [], badges: [] })
 }
 
-function Back() {
-  const navigate = useNavigate()
-  return <button onClick={() => navigate(-1)}>뒤로</button>
-}
-
 function Where() {
   const location = useLocation()
   return <p data-testid="where">{location.pathname + location.search}</p>
@@ -214,39 +209,9 @@ function renderDashboard() {
   )
 }
 
-/** PC 표에서 한 종목의 줄의 한 칸 — 머리글 이름으로 찾는다 */
-function cellOf(tr: HTMLElement, head: string): HTMLElement {
-  const table = tr.closest('table') as HTMLElement
-  const heads = within(table)
-    .getAllByRole('columnheader')
-    // 머리글의 작은 둘째 줄(.th-sub — "(목표)" · "수량 · 평단가")은 빼고 이름만
-    .map((th) => th.childNodes[0]?.textContent?.trim())
-  const index = heads.indexOf(head)
-  if (index < 0) throw new Error(`${head} 칸이 없습니다`)
-  return within(tr).getAllByRole('cell')[index]
-}
-
 async function openEditor() {
   await userEvent.click(await screen.findByRole('button', { name: '종목 한 번에 수정' }))
   return screen.findByRole('dialog', { name: '종목 한 번에 수정' })
-}
-
-/** PC 표에서 한 종목의 줄 */
-async function holdingRow(label: string) {
-  const table = await screen.findByRole('table')
-  const found = within(table)
-    .getAllByRole('row')
-    .find((tr) => tr.querySelector('.stock-name')?.textContent?.trim() === label)
-  if (!found) throw new Error(`${label} 줄이 없습니다`)
-  return found as HTMLElement
-}
-
-async function holdingOrder() {
-  const table = await screen.findByRole('table')
-  return within(table)
-    .getAllByRole('row')
-    .slice(1)
-    .map((tr) => tr.querySelector('.stock-name')?.textContent?.trim())
 }
 
 beforeEach(() => {
@@ -258,6 +223,8 @@ beforeEach(() => {
   // jsdom 에는 스크롤이 없다 — 부른 것만 본다
   window.scrollTo = vi.fn() as never
   Element.prototype.scrollIntoView = vi.fn()
+  // 디자인 5차 — PC 홈은 새 부품(DesktopHome, components/home/DesktopHome.test.tsx). 이 파일은 폰 홈(예전 그대로)을 본다
+  pretendPhone()
 })
 
 afterEach(() => forgetPhone())
@@ -335,45 +302,6 @@ describe('맨 위 — 내 돈 한 줄', () => {
 })
 
 describe('금액 가리기 (9-3)', () => {
-  it('누르면 금액·수량이 가려지고 %·주당 가격은 남는다. 이 기기에 기억한다', async () => {
-    mockApi()
-    const first = renderDashboard()
-    const line = await screen.findByRole('region', { name: '내 자산' })
-    const toggle = within(line).getByRole('button', { name: '금액 가리기' })
-    expect(toggle).toHaveAttribute('aria-pressed', 'false')
-    await userEvent.click(toggle)
-
-    expect(within(line).getByRole('button', { name: '금액 보기' })).toHaveAttribute('aria-pressed', 'true')
-    for (const text of ['₩37,668,153', '₩1,250,000', '₩162,000', '₩17,400,000']) {
-      expect(line).not.toHaveTextContent(text)
-    }
-    // %는 남는다 — 그것만으로는 얼마를 가졌는지 알 수 없다
-    expect(line).toHaveTextContent('+25.0%')
-    expect(line).toHaveTextContent('+0.43%')
-    const schd = await holdingRow('SCHD')
-    expect(cellOf(schd, '종목').querySelector('.holding-sub')).toHaveTextContent('•••••')
-    expect(schd).not.toHaveTextContent('₩17,553,153')
-    expect(schd).not.toHaveTextContent('$10,402')
-    expect(schd).toHaveTextContent('•••••')
-    expect(schd).toHaveTextContent('$130.02')
-    expect(schd).toHaveTextContent('+400.1%')
-    expect(schd).toHaveTextContent('46.6%')
-    // 해외 종목 평가금액에 붙은 현지 금액 풀이도 가린다
-    expect(within(schd).queryByTitle(/현지 \$/)).not.toBeInTheDocument()
-    expect(localStorage.getItem(HIDE_AMOUNTS_KEY)).toBe('1')
-
-    // 다시 켜도 가려진 채로
-    first.unmount()
-    resetPrefs()
-    clearCache()
-    renderDashboard()
-    const again = await screen.findByRole('region', { name: '내 자산' })
-    expect(again).not.toHaveTextContent('₩37,668,153')
-    await userEvent.click(within(again).getByRole('button', { name: '금액 보기' }))
-    expect(again).toHaveTextContent('₩37,668,153')
-    expect(cellOf(await holdingRow('SCHD'), '종목').querySelector('.holding-sub')).toHaveTextContent(/^100주 · /)
-    expect(localStorage.getItem(HIDE_AMOUNTS_KEY)).toBeNull()
-  })
 
   it('폰의 두 줄 목록도 가린다', async () => {
     pretendPhone()
@@ -390,125 +318,6 @@ describe('금액 가리기 (9-3)', () => {
 })
 
 describe('보유 종목 표', () => {
-  it('한 줄에 수량·평단가(종목 아래)·현재가(전일 대비)·평가금액·비중(목표)·수익률·평가손익·신호', async () => {
-    mockApi()
-    renderDashboard()
-    const schd = await holdingRow('SCHD')
-    // 수량 · 평단가는 종목 아래 둘째 줄 (디자인 4차 묶음 2, 목업 09b A — 9-10 의 수량 칸을 바꿈)
-    expect(cellOf(schd, '종목').querySelector('.holding-sub')).toHaveTextContent('100주 · 평단 $26.00')
-    expect(schd).toHaveTextContent('$130.02')
-    expect(schd).toHaveTextContent('+1.09%')
-    expect(schd).toHaveTextContent('$26.00')
-    expect(schd).toHaveTextContent('+400.1%')
-    expect(schd).toHaveTextContent('+$10,402.00')
-    expect(schd).toHaveTextContent('₩17,553,153')
-    expect(cellOf(schd, '비중')).toHaveTextContent('46.6%목표 10%')
-  })
-
-  it('보유 0 인 종목은 표에 없고 관심 종목으로 따로 모인다', async () => {
-    mockApi()
-    renderDashboard()
-    expect(await holdingOrder()).not.toContain('NVDA')
-    const watch = screen.getByRole('region', { name: /관심 종목/ })
-    expect(within(watch).getByText('NVDA')).toBeInTheDocument()
-    expect(watch).toHaveTextContent('-3.20%')
-  })
-
-  it('정렬은 평가금액이 기본이고, 고른 것을 기억한다', async () => {
-    mockApi()
-    const first = renderDashboard()
-    expect(await holdingOrder()).toEqual(['SCHD', 'QQQ', '삼성전자'])
-
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: '정렬' }), '등락')
-    expect(await holdingOrder()).toEqual(['QQQ', 'SCHD', '삼성전자'])
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: '정렬' }), '수익률')
-    // 평단가를 모르는 종목은 맨 뒤
-    expect(await holdingOrder()).toEqual(['SCHD', 'QQQ', '삼성전자'])
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: '정렬' }), '비중 차이')
-    expect(await holdingOrder()).toEqual(['삼성전자', 'SCHD', 'QQQ'])
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: '정렬' }), '내가 정한 순서')
-    expect(await holdingOrder()).toEqual(['SCHD', '삼성전자', 'QQQ'])
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: '정렬' }), '등락')
-
-    first.unmount()
-    renderDashboard()
-    expect(screen.getByRole('combobox', { name: '정렬' })).toHaveValue('change')
-    expect(await holdingOrder()).toEqual(['QQQ', 'SCHD', '삼성전자'])
-  })
-
-  it('환율 효과를 넣은 줄은 원화 손익과 둘로 나눈 풀이가 붙는다', async () => {
-    mockApi()
-    renderDashboard()
-    const qqq = await holdingRow('QQQ')
-    expect(qqq).toHaveTextContent('+₩420,000')
-    expect(within(qqq).getByText('+25.8%')).toHaveAttribute('title', '주가 +25.0% · 환율 +0.6% → 합계 +25.8%')
-  })
-
-  it('환율 효과를 켰는데 산 환율이 없는 줄은 "환율 미반영"', async () => {
-    const rows = ROWS.map((r) => (r.ticker === 'SCHD' ? { ...r, fx_missing: true } : r))
-    mockApi({ ...CURRENT, rows })
-    renderDashboard()
-    expect(within(await holdingRow('SCHD')).getByText('환율 미반영')).toBeInTheDocument()
-    expect(within(await holdingRow('QQQ')).queryByText('환율 미반영')).not.toBeInTheDocument()
-  })
-
-  it('평단가가 없으면 수익률 칸의 "평단가 입력"이 한 번에 수정 창을 그 종목의 평단가 칸부터 연다 — 원화도 소수를 받는다', async () => {
-    mockApi()
-    const update = vi.spyOn(api, 'updateHolding').mockResolvedValue({} as never)
-    const updateStock = vi.spyOn(api, 'updateStock')
-    renderDashboard()
-    await userEvent.click(within(await holdingRow('삼성전자')).getByRole('button', { name: '삼성전자 평단가 입력' }))
-    const dialog = await screen.findByRole('dialog', { name: '종목 한 번에 수정' })
-    const cost = within(dialog).getByRole('textbox', { name: '삼성전자 평단가' })
-    expect(cost).toHaveFocus()
-    // 수량은 지금 값이 들어 있고, 원화 종목에는 산 환율 칸이 없다
-    expect(within(dialog).getByRole('textbox', { name: '삼성전자 보유수량' })).toHaveValue('10')
-    expect(within(dialog).queryByRole('textbox', { name: '삼성전자 산 환율' })).not.toBeInTheDocument()
-    await userEvent.type(cost, '61234.56')
-    expect(cost).toHaveValue('61,234.56')
-    await userEvent.click(within(dialog).getByRole('button', { name: '1종목 저장' }))
-    expect(update).toHaveBeenCalledTimes(1)
-    expect(update).toHaveBeenCalledWith('005930.KS', 10, 61234.56, undefined)
-    // 종목 설정은 손대지 않았으니 보내지 않는다
-    expect(updateStock).not.toHaveBeenCalled()
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: '종목 한 번에 수정' })).not.toBeInTheDocument())
-    // 닫힌 뒤 "수정" 단추 아래 한 줄 (0.45.2 A3)
-    expect(await screen.findByText('✓ 삼성전자 1종목을 저장했습니다')).toHaveAttribute('role', 'status')
-    // 수정을 다시 열면 지운다 (A 검토)
-    await openEditor()
-    expect(screen.queryByText(/종목을 저장했습니다/)).not.toBeInTheDocument()
-  })
-
-  it('줄마다 "수정"은 없고, 위의 "수정" 하나가 보유·관심 종목 전부를 연다 (9-11)', async () => {
-    mockApi()
-    renderDashboard()
-    expect(within(await holdingRow('SCHD')).queryByRole('button', { name: /수정/ })).toBeNull()
-    const watch = screen.getByRole('region', { name: /관심 종목/ })
-    expect(within(watch).queryByRole('button', { name: /수정/ })).toBeNull()
-
-    const dialog = await openEditor()
-    // 보유 순서가 아니라 내가 정한 순서 그대로, 관심 종목(NVDA)까지
-    expect([...dialog.querySelectorAll('fieldset')].map((f) => f.getAttribute('data-ticker'))).toEqual([
-      'SCHD',
-      '005930.KS',
-      'QQQ',
-      'NVDA',
-    ])
-    // 첫 종목의 수량에 커서
-    expect(within(dialog).getByRole('textbox', { name: 'SCHD 보유수량' })).toHaveFocus()
-    // 지금 값이 채워져 있다
-    expect(within(dialog).getByRole('textbox', { name: 'SCHD 평단가' })).toHaveValue('26')
-    expect(within(dialog).getByRole('textbox', { name: 'SCHD 산 환율' })).toHaveValue('')
-    expect(within(dialog).getByRole('textbox', { name: 'SCHD 목표 비중' })).toHaveValue('0')
-    expect(within(dialog).getByRole('textbox', { name: 'SCHD 밴드 임계값' })).toHaveValue('')
-    // 보유 0 은 빈칸으로 연다 — "0"을 지우고 칠 필요가 없게
-    expect(within(dialog).getByRole('textbox', { name: 'NVDA 보유수량' })).toHaveValue('')
-    // 미국 종목은 이름 칸이 없고, 국내 종목은 있다
-    expect(within(dialog).queryByRole('textbox', { name: 'SCHD 표시 이름' })).toBeNull()
-    expect(within(dialog).getByRole('textbox', { name: '삼성전자 표시 이름' })).toHaveValue('삼성전자')
-    // 아무것도 안 고쳤으면 저장할 것이 없다
-    expect(within(dialog).getByRole('button', { name: '저장' })).toBeDisabled()
-  })
 
   it('여러 종목의 여러 칸을 한 번에 — 바뀐 종목의 바뀐 쪽만 보낸다. 소수 수량을 받고, 산 환율은 고쳤을 때만', async () => {
     mockApi()
@@ -615,13 +424,6 @@ describe('보유 종목 표', () => {
     expect(update).toHaveBeenCalledWith('SCHD', 100, 261, undefined)
   })
 
-  it('이름을 누르면 차트가 뜬다', async () => {
-    mockApi()
-    renderDashboard()
-    await userEvent.click(within(await holdingRow('SCHD')).getByRole('button', { name: 'SCHD' }))
-    expect(await screen.findByRole('dialog', { name: 'SCHD' })).toBeInTheDocument()
-  })
-
   it('보유가 하나도 없으면 어디서 적는지 알려준다', async () => {
     mockApi({ ...CURRENT, rows: ROWS.map((r) => ({ ...r, quantity: 0 })) })
     renderDashboard()
@@ -641,41 +443,6 @@ describe('평가손익 통화 (9-12)', () => {
     is_estimate: false,
   }
 
-  it('처음엔 종목별 — 달러 종목은 달러, 환율 효과를 켠 줄은 원화', async () => {
-    mockApi({ ...CURRENT, fx: FX })
-    renderDashboard()
-    const schd = await holdingRow('SCHD')
-    expect(screen.getByRole('combobox', { name: '평가손익 통화' })).toHaveValue('local')
-    expect(cellOf(schd, '평가손익')).toHaveTextContent('+$10,402.00')
-    expect(cellOf(await holdingRow('QQQ'), '평가손익')).toHaveTextContent('+₩420,000')
-    expect(screen.getByRole('columnheader', { name: /평가손익/ })).toHaveTextContent('(종목 통화)')
-  })
-
-  it('원을 고르면 모든 줄이 원, 달러를 고르면 모든 줄이 달러 — 지금 환율로. 고른 것을 기억한다', async () => {
-    mockApi({ ...CURRENT, fx: FX })
-    const first = renderDashboard()
-    await holdingRow('SCHD')
-    const pick = screen.getByRole('combobox', { name: '평가손익 통화' })
-    expect([...(pick as HTMLSelectElement).options].map((o) => o.textContent)).toEqual(['종목별', '₩ 원', '$ 달러'])
-
-    await userEvent.selectOptions(pick, '₩ 원')
-    expect(cellOf(await holdingRow('SCHD'), '평가손익')).toHaveTextContent('+₩14,042,700')
-    expect(cellOf(await holdingRow('QQQ'), '평가손익')).toHaveTextContent('+₩420,000')
-    expect(screen.getByRole('columnheader', { name: /평가손익/ })).toHaveTextContent('(₩ 기준)')
-
-    await userEvent.selectOptions(pick, '$ 달러')
-    expect(cellOf(await holdingRow('SCHD'), '평가손익')).toHaveTextContent('+$10,402.00')
-    expect(cellOf(await holdingRow('QQQ'), '평가손익')).toHaveTextContent('+$311.11')
-    // 평단가를 모르는 줄은 여전히 비어 있다
-    expect(cellOf(await holdingRow('삼성전자'), '평가손익')).toHaveTextContent('—')
-    expect(localStorage.getItem('dashboard.pnl-currency')).toBe('USD')
-
-    first.unmount()
-    clearCache()
-    renderDashboard()
-    expect(cellOf(await holdingRow('QQQ'), '평가손익')).toHaveTextContent('+$311.11')
-  })
-
   it('폰의 펼친 곳도 고른 통화로', async () => {
     pretendPhone()
     localStorage.setItem('dashboard.pnl-currency', 'KRW')
@@ -685,36 +452,9 @@ describe('평가손익 통화 (9-12)', () => {
     expect(document.getElementById('holding-SCHD')).toHaveTextContent('+₩14,042,700')
   })
 
-  it('환율을 모르는 종목이 있으면 고르는 칸이 없다 — 기억한 통화도 쓰지 않는다', async () => {
-    localStorage.setItem('dashboard.pnl-currency', 'KRW')
-    mockApi()
-    renderDashboard()
-    const schd = await holdingRow('SCHD')
-    expect(screen.queryByRole('combobox', { name: '평가손익 통화' })).toBeNull()
-    expect(cellOf(schd, '평가손익')).toHaveTextContent('+$10,402.00')
-  })
 })
 
 describe('신호 점', () => {
-  it('신호가 있는 종목에만 점이 있고, 정기 리뷰만으로는 찍히지 않는다', async () => {
-    const rows = ROWS.map((r) =>
-      r.ticker === 'QQQ' ? { ...r, rebalance_signal: { active: true, reasons: ['정기 리뷰 도래'] } } : r,
-    )
-    mockApi({ ...CURRENT, rows })
-    renderDashboard()
-    const schd = await holdingRow('SCHD')
-    const dot = within(schd).getByRole('button', { name: /SCHD 신호/ })
-    expect(dot).toHaveAccessibleName('SCHD 신호: 매수 시그널 · 비중 초과. 시그널 보기로')
-    // 색만으로 가리지 않게 모양이 붙는다 — 매수 ▲ 와 비중조절 ◆ (8-4)
-    expect([...dot.querySelectorAll('.signal-shape')].map((el) => el.getAttribute('class'))).toEqual([
-      'signal-shape buy',
-      'signal-shape rebalance',
-    ])
-    // 모양 풀이가 아래에 있다
-    expect(screen.getByLabelText('신호 모양 풀이')).toHaveTextContent('매수 시그널')
-    expect(within(await holdingRow('QQQ')).queryByRole('button', { name: /신호/ })).not.toBeInTheDocument()
-    expect(within(await holdingRow('삼성전자')).queryByRole('button', { name: /신호/ })).not.toBeInTheDocument()
-  })
 
   it('시세가 오래된 종목의 시그널은 점으로 찍지 않는다 (시그널 보기와 같은 규칙)', async () => {
     const cards = CARDS.map((c) => (c.ticker === 'NVDA' ? { ...c, data_stale: true } : c))
@@ -724,64 +464,6 @@ describe('신호 점', () => {
     expect(within(watch).queryByRole('button', { name: /신호/ })).not.toBeInTheDocument()
   })
 
-  it('누르면 시그널 보기로 넘어가 그 종목을 밝히고, 뒤로가기면 포트폴리오의 보던 자리로', async () => {
-    mockApi()
-    renderDashboard()
-    ;(window as { scrollY: number }).scrollY = 640
-
-    await userEvent.click(within(await holdingRow('SCHD')).getByRole('button', { name: /SCHD 신호/ }))
-    expect(screen.getByTestId('where')).toHaveTextContent('/?view=signal')
-    expect(screen.getByRole('heading', { name: /^시그널/ })).toBeInTheDocument()
-    // 시그널 보기의 그 종목 줄로 스크롤하고 잠깐 밝힌다
-    const target = await waitFor(() => {
-      const found = document.querySelector('[data-ticker="SCHD"].flash')
-      expect(found).not.toBeNull()
-      return found as HTMLElement
-    })
-    expect(target.scrollIntoView).toHaveBeenCalled()
-    // 넘어간 것은 기억하지 않는다 — 다음에 열면 여전히 포트폴리오
-    expect(localStorage.getItem('dashboard.view')).toBeNull()
-
-    ;(window as { scrollY: number }).scrollY = 0
-    await userEvent.click(screen.getByRole('button', { name: '홈으로' }))
-    await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent(/^\/$/))
-    expect(screen.getByRole('region', { name: '내 자산' })).toBeInTheDocument()
-    expect(window.scrollTo).toHaveBeenLastCalledWith(0, 640)
-  })
-
-  it('시그널 목록에서 ‹(홈으로)로 돌아오면 헛도는 칸이 없다 — 뒤로가기 한 번이면 앞 화면', async () => {
-    mockApi()
-    render(
-      <MemoryRouter initialEntries={['/stocks', '/']} initialIndex={1}>
-        <AppStateProvider>
-          <Dashboard />
-          <Where />
-          <Back />
-        </AppStateProvider>
-      </MemoryRouter>,
-    )
-    await userEvent.click(within(await holdingRow('SCHD')).getByRole('button', { name: /SCHD 신호/ }))
-    expect(screen.getByTestId('where')).toHaveTextContent('/?view=signal')
-    await userEvent.click(screen.getByRole('button', { name: '홈으로' }))
-    await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent(/^\/$/))
-    await userEvent.click(screen.getByRole('button', { name: '뒤로' }))
-    await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent('/stocks'))
-  })
-
-  it('필터가 그 종목을 가리고 있으면 "신호"(처음 목록)로 돌린다', async () => {
-    mockApi()
-    renderDashboard()
-    // 시그널 목록에서 비중조절 신호만 보이게 걸어 둔다 — NVDA(매도 시그널만)는 가려진다
-    await userEvent.click(within(await holdingRow('SCHD')).getByRole('button', { name: /SCHD 신호/ }))
-    await userEvent.click(within(document.querySelector('.filter-chips') as HTMLElement).getByRole('button', { name: /비중조절 \d+/ }))
-    expect(document.querySelector('[data-ticker="NVDA"]')).toBeNull()
-    await userEvent.click(screen.getByRole('button', { name: '홈으로' }))
-
-    const watch = await screen.findByRole('region', { name: /관심 종목/ })
-    await userEvent.click(within(watch).getByRole('button', { name: /NVDA 신호/ }))
-    await waitFor(() => expect(document.querySelector('[data-ticker="NVDA"]')).not.toBeNull())
-    expect(within(document.querySelector('.filter-chips') as HTMLElement).getByRole('button', { name: /^신호 \d/ })).toHaveAttribute('aria-pressed', 'true')
-  })
 })
 
 describe('위 탭 없음 (디자인 4차 묶음 2 — 보기 전환 "다")', () => {
@@ -929,14 +611,6 @@ describe('AI 포트폴리오 점검 (9-7) — 관리자는 늘, 사용자는 관
     renderDashboard()
     expect(await screen.findByRole('link', { name: /AI 포트폴리오 점검/ })).toHaveAttribute('href', '/ai/portfolio')
     expect(stream).not.toHaveBeenCalled()
-  })
-
-  it('시그널 목록에는 없다 — 진단은 홈의 일이다', async () => {
-    mockApi()
-    renderDashboard()
-    await userEvent.click(within(await holdingRow('SCHD')).getByRole('button', { name: /SCHD 신호/ }))
-    expect(await screen.findByRole('link', { name: /AI 종목 정리/ })).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /AI 포트폴리오 점검/ })).toBeNull()
   })
 
   it.each([
