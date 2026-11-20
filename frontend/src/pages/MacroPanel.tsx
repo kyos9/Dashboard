@@ -1,8 +1,9 @@
-import { Suspense, useCallback, useState } from 'react'
+import { Suspense, useCallback, useLayoutEffect, useState } from 'react'
 import { api } from '../api/client'
 import { useAuth } from '../components/AuthGate'
 import { ErrorNotice } from '../components/ErrorNotice'
-import { NumberInput } from '../components/NumberInput'
+import { monthOf, periodOf, surpriseWord } from '../components/macro/period'
+import { Icon } from '../components/icons/Icon'
 import { RegimeBadges } from '../components/RegimeBadges'
 import { useAppState } from '../AppState'
 import { lazyChunk } from '../lib/lazyChunk'
@@ -10,17 +11,15 @@ import { useCachedLoad } from '../lib/cache'
 import { PageSkeleton } from '../components/Skeleton'
 import { pushAccount } from '../lib/push'
 import {
-  FREQUENCY_LABEL,
   checkedLabel,
   macroChange,
   macroValue,
   statusOf,
   zoneTone,
 } from '../lib/macro'
-import { TERM_SPREAD_CODE } from '../types'
 import type { MacroOverview, MacroSeriesInfo, TermSpread } from '../types'
 
-// 차트는 누를 때 받는다 (App.tsx의 HistoryChart와 같은 이유)
+// 차트는 누를 때 받는다 (첫 화면에 차트 코드를 싣지 않는다 — lib/chartChunk)
 const MacroChartModal = lazyChunk(() => import('../components/MacroChartModal'), 'MacroChartModal')
 const AiSummaryModal = lazyChunk(() => import('../components/AiSummaryModal'), 'AiSummaryModal')
 
@@ -34,21 +33,13 @@ const AiSummaryModal = lazyChunk(() => import('../components/AiSummaryModal'), '
  * 과거에 침체보다 1~2년 앞섰고, 그 사이에 주가가 더 오른 적도 많다. 그래서 문구는
  * "역전됐다"까지만 말하고 다음에 뭘 하라는 말은 하지 않는다.
  */
-export function TermSpreadLine({
-  spread,
-  pinned,
-  onTogglePin,
-}: {
-  spread: TermSpread | null
-  pinned: boolean
-  /** 없으면 별을 안 띄운다 (손님 — 즐겨찾기를 저장할 자리가 없다) */
-  onTogglePin?: () => void
-}) {
+export function TermSpreadLine({ spread }: { spread: TermSpread | null }) {
+  // ★ 은 달지 않는다 — 늘 목록 맨 위라 "내 지표"로 모을 줄이 아니다(목업 14 ① 가)
   if (!spread) {
     return (
       <p className="hint">
-        장단기 금리차는 10년물과 2년물이 <b>같은 날</b> 값으로 있어야 계산됩니다 — 아직
-        둘 중 하나가 안 들어왔습니다.
+        장단기 금리차는 10년물과 2년물이 <b>같은 날</b> 값으로 있어야 계산됩니다. 아직 둘 중 하나가 안
+        들어왔습니다.
       </p>
     )
   }
@@ -56,284 +47,156 @@ export function TermSpreadLine({
   const inverted = spread.value < 0
   return (
     <div className={`callout ${inverted ? 'amber' : 'blue'}`}>
-      <span className="ico" aria-hidden="true">
-        {inverted ? '⚠' : '📐'}
-      </span>
+      {/* 정상일 때 붙던 📐 는 뺐다 — 이모지 장식(목업 13 ④). 역전은 경고라 ⚠ 를 둔다 */}
+      {inverted && (
+        <span className="ico" aria-hidden="true">
+          ⚠
+        </span>
+      )}
       <div>
         <b>
           장단기 금리차 {spread.value > 0 ? '+' : ''}
           {spread.value.toFixed(2)}%p
         </b>
-        {inverted ? ' — 장단기 금리가 역전돼 있습니다.' : ' — 정상(장기 > 단기)입니다.'}
-        <span className="hint">
-          {' '}
-          {spread.long_code} − {spread.short_code} · {spread.as_of} 기준
+        {inverted ? ', 장단기 금리가 역전돼 있습니다.' : ', 정상(장기 > 단기)'}
+        {' '}
+        <span className="hint nowrap" title={`${spread.long_code} − ${spread.short_code}`}>
+          ({spread.as_of} 기준)
         </span>
       </div>
-      {/* 받아온 지표가 아니라 계산값이지만 홈에서는 지표 하나처럼 켜고 끌 수 있다 */}
-      {onTogglePin && (
-        <button
-          className={`pin-btn${pinned ? ' on' : ''}`}
-          onClick={onTogglePin}
-          aria-pressed={pinned}
-          title={pinned ? '홈 화면에서 내리기' : '홈 화면에 올리기'}
-          aria-label="장단기 금리차 홈 화면에 올리기"
-        >
-          {pinned ? '★' : '☆'}
-        </button>
-      )}
     </div>
   )
 }
 
-/** "2026-08-01" -> "2026-08". 값이 없으면 이번 달. */
-function monthOf(asOf: string | null): string {
-  if (asOf) return asOf.slice(0, 7)
-  const now = new Date()
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+/** 같은 값이 가장 많은 것 — 지표마다 같은 "받은 시각 · 출처"를 위에 한 번만 쓰려고 (목업 13 ④) */
+function mostCommon(values: string[]): string {
+  const counts = new Map<string, number>()
+  for (const v of values) if (v) counts.set(v, (counts.get(v) ?? 0) + 1)
+  let best = ''
+  let n = 0
+  for (const [v, c] of counts) if (c > n) [best, n] = [v, c]
+  return best
 }
 
-/**
- * 입력칸에 처음 들어가 있을 달.
- *
- * **마지막 발표의 다음 달이다.** 예상치를 적는 때는 보통 발표 **전**이고, 그때 궁금한
- * 것은 아직 안 나온 달이다. 마지막 발표 달을 기본으로 두면 매번 한 칸씩 올려야 한다.
- */
-function defaultMonth(series: MacroSeriesInfo): string {
-  if (!series.as_of) return monthOf(null)
-  const [year, month] = series.as_of.slice(0, 7).split('-').map(Number)
-  const next = new Date(Date.UTC(year, month, 1))
-  return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, '0')}`
-}
-
-/**
- * 예상치 한 줄과 그 입력칸.
- *
- * 카드 안에 둔다. 설정 화면으로 보내면 어떤 값이 나왔는지 보면서 적을 수가 없고,
- * 예상치는 그 값 바로 옆에서만 뜻이 있다.
- */
-function ForecastBox({
-  series,
-  editable,
-  onSave,
-  onClear,
-}: {
-  series: MacroSeriesInfo
-  /** 예상치는 전원이 같이 보는 값이라 관리자만 넣는다. 나머지는 읽기만 */
-  editable: boolean
-  onSave: (code: string, month: string, value: number) => Promise<boolean>
-  onClear: (code: string, month: string) => Promise<boolean>
-}) {
-  const [open, setOpen] = useState(false)
-  const [month, setMonth] = useState(() => defaultMonth(series))
-  const [value, setValue] = useState('')
-  const [busy, setBusy] = useState(false)
-
+/** 예상치를 줄 안 한 마디로 — 넣는 칸은 차트 창 안에 있다(목업 14 ②) */
+function forecastWord(series: MacroSeriesInfo): string {
   const { forecast, pending_forecast: pending } = series
-  const number = Number(value)
-  const canSave = value !== '' && value !== '-' && Number.isFinite(number)
-
-  const submit = async (event: React.FormEvent) => {
-    event.preventDefault()
-    if (!canSave || busy) return
-    setBusy(true)
-    const ok = await onSave(series.code, month, number)
-    setBusy(false)
-    if (ok) {
-      setOpen(false)
-      setValue('')
-    }
+  if (forecast) {
+    const base = `예상 ${macroValue(forecast.value, series.unit)}`
+    return forecast.surprise !== null ? `${base}, ${surpriseWord(forecast.surprise, series.unit)}` : base
   }
-
-  const remove = async () => {
-    if (busy) return
-    setBusy(true)
-    const ok = await onClear(series.code, month)
-    setBusy(false)
-    if (ok) {
-      setOpen(false)
-      setValue('')
-    }
-  }
-
-  return (
-    <>
-      {forecast && (
-        <p className="macro-forecast">
-          예상 {macroValue(forecast.value, series.unit)}
-          {forecast.surprise !== null && (
-            /* 실제 − 예상. 색은 안 쓴다 — 물가가 높은 게 좋은 일인지는 무엇을 들고
-               있느냐에 따라 다르고, 그 판단은 이 화면이 할 일이 아니다. */
-            <span className="macro-surprise mono">
-              실제 {macroChange(forecast.surprise, series.unit)}
-            </span>
-          )}
-          <span className="hint"> {forecast.source_label}</span>
-        </p>
-      )}
-      {pending && (
-        <p className="macro-forecast">
-          <span className="hint">{monthOf(pending.as_of)} 예상</span>{' '}
-          {macroValue(pending.value, series.unit)}
-          <span className="hint"> {pending.source_label} · 아직 발표 전</span>
-        </p>
-      )}
-
-      {open ? (
-        <form className="forecast-form" onSubmit={(event) => void submit(event)}>
-          <label>
-            <span className="hint">달</span>
-            <input
-              type="month"
-              value={month}
-              onChange={(event) => setMonth(event.target.value)}
-              aria-label={`${series.name} 예상치가 가리키는 달`}
-            />
-          </label>
-          <label>
-            <span className="hint">예상(%)</span>
-            {/* 전년비는 마이너스가 될 수 있다 (2009·2015년 CPI) — 빼기표를 받는다 */}
-            <NumberInput
-              value={value}
-              onChange={setValue}
-              allowNegative
-              placeholder="2.7"
-              aria-label={`${series.name} 예상치`}
-            />
-          </label>
-          <div className="forecast-actions">
-            <button type="submit" className="primary" disabled={!canSave || busy}>
-              저장
-            </button>
-            <button type="button" onClick={() => void remove()} disabled={busy}>
-              지우기
-            </button>
-            <button type="button" onClick={() => setOpen(false)} disabled={busy}>
-              닫기
-            </button>
-          </div>
-        </form>
-      ) : editable ? (
-        <button
-          className="link-btn forecast-open"
-          onClick={() => {
-            setMonth(defaultMonth(series))
-            setValue('')
-            setOpen(true)
-          }}
-        >
-          예상치 입력
-        </button>
-      ) : null}
-    </>
-  )
+  if (pending) return `${monthOf(pending.as_of)} 예상 ${macroValue(pending.value, series.unit)}(발표 전)`
+  return ''
 }
 
-function MacroCard({
+/**
+ * 지표 한 줄 (디자인 4차 목업 13 ② · 14 ② — 카드 열두 장 대신 한 목록, 줄 높이가 고르게).
+ * 줄을 누르면 차트(예상치 입력도 거기). 꼬리표(전년비) · 예상 · 주기는 풀이 줄 안에, 국면 구간은 이름 옆 꼬리표.
+ * 받은 시각 · 출처가 위의 공통 줄과 같으면 줄에는 적지 않는다. 못 받은 까닭 · 상태만 줄 아래에 남는다.
+ */
+function MacroRow({
   series,
   pinned,
-  canEditForecast,
+  commonChecked,
+  commonSource,
   onOpen,
   onTogglePin,
-  onSaveForecast,
-  onClearForecast,
 }: {
   series: MacroSeriesInfo
   pinned: boolean
-  canEditForecast: boolean
+  commonChecked: string
+  commonSource: string
   onOpen: () => void
   /** 없으면 별을 안 띄운다 (손님) */
   onTogglePin?: () => void
-  onSaveForecast: (code: string, month: string, value: number) => Promise<boolean>
-  onClearForecast: (code: string, month: string) => Promise<boolean>
 }) {
   const status = statusOf(series)
   const change = macroChange(series.change, series.unit)
+  const value = macroValue(series.value, series.unit)
+  const checked = checkedLabel(series.last_checked_at)
+  const daily = series.frequency === 'daily'
+  const meta = [
+    series.transform_label,
+    periodOf(series),
+    series.released_at && `${series.released_at} 발표`,
+    daily && series.stale && series.as_of && `${series.as_of} 값`,
+    !checked ? '받아본 적 없음' : checked !== commonChecked && `${checked} 확인`,
+    series.source && series.source !== commonSource && `출처 ${series.source}`,
+  ].filter(Boolean)
+  const sub = [series.note, ...meta].filter(Boolean).join(', ')
+  const fc = forecastWord(series)
+  const zone = series.zone ? `${series.zone.label} 구간` : ''
+  const zoneSpoken = series.zone ? `${zone} ${series.zone.range}` : ''
 
   return (
-    <div className="stock-card macro-card">
-      <div className="stock-card-head">
-        <div className="macro-card-name">
-          <button className="link-btn macro-title" onClick={onOpen}>
-            {series.name}
-          </button>
-          {series.note && <span className="ticker-sub">{series.note}</span>}
-        </div>
-        <div className="badge-row">
-          {series.transform_label && (
-            <span className="badge badge-blue">{series.transform_label}</span>
-          )}
-          {status && <span className={`badge ${status.tone}`}>{status.text}</span>}
-        </div>
-        {/* 홈에 올릴지. 켜고 끄는 자리를 지표 옆에 둔다 — 설정 화면으로 보내면 어떤
-            지표가 있는지 보면서 고를 수가 없다. */}
-        {onTogglePin && (
+    <li className="macro-row">
+      <div className="macro-row-main">
+        {onTogglePin ? (
+          // ★ = 자주 보는 지표 — 켜면 목록 맨 위 "내 지표"로 모인다(목업 14 ① 가). 홈에 올리던 뜻은 4차 ㉡ 에서 홈 줄을 빼며 없어졌다
           <button
             className={`pin-btn${pinned ? ' on' : ''}`}
+            data-pin={series.code}
             onClick={onTogglePin}
             aria-pressed={pinned}
-            title={pinned ? '홈 화면에서 내리기' : '홈 화면에 올리기'}
-            aria-label={`${series.name} 홈 화면에 올리기`}
+            title={pinned ? '내 지표에서 빼기' : '내 지표로 — 목록 맨 위에 모입니다'}
+            aria-label={`${series.name} 내 지표로`}
           >
             {pinned ? '★' : '☆'}
           </button>
+        ) : (
+          <span className="macro-row-pad" aria-hidden="true" />
         )}
+        <button
+          type="button"
+          className="macro-row-open"
+          onClick={onOpen}
+          // 읽는 이름에 구간 · 풀이 · 예상 · 받은 시각도 — 이름만 덮어 쓰면 "받아본 적 없음" 같은 글을 듣지 못했다(검토 6 참고)
+          aria-label={[series.name, zoneSpoken, sub, fc, `${value}${change ? ` ${change}` : ''} — 차트`].filter(Boolean).join(', ')}
+        >
+          <span className="macro-row-name">
+            <b>
+              {series.name}
+              {/* 어느 구간인지. 점수만으로는 33.7이 높은지 낮은지 알 수 없고, 범위를 같이 적으면 숫자만 보고도 읽힌다 (`services/regime.py`) */}
+              {series.zone && (
+                <span className={`macro-zone-tag ${zoneTone(series.zone)}`}>
+                  {zone} <span className="macro-zone-range">{series.zone.range}</span>
+                </span>
+              )}
+            </b>
+            {sub && <small>{sub}</small>}
+            {fc && <small>{fc}</small>}
+          </span>
+          <span className="macro-row-value">
+            <b className="mono">{value}</b>
+            {change && <small className="mono">{change}</small>}
+          </span>
+          <Icon name="forward" size={18} className="macro-row-go" />
+        </button>
       </div>
 
-      <div className="macro-figure">
-        <span className="big mono">{macroValue(series.value, series.unit)}</span>
-        {change && <span className="macro-change mono">{change}</span>}
-      </div>
-
-      {/* 어느 구간인지. 점수만으로는 33.7이 높은지 낮은지 알 수 없고, 범위를 같이 적으면
-          다음부터는 숫자만 보고도 읽힌다. 경계는 서버가 들고 있다 (`services/regime.py`). */}
-      {series.zone && (
-        <p className={`macro-zone ${zoneTone(series.zone)}`}>
-          {series.zone.label} 구간
-          <span className="macro-zone-range">{series.zone.range}</span>
-        </p>
+      {(status || series.last_error) && (
+        <div className="macro-row-more">
+          {status && (
+            <div className="badge-row">
+              <span className={`badge ${status.tone}`}>{status.text}</span>
+            </div>
+          )}
+          {series.last_error && (
+            <details className="error-detail">
+              <summary>왜 못 받았는지 보기</summary>
+              <p>{series.last_error}</p>
+            </details>
+          )}
+        </div>
       )}
-
-      {/* 예상치는 발표되는 지표에만 있다. VIX·금리는 매일 시장에서 나오는 값이라
-          "예상 대비"라는 개념 자체가 없어서 입력칸도 안 띄운다. */}
-      {series.forecastable && (
-        <ForecastBox
-          series={series}
-          editable={canEditForecast}
-          onSave={onSaveForecast}
-          onClear={onClearForecast}
-        />
-      )}
-
-      <p className="hint macro-foot">
-        {series.as_of ? `${series.as_of} 기준` : '값 없음'}
-        {' · '}
-        {FREQUENCY_LABEL[series.frequency] ?? series.frequency}
-        {series.released_at && ` · ${series.released_at} 발표`}
-      </p>
-      {/* "언제 받아본 것인가"는 "값이 언제 것인가"와 다른 질문이다. 둘 다 없으면
-          날짜가 뒤처져 보일 때 출처 탓인지 우리 탓인지 가릴 수가 없다. */}
-      <p className="hint macro-foot">
-        {checkedLabel(series.last_checked_at)
-          ? `${checkedLabel(series.last_checked_at)} 확인`
-          : '받아본 적 없음'}
-        {series.source && ` · ${series.source}`}
-      </p>
-
-      {series.last_error && (
-        <details className="error-detail">
-          <summary>왜 못 받았는지 보기</summary>
-          <p>{series.last_error}</p>
-        </details>
-      )}
-    </div>
+    </li>
   )
 }
 
 export function MacroPanel() {
-  // 별을 켜고 끄면 홈의 매크로 줄이 달라진다. 홈이 그걸 알아야 다음에 열릴 때 다시 읽는다.
+  // 별(서버의 pinned_macro)은 이제 "내 지표" 순서만 바꾼다. 다른 화면이 같은 값을 읽을 수 있어 바꾼 뒤 알린다(예전에는 홈 매크로 줄)
   const { notifyDataChanged, refreshKey } = useAppState()
-  // 손님은 둘러보기만, 사용자는 별(내 홈)까지, 관리자는 받아오기·예상치(전원 것)까지
+  // 손님은 둘러보기만, 사용자는 별(내 지표)까지, 관리자는 받아오기·예상치(전원 것)까지
   const { guest, isAdmin, pending, user } = useAuth()
   const [aiOpen, setAiOpen] = useState(false)
   const closeAi = useCallback(() => setAiOpen(false), [])
@@ -342,6 +205,24 @@ export function MacroPanel() {
   const [error, setError] = useState<unknown>(null)
   const [open, setOpen] = useState<MacroSeriesInfo | null>(null)
   const [pinning, setPinning] = useState(false)
+  const [pinNote, setPinNote] = useState('')
+  // 포커스 · 화면을 데려갈 별 — 줄이 옮겨 그려진 "다음"에 옮긴다. rAF 로 하면 되돌림이 그려지기 전에 돌아
+  // 곧 사라질 옛 별에 포커스가 갔다(묶음 5 네 번째 검토 조건 1)
+  const [follow, setFollow] = useState<{ code: string; n: number } | null>(null)
+  useLayoutEffect(() => {
+    if (!follow) return
+    const star = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-pin]')).find((el) => el.dataset.pin === follow.code)
+    star?.focus({ preventScroll: true })
+    // 움직임 줄이기를 켠 사람에게는 부드럽게 굴리지 않는다 (재검토 참고)
+    const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    star?.scrollIntoView?.({ block: 'center', behavior: still ? 'auto' : 'smooth' })
+  }, [follow])
+  // 예상치 저장 실패 까닭은 그 창 것 — 화면 까닭과 하나를 같이 쓰면 다른 지표 창에도 남아 떴다(묶음 5 검토 조건 1)
+  const [forecastError, setForecastError] = useState<unknown>(null)
+  const openChart = (item: MacroSeriesInfo | null) => {
+    setForecastError(null)
+    setOpen(item)
+  }
 
   // 탭을 옮겨 와도 들고 있던 값을 먼저 그린다 (ROADMAP 8-1)
   const { loading } = useCachedLoad('page:macro', api.getMacro, setData, setError, [refreshKey])
@@ -380,6 +261,11 @@ export function MacroPanel() {
     const before = data.pinned
     setData({ ...data, pinned: next })
     setPinning(true)
+    // 줄이 "내 지표" ↔ "모든 지표"로 옮겨 간다 — 폰 320 에서 누른 줄이 화면 밖으로 사라져 어디 갔는지 몰랐다(묶음 5 사용자 확인).
+    // 옮긴 자리의 별로 포커스와 화면을 데려간다
+    const name = data.series.find((item) => item.code === code)?.name ?? code
+    setPinNote(next.includes(code) ? `${name} 을(를) 맨 위 내 지표로 옮겼습니다` : `${name} 을(를) 내 지표에서 뺐습니다`)
+    setFollow((n) => ({ code, n: (n?.n ?? 0) + 1 }))
     try {
       const saved = await api.setMacroPinned(next)
       setData((current) => (current ? { ...current, pinned: saved.codes } : current))
@@ -387,7 +273,10 @@ export function MacroPanel() {
       notifyDataChanged()
     } catch (e) {
       setData((current) => (current ? { ...current, pinned: before } : current))
+      setPinNote(`${name} 을(를) 옮기지 못했습니다`) // "옮겼습니다"로 남아 있었다 (재검토 참고)
       setError(e)
+      // 되돌아간 자리의 별로 — 폰에서 포커스가 body 로 떨어졌다 (세 번째 검토 참고). 되돌림과 같은 그림에서 옮긴다
+      setFollow((n) => ({ code, n: (n?.n ?? 0) + 1 }))
     } finally {
       setPinning(false)
     }
@@ -401,7 +290,7 @@ export function MacroPanel() {
    * 화면이 된다. 요청 한 번이고 이 화면은 자주 여는 곳이 아니다.
    */
   const afterForecast = async (run: () => Promise<unknown>): Promise<boolean> => {
-    setError(null)
+    setForecastError(null)
     try {
       await run()
       await load()
@@ -409,7 +298,7 @@ export function MacroPanel() {
       // 다음에 열릴 때 새로 읽는다. 여기서 또 다시 읽게 하면 같은 요청을 두 번 보낸다.
       return true
     } catch (e) {
-      setError(e)
+      setForecastError(e)
       return false
     }
   }
@@ -424,6 +313,22 @@ export function MacroPanel() {
   const series = data?.series ?? []
   const pinned = data?.pinned ?? []
   const badges = data?.badges ?? []
+  const commonChecked = mostCommon(series.map((item) => checkedLabel(item.last_checked_at)))
+  const commonSource = mostCommon(series.map((item) => item.source ?? ''))
+  // ★ 켠 지표는 맨 위 "내 지표"로 — 손님은 별이 없어 한 목록 (목업 14 ① 가)
+  const mine = guest ? [] : series.filter((item) => pinned.includes(item.code))
+  const rest = guest ? series : series.filter((item) => !pinned.includes(item.code))
+  const row = (item: MacroSeriesInfo) => (
+    <MacroRow
+      key={item.code}
+      series={item}
+      pinned={pinned.includes(item.code)}
+      commonChecked={commonChecked}
+      commonSource={commonSource}
+      onOpen={() => openChart(item)}
+      onTogglePin={guest ? undefined : () => void togglePin(item.code)}
+    />
+  )
 
   return (
     <>
@@ -431,16 +336,13 @@ export function MacroPanel() {
         <div>
           <h2>매크로 지표</h2>
           {/* 이 한 줄이 이 화면의 전부다. 여기 숫자는 매수·매도 판정에 들어가지 않는다 */}
-          <p className="hint">
-            지금이 어떤 국면인지 보는 곳입니다 — 여기 숫자는 매수·매도 시그널 판정에
-            들어가지 않습니다.
-          </p>
+          <p className="hint">여기 숫자는 매수·매도 시그널에 들어가지 않습니다.</p>
         </div>
         <div className="page-actions">
           {/* 지표를 AI 가 글로 (3c-2). 손님·승인 대기는 AI 를 쓰지 않는다 — 키도 계정에 묶여 있다 */}
           {!guest && !pending && series.length > 0 && (
             <button className="ghost" onClick={() => setAiOpen(true)}>
-              ✦ AI 정리
+              AI 매크로 정리
             </button>
           )}
           {isAdmin && (
@@ -464,11 +366,16 @@ export function MacroPanel() {
       ) : series.length === 0 ? (
         <div className="empty-state">
           <h3>아직 지표가 없습니다</h3>
-          <p>
-            서버를 다시 띄우면 기본 지표 목록이 채워집니다. 그래도 비어 있으면
-            <code> docker compose exec app python diagnose.py </code>
-            로 어디서 막히는지 볼 수 있습니다.
-          </p>
+          {/* 서버 명령은 관리자만 쓸 수 있다 — 지인 · 손님에게는 기다리면 된다는 말만 (목업 15 ④) */}
+          {isAdmin ? (
+            <p>
+              서버를 다시 띄우면 기본 지표 목록이 채워집니다. 그래도 비어 있으면
+              <code> docker compose exec app python diagnose.py </code>
+              로 어디서 막히는지 볼 수 있습니다.
+            </p>
+          ) : (
+            <p>아직 지표를 받지 못했습니다. 잠시 뒤 다시 열어 주세요.</p>
+          )}
         </div>
       ) : (
         <>
@@ -479,31 +386,50 @@ export function MacroPanel() {
                빈 자리는 "아직 안 불러왔나"로 보인다. */
             <p className="hint regime-quiet">지금 눈에 띄는 국면은 없습니다.</p>
           )}
-          <TermSpreadLine
-            spread={data?.term_spread ?? null}
-            pinned={pinned.includes(TERM_SPREAD_CODE)}
-            onTogglePin={guest ? undefined : () => void togglePin(TERM_SPREAD_CODE)}
-          />
-          <div className="card-grid">
-            {series.map((item) => (
-              <MacroCard
-                key={item.code}
-                series={item}
-                pinned={pinned.includes(item.code)}
-                canEditForecast={isAdmin}
-                onOpen={() => setOpen(item)}
-                onTogglePin={guest ? undefined : () => void togglePin(item.code)}
-                onSaveForecast={saveForecast}
-                onClearForecast={clearForecast}
-              />
-            ))}
+          <TermSpreadLine spread={data?.term_spread ?? null} />
+          <p className="sr-only" role="status">
+            {pinNote}
+          </p>
+          {/* "언제 받아본 것인가"는 "값이 언제 것인가"와 다른 질문이다 — 대부분 같아서 위에 한 번, 다른 줄만 줄에 적는다 */}
+          {mine.length > 0 && (
+            <>
+              <div className="macro-list-head">
+                <h3 id="macro-mine">내 지표</h3>
+                <span className="hint">★ 을 끄면 아래로</span>
+              </div>
+              <ul className="macro-list" aria-labelledby="macro-mine">
+                {mine.map(row)}
+              </ul>
+            </>
+          )}
+          <div className="macro-list-head">
+            <h3 id="macro-all">{mine.length > 0 ? '모든 지표' : '지표'}</h3>
+            <span className="hint">
+              {commonChecked ? `${commonChecked}에 받음` : '아직 받지 않음'}
+              {commonSource && ` (출처 ${commonSource})`}
+            </span>
           </div>
+          {!guest && mine.length === 0 && <p className="hint macro-mine-hint">★ 을 누르면 그 지표가 맨 위 &ldquo;내 지표&rdquo;로 모입니다.</p>}
+          <ul className="macro-list" aria-labelledby="macro-all">
+            {rest.map(row)}
+          </ul>
         </>
       )}
 
       {open && (
         <Suspense fallback={null}>
-          <MacroChartModal code={open.code} name={open.name} onClose={() => setOpen(null)} />
+          <MacroChartModal
+            code={open.code}
+            name={open.name}
+            // 저장한 뒤 다시 읽은 값을 쓰도록 목록에서 다시 찾는다
+            series={series.find((item) => item.code === open.code) ?? open}
+            canEditForecast={isAdmin}
+            onSaveForecast={saveForecast}
+            onClearForecast={clearForecast}
+            forecastError={forecastError}
+            onForecastErrorDismiss={() => setForecastError(null)}
+            onClose={() => openChart(null)}
+          />
         </Suspense>
       )}
     </>

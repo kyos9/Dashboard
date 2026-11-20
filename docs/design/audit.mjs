@@ -37,6 +37,8 @@ const VIEWPORTS = [
 ]
 // PC 브라우저 확대 150% = 창 폭 1400/1.5 ≈ 933 에 배율 1.5
 const ZOOM150 = { name: 'pc-zoom150', width: 933, height: 600, dsf: 1.5, phone: false }
+// 4차: 폰 390 에서 글자 130% — 브라우저로 글자만 키울 수 없어 폭 390/1.3 = 300 에 배율 3 × 1.3 으로 흉내 낸다
+const TEXT130 = { name: 'ph390-text130', width: 300, height: 650, dsf: 3.9, phone: true }
 
 function conditions() {
   if (QUICK)
@@ -49,6 +51,7 @@ function conditions() {
   out.push({ vp: VIEWPORTS[1], theme: 'dark', rise: 'red' })
   out.push({ vp: VIEWPORTS[1], theme: 'light', rise: 'red' }) // 2차: 빨강 + 라이트 대비
   out.push({ vp: ZOOM150, theme: 'dark', rise: 'green' })
+  out.push({ vp: TEXT130, theme: 'dark', rise: 'green' })
   return out
 }
 
@@ -68,16 +71,9 @@ async function clickViewTool(page, name, exact = false) {
 const clickText = (re) => async (page) => {
   await page.getByRole('button', { name: re }).first().click()
 }
-async function openMenu(page, label, pcLabel = label) {
-  // PC 는 헤더 버튼(이름이 다를 수 있다), 폰은 ⋯ 메뉴 안
-  for (const name of [label, pcLabel]) {
-    const direct = page.getByRole('button', { name, exact: true })
-    if (await direct.first().isVisible().catch(() => false)) return direct.first().click()
-  }
-  await page.getByRole('button', { name: /^메뉴/ }).first().click()
-  // 메뉴 안에서는 .menu-item 으로만 찾는다 — 메뉴 단추 자신의 이름("메뉴 — 진단을 확인하세요")에도 '진단'이 들어 있어
-  // 전에는 메뉴를 다시 눌러 닫아 버렸다(진단 팝업이 기준선에서 늘 "열지 못함", 디자인 3차에서 찾음)
-  await page.locator('.menu-item', { hasText: label }).first().click()
+// 4차 묶음 2: 머리줄 ⋯ 메뉴는 설정 탭(/settings)이 되었다 — 설정 줄을 누른다
+async function openMenu(page, label) {
+  await page.locator('.settings-row', { has: page.locator('.settings-label', { hasText: label }) }).first().click()
 }
 
 const SCREENS = [
@@ -115,17 +111,48 @@ const SCREENS = [
       await page.waitForSelector('canvas', { timeout: 15000 }).catch(() => {})
     },
   },
-  {
-    name: 'modal-ai-summary',
-    who: 'owner@example.com',
-    path: '/',
-    view: 'portfolio',
-    act: clickText(/AI 포트폴리오 진단/),
-  },
+  // 4차 묶음 2: AI 정리는 창이 아니라 화면
+  { name: 'ai-portfolio', who: 'owner@example.com', path: '/ai/portfolio' },
+  { name: 'ai-watchlist', who: 'owner@example.com', path: '/ai/watchlist' },
+  { name: 'settings', who: 'owner@example.com', path: '/settings' },
+  { name: 'guest-settings', who: null, path: '/settings' },
   { name: 'fundamentals', who: 'owner@example.com', path: '/fundamentals' },
   { name: 'rebalance', who: 'owner@example.com', path: '/rebalance' },
   { name: 'macro', who: 'owner@example.com', path: '/macro' },
-  { name: 'history', who: 'owner@example.com', path: '/history' },
+  // 4차 묶음 3: 차트 탭(/history)은 종목 안의 탭이 됐다 — 종목 안(/stocks/:ticker)의 탭 넷을 잰다
+  { name: 'stock-detail', who: 'owner@example.com', path: '/stocks/AAPL' },
+  ...['신호', '재무', '보유'].map((tab) => ({
+    name: `stock-detail-${{ 신호: 'signal', 재무: 'fund', 보유: 'holding' }[tab]}`,
+    who: 'owner@example.com',
+    path: '/stocks',
+    act: async (page) => {
+      // 이름이 가장 긴 종목(TIGER 미국필라델피아…)으로 — 머리·탭이 좁은 폭에서 깨지는지
+      await page.locator('a.stock-row', { hasText: 'TIGER' }).first().click()
+      await page.waitForSelector('[role=tab]')
+      await page.getByRole('tab', { name: new RegExp('^' + tab) }).click()
+    },
+  })),
+  {
+    name: 'stocks-card',
+    who: 'owner@example.com',
+    path: '/stocks',
+    act: async (page) => {
+      const more = page.getByRole('button', { name: '보기·설정' })
+      if (await more.isVisible().catch(() => false)) await more.click()
+      await page.getByRole('button', { name: '카드 보기' }).click()
+      await page.waitForTimeout(800)
+    },
+  },
+  {
+    name: 'stocks-sheet',
+    who: 'owner@example.com',
+    path: '/stocks',
+    act: async (page) => {
+      await page.getByPlaceholder(/종목 이름이나 코드/).fill('삼성')
+      await page.locator('.symbol-option').nth(2).click()
+      await page.waitForSelector('.add-sheet')
+    },
+  },
   { name: 'stocks', who: 'owner@example.com', path: '/stocks' },
   { name: 'policy', who: null, path: '/policy' },
   // 2차에서 더한 화면 — 차트 팝업의 다른 탭, 카드 보기, 시그널 기준, 매크로 차트, 종목 설정 표
@@ -164,7 +191,8 @@ const SCREENS = [
       for (let i = 0, n = await names.count(); i < n; i++) {
         await names.nth(i).click()
         await page.waitForSelector('[role=dialog] [role=tab]', { timeout: 15000 })
-        const want = page.locator('[role=dialog]').getByRole('tab', { name: tab })
+        // 4차 묶음 3: AI 분석은 탭이 아니라 아래 한 줄(단추)
+        const want = page.locator('[role=dialog]').getByRole(String(tab) === String(/AI/) ? 'button' : 'tab', { name: tab })
         if (await want.count()) return want.first().click()
         await page.locator('[role=dialog]').getByRole('button', { name: '닫기' }).first().click()
       }
@@ -187,15 +215,15 @@ const SCREENS = [
     who: 'owner@example.com',
     path: '/macro',
     act: async (page) => {
-      await page.locator('button.macro-title').first().click()
+      await page.locator('button.macro-row-open').first().click()
       await page.waitForSelector('canvas', { timeout: 15000 }).catch(() => {})
     },
   },
-  { name: 'menu-display', who: 'owner@example.com', path: '/', act: (p) => openMenu(p, '화면 설정', '화면') },
-  { name: 'menu-ai-key', who: 'owner@example.com', path: '/', act: (p) => openMenu(p, 'AI 키 설정') },
-  { name: 'menu-push', who: 'owner@example.com', path: '/', act: (p) => openMenu(p, '알림 설정') },
-  { name: 'menu-diagnostics', who: 'owner@example.com', path: '/', act: (p) => openMenu(p, '진단') },
-  { name: 'menu-users', who: 'owner@example.com', path: '/', act: (p) => openMenu(p, /사용자/) },
+  { name: 'menu-display', who: 'owner@example.com', path: '/settings', act: (p) => openMenu(p, '화면') },
+  { name: 'menu-ai-key', who: 'owner@example.com', path: '/settings', act: (p) => openMenu(p, 'AI 키') },
+  { name: 'menu-push', who: 'owner@example.com', path: '/settings', act: (p) => openMenu(p, '알림') },
+  { name: 'menu-diagnostics', who: 'owner@example.com', path: '/settings', act: (p) => openMenu(p, '서버 상태') },
+  { name: 'menu-users', who: 'owner@example.com', path: '/settings', act: (p) => openMenu(p, '사용자') },
 ]
 
 /* ---------- 브라우저 안에서 재는 것 ---------- */
@@ -234,8 +262,10 @@ function measure(opts) {
   }
 
   // 1. 페이지 가로 넘침
-  if (document.documentElement.scrollWidth > innerWidth + 1)
-    out.push({ check: 'page-overflow', where: 'document', text: '', px: document.documentElement.scrollWidth - innerWidth })
+  // 폰 흉내(isMobile)에서는 넘치면 innerWidth 까지 같이 커진다 — 정한 화면 폭과 비교한다 (4차 묶음 2 재검토 조건 3)
+  const viewW = Math.min(innerWidth, opts.width)
+  if (document.documentElement.scrollWidth > viewW + 1)
+    out.push({ check: 'page-overflow', where: 'document', text: '', px: document.documentElement.scrollWidth - viewW })
 
   // 팝업이 열려 있으면 팝업 안만 잰다 — 뒤 화면은 그 화면의 검사가 잰다
   const modals = [...document.querySelectorAll('.modal-backdrop, [role=dialog]')].filter(visible)
@@ -439,12 +469,17 @@ function measure(opts) {
     b: top.b * top.a + under.b * (1 - top.a),
     a: 1,
   })
+  // 4차: 못 읽은 색을 센다 — rgb() 밖의 표기(oklch·color(srgb …))를 조용히 건너뛰면 대비 0 이 "잰 것"이 아니다
   function background(el) {
     const layers = []
     for (let n = el; n; n = n.parentElement) {
       const cs = getComputedStyle(n)
       if (cs.backgroundImage && cs.backgroundImage !== 'none' && !/url\(/.test(cs.backgroundImage)) return null
       const c = parse(cs.backgroundColor)
+      if (!c && cs.backgroundColor && cs.backgroundColor !== 'transparent') {
+        add('color-unread', n, { value: cs.backgroundColor })
+        return null
+      }
       if (c && c.a > 0) {
         layers.push(c)
         if (c.a >= 1) break
@@ -462,6 +497,7 @@ function measure(opts) {
     if (el.closest(':disabled, [aria-disabled="true"]')) continue
     const cs = getComputedStyle(el)
     const fg0 = parse(cs.color)
+    if (!fg0) add('color-unread', el, { value: cs.color })
     const bg = background(el)
     if (!fg0 || !bg) continue
     let alpha = fg0.a
@@ -471,12 +507,95 @@ function measure(opts) {
     const ratio = (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05)
     if (ratio < 4.5) add('contrast', el, { ratio: +ratio.toFixed(2), color: cs.color, size: cs.fontSize })
   }
+  // 4차: 머리줄 안 포커스 테두리 — 청람 바탕과 같은 색이면 키보드로 어디 있는지 모른다(라이트 기본 테두리가 그랬다)
+  const head = document.querySelector('.app-header')
+  if (head) {
+    const headBg = parse(getComputedStyle(head).backgroundColor)
+    const before = document.activeElement
+    for (const el of head.querySelectorAll('button, a[href]')) {
+      if (!visible(el)) continue
+      el.focus({ focusVisible: true })
+      if (document.activeElement !== el) continue
+      const cs = getComputedStyle(el)
+      const ring = parse(cs.outlineColor)
+      const width = parseFloat(cs.outlineWidth) || 0
+      if (cs.outlineStyle === 'none' || width < 1 || !ring || !headBg) {
+        add('focus-ring', el, { style: cs.outlineStyle, width })
+        continue
+      }
+      const L1 = lum(ring), L2 = lum(headBg)
+      const ratio = (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05)
+      if (ratio < 3) add('focus-ring', el, { ratio: +ratio.toFixed(2), color: cs.outlineColor })
+    }
+    // 검사가 준 포커스를 남기지 않는다 — 처음이 body 였으면 풀어 둔다(사진에 사용자가 안 본 테두리가 찍혔다)
+    if (before && before !== document.body && before.focus) before.focus()
+    else document.activeElement?.blur?.()
+  }
+
+  // 4차: 글자 겹침 — 한 상자 안의 이웃 칸끼리 글자가 겹친다(긴 종목 이름이 옆 금액 위로). 요소 상자가 아니라 글자 상자를 잰다
+  const shown = new Set(textEls)
+  // 보이는 글자만 — 접힌 "자세히"·넘침을 감춘 상자 안의 글은 상자를 그려도 화면에 없다
+  const clipOf = (el) => {
+    let box = { left: -1e9, top: -1e9, right: 1e9, bottom: 1e9 }
+    for (let n = el; n && n !== document.body; n = n.parentElement) {
+      const cs = getComputedStyle(n)
+      if (cs.overflowX !== 'visible' || cs.overflowY !== 'visible') {
+        const r = n.getBoundingClientRect()
+        box = { left: Math.max(box.left, r.left), top: Math.max(box.top, r.top), right: Math.min(box.right, r.right), bottom: Math.min(box.bottom, r.bottom) }
+      }
+    }
+    return box
+  }
+  const textRects = (el) => {
+    const rects = []
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      if (!n.textContent.trim() || !shown.has(n.parentElement)) continue
+      if (n.parentElement.closest('details:not([open]) > :not(summary)')) continue // 접힌 "자세히" 안의 글
+      const clip = clipOf(n.parentElement)
+      const r = document.createRange()
+      r.selectNodeContents(n)
+      for (const b of r.getClientRects()) {
+        const c = { left: Math.max(b.left, clip.left), top: Math.max(b.top, clip.top), right: Math.min(b.right, clip.right), bottom: Math.min(b.bottom, clip.bottom) }
+        if (c.right - c.left > 1 && c.bottom - c.top > 1) rects.push(c)
+      }
+    }
+    return rects
+  }
+  const cut = (a, b) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > 2 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 2
+  const seen = new Set()
+  for (const parent of root.querySelectorAll('*')) {
+    const kids = [...parent.children].filter((c) => visible(c) && !['absolute', 'fixed', 'sticky'].includes(getComputedStyle(c).position) /* 붙어 있는 머리줄·저장 줄은 일부러 위에 덮인다 */)
+    if (kids.length < 2 || kids.length > 30) continue
+    const boxes = kids.map(textRects)
+    for (let i = 0; i < kids.length; i++)
+      for (let j = i + 1; j < kids.length; j++)
+        if (boxes[i].some((a) => boxes[j].some((b) => cut(a, b)))) {
+          const key = kids[i].textContent.slice(0, 20) + '|' + kids[j].textContent.slice(0, 20)
+          if (seen.has(key)) continue
+          seen.add(key)
+          add('text-overlap', kids[i], { other: kids[j].textContent.trim().slice(0, 30) })
+        }
+  }
+
+  // 4차: 숫자 자릿수 폭 — 고정폭 글꼴 대신 tabular-nums 를 쓰므로, 글꼴 부분집합이 tnum 을 잃으면 표의 자리가 어긋난다
+  const probe = (text) => {
+    const s = document.createElement('span')
+    s.textContent = text
+    s.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap'
+    document.body.appendChild(s)
+    const w = s.getBoundingClientRect().width
+    s.remove()
+    return w
+  }
+  const w1 = probe('111,111'), w8 = probe('888,888')
+  if (Math.abs(w1 - w8) > 0.5) add('tnum-width', document.body, { w1: +w1.toFixed(1), w8: +w8.toFixed(1) })
   return out
 }
 
 /* ---------- 실행 ---------- */
 
-const CHECKS = ['page-overflow', 'clipped', 'orphan', 'num-split', 'folded3', 'folded2-360', 'touch', 'contrast', 'console', 'cond-missing', 'nowrap-split', 'sticky-left', 'fake-button', 'quiet-target']
+const CHECKS = ['page-overflow', 'clipped', 'orphan', 'num-split', 'folded3', 'folded2-360', 'touch', 'contrast', 'console', 'cond-missing', 'nowrap-split', 'sticky-left', 'fake-button', 'quiet-target', 'color-unread', 'tnum-width', 'text-overlap', 'focus-ring']
 
 const XCOND = {
   key: 'audit_extra_condition',
@@ -509,7 +628,8 @@ async function routeExtraCondition(page) {
 async function cardChecks(page) {
   return page.evaluate(async () => {
     // 시그널 카드만(매크로 카드도 .stock-card 다) — 그 밖의 화면에서는 규칙을 받지 않는다(손님은 401)
-    const cards = [...document.querySelectorAll('article.stock-card[data-ticker]')].filter((c) => c.getBoundingClientRect().height > 0)
+    // 폰의 접힌 카드(.folded)는 조건 칩을 그리지 않는다 — 펼친 카드만 잰다 (4차 묶음 2 재검토 조건 2)
+    const cards = [...document.querySelectorAll('article.stock-card[data-ticker]:not(.folded)')].filter((c) => c.getBoundingClientRect().height > 0)
     if (!cards.length && !document.querySelector('.cond-mark')) return { issues: [], heights: [] }
     let want = null
     try {
@@ -589,7 +709,8 @@ async function main() {
       let failed = null
       let heights = []
       try {
-        await page.goto(BASE + s.path, { waitUntil: 'networkidle' })
+        // 4차 묶음 2: 대시보드 위 탭이 없어졌다 — 시그널 목록은 주소(?view=signal)로 연다
+        await page.goto(BASE + s.path + (s.view === 'signal' ? '?view=signal' : ''), { waitUntil: 'networkidle' })
         if (s.act) {
           await s.act(page)
           if (s.name.startsWith('modal-') || s.name.startsWith('menu-'))

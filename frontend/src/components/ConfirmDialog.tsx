@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { useFocusTrap } from '../lib/focusTrap'
 import { useBackToClose } from '../lib/backToClose'
 import { lockBodyScroll } from '../lib/scrollLock'
 
@@ -34,10 +35,9 @@ export function ConfirmDialog({
   onCancel,
 }: Props) {
   const cancelRef = useRef<HTMLButtonElement>(null)
-
-  useEffect(() => {
-    cancelRef.current?.focus()
-  }, [])
+  const dialogRef = useRef<HTMLDivElement>(null)
+  // 처음 "취소"에 · Tab 은 이 창 안에서만 · 닫으면 연 단추로 — 종목 안 화면처럼 바깥에 가두는 팝업이 없을 때도 (묶음 3 재검토 참고 2 · 5)
+  useFocusTrap(dialogRef, () => cancelRef.current)
 
   // 폰의 뒤로가기로도 닫힌다 (지우는 중에는 안 닫힌다)
   useBackToClose(onCancel, !busy)
@@ -58,6 +58,7 @@ export function ConfirmDialog({
   return (
     <div className="modal-backdrop" onClick={() => !busy && onCancel()}>
       <div
+        ref={dialogRef}
         className="modal confirm-modal"
         role="alertdialog"
         aria-modal="true"

@@ -1,0 +1,163 @@
+/* ---------- 알림 설정 (PushModal) ---------- */
+
+/* 없는 티커 주소 한 줄 — 아주 긴 주소도 가로로 넘치지 않게 (BCD 검토 참고) */
+.history-unknown {
+  overflow-wrap: break-word;
+}
+
+.push-modal {
+  width: min(560px, 100%);
+  /* 키보드로 오가면 포커스 받은 칸이 위에 붙인 제목 줄 밑에 숨지 않게 (BCD 검토) */
+  scroll-padding-top: 72px;
+}
+
+/* 제목·✕ 는 늘 보이게 — 종목별 알림을 펼쳐 끝까지 내리면 ✕ 가 화면 밖이었다(360 은 종목 4개로도, 0.45 B 사용자 확인).
+   창이 스크롤되는 상자라 위 끝(안쪽 여백 16px 위)에 붙인다. 일괄 수정의 아래 붙임(.stock-edit-foot)과 같은 방식 (0.45.1 D3) */
+.push-modal .modal-head {
+  position: sticky;
+  top: -16px;
+  z-index: 1;
+  margin: -16px -16px 16px;
+  padding: 16px 16px 8px;
+  background: var(--panel);
+}
+
+.push-device,
+.push-kinds {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.push-device p,
+.push-kinds h4 {
+  margin: 0;
+  overflow-wrap: break-word;
+}
+
+.push-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* 켤 수 없는 이유 + 할 일. 길어도 잘리지 않고 줄바꿈된다 */
+.push-blocked {
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--amber-soft);
+  line-height: 1.55;
+}
+
+.push-notice {
+  color: var(--green);
+}
+
+.push-kind {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+  line-height: 1.45;
+  overflow-wrap: break-word;
+}
+
+.push-kind input {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+}
+
+.push-kind input:disabled {
+  cursor: not-allowed;
+}
+
+/* 종목별 알림 — 접힌 칸. 종목이 많아도 팝업이 길어지지 않게 (0.45.0) */
+/* 모두 다시 받기 (0.45.1 D1) — 목록 위, 손가락 크기 */
+.push-unmute-all {
+  align-self: flex-start;
+  min-height: 44px;
+}
+
+.push-stocks summary {
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0 4px;
+}
+
+.push-stocks[open] summary {
+  margin-bottom: 8px;
+}
+
+/* 펼치는 줄이라는 표시 — summary 를 flex 로 바꾸면 브라우저의 삼각형이 사라져 제목처럼 보였다(B 사용자 확인) */
+.push-stocks summary::-webkit-details-marker {
+  display: none;
+}
+
+.push-stocks summary::before {
+  content: '▸';
+  color: var(--text-dim);
+  margin-right: 6px;
+}
+
+.push-stocks[open] summary::before {
+  content: '▾';
+}
+
+.push-foot {
+  margin: 12px 0 0;
+  line-height: 1.55;
+}
+
+/* 헤더 버튼 안의 작은 숫자 (기다리는 가입 신청 수) */
+.count-badge {
+  margin-left: 8px;
+  padding: 0 8px;
+  min-width: 18px;
+  justify-content: center;
+}
+
+.diag-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.diag-foot .hint {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.diag-download {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  font-size: var(--fs-sub);
+  color: var(--text-dim);
+  text-decoration: none;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.diag-download:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+@media (max-width: 640px) {
+  .diag-row {
+    flex-wrap: wrap;
+  }
+}
+

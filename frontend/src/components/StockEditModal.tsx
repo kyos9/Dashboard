@@ -9,6 +9,7 @@ import { ConfirmDialog } from './ConfirmDialog'
 import { ErrorNotice } from './ErrorNotice'
 import { NumberInput } from './NumberInput'
 import { HOLDING_MINUS_HINT } from '../lib/numberDropped'
+import { useFocusTrap } from '../lib/focusTrap'
 import { lockBodyScroll } from '../lib/scrollLock'
 
 interface Props {
@@ -19,6 +20,9 @@ interface Props {
   cashTargetPct?: number
   /** 처음 커서를 둘 자리. "평단가 입력"으로 열면 그 종목의 평단가 */
   focus?: { ticker: string; field: EditField }
+  /** 종목 안 보유 탭에서 열면 그 종목 칸만 — 16종목이 다 펼쳐져 "다른 걸 건드리면?"이 됐다(묶음 3 사용자 확인 막힌 곳 2).
+   * 목표 비중 합계는 그대로 전체로 센다 */
+  only?: boolean
   onClose: () => void
   /** 하나라도 저장했으면 닫힐 때 한 번 부른다 — 뒤 화면을 새로 받는다. `saved` 는 연 동안 저장한 종목의 보일 이름(0.45.2 A3) */
   onSaved: (saved: string[]) => void
@@ -39,7 +43,7 @@ interface Props {
  *   (0.45.0 — 전에는 그대로 닫아, 저장에 실패한 종목이 남은 채 뒤로가기를 누르면 말없이 사라졌다).
  * - 저장에 실패하면 첫 실패 줄로 옮긴다 — 폰에서는 아래 칸에 쌓인 오류가 그 줄을 가렸다(0.45.0).
  */
-export function StockEditModal({ stocks, holdings, cashTargetPct = 0, focus, onClose, onSaved }: Props) {
+export function StockEditModal({ stocks, holdings, cashTargetPct = 0, focus, only = false, onClose, onSaved }: Props) {
   // 처음 연 값. 저장에 성공한 종목은 그 값이 새 기준이 된다
   const [base, setBase] = useState<Record<string, EditDraft>>(() =>
     Object.fromEntries(stocks.map((s) => [s.ticker, draftOf(s, holdings.get(s.ticker))])),
@@ -54,6 +58,9 @@ export function StockEditModal({ stocks, holdings, cashTargetPct = 0, focus, onC
   // 저장한 때의 이름 — 저장 뒤 다시 고치다 닫은 이름이 나오지 않게(A 검토). base 는 다음 그림에야 바뀌어 여기 둔다
   const savedNames = useRef<Record<string, string>>({})
   const bodyRef = useRef<HTMLDivElement>(null)
+  // Tab 은 이 팝업 안에서만 · 닫으면 연 단추로. 처음 칸은 아래에서 스스로 고른다 (묶음 3 재검토 참고 2 · 5)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(dialogRef, undefined, false)
 
   const dirty = useMemo(
     () =>
@@ -187,20 +194,25 @@ export function StockEditModal({ stocks, holdings, cashTargetPct = 0, focus, onC
   // 구분 칸의 추천값 — 이미 쓰는 구분과 흔한 예시
   const categories = [...new Set([...stocks.map((s) => s.category ?? '').filter(Boolean), ...CATEGORY_SUGGESTIONS])]
 
+  const single = only && focus ? stocks.find((s) => s.ticker === focus.ticker) : undefined
+  const shownStocks = single ? [single] : stocks
+  const title = single ? `${stockLabel(single)} 수정` : '종목 한 번에 수정'
+
   return (
     // 바로 이 어두운 곳을 눌렀을 때만 — 안에 뜬 확인 창의 바깥을 누른 것이 올라와 다시 묻지 않게
     <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && requestClose()}>
       <div
+        ref={dialogRef}
         className="modal stock-edit-modal"
         role="dialog"
         aria-modal="true"
-        aria-label="종목 한 번에 수정"
+        aria-label={title}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="modal-head">
           <div className="modal-title">
-            <h3>종목 한 번에 수정</h3>
-            <span className="hint">{stocks.length}종목</span>
+            <h3>{title}</h3>
+            {!single && <span className="hint">{stocks.length}종목</span>}
           </div>
           <button className="icon-btn" onClick={requestClose} disabled={busy} aria-label="닫기">
             ✕
@@ -225,7 +237,7 @@ export function StockEditModal({ stocks, holdings, cashTargetPct = 0, focus, onC
           }}
         >
           <div className="stock-edit-list" ref={bodyRef}>
-            {stocks.map((stock) => (
+            {shownStocks.map((stock) => (
               <StockFields
                 key={stock.ticker}
                 stock={stock}

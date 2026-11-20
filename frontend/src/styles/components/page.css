@@ -1,0 +1,81 @@
+/* ---------- 페이지 ---------- */
+
+.page {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 24px var(--gutter-right) calc(72px + env(safe-area-inset-bottom, 0px)) var(--gutter-left);
+}
+
+.page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.page-head h2 {
+  margin: 0;
+  font-size: var(--fs-title);
+}
+
+.page-head .hint {
+  margin: 4px 0 0;
+}
+
+/* 안내는 한 줄 + "자세히" (8-4). 한 줄 전체가 누르는 자리다 */
+.page-intro summary {
+  display: block;
+  cursor: pointer;
+  list-style: none;
+}
+
+.page-intro summary::-webkit-details-marker {
+  display: none;
+}
+
+.intro-more {
+  color: var(--accent);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.page-intro p {
+  margin: 4px 0 0;
+}
+
+@media (max-width: 720px) {
+  .page-intro summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0 4px;
+    min-height: 44px;
+  }
+}
+
+/* 제목 옆 버튼 여럿 — 좁으면 줄을 바꾼다 */
+.page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.section {
+  margin-top: 24px;
+}
+
+.section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.section-head h3 {
+  margin: 0;
+  font-size: var(--fs-strong);
+}
+

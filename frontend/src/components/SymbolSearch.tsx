@@ -33,6 +33,10 @@ interface Props {
   /** 칸에 쳐 둔 글자 — 엔터 대신 바깥의 "추가" 단추로 보낼 때 쓴다 (0.45.4 B 사용자 확인: 단추를 누르면 "입력해주세요"가 났다) */
   onTypedChange?: (typed: string) => void
   disabled?: boolean
+  /** 이미 담은 티커 — 후보에 "담음"을 붙인다(고르면 서버가 "이미 담은 종목"이라 알린다) */
+  owned?: Set<string>
+  /** 그려지자마자 칸에 커서 — 빈 화면의 "종목 담으러 가기"로 왔을 때 (묶음 6 사용자 확인: 한 번 더 눌러야 했다) */
+  focusOnMount?: boolean
 }
 
 /**
@@ -42,14 +46,21 @@ interface Props {
  * 회사의 시세를 받아오는데, 그건 "못 찾았다"보다 나쁘다. 그래서 사용자가 눈으로
  * 확인하고 고르게 한다.
  */
-export function SymbolSearch({ selected, onSelect, onSubmitRaw, onTypedChange, disabled }: Props) {
+export function SymbolSearch({ selected, onSelect, onSubmitRaw, onTypedChange, disabled, owned, focusOnMount }: Props) {
   const [query, setQuery] = useState('')
   const [matches, setMatches] = useState<SymbolMatch[]>([])
   const [open, setOpen] = useState(false)
   const [highlight, setHighlight] = useState(0)
   const [searching, setSearching] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
   const listId = useId()
+
+  useEffect(() => {
+    if (focusOnMount) inputRef.current?.focus()
+    // 처음 그릴 때 한 번만
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // 검색어가 바뀌면 잠깐 기다렸다가 조회한다 (타이핑마다 요청하지 않도록)
   useEffect(() => {
@@ -154,12 +165,13 @@ export function SymbolSearch({ selected, onSelect, onSubmitRaw, onTypedChange, d
   return (
     <div className="symbol-search" ref={containerRef}>
       <input
+        ref={inputRef}
         type="text"
         role="combobox"
         aria-expanded={open}
         aria-controls={listId}
         aria-autocomplete="list"
-        placeholder="삼성전자, 005930, VOO…"
+        placeholder="종목 이름이나 코드 (삼성전자, VOO)"
         value={query}
         disabled={disabled}
         onChange={(e) => {
@@ -188,6 +200,7 @@ export function SymbolSearch({ selected, onSelect, onSubmitRaw, onTypedChange, d
                 {!match.confident && (
                   <span className="badge badge-amber">시장 확인 필요</span>
                 )}
+                {owned?.has(match.ticker) && <span className="badge badge-grey">담음</span>}
               </button>
             </li>
           ))}
@@ -196,7 +209,7 @@ export function SymbolSearch({ selected, onSelect, onSubmitRaw, onTypedChange, d
       {searching && query.trim() && <p className="symbol-search-status">검색 중…</p>}
       {!searching && !open && query.trim().length > 1 && matches.length === 0 && (
         <p className="symbol-search-status">
-          후보가 없습니다. 신규 상장 종목이면 아래 "거래소 목록 갱신"을 눌러보시고, 티커를 알고
+          후보가 없습니다. 신규 상장 종목이면 "거래소 목록 갱신"을 눌러보시고, 티커를 알고
           있다면 그대로 입력하고 추가를 눌러도 됩니다.
         </p>
       )}

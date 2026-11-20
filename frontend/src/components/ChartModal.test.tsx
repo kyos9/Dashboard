@@ -1,11 +1,13 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import { api } from '../api/client'
 import type { HistoryResponse } from '../types'
 import { AuthGate } from './AuthGate'
-import { ChartModal, needsBackfill } from './ChartModal'
+import { AppStateProvider } from '../AppState'
+import { ChartModal } from './ChartModal'
+import { needsBackfill } from '../lib/chartRange'
 import { FUNDAMENTALS } from '../test/fundamentalsFixture'
 
 const series = { setData: vi.fn() }
@@ -55,10 +57,12 @@ describe('차트 팝업', () => {
   it('이름이 티커와 같으면 제목에 한 번만 — "VOO VOO" (디자인 2차)', async () => {
     vi.spyOn(api, 'getHistory').mockResolvedValue({ ...HISTORY, ticker: 'VOO' })
     const { container, unmount } = render(<ChartModal ticker="VOO" name="VOO" onClose={() => {}} />)
-    expect(container.querySelector('.modal-title')!.textContent).toBe('VOO')
+    expect(container.querySelector('.stock-detail-name')!.textContent).toBe('VOO')
+    // 이름 아래 줄에도 티커를 다시 쓰지 않는다
+    expect(container.querySelector('.stock-hero-sub')!.textContent).not.toContain('VOO')
     unmount()
-    render(<ChartModal ticker="005930.KS" name="삼성전자" onClose={() => {}} />)
-    expect(screen.getByText('005930.KS')).toBeInTheDocument()
+    const again = render(<ChartModal ticker="005930.KS" name="삼성전자" onClose={() => {}} />)
+    expect(again.container.querySelector('.stock-hero-sub')).toHaveTextContent('005930.KS')
   })
 
   it('대시보드에서 열면(카드가 오면) 차트 위에 오늘 매수 조건 한 줄, 없으면 그 줄이 없다 (디자인 2차)', async () => {
@@ -379,42 +383,46 @@ describe('차트 팝업 · 재무 탭', () => {
     expect(screen.getByRole('tab', { name: '재무' })).toHaveAttribute('aria-selected', 'true')
   })
 
-  it('ETF 처럼 재무가 없는 종목은 탭이 없다', async () => {
+  it('ETF 처럼 재무가 없는 종목은 재무 탭에 이유 한 줄 — 탭 넷은 종목마다 같은 자리 (묶음 3)', async () => {
     vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
     const fundamentals = vi.spyOn(api, 'getFundamentals').mockResolvedValue({
       ...FUNDAMENTALS,
       state: 'none',
+      message: '재무제표가 없는 종목입니다 (ETF·펀드 등)',
       metrics: [],
       quarters: [],
       per_range: null,
     })
     render(<ChartModal ticker="VOO" name="VOO" initialTab="fundamentals" onClose={() => {}} />)
     await waitFor(() => expect(fundamentals).toHaveBeenCalledWith('VOO'))
-    await waitFor(() => expect(createChart).toHaveBeenCalled())
-    expect(screen.queryByRole('tab', { name: '재무' })).toBeNull()
+    expect(screen.getByRole('tab', { name: '재무' })).toHaveAttribute('aria-selected', 'true')
+    expect(await screen.findByText('재무제표가 없는 종목입니다 (ETF·펀드 등)')).toBeInTheDocument()
+    expect(screen.queryByText('28.1배')).toBeNull()
   })
 
-  it('AI 분석 탭 — 키가 없으면 키 넣기부터', async () => {
+  it('AI 분석 — 아래 한 줄을 누르면, 키가 없으면 키 넣기부터', async () => {
     localStorage.clear()
     vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
     vi.spyOn(api, 'getFundamentals').mockResolvedValue(FUNDAMENTALS)
     const user = userEvent.setup()
     render(<ChartModal ticker="GOOG" name="GOOG" onClose={() => {}} />)
-    await user.click(await screen.findByRole('tab', { name: 'AI 분석' }))
+    await user.click(await screen.findByRole('button', { name: /^AI 분석/ }))
     expect(screen.getByRole('heading', { name: '내 AI 키 넣기' })).toBeInTheDocument()
+    // AI 를 보는 동안 위 탭은 어느 것도 고른 상태가 아니다
+    expect(screen.getAllByRole('tab').filter((t) => t.getAttribute('aria-selected') === 'true')).toHaveLength(0)
     // AI 를 보는 동안 차트 기간 버튼은 뜻이 없다
     expect(screen.queryByRole('button', { name: '전체' })).toBeNull()
   })
 
-  it('재무가 없는 종목(ETF)도 AI 분석 탭은 있다', async () => {
+  it('재무가 없는 종목(ETF)도 AI 분석 줄은 있다', async () => {
     vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
     vi.spyOn(api, 'getFundamentals').mockResolvedValue({ ...FUNDAMENTALS, state: 'none', metrics: [], quarters: [] })
     render(<ChartModal ticker="VOO" name="VOO" onClose={() => {}} />)
-    expect(await screen.findByRole('tab', { name: 'AI 분석' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /^AI 분석/ })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: '차트' })).toHaveAttribute('aria-selected', 'true')
   })
 
-  it('AI 분석은 탭 하나 — 관리자는 웹을 찾아보는 종목 분석을 받는다 (9-13)', async () => {
+  it('AI 분석은 하나 — 관리자는 웹을 찾아보는 종목 분석을 받는다 (9-13)', async () => {
     localStorage.clear()
     vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
     vi.spyOn(api, 'getFundamentals').mockResolvedValue(FUNDAMENTALS)
@@ -426,8 +434,8 @@ describe('차트 팝업 · 재무 탭', () => {
     render(<ChartModal ticker="GOOG" name="GOOG" initialTab="ai" onClose={() => {}} />)
     await screen.findByRole('tab', { name: '재무' })
     const tabs = screen.getAllByRole('tab').map((t) => t.textContent)
-    expect(tabs).toEqual(['차트', '재무', 'AI 분석'])
-    expect(screen.getByRole('tab', { name: 'AI 분석' })).toHaveAttribute('aria-selected', 'true')
+    expect(tabs).toEqual(['차트', '신호', '재무', '보유'])
+    expect(screen.getByRole('region', { name: 'AI 분석' })).toBeInTheDocument()
     expect(screen.getByText(/알파 버킷 편입 판단을 돕는 리포트/)).toBeInTheDocument()
     expect(screen.getByText(/AI 가 웹에서 찾아 출처와 함께 적습니다/)).toBeInTheDocument()
     await user.click(screen.getByText('AI 에게 보내는 내용 보기'))
@@ -456,8 +464,8 @@ describe('차트 팝업 · 재무 탭', () => {
       </MemoryRouter>,
     )
     await screen.findByRole('tab', { name: '재무' })
-    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['차트', '재무', 'AI 분석'])
-    expect(screen.getByRole('tab', { name: 'AI 분석' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['차트', '신호', '재무', '보유'])
+    expect(screen.getByRole('region', { name: 'AI 분석' })).toBeInTheDocument()
     expect(screen.getByText(/보유수량·비중 같은 내 포트폴리오는 보내지 않습니다/)).toBeInTheDocument()
     await user.click(screen.getByText('AI 에게 보내는 내용 보기'))
     await waitFor(() => expect(context).toHaveBeenCalledWith({ kind: 'stock', ticker: 'GOOG' }, ''))
@@ -486,7 +494,7 @@ describe('차트 팝업 · 재무 탭', () => {
       </MemoryRouter>,
     )
     await screen.findByRole('tab', { name: '재무' })
-    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['차트', '재무', 'AI 분석'])
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['차트', '신호', '재무', '보유'])
     // 지인엔 중립 틀 (0.45.4) — 화면 글도 서버 지시문과 같은 말: 편입 판단·익스포저 없이 자료 정리
     expect(screen.getByText(/회사 자료를 한 장으로 정리받습니다/)).toBeInTheDocument()
     expect(document.body.textContent).not.toMatch(/편입|알파|익스포저/)
@@ -496,7 +504,7 @@ describe('차트 팝업 · 재무 탭', () => {
     await waitFor(() => expect(context).toHaveBeenCalledWith({ kind: 'research', ticker: 'GOOG' }, ''))
   })
 
-  it('손님(로그인 전)에게는 AI 분석 탭이 없다', async () => {
+  it('손님(로그인 전)에게는 AI 분석 · 보유가 없다', async () => {
     vi.spyOn(api, 'getHealth').mockResolvedValue({ status: 'ok', version: '0.25.0' })
     vi.spyOn(api, 'getAuthStatus').mockResolvedValue({
       locked: true, authenticated: false, mode: 'google', config_problem: null, user: null,
@@ -511,7 +519,8 @@ describe('차트 팝업 · 재무 탭', () => {
       </MemoryRouter>,
     )
     expect(await screen.findByRole('tab', { name: '재무' })).toBeInTheDocument()
-    expect(screen.queryByRole('tab', { name: 'AI 분석' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /^AI 분석/ })).toBeNull()
+    expect(screen.queryByRole('tab', { name: '보유' })).toBeNull()
   })
 
   it('재무를 못 받아도 차트는 그대로다', async () => {
@@ -519,12 +528,102 @@ describe('차트 팝업 · 재무 탭', () => {
     vi.spyOn(api, 'getFundamentals').mockRejectedValue(new Error('offline'))
     render(<ChartModal ticker="GOOG" name="GOOG" onClose={() => {}} />)
     await waitFor(() => expect(createChart).toHaveBeenCalled())
-    expect(screen.queryByRole('tab', { name: '재무' })).toBeNull()
     expect(screen.queryByRole('alert')).toBeNull()
+    // 재무 탭은 자리를 지키고, 누르면 못 받았다고 한 줄
+    await userEvent.click(screen.getByRole('tab', { name: '재무' }))
+    expect(screen.getByText(/재무를 불러오지 못했습니다/)).toBeInTheDocument()
   })
 })
 
 describe('차트 팝업 · 키보드 (디자인 2차 검토)', () => {
+  it('팝업 위 팝업 — 보유 탭의 "수정"에서 Esc 는 수정만 닫고 차트 팝업은 남는다 (묶음 3 검토 조건 2)', async () => {
+    vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
+    vi.spyOn(api, 'getFundamentals').mockResolvedValue(FUNDAMENTALS)
+    vi.spyOn(api, 'listStocks').mockResolvedValue([
+      { ticker: 'GOOG', name: null, category: null, market: 'US', currency: 'USD', active: true, added_at: '2026-01-01T00:00:00', target_weight_pct: 5, rebalance_band_pct: null, sort_order: 0 },
+    ])
+    vi.spyOn(api, 'listHoldings').mockResolvedValue([])
+    vi.spyOn(api, 'getSettings').mockRejectedValue(new Error('x'))
+    vi.spyOn(api, 'getRebalanceCurrent').mockRejectedValue(new Error('x'))
+    const onClose = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter>
+        <AppStateProvider>
+          <ChartModal ticker="GOOG" name="GOOG" initialTab="holding" onClose={onClose} />
+        </AppStateProvider>
+      </MemoryRouter>,
+    )
+    await user.click(await screen.findByRole('button', { name: /보유 고치기/ }))
+    expect(await screen.findByRole('dialog', { name: 'GOOG 수정' })).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'GOOG 수정' })).toBeNull())
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog', { name: 'GOOG 차트' })).toBeInTheDocument()
+    // 한 번 더 누르면 그때 차트 팝업이 닫힌다
+    await user.keyboard('{Escape}')
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it('팝업 위 팝업 위 "닫을까요?" — 차트 팝업 안에서도 Tab 이 두 단추 사이를 돈다 (세 번째 재검토 조건 1)', async () => {
+    vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
+    vi.spyOn(api, 'getFundamentals').mockResolvedValue(FUNDAMENTALS)
+    vi.spyOn(api, 'listStocks').mockResolvedValue([
+      { ticker: 'GOOG', name: null, category: null, market: 'US', currency: 'USD', active: true, added_at: '2026-01-01T00:00:00', target_weight_pct: 5, rebalance_band_pct: null, sort_order: 0 },
+    ])
+    vi.spyOn(api, 'listHoldings').mockResolvedValue([])
+    vi.spyOn(api, 'getSettings').mockRejectedValue(new Error('x'))
+    vi.spyOn(api, 'getRebalanceCurrent').mockRejectedValue(new Error('x'))
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter>
+        <AppStateProvider>
+          <ChartModal ticker="GOOG" name="GOOG" initialTab="holding" onClose={() => {}} />
+        </AppStateProvider>
+      </MemoryRouter>,
+    )
+    await user.click(await screen.findByRole('button', { name: /보유 고치기/ }))
+    const edit = await screen.findByRole('dialog', { name: 'GOOG 수정' })
+    await user.type(within(edit).getByRole('textbox', { name: 'GOOG 보유수량' }), '5')
+    await user.keyboard('{Escape}')
+    const ask = await screen.findByRole('alertdialog')
+    const seen = new Set<Element | null>()
+    for (let i = 0; i < 4; i++) {
+      await user.tab()
+      expect(ask.contains(document.activeElement)).toBe(true)
+      seen.add(document.activeElement)
+    }
+    expect(seen).toEqual(new Set([within(ask).getByRole('button', { name: '계속 고치기' }), within(ask).getByRole('button', { name: '버리고 닫기' })]))
+  })
+
+  it('팝업 위 팝업 — Tab 은 맨 안쪽(수정) 팝업 안에서만 돈다, 뒤 화면으로 새지 않는다 (재검토 조건 1)', async () => {
+    vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
+    vi.spyOn(api, 'getFundamentals').mockResolvedValue(FUNDAMENTALS)
+    vi.spyOn(api, 'listStocks').mockResolvedValue([
+      { ticker: 'GOOG', name: null, category: null, market: 'US', currency: 'USD', active: true, added_at: '2026-01-01T00:00:00', target_weight_pct: 5, rebalance_band_pct: null, sort_order: 0 },
+    ])
+    vi.spyOn(api, 'listHoldings').mockResolvedValue([])
+    vi.spyOn(api, 'getSettings').mockRejectedValue(new Error('x'))
+    vi.spyOn(api, 'getRebalanceCurrent').mockRejectedValue(new Error('x'))
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter>
+        <button>뒤 화면 단추</button>
+        <AppStateProvider>
+          <ChartModal ticker="GOOG" name="GOOG" initialTab="holding" onClose={() => {}} />
+        </AppStateProvider>
+      </MemoryRouter>,
+    )
+    await user.click(await screen.findByRole('button', { name: /보유 고치기/ }))
+    const edit = await screen.findByRole('dialog', { name: 'GOOG 수정' })
+    for (let i = 0; i < 12; i++) {
+      await user.tab()
+      expect(edit.contains(document.activeElement)).toBe(true)
+    }
+    await user.tab({ shift: true })
+    expect(edit.contains(document.activeElement)).toBe(true)
+  })
+
   it('닫으면 포커스가 연 단추로 돌아간다', async () => {
     vi.spyOn(api, 'getHistory').mockResolvedValue(HISTORY)
     const opener = document.createElement('button')

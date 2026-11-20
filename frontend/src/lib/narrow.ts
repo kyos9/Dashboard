@@ -28,3 +28,20 @@ function snapshot(): boolean {
 export function useNarrow(): boolean {
   return useSyncExternalStore(subscribe, snapshot, () => false)
 }
+
+/**
+ * 아무 폭 질의나 — 리밸런싱 PC 표(6열)는 본문이 좁으면(확대 150% 등) 오른쪽 열이 잘려
+ * 그 폭에서는 폰과 같은 줄 묶음으로 그린다 (디자인 4차 묶음 4 사용자 확인). 테스트 환경(jsdom)에서는 늘 거짓.
+ */
+export function useMedia(media: string): boolean {
+  return useSyncExternalStore(
+    (onChange) => {
+      const list = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia(media) : null
+      if (!list) return () => {}
+      list.addEventListener('change', onChange)
+      return () => list.removeEventListener('change', onChange)
+    },
+    () => (typeof window !== 'undefined' && window.matchMedia ? window.matchMedia(media).matches : false),
+    () => false,
+  )
+}

@@ -367,3 +367,42 @@ def test_a_one_letter_query_does_not_go_out_to_the_network(monkeypatch):
     )
     symbols.search("a", allow_network=True)
     symbols.search("zq", allow_network=True)
+
+
+# ── 일본 종목 한글 이름 (디자인 4차 묶음 4, 주인: "일본 종목은 한글로 표시되게") ─────────────────────────
+
+
+def _jp(db, ticker, shared, mine):
+    from tests.factories import make_stock
+
+    stock = make_stock(db, ticker, name=mine, commit=False)
+    stock.instrument.name, stock.instrument.market, stock.instrument.currency = shared, "JP", "JPY"
+    db.commit()
+
+
+def test_japanese_and_english_names_become_the_korean_seed_name(db_session):
+    """일본어·영문 공용 이름은 내장 한글 이름으로 — 내 이름이 비었거나 자동으로 붙은 옛 이름이면 같이."""
+    from app.models import Instrument, UserStock
+
+    _jp(db_session, "7203.T", "トヨタ自動車", None)
+    _jp(db_session, "8766.T", "Tokio Marine Holdings, Inc.", "Tokio Marine Holdings, Inc.")
+    assert symbols.adopt_jp_seed_names(db_session) == 2
+    assert db_session.get(Instrument, "7203.T").name == "도요타자동차"
+    assert db_session.get(Instrument, "8766.T").name == "도쿄해상홀딩스"
+    shown = {s.ticker: s.shown_name for s in db_session.query(UserStock).all()}
+    assert shown == {"7203.T": "도요타자동차", "8766.T": "도쿄해상홀딩스"}
+
+
+def test_names_a_person_wrote_or_korean_names_stay(db_session):
+    """사람이 직접 고친 이름 · 이미 한글인 공용 이름 · 내장 목록에 없는 종목은 그대로. 두 번 돌려도 같다."""
+    from app.models import Instrument, UserStock
+
+    _jp(db_session, "7203.T", "トヨタ自動車", "내 도요타")
+    _jp(db_session, "6758.T", "소니 그룹", None)
+    _jp(db_session, "9999.T", "Unknown KK", None)
+    symbols.adopt_jp_seed_names(db_session)
+    assert db_session.get(Instrument, "7203.T").name == "도요타자동차"
+    assert db_session.get(UserStock, (1, "7203.T")).shown_name == "내 도요타"
+    assert db_session.get(Instrument, "6758.T").name == "소니 그룹"
+    assert db_session.get(Instrument, "9999.T").name == "Unknown KK"
+    assert symbols.adopt_jp_seed_names(db_session) == 0

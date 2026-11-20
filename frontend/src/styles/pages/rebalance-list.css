@@ -1,0 +1,97 @@
+/* 리밸런싱 — 목업 12d: 목록 한 장 · 묶음 접기 · 막대 카드 안 새로 넣을 돈 */
+
+/* 목록 한 장 — 목표 · 밴드 / 리뷰 · 기록 / 설정 (목업 12d α, 주인: 세 카드가 어색) */
+.rb-list {
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.rb-list li + li {
+  border-top: 1px solid var(--border);
+}
+.rb-list button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 52px;
+  padding: 0 12px 0 14px;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  color: var(--text);
+  font-weight: 400;
+  text-align: left;
+}
+.rb-list button:hover {
+  background: var(--panel-soft);
+}
+.rb-list .icon:first-child {
+  flex: none;
+  color: var(--accent);
+}
+.rb-list button > span {
+  flex: 1;
+  min-width: 0;
+}
+.rb-list small {
+  flex: none;
+  font-size: var(--fs-caption);
+  color: var(--text-faint);
+}
+.rb-list-go {
+  flex: none;
+  color: var(--text-faint);
+}
+.rb-foot {
+  margin: 12px 4px 0;
+}
+/* 묶음 접기 — 큰 것 3개 + "n종목 더 보기" (목업 12d A) */
+.order-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.order-list > li + li {
+  border-top: 1px solid var(--border);
+}
+.order-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  min-height: 44px;
+  background: none;
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  color: var(--accent);
+  font-size: var(--fs-sub);
+  font-weight: 600;
+}
+.order-more-go {
+  transform: rotate(90deg);
+}
+.order-more-go.open {
+  transform: rotate(-90deg);
+}
+.order-split-money {
+  margin: 12px -14px -12px;
+  border-top: 1px solid var(--border);
+}
+.order-split-money .rb-line {
+  border: 0;
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+.order-split-money #new-money-block {
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+

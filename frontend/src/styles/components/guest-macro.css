@@ -1,0 +1,62 @@
+/* ---------- 손님 첫 화면 매크로 목록 (components/macro/GuestMacroList.tsx) ----------
+   디자인 4차 목업 15 ③ 나 — 매크로 탭과 같은 줄 모양(macro-list.css). 전에는 가로로 미는 칩 셋이라
+   폰 390 에서 셋째 칩이 잘렸다. 줄을 누르면 매크로 탭으로 간다(차트 창은 매크로 탭의 것). */
+
+.guest-macro {
+  margin-bottom: 8px;
+}
+.guest-macro .regime-row {
+  margin-bottom: 8px;
+}
+.guest-macro .macro-list-head {
+  margin-top: 4px;
+}
+
+/* 매크로 탭의 줄은 단추라 button.macro-row-open — 여기는 링크라 같은 모양을 링크에 */
+a.macro-row-open {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 60px;
+  padding: 10px 12px;
+  color: var(--text);
+  text-decoration: none;
+}
+a.macro-row-open:hover {
+  background: var(--panel-soft);
+}
+
+.guest-macro-all {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: var(--fs-sub);
+}
+
+/* 폰은 화면 끝까지 닿는 줄 — 매크로 탭과 같게 */
+@media (max-width: 720px) {
+  a.macro-row-open {
+    padding-left: var(--gutter-left);
+    padding-right: var(--gutter-right);
+  }
+}
+
+/* 손님 화면은 지표가 셋뿐이라 PC 에서도 한 칸 — 두 칸이면 둘째 줄이 홀로 남는다 */
+@media (min-width: 1100px) {
+  .guest-macro .macro-list {
+    display: block;
+  }
+  /* 머리 · 목록 · 아래 로그인 안내가 같은 폭으로 — 목록만 좁으면 "11/19 기준"이 오른쪽 끝에 홀로 떴다 */
+  .guest-macro {
+    max-width: 720px;
+  }
+  .guest-macro .macro-row + .macro-row {
+    border-top: 1px solid var(--border);
+  }
+}
+
+/* 링크 색은 앱의 강조색 — 브라우저 기본(진한 파랑 · 다녀간 보라)이 다른 링크와 달랐다 (묶음 6 사용자 확인) */
+.guest-macro-all,
+.login-prompt .consent-line a {
+  color: var(--accent);
+}

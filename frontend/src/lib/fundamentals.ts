@@ -13,8 +13,8 @@ import type {
 } from '../types'
 import { currencyMeta, num, signed } from './display'
 
-/** 차트 팝업의 보기 — 차트 · 재무 · AI 분석 · (관리자만, 맨 끝) AI 종목 분석 */
-export type ChartTab = 'chart' | 'fundamentals' | 'ai'
+/** 종목 안의 보기 — 위 탭 넷(차트 · 신호 · 재무 · 보유) + 아래 줄에서 들어가는 AI 분석 (디자인 4차 목업 11 가) */
+export type ChartTab = 'chart' | 'signal' | 'fundamentals' | 'holding' | 'ai'
 
 /** 재무 탭을 보일까. ETF 처럼 재무제표가 없는 종목은 탭 자체를 숨긴다. */
 export function hasFundamentalsTab(data: FundamentalsResponse | null): boolean {

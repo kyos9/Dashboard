@@ -660,7 +660,7 @@ def _add_stocks(db, user_id: int, stocks: list) -> None:
 def seed() -> None:
     from app.db import SessionLocal
     from app.models import MacroSeries, User
-    from app.services import data_ingestion, fundamentals, fx, macro
+    from app.services import data_ingestion, fundamentals, fx, macro, symbols
     from app.services.users import ensure_local_owner
 
     now = dt.datetime.utcnow()
@@ -682,6 +682,8 @@ def seed() -> None:
         _add_stocks(db, owner.id, OWNER_STOCKS)
         _add_stocks(db, users[FRIEND].id, FRIEND_STOCKS)
         db.commit()
+        # 일본어 이름으로 넣고 앱이 뜰 때처럼 한글로 맞춘다 — 옛 데이터가 바뀌는 길을 가짜 서버에서도 본다 (디자인 4차 묶음 4)
+        symbols.adopt_jp_seed_names(db)
 
         tickers = sorted({row[0] for row in OWNER_STOCKS + FRIEND_STOCKS})
         for ticker in tickers:

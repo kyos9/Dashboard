@@ -30,7 +30,7 @@ export function PerChart({ rows, onOpen }: { rows: FundamentalsResponse[]; onOpe
         <div className="chip-row" role="group" aria-label="줄 순서">
           <button className={`chip${order === 'list' ? ' active' : ''}`} aria-pressed={order === 'list'}
             onClick={() => setOrder('list')}>
-            대시보드 순
+            담은 순
           </button>
           <button className={`chip${order === 'position' ? ' active' : ''}`} aria-pressed={order === 'position'}
             onClick={() => setOrder('position')}>

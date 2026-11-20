@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, useNavigate } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppStateProvider } from '../AppState'
 import { api } from '../api/client'
@@ -149,7 +149,7 @@ function mockApi(cards = CARDS, rebalance = REBALANCE) {
   vi.spyOn(api, 'getDashboard').mockResolvedValue(cards)
   vi.spyOn(api, 'getRebalanceCurrent').mockResolvedValue(rebalance)
   vi.spyOn(api, 'listStocks').mockResolvedValue(cards.map(stockOf))
-  // 홈 위쪽 매크로 한 줄 (components/MacroStrip.tsx) — 기본은 빈 줄로 둔다
+  // 손님 첫 화면 매크로 목록 (components/macro/GuestMacroList.tsx) — 기본은 빈 줄로 둔다
   vi.spyOn(api, 'getMacroPinned').mockResolvedValue({ codes: [], series: [], badges: [] })
   vi.spyOn(api, 'getHealth').mockResolvedValue({
     status: 'ok',
@@ -159,8 +159,10 @@ function mockApi(cards = CARDS, rebalance = REBALANCE) {
 }
 
 function renderDashboard() {
+  // 이 파일은 시그널 목록을 본다 — 위 탭이 없어져(디자인 4차 묶음 2) 주소로 연다.
+  // 처음 목록은 신호 뜬 종목만이라(주인 답), 카드 그리기를 보는 테스트는 "전체"로 연다 — 홈에서 종류를 골라 넘어오는 길과 같은 state
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[{ pathname: '/', search: '?view=signal', state: { quick: 'all' } }]}>
       <AppStateProvider>
         <Dashboard />
       </AppStateProvider>
@@ -270,12 +272,14 @@ describe('대시보드 · 상태 표시', () => {
     mockApi([], { ...REBALANCE, rows: [], total_value_base: 0 })
     renderDashboard()
 
-    expect(await screen.findByRole('heading', { name: /아직 담은 종목이 없습니다/ })).toBeInTheDocument()
+    // 목업 15 ② 나 — 새싹 그림 · 제목 · 한 줄 · 이름과 풀이로 된 세 단계 · 단추 하나
+    expect(await screen.findByRole('heading', { name: '종목을 담으면 시작합니다' })).toBeInTheDocument()
     const steps = screen.getAllByRole('listitem').map((li) => li.textContent)
     expect(steps).toHaveLength(3)
     expect(steps[0]).toMatch(/^종목 담기/)
-    expect(screen.getByRole('link', { name: '종목 추가하러 가기' })).toHaveAttribute('href', '/stocks')
-    expect(screen.getByText(/30개까지/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '종목 담으러 가기' })).toHaveAttribute('href', '/stocks')
+    // 보이는 글로 — 서버 한도 테스트(backend test_policy_page)는 파일 원문을 보니 주석에도 속는다 (검토 6-2 조건 1)
+    expect(screen.getByText('종목은 30개까지 담을 수 있습니다.')).toBeInTheDocument()
   })
 
   it('시세가 오래된 종목은 판정에서 제외됐다고 알린다', async () => {
@@ -386,6 +390,97 @@ describe('대시보드 · 신호 칸은 짧게, 모양으로도 (ROADMAP 8-4)', 
     expect(screen.queryByText('매도 검토')).toBeNull()
   })
 
+  it('폰 카드는 접혀 있고 한 줄 이유가 보인다 — 누르면 하나만 펼친다 (목업 10, 주인: 하나씩만)', async () => {
+    vi.stubGlobal('innerWidth', 390)
+    pretendPhone()
+    try {
+      mockApi([
+        card({ ticker: 'VOO', knee_buy_v2: true }),
+        card({ ticker: 'QQQ' }),
+      ])
+      renderDashboard()
+      const vooToggle = await screen.findByRole('button', { expanded: false, name: /매수 조건/ })
+      const toggles = () => screen.getAllByRole('button', { expanded: undefined }).filter((b) => b.classList.contains('signal-card-toggle'))
+      expect(toggles()).toHaveLength(2)
+      // 접힌 카드의 배지는 이름 줄에 — 토글 안 따로 한 줄이면 카드가 다시 높아진다 (묶음 3, 목업 11 · 검토 조건 4)
+      const voo = document.querySelector('article.signal-card[data-ticker="VOO"]') as HTMLElement
+      expect(voo.querySelector('.stock-line .signal-card-badges')).toHaveTextContent('매수')
+      expect(voo.querySelector('.signal-card-toggle .signal-card-badges')).toBeNull()
+      // 접힌 동안 지표는 안 그린다
+      expect(document.querySelector('.stat-grid')).toBeNull()
+      await userEvent.click(vooToggle)
+      expect(vooToggle).toHaveAttribute('aria-expanded', 'true')
+      expect(document.querySelectorAll('.stat-grid')).toHaveLength(1)
+      // 다른 카드를 펼치면 앞의 것은 접힌다
+      await userEvent.click(toggles()[1])
+      expect(vooToggle).toHaveAttribute('aria-expanded', 'false')
+      expect(document.querySelectorAll('.stat-grid')).toHaveLength(1)
+      // 펼친 것을 다시 누르면 접힌다
+      await userEvent.click(toggles()[1])
+      expect(document.querySelector('.stat-grid')).toBeNull()
+    } finally {
+      forgetPhone()
+    }
+  })
+
+  it('처음 목록은 신호 뜬 종목만 — 머리 수 = "신호" 칩 수, 끝의 "전체"는 신호 없는 종목까지 (주인 답 "신호 뜬 것만")', async () => {
+    mockApi([card({ ticker: 'VOO', knee_buy_v2: true }), card({ ticker: 'QQQ' })])
+    render(
+      <MemoryRouter initialEntries={['/?view=signal']}>
+        <AppStateProvider>
+          <Dashboard />
+        </AppStateProvider>
+      </MemoryRouter>,
+    )
+    const signal = await screen.findByRole('button', { name: '신호 1' })
+    const chips = document.querySelector('.filter-chips') as HTMLElement
+    expect(signal).toHaveAttribute('aria-pressed', 'true')
+    expect(document.querySelector('.sub-count')).toHaveTextContent('1종목')
+    await waitFor(() => expect(document.querySelector('[data-ticker="VOO"]')).not.toBeNull())
+    expect(document.querySelector('[data-ticker="QQQ"]')).toBeNull()
+    await userEvent.click(within(chips).getByRole('button', { name: '전체 2' }))
+    expect(document.querySelector('[data-ticker="QQQ"]')).not.toBeNull()
+  })
+
+  it('신호가 하나도 없으면 빈 목록 대신 그렇다고 말하고 전체로 가는 단추', async () => {
+    mockApi([card({ ticker: 'VOO' }), card({ ticker: 'QQQ' })])
+    render(
+      <MemoryRouter initialEntries={['/?view=signal']}>
+        <AppStateProvider>
+          <Dashboard />
+        </AppStateProvider>
+      </MemoryRouter>,
+    )
+    expect(await screen.findByRole('heading', { name: '오늘은 신호가 뜬 종목이 없습니다' })).toBeInTheDocument()
+    // 띄어 쓴 가운뎃점 대신 쉼표 (목업 15 ④, 검토 6 참고)
+    expect(screen.getByText('매수, 매도, 비중조절 모두 조용합니다.')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: '전체 2종목 보기' }))
+    await waitFor(() => expect(document.querySelector('[data-ticker="QQQ"]')).not.toBeNull())
+  })
+
+  it('홈의 신호 배지에서 넘어오면 그 종목 카드가 펼쳐져 있다 (묶음 2 재검토 조건 6)', async () => {
+    vi.stubGlobal('innerWidth', 390)
+    pretendPhone()
+    try {
+      mockApi([card({ ticker: 'VOO' }), card({ ticker: 'QQQ' })])
+      render(
+        <MemoryRouter initialEntries={[{ pathname: '/', search: '?view=signal', state: { focus: 'QQQ' } }]}>
+          <AppStateProvider>
+            <Dashboard />
+          </AppStateProvider>
+        </MemoryRouter>,
+      )
+      await waitFor(() => expect(document.querySelectorAll('.signal-card-toggle')).toHaveLength(2))
+      await waitFor(() => expect(document.querySelectorAll('.stat-grid')).toHaveLength(1))
+      const open = document.querySelector('.signal-card-toggle[aria-expanded="true"]') as HTMLElement
+      expect(open.closest('article')).toHaveAttribute('data-ticker', 'QQQ')
+      // 펼친 카드만 aria-controls — 접힌 카드가 없는 id 를 가리키지 않는다
+      expect(document.querySelectorAll('.signal-card-toggle[aria-controls]')).toHaveLength(1)
+    } finally {
+      forgetPhone()
+    }
+  })
+
   it('폰에서도 "—"·비중 줄의 풀이가 화면 글로 보인다 — 툴팁은 폰에서 못 본다 (0.44.0, B 검토)', async () => {
     vi.stubGlobal('innerWidth', 360)
     pretendPhone()
@@ -398,7 +493,7 @@ describe('대시보드 · 신호 칸은 짧게, 모양으로도 (ROADMAP 8-4)', 
       const key = document.querySelector('.signal-key') as HTMLElement
       expect(key).not.toBeNull()
       expect(key).toBeVisible()
-      expect(key.textContent).toMatch(/흐린 —는 관망\(매수·매도 조건 미충족\)입니다/)
+      expect(key.textContent).toMatch(/흐린 줄표 —는 관망\(매수·매도 조건 미충족\)입니다/)
       // 비중 줄의 말도 용어집대로 — "과중"이 이 줄로 돌아오지 않는다
       expect(key).toHaveTextContent('비중 초과·비중 미달')
       expect(key.textContent).not.toMatch(/과중/)
@@ -422,7 +517,7 @@ describe('대시보드 · 신호 칸은 짧게, 모양으로도 (ROADMAP 8-4)', 
     // 이름을 가진 기호(role=img) — role 없는 span 의 aria-label 은 읽기 기기마다 다르다
     expect(within(voo).getByRole('img', { name: '관망(매수·매도 조건 미충족)' })).toBe(watch)
     // 툴팁은 폰·키보드로 못 본다 — 같은 풀이가 화면 글로도 있다
-    expect(document.querySelector('.signal-key')?.textContent).toMatch(/흐린 —는 관망\(매수·매도 조건 미충족\)입니다/)
+    expect(document.querySelector('.signal-key')?.textContent).toMatch(/흐린 줄표 —는 관망\(매수·매도 조건 미충족\)입니다/)
     expect(document.querySelector('.signal-key')?.textContent).toMatch(/비중 줄은 지표와 따로/)
     expect(voo.querySelector('.traffic')).toBeNull()
     expect(within(voo).queryByText('관망')).toBeNull()
@@ -430,31 +525,30 @@ describe('대시보드 · 신호 칸은 짧게, 모양으로도 (ROADMAP 8-4)', 
     const qqq = await cardRow('QQQ')
     expect(within(qqq).getByText('갱신 필요').closest('.traffic')).not.toBeNull()
     expect(qqq.querySelector('.traffic-watch')).toBeNull()
-    // 수는 그대로 센다 — 신호 요약의 관망 칸
-    const watchChip = document.querySelector('.count-chip.amber') as HTMLElement
-    expect(watchChip.textContent).toBe('1관망')
+    // "관망 N" 은 칩 아래 줄에서 뺐다 — "신호 N" · "전체 N" 과 셋째 수로 읽혔다 (묶음 2 재검토 조건 5)
+    expect(document.querySelector('.signal-notes')?.textContent ?? '').not.toMatch(/관망/)
   })
 
-  it('맨 위 요약도 같은 모양 — 매수 ▲ · 매도 ▼ · 비중조절 ◆ (보라, 파랑이 아니다)', async () => {
+  it('거르기 칩도 같은 모양 — 매수 ▲ · 매도 ▼ · 비중조절 ◆. 비중조절을 켜면 초과·미달 갈래 칩', async () => {
     mockApi([
       card({ ticker: 'VOO', knee_buy_v2: true, rebalance_signal: { active: true, reasons: ['밴드 미달(매수 검토)'] } }),
       card({ ticker: 'QQQ', rebalance_signal: { active: true, reasons: ['밴드 초과(매도 검토)'] } }),
-      // 초과 2 · 미달 1 — 수가 다르면 두 배지의 수가 뒤바뀐 것을 잡는다 (B 네 번째 검토)
+      // 초과 2 · 미달 1 — 수가 다르면 두 칩의 수가 뒤바뀐 것을 잡는다
       card({ ticker: 'SCHD', rebalance_signal: { active: true, reasons: ['밴드 초과(매도 검토)'] } }),
     ])
     renderDashboard()
     await cardRow('VOO')
-    const summaryRow = document.querySelector('.badge-row') as HTMLElement
-    const review = within(summaryRow).getByRole('button', { name: '비중 미달 1' })
-    expect(review).toHaveClass('weight-chip')
-    expect(review.querySelector('.signal-shape.rebalance')).not.toBeNull()
-    expect(within(summaryRow).getByRole('button', { name: '비중 초과 2' })).toHaveClass('weight-chip')
-    expect(document.querySelector('.count-chip.green .signal-shape.buy')).not.toBeNull()
-    expect(document.querySelector('.count-chip.red .signal-shape.sell')).not.toBeNull()
+    const chips = document.querySelector('.filter-chips') as HTMLElement
+    expect(within(chips).getByRole('button', { name: /매수 1/ }).querySelector('.signal-shape.buy')).not.toBeNull()
+    expect(within(chips).getByRole('button', { name: /매도 0/ }).querySelector('.signal-shape.sell')).not.toBeNull()
+    expect(within(chips).queryByRole('button', { name: /초과/ })).toBeNull()
+    await userEvent.click(within(chips).getByRole('button', { name: /비중조절 \d/ }))
+    expect(within(chips).getByRole('button', { name: '초과 2' })).toHaveClass('weight-chip')
+    expect(within(chips).getByRole('button', { name: '미달 1' })).toHaveClass('weight-chip')
   })
 })
 
-describe('대시보드 · 비중 초과·미달 칩을 누르면 그 종목만 (0.45.3 A)', () => {
+describe('대시보드 · 비중 초과·미달 칩을 누르면 그 종목만 (0.45.3 A · 목업 10)', () => {
   const CARDS3 = [
     card({ ticker: 'VOO', knee_buy_v2: true, rebalance_signal: { active: true, reasons: ['밴드 미달(매수 검토)'] } }),
     card({ ticker: 'QQQ', rebalance_signal: { active: true, reasons: ['밴드 초과(매도 검토)', '정기 리뷰 도래'] } }),
@@ -468,49 +562,42 @@ describe('대시보드 · 비중 초과·미달 칩을 누르면 그 종목만 (
       .getAllByRole('row')
       .slice(1)
       .map((tr) => tr.querySelector('.stock-name')?.textContent?.trim())
+  const chips = () => document.querySelector('.filter-chips') as HTMLElement
 
-  it('칩 수 = 걸러진 줄 수, 순서는 사용자 순서 그대로, 다시 누르면 전체 — 아래 칩 줄도 같이 켜진다', async () => {
+  it('칩 수 = 걸러진 줄 수, 순서는 사용자 순서 그대로. 갈래를 다시 누르면 비중조절 전체, 비중조절을 다시 누르면 전체', async () => {
     mockApi(CARDS3)
     renderDashboard()
     await cardRow('VOO')
-    const summaryRow = document.querySelector('.badge-row') as HTMLElement
-    const over = within(summaryRow).getByRole('button', { name: '비중 초과 2' })
-    expect(over).toHaveAttribute('aria-pressed', 'false')
+    const weight = within(chips()).getByRole('button', { name: /비중조절 \d/ })
+    await userEvent.click(weight)
+    const allWeight = await shownRows()
+    expect(allWeight).toEqual(expect.arrayContaining(['VOO', 'QQQ', 'SCHD']))
 
+    const over = within(chips()).getByRole('button', { name: '초과 2' })
     await userEvent.click(over)
     expect(over).toHaveAttribute('aria-pressed', 'true')
+    // 갈래를 켜도 비중조절 칩은 켜진 채 — 무엇으로 걸렀는지 말한다
+    expect(weight).toHaveAttribute('aria-pressed', 'true')
+    expect(within(chips()).getByRole('button', { name: /^전체/ })).toHaveAttribute('aria-pressed', 'false')
     expect(await shownRows()).toEqual(['QQQ', 'SCHD'])
-    const toolbar = screen.getByText('신호', { selector: '.toolbar-label' }).parentElement as HTMLElement
-    // 아래 칩 줄은 비중조절 칩이 켜져 그 갈래를 말한다(칩을 더하지 않는다 — 폰에서 줄이 는다)
-    expect(within(toolbar).getByRole('button', { name: '비중조절 · 초과 2' })).toHaveClass('active')
-    expect(within(toolbar).getByRole('button', { name: '모두 보기' })).not.toHaveClass('active')
-    expect(within(toolbar).queryByRole('button', { name: /^비중 초과/ })).toBeNull()
 
     // 미달로 바꾸면 하나만 켜진다
-    await userEvent.click(within(summaryRow).getByRole('button', { name: '비중 미달 1' }))
-    expect(over).toHaveAttribute('aria-pressed', 'false')
+    await userEvent.click(within(chips()).getByRole('button', { name: '미달 1' }))
+    expect(within(chips()).getByRole('button', { name: '초과 2' })).toHaveAttribute('aria-pressed', 'false')
     expect(await shownRows()).toEqual(['VOO'])
 
-    // 다시 누르면 전체
-    await userEvent.click(within(summaryRow).getByRole('button', { name: '비중 미달 1' }))
-    expect(await shownRows()).toEqual(['VOO', 'QQQ', 'SCHD', 'GOOG', 'MSFT'])
+    // 켜진 갈래를 다시 누르면 비중조절 전체
+    await userEvent.click(within(chips()).getByRole('button', { name: '미달 1' }))
+    expect(await shownRows()).toEqual(allWeight)
 
-    // 키보드로도 — 진짜 단추다
-    within(summaryRow).getByRole('button', { name: '비중 초과 2' }).focus()
+    // 키보드로도 — 진짜 단추다. 비중조절을 다시 누르면 처음 목록(신호 뜬 종목)
+    within(chips()).getByRole('button', { name: /비중조절 \d/ }).focus()
     await userEvent.keyboard('{Enter}')
-    expect(await shownRows()).toEqual(['QQQ', 'SCHD'])
-    // 켜진 초과를 다시 누르면 전체
-    await userEvent.click(within(summaryRow).getByRole('button', { name: '비중 초과 2' }))
+    expect(within(chips()).getByRole('button', { name: /^신호 \d/ })).toHaveAttribute('aria-pressed', 'true')
+    expect(await shownRows()).toEqual(['VOO', 'QQQ', 'SCHD', 'GOOG'])
+    // 끝의 "전체"는 신호 없는 종목까지
+    await userEvent.click(within(chips()).getByRole('button', { name: /^전체 \d/ }))
     expect(await shownRows()).toEqual(['VOO', 'QQQ', 'SCHD', 'GOOG', 'MSFT'])
-  })
-
-  it('미달을 켜도 아래 비중조절 칩이 켜져 "· 미달 N"', async () => {
-    mockApi(CARDS3)
-    renderDashboard()
-    await cardRow('VOO')
-    await userEvent.click(within(document.querySelector('.badge-row') as HTMLElement).getByRole('button', { name: '비중 미달 1' }))
-    const toolbar = screen.getByText('신호', { selector: '.toolbar-label' }).parentElement as HTMLElement
-    expect(within(toolbar).getByRole('button', { name: '비중조절 · 미달 1' })).toHaveClass('active')
   })
 
   it('다른 화면에서 넘어온 종목이 초과·미달 거르기에 가려 있으면 거르기를 푼다 (ABCE 검토)', async () => {
@@ -520,7 +607,7 @@ describe('대시보드 · 비중 초과·미달 칩을 누르면 그 종목만 (
       return <button onClick={() => navigate('/?view=signal', { state: { focus: 'MSFT' } })}>넘어오기</button>
     }
     render(
-      <MemoryRouter initialEntries={['/?view=signal']}>
+      <MemoryRouter initialEntries={[{ pathname: '/', search: '?view=signal', state: { quick: 'all' } }]}>
         <AppStateProvider>
           <Jump />
           <Dashboard />
@@ -528,23 +615,11 @@ describe('대시보드 · 비중 초과·미달 칩을 누르면 그 종목만 (
       </MemoryRouter>,
     )
     await cardRow('VOO')
-    await userEvent.click(within(document.querySelector('.badge-row') as HTMLElement).getByRole('button', { name: '비중 초과 2' }))
+    await userEvent.click(within(chips()).getByRole('button', { name: /비중조절 \d/ }))
+    await userEvent.click(within(chips()).getByRole('button', { name: '초과 2' }))
     expect(await shownRows()).toEqual(['QQQ', 'SCHD'])
     await userEvent.click(screen.getByRole('button', { name: '넘어오기' }))
     await waitFor(async () => expect(await shownRows()).toContain('MSFT'))
-  })
-
-  it('아래 비중조절 칩을 누르면 초과·미달을 풀고 비중조절 전체로 · 미달이 없으면 그 칩이 없다', async () => {
-    mockApi([card({ ticker: 'VOO' }), card({ ticker: 'QQQ', rebalance_signal: { active: true, reasons: ['밴드 초과(매도 검토)'] } })])
-    renderDashboard()
-    await cardRow('VOO')
-    const summaryRow = document.querySelector('.badge-row') as HTMLElement
-    expect(within(summaryRow).queryByRole('button', { name: /비중 미달/ })).toBeNull()
-    await userEvent.click(within(summaryRow).getByRole('button', { name: '비중 초과 1' }))
-    const toolbar = screen.getByText('신호', { selector: '.toolbar-label' }).parentElement as HTMLElement
-    await userEvent.click(within(toolbar).getByRole('button', { name: '비중조절 · 초과 1' }))
-    expect(within(summaryRow).getByRole('button', { name: '비중 초과 1' })).toHaveAttribute('aria-pressed', 'false')
-    expect(within(toolbar).getByRole('button', { name: '비중조절 1' })).toHaveClass('active')
   })
 })
 
@@ -631,7 +706,7 @@ describe('대시보드 · 차트 열기', () => {
     await waitFor(() => expect(history).toHaveBeenCalledWith('005930.KS', '1y'))
   })
 
-  it('맨 오른쪽 "AI 분석"을 누르면 팝업이 AI 탭으로 열린다 — 누르는 것만으로 부르지는 않는다', async () => {
+  it('맨 오른쪽 "AI 분석"을 누르면 팝업이 AI 분석으로 열린다 — 누르는 것만으로 부르지는 않는다', async () => {
     mockApi()
     vi.spyOn(api, 'getHistory').mockResolvedValue({
       ticker: '005930.KS', prices: [], markers: [],
@@ -648,18 +723,16 @@ describe('대시보드 · 차트 열기', () => {
     await user.click(screen.getByRole('button', { name: '삼성전자 AI 분석' }))
 
     const dialog = await screen.findByRole('dialog', { name: /삼성전자 차트/ })
-    expect(within(dialog).getByRole('tab', { name: 'AI 분석' })).toHaveAttribute('aria-selected', 'true')
+    expect(within(dialog).getByRole('region', { name: 'AI 분석' })).toBeInTheDocument()
     expect(analyze).not.toHaveBeenCalled()
   })
 
-  it('"AI 전체 정리"는 창만 연다 — 보유는 보내지 않는다고 적고, 부르는 것은 창에서 한 번 더', async () => {
+  it('"AI 종목 정리"는 AI 정리 화면으로 가는 한 줄 — 누르기만으로 부르지 않는다 (디자인 4차 묶음 2)', async () => {
     mockApi()
     const analyze = vi.spyOn(api, 'aiAnalyzeStream')
-    const user = userEvent.setup()
     renderDashboard()
-    await user.click(await screen.findByRole('button', { name: '✦ AI 전체 정리' }))
-    const dialog = await screen.findByRole('dialog', { name: 'AI 전체 정리' })
-    expect(within(dialog).getByText(/보유수량·비중·평단가는 보내지 않습니다/)).toBeInTheDocument()
+    const link = await screen.findByRole('link', { name: /AI 종목 정리/ })
+    expect(link).toHaveAttribute('href', '/ai/watchlist')
     expect(analyze).not.toHaveBeenCalled()
   })
 
@@ -936,12 +1009,14 @@ describe('폰의 순서 편집 (ROADMAP 8-3)', () => {
     expect(screen.queryByRole('button', { name: /순서 바꾸기/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /위로|아래로/ })).not.toBeInTheDocument()
 
-    // 폰은 보기·설정 단추를 접어 둔다 (디자인 2차) — 펴야 "순서 편집"이 보인다
-    expect(screen.queryByRole('button', { name: '↕ 순서 편집' })).not.toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: '보기·설정 ▾' }))
-    await userEvent.click(screen.getByRole('button', { name: '↕ 순서 편집' }))
+    // 폰은 보기·설정을 머리의 ⋯ 로 접어 둔다 (목업 10) — 펴야 "순서 편집"이 보인다
+    expect(screen.queryByRole('button', { name: '순서 편집' })).not.toBeInTheDocument()
+    const more = screen.getByRole('button', { name: '보기·설정' })
+    expect(more).toHaveAttribute('aria-expanded', 'false')
+    await userEvent.click(more)
+    await userEvent.click(screen.getByRole('button', { name: '순서 편집' }))
     // 편집 중에는 접어도 끝내는 단추가 남는다
-    await userEvent.click(screen.getByRole('button', { name: '보기·설정 ▴' }))
+    await userEvent.click(screen.getByRole('button', { name: '보기·설정' }))
     expect(screen.getByRole('button', { name: '순서 편집 끝' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '삼성전자 위로' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'VOO 아래로' })).toBeDisabled()
@@ -1155,16 +1230,56 @@ describe('대시보드 · 시그널 기준 내 설정 (0.42.0)', () => {
 })
 
 describe('대시보드 · 0종목 안내 (0.42.0 B4)', () => {
-  it('없는 "위의 시그널" 버튼을 가리키지 않고, 종목을 담으면 생기는 단추라고 말한다', async () => {
+  it('없는 단추를 가리키지 않는다 — 시그널은 종목을 담으면 생기는 신호 칸에서 (디자인 4차 묶음 2, 사용자 확인)', async () => {
     mockApi([])
     renderDashboard()
-    const guide = await screen.findByText(/세 단계면 시작합니다/)
+    const guide = await screen.findByText('종목을 담으면 시작합니다')
     const box = guide.closest('.first-steps')!
     expect(box).not.toHaveTextContent('위의 "시그널"')
     expect(box).toHaveTextContent('종목을 담으면')
-    expect(box).toHaveTextContent('포트폴리오 / 시그널')
+    expect(box).not.toHaveTextContent('포트폴리오 / 시그널')
+    expect(box).toHaveTextContent('오늘 뜬 신호가 여기에 나옵니다')
     // 0종목 화면에는 그 단추가 실제로 없다 — 안내가 거짓말을 하지 않는지
     expect(screen.queryByRole('group', { name: '대시보드 보기' })).toBeNull()
+  })
+})
+
+describe('대시보드 · 처음 온 사람의 모양 (디자인 4차 목업 15 ② 나)', () => {
+  it('점선 상자 없이 새싹 그림 하나 — 그림은 읽지 않고, 단계는 이름과 풀이 두 줄 · 줄표 없음', async () => {
+    mockApi([])
+    renderDashboard()
+    const heading = await screen.findByRole('heading', { name: '종목을 담으면 시작합니다' })
+    const box = heading.closest('.first-steps')!
+    expect(box).not.toHaveClass('empty-state')
+    const img = box.querySelector('img')!
+    expect(img).toHaveAttribute('alt', '')
+    expect(img.getAttribute('src')).toMatch(/svg/) // 작은 SVG 는 빌드가 data: 로 넣는다(토스페이스 원본 u1F331)
+    expect(box).not.toHaveTextContent('—')
+    const first = within(box as HTMLElement).getAllByRole('listitem')[0]
+    expect(first.querySelector('b')).toHaveTextContent('종목 담기')
+    expect(first.querySelector('span')).toHaveTextContent('종목 탭에서 이름이나 코드로 찾습니다.')
+    // 면책은 바닥 줄에 늘 있다 — 여기서 두 번 말하지 않는다
+    expect(box).not.toHaveTextContent('투자 권유')
+  })
+
+  it('"종목 담으러 가기"는 찾기 칸에 커서를 두라는 표시를 같이 넘긴다 (묶음 6 사용자 확인)', async () => {
+    mockApi([])
+    function StocksProbe() {
+      const state = useLocation().state as { focusSearch?: boolean } | null
+      return <p>종목 탭 {state?.focusSearch ? '커서' : '그냥'}</p>
+    }
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <AppStateProvider>
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/stocks" element={<StocksProbe />} />
+          </Routes>
+        </AppStateProvider>
+      </MemoryRouter>,
+    )
+    await userEvent.click(await screen.findByRole('link', { name: '종목 담으러 가기' }))
+    expect(await screen.findByText('종목 탭 커서')).toBeInTheDocument()
   })
 })
 
@@ -1264,7 +1379,7 @@ describe('대시보드 · 정기 리뷰 날의 비중조절 수 (디자인 2차,
     const summary = await screen.findByRole('region', { name: '신호 요약' })
     const weight = within(summary).getByRole('button', { name: /비중조절/ })
     expect(weight).toHaveTextContent('1')
-    expect(within(summary).getByText('정기 리뷰 3')).toBeInTheDocument()
+    expect(summary).toHaveTextContent('정기 리뷰 3')
     await userEvent.click(weight)
     expect(await nameOrder()).toEqual(['SCHD'])
   })

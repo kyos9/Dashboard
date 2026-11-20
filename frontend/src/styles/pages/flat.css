@@ -1,0 +1,258 @@
+/* 카드 위계 · 단추 모양 — 디자인 4차 목업 13 ②③ (AI 티 점검, 주인 답 "홈 · 매크로 둘 다" · "나누기").
+   화면마다 주인공 하나만 카드(홈은 총액 요약). 신호 칸 · AI 줄 · 보유 목록은 카드 없이 줄로.
+   알약은 걸러 보기(필터)에만 — 하나를 고르는 것은 한 줄 고르기(.seg), 일이 일어나는 것은 네모 단추. */
+
+/* 신호 칸 셋 — 테두리 상자 없이 칸막이만. 글자 끝 › 도 뺀다(칸 전체가 눌린다) */
+.signal-counts {
+  border: 0;
+  border-radius: 0;
+  background: none;
+  margin: 4px 0 8px;
+}
+button.signal-count .signal-count-label::after {
+  content: none;
+}
+
+/* AI 한 줄 — 위아래 선만 */
+.ai-row {
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+}
+.ai-row:hover {
+  background: var(--panel-soft);
+}
+
+/* PC 오른쪽 칸의 신호 종목 미리보기도 줄로 */
+.rail-signals {
+  border-left: 0;
+  border-right: 0;
+  border-radius: 0;
+}
+
+@media (max-width: 720px) {
+  /* 폰은 화면 끝까지 닿는 줄 — 안쪽 글자는 본문 여백에 맞춘다(안쪽 칸은 원래 12px · 14px 여백) */
+  .ai-row,
+  .holding-list {
+    margin-left: calc(-1 * var(--gutter-left));
+    margin-right: calc(-1 * var(--gutter-right));
+    border-left: 0;
+    border-right: 0;
+    border-radius: 0;
+  }
+  .ai-row {
+    padding-left: var(--gutter-left);
+    padding-right: var(--gutter-right);
+  }
+  .holding-list > li {
+    padding-left: calc(var(--gutter-left) - 12px);
+    padding-right: calc(var(--gutter-right) - 12px);
+  }
+  .holding-list {
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+}
+
+/* 한 줄 고르기 — 하나만 고르는 것(줄/카드 보기, 차트 기간). 고른 칸은 .active 로만 그린다 — 순서 바꾸기 중에는 보기 칸 둘 다 놓인 모양(검토 6 참고) */
+.seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--panel-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.seg > button {
+  flex: 1;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-dim);
+  font-size: var(--fs-sub);
+  font-weight: 600;
+}
+.seg > button.active {
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 0 0 1px var(--border-strong);
+}
+.seg.full {
+  display: flex;
+}
+
+/* 네모 단추 — 누르면 일이 일어나는 것(순서 바꾸기 · 한 번에 수정 · 재무) */
+.tool-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  color: var(--text);
+  font-size: var(--fs-sub);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.tool-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.stock-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.stock-tools-gap {
+  flex: 1;
+}
+.stock-target-hint .stock-target-sum {
+  font-weight: 600;
+}
+.stock-target-hint.warn .stock-target-sum {
+  color: var(--amber);
+}
+
+/* 띄어 쓴 가운뎃점 대신 사이 띄움 — 종목 아래 줄 "005930.KS  한국", 종목 머리 "AAPL  미국  알파" (목업 13 ④) */
+.stock-sub-ticker {
+  margin-right: 6px;
+}
+.stock-hero-sub {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 8px;
+}
+
+/* 손님 첫 화면 — 점선 상자("여기 무언가 들어갈 자리" 꼴) 없이 바탕에 바로. 이름 아래 설명 한 줄 (목업 13 ④) */
+.login-prompt {
+  align-items: flex-start;
+  padding: 16px 4px 24px;
+  border: 0;
+  background: none;
+  text-align: left;
+}
+.login-prompt h3 {
+  font-size: var(--fs-title);
+}
+/* 글줄은 왼쪽 끝에 — .empty-state p 의 margin auto 가 짧은 줄을 가운데로 띄웠다 (목업 15 ③ 넣기 확인) */
+.login-prompt p {
+  margin-left: 0;
+  margin-right: 0;
+}
+.login-prompt .login-lead {
+  margin: -8px 0 0;
+  color: var(--text-dim);
+}
+/* 손님 첫 화면 — 위 매크로 목록과 로그인 안내 사이 선 하나 (목업 15 ③ 나). 둥근 모서리면 잘린 카드처럼 보였다 */
+.guest-macro + .login-prompt {
+  margin-top: 8px;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+}
+/* PC 에서 로그인 안내 폭은 어느 탭이든 같게(홈 720 · 다른 탭 990 이었다 — 사용자 확인) */
+@media (min-width: 1100px) {
+  .login-prompt {
+    max-width: 720px;
+  }
+}
+.login-prompt .login-button,
+.login-prompt > button {
+  align-self: stretch;
+}
+.login-prompt .consent-line {
+  text-align: left;
+}
+
+/* 매크로 차트 창 — 기간 고르기는 제목 · 닫기 아래 한 줄을 다 쓴다(제목 옆에 두면 "S&P 500"이 접혔다, audit orphan) */
+.chart-modal .modal-head > .seg {
+  order: 100;
+  flex-basis: 100%;
+  display: flex;
+}
+
+/* 처음 온 사람(종목 0개)의 홈 — 목업 15 ② 나. 상자 없이 바탕에 바로: 새싹 그림 · 제목 · 한 줄 · 세 단계 줄 · 단추 하나 */
+.first-steps {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 32px 4px 24px;
+  text-align: center;
+  color: var(--text-dim);
+}
+.first-steps-face {
+  display: block;
+  margin: 0 auto 16px;
+}
+.first-steps h3 {
+  margin: 0 0 8px;
+  font-size: var(--fs-title);
+  color: var(--text);
+}
+.first-steps p {
+  margin: 0;
+  font-size: var(--fs-sub);
+}
+.first-steps-list {
+  margin: 20px 0 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+  text-align: left;
+  border-top: 1px solid var(--border);
+}
+.first-steps-list li {
+  counter-increment: step;
+  position: relative;
+  padding: 14px 4px 14px 42px;
+  border-bottom: 1px solid var(--border);
+}
+/* 번호 동그라미 — 글자로 된 번호(읽기 프로그램은 목록 번호를 따로 읽는다) */
+.first-steps-list li::before {
+  content: counter(step);
+  position: absolute;
+  left: 4px;
+  top: 14px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.first-steps-list b {
+  display: block;
+  font-size: var(--fs-body);
+  color: var(--text);
+}
+.first-steps-list span {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--fs-caption);
+  color: var(--text-faint);
+  line-height: 1.5;
+}
+.first-steps .first-steps-go {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  margin-top: 16px;
+}
+.first-steps .hint {
+  margin-top: 12px;
+}
+
+/* 빈 화면 글 속 링크도 강조색 — "보유 없음"의 리밸런싱 링크가 브라우저 기본 파랑이었다 (검토 6-2 참고) */
+.empty-state a:not(.link-button) {
+  color: var(--accent);
+}

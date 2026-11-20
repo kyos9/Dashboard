@@ -1,0 +1,263 @@
+/* ==========================================================================
+   자산관리 디자인 시스템 — 디자인 4차: 청람 · Pretendard (라이트 테마 토글 지원)
+
+   한국어 가독성 원칙:
+   - `word-break: keep-all`로 어절 단위 줄바꿈 (단어 중간에서 끊지 않음)
+   - `overflow-wrap: anywhere`는 쓰지 않는다. 표/플렉스의 min-content 폭 계산을
+     무너뜨려 "G/O/O/G"처럼 한 글자씩 세로로 쪼개지는 현상이 생긴다.
+   - 텍스트는 잘라내지(ellipsis) 않고 항상 줄바꿈으로 전부 보여준다.
+   - 긴 영문 토큰(이메일·모델 id·주소)이 들어가는 요소에만 `overflow-wrap: break-word`를 준다.
+     넘칠 때만 끊고, 폭 계산은 건드리지 않는다.
+   - 외톨이 줄: 제목·짧은 안내는 `text-wrap: balance`, 문단은 `pretty` (지원 안 하는 브라우저는
+     예전처럼 보인다). 큰 표 셀에는 걸지 않는다 — 느려진다.
+   - 떨어지면 안 되는 묶음(숫자+단위, 날짜, 조건식)은 `.nowrap`으로 감싼다. 묶음 하나가
+     폰 360 칸보다 넓어지면 묶음을 나눈다.
+   ========================================================================== */
+
+/*
+ * 글꼴 — 디자인 4차 (DESIGN_PROMPT v6 "만드는 법 다섯" 4, 주인 고름: 목업 02~02e).
+ * 앱 전체는 Pretendard (SIL OFL 1.1, assets/fonts/OFL-Pretendard.txt) — 한글 2,350자 + 라틴만 남긴 부분집합,
+ * 굵기 400~700 (docs/design/font-subset.py, pretendard@1.3.9).
+ * 위쪽 요약 칸의 숫자만 Spoqa Han Sans Neo Bold (SIL OFL 1.1, assets/fonts/OFL-SpoqaHanSansNeo.txt) — 숫자·기호만 남긴
+ * 2KB 부분집합이라 CSS 안에 들어간다. 글자(이름표 등)는 unicode-range 밖이라 Pretendard 로 그린다(주인 답 ㉣ "숫자만").
+ * 숫자는 고정폭 글꼴 대신 자릿수 폭이 같은 숫자(tabular-nums)를 쓴다(이번 차수가 바꾼 규칙, plan.md 0장).
+ * 직접 싣는다(바깥 CDN 은 쓰지 않는다 — 오프라인 PWA 이고, 사용자 IP 를 남에게 넘기지 않는다). 받는 동안은 시스템 글꼴(swap).
+ */
+@font-face {
+  font-family: 'Pretendard';
+  src: url('../assets/fonts/PretendardVariable-ko.woff2') format('woff2');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Spoqa Han Sans Neo Num';
+  src: url('../assets/fonts/SpoqaHanSansNeo-Bold-num.woff2') format('woff2');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0020, U+0024, U+0025, U+002B-002E, U+0030-0039, U+00A5, U+20A9;
+}
+
+/*
+ * 색표 — 디자인 4차 (DESIGN_PROMPT v6 "만드는 법 다섯" 3: 색은 정해 준다). **이 파일 밖에서 색 값을 쓰지 않는다.**
+ *
+ * 메인 색은 청람 하나다 — IBM Carbon cyan 80(#00539a)의 채도를 높인 #0051a8 (목업 03e, 주인 고름).
+ * 진하기만 바꿔 쓴다: 라이트 머리줄·링크 #0051a8, 다크 머리줄 #002f67, 다크 글자·링크 #92b1db.
+ * 뜻 색은 정해진 자리에만: 매수 초록 · 매도 빨강 · 비중조절 청람(--signal-*), 가격 오르내림(--up/--down),
+ * 주의 호박, 오류 빨강. 회색은 청람으로 살짝 물들였다. 값은 hex — 자동 검사(audit.mjs)와 차트가 읽을 수 있게.
+ *
+ * 글자로 써도 되는 쌍 (대비, WCAG) — 다크: --text·--text-dim·--text-faint·--accent·--green·--red 는 --bg·--panel·
+ * --panel-soft 위에서 4.5 이상. --on-brand(#fff)는 --brand(#002f67) 위 13.1. 주 단추는 --accent 바탕 + --on-accent(어두운 글자).
+ * 라이트: 같은 이름들이 --bg(#eef2f6)·--panel(#fff) 위 4.5 이상(초록 #18694a 5.9 · 빨강 #b02a2a 5.8 · 청람 #0051a8 6.4~7.7).
+ * 라이트의 글자 회색 · 뜻 색은 Tailwind 기본값을 버리고 청람 쪽 먹색으로 다시 뽑았다(목업 13 ① 나 "청람 먹", AI 티 점검).
+ */
+:root {
+  color-scheme: dark;
+
+  --bg: #0a0f18;
+  --bg-elevated: #0d1627;
+  --panel: #0d1627;
+  --panel-soft: #122036;
+  --border: #1d2a40;
+  --border-strong: #2a3a55;
+
+  --text: #e6ebf2;
+  --text-dim: #c3cad5;
+  --text-faint: #909aab;
+
+  /* 청람 */
+  --brand: #002f67; /* 머리줄 바탕 */
+  --on-brand: #ffffff;
+  --on-brand-dim: #b9c8dd; /* 머리줄 위 옅은 글자 — 8.0 */
+  --on-brand-soft: rgba(255, 255, 255, 0.12);
+  --on-brand-line: rgba(255, 255, 255, 0.3);
+  /* 머리줄(청람) 위의 상태 점·알림 배지 — 바탕이 어두운 청람이라 밝은 단계 (두 테마 같음) */
+  --on-brand-ok: #4ade80;
+  --on-brand-warn: #fbbf24;
+  --on-brand-bad: #fca5a5;
+  --on-brand-warn-ink: #1a1203;
+  --accent: #92b1db; /* 글자·링크·고른 탭 — 다크에서 #0051a8 를 글자로 쓰면 2.4:1 이라 밝은 단계 */
+  --on-accent: #0b0f18; /* 강조색 바탕 위 글자 — 흰 글자는 2.2:1 */
+  --accent-soft: rgba(146, 177, 219, 0.14);
+  --accent-line: rgba(146, 177, 219, 0.4);
+
+  /* 뜻 색 */
+  --green: #3ccf71;
+  --green-soft: rgba(60, 207, 113, 0.14);
+  --green-line: rgba(60, 207, 113, 0.4);
+  --amber: #f0b429;
+  --amber-soft: rgba(240, 180, 41, 0.14);
+  --amber-line: rgba(240, 180, 41, 0.4);
+  --on-amber: #1a1203;
+  --red: #f47171;
+  --red-soft: rgba(244, 113, 113, 0.14);
+  --red-line: rgba(244, 113, 113, 0.4);
+  --teal-sig: #2dd4bf; /* 상승 빨강 설정의 비중조절 (06b 청록) */
+  --teal-sig-soft: rgba(45, 212, 191, 0.14);
+  --rise-down: #7aa7ff; /* 상승 빨강 설정의 하락 파랑 */
+  --rise-down-soft: rgba(122, 167, 255, 0.14);
+  --rise-down-line: rgba(122, 167, 255, 0.4);
+  --teal-sig-line: rgba(45, 212, 191, 0.4);
+  --slate-soft: rgba(195, 202, 213, 0.12);
+  --text-line: rgba(230, 235, 242, 0.18);
+  --amber-tint: #282927; /* 호박 12% 를 --panel 에 섞은 불투명 바탕 */
+
+  /* 예전 이름 — 정보·링크의 파랑은 청람으로 모았다(메인 색 하나) */
+  --blue: var(--accent);
+  --blue-soft: var(--accent-soft);
+  --blue-line: var(--accent-line);
+
+  /* 그림자 · 막 */
+  --shadow-1: 0 4px 16px rgba(0, 0, 0, 0.25);
+  --shadow-2: 0 6px 18px rgba(0, 0, 0, 0.25);
+  --shadow-pop: 0 14px 34px rgba(0, 0, 0, 0.35);
+  --shadow-modal: 0 18px 48px rgba(0, 0, 0, 0.45);
+  --shadow-up: 0 -10px 30px rgba(0, 0, 0, 0.3);
+  --scrim: rgba(4, 8, 14, 0.66);
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --gap: 16px;
+
+  /*
+   * 글자 크기는 이 여섯 개뿐이다 (ROADMAP 8-4). 새 크기를 만들지 말고 가까운 것을 쓴다.
+   * 폰에서도 12px 아래는 없다.
+   */
+  --fs-caption: 12px; /* 설명·단위·표 머리 */
+  --fs-sub: 13px; /* 보조 글·배지·버튼 */
+  --fs-body: 14px; /* 본문 */
+  --fs-strong: 16px; /* 강조 — 카드 숫자·소제목 */
+  --fs-title: 20px; /* 화면 제목 */
+  --fs-big: 26px; /* 큰 숫자 — 총 평가금액 */
+
+  /* 화면 좌우 여백. 헤더·탭·본문이 같은 선에서 시작하도록 한 군데서 정한다. */
+  --gutter: clamp(16px, 3vw, 28px);
+
+  /*
+   * 거기에 "가려지는 두께"를 더한 값. index.html 의 viewport-fit=cover 로 화면
+   * 구석까지 그릴 수 있게 되면 **가려지는 자리에도** 그리게 된다 — 아이폰 노치 옆,
+   * 홈 인디케이터 위, 가로로 눕혔을 때의 곡면. env() 는 그 두께이고 노치가 없는
+   * 기기에서는 0이라, PC에서도 그대로 안전하다.
+   */
+  --gutter-left: calc(var(--gutter) + env(safe-area-inset-left, 0px));
+  --gutter-right: calc(var(--gutter) + env(safe-area-inset-right, 0px));
+
+  --font-sans: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans KR',
+    'Malgun Gothic', Helvetica, Arial, sans-serif;
+  --font-num: var(--font-sans); /* 숫자 — 본문 글꼴 + tabular-nums */
+  --font-summary-num: 'Spoqa Han Sans Neo Num', var(--font-sans); /* 위쪽 요약 칸의 숫자만 */
+  --font-code: ui-monospace, SFMono-Regular, 'SF Mono', 'Cascadia Mono', Consolas, 'D2Coding',
+    'Courier New', monospace; /* 진단 로그처럼 코드 글자만 */
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --bg: #eef2f6;
+  --bg-elevated: #ffffff;
+  --panel: #ffffff;
+  --panel-soft: #f6f8fb;
+  --border: #dfe4ea;
+  --border-strong: #c5cdd8;
+
+  --text: #0e1b2e;
+  --text-dim: #334459;
+  --text-faint: #5a6a7f;
+
+  --brand: #0051a8;
+  --on-brand: #ffffff;
+  --on-brand-dim: #d6e2f2; /* 머리줄 위 옅은 글자 — 5.9 */
+  --on-brand-soft: rgba(255, 255, 255, 0.14);
+  --on-brand-line: rgba(255, 255, 255, 0.35);
+  --on-brand-ok: #4ade80;
+  --on-brand-warn: #fbbf24;
+  --on-brand-bad: #fca5a5;
+  --on-brand-warn-ink: #1a1203;
+  --accent: #0051a8;
+  --on-accent: #ffffff;
+  --accent-soft: rgba(0, 81, 168, 0.08);
+  --accent-line: rgba(0, 81, 168, 0.35);
+
+  --green: #18694a;
+  --green-soft: rgba(24, 105, 74, 0.09);
+  --green-line: rgba(24, 105, 74, 0.35);
+  --amber: #8a4a0b;
+  --amber-soft: rgba(138, 74, 11, 0.09);
+  --amber-line: rgba(138, 74, 11, 0.35);
+  --on-amber: #ffffff; /* #8a4a0b 위 6.6 */
+  --red: #b02a2a;
+  --red-soft: rgba(176, 42, 42, 0.08);
+  --red-line: rgba(176, 42, 42, 0.35);
+  --teal-sig: #0b6a6f;
+  --teal-sig-soft: rgba(11, 106, 111, 0.08);
+  --rise-down: #1f50c2;
+  --rise-down-soft: rgba(31, 80, 194, 0.08);
+  --rise-down-line: rgba(31, 80, 194, 0.35);
+  --teal-sig-line: rgba(11, 106, 111, 0.35);
+  --slate-soft: rgba(51, 68, 89, 0.1);
+  --text-line: rgba(14, 27, 46, 0.18);
+  --amber-tint: #f4eae1;
+
+  --shadow-1: 0 4px 16px rgba(17, 24, 39, 0.12);
+  --shadow-2: 0 6px 18px rgba(17, 24, 39, 0.12);
+  --shadow-pop: 0 14px 34px rgba(17, 24, 39, 0.16);
+  --shadow-modal: 0 18px 48px rgba(17, 24, 39, 0.2);
+  --shadow-up: 0 -10px 30px rgba(17, 24, 39, 0.1);
+  --scrim: rgba(10, 15, 24, 0.45);
+}
+
+/*
+ * 오르내림 색 (ROADMAP 8-4). 가격 등락·수익률·평가손익만 이 둘을 쓴다.
+ * 기본은 오르면 초록 · 내리면 빨강. 화면 설정에서 "빨강"을 고르면 오르면 빨강 · 내리면 파랑이다(한국 증권 앱 방식).
+ *
+ * 시그널 색 (--signal-*) — 매수 초록 · 매도 빨강 · 비중조절 청람. 디자인 4차에서 주인이 정한 것(목업 05c ③):
+ * "상승 빨강"을 고르면 시그널도 따라가 매수 빨강 · 매도 파랑이 되고, 비중조절은 매도 파랑과 붙지 않게 회색.
+ * 시그널은 색만으로 보이지 않는다 — ▲▼◆ 모양과 글자를 늘 같이 붙인다.
+ */
+:root {
+  --up: var(--green);
+  --down: var(--red);
+  --up-soft: var(--green-soft);
+  --down-soft: var(--red-soft);
+  --up-line: var(--green-line);
+  --down-line: var(--red-line);
+
+  --signal-buy: var(--green);
+  --signal-buy-soft: var(--green-soft);
+  --signal-buy-line: var(--green-line);
+  --signal-sell: var(--red);
+  --signal-sell-soft: var(--red-soft);
+  --signal-sell-line: var(--red-line);
+  --signal-weight: var(--accent);
+  --signal-weight-soft: var(--accent-soft);
+  --signal-weight-line: var(--accent-line);
+
+  /* 차트(lightweight-charts) — components/chartTheme.ts 가 읽는다 */
+  --chart-text: var(--text-dim);
+  --chart-grid: var(--border);
+  --chart-line: var(--accent);
+  --chart-bg: var(--panel);
+  --chart-zero: var(--border-strong);
+}
+
+:root[data-rise='red'] {
+  --up: var(--red);
+  --down: var(--rise-down);
+  --up-soft: var(--red-soft);
+  --down-soft: var(--rise-down-soft);
+  --up-line: var(--red-line);
+  --down-line: var(--rise-down-line);
+
+  --signal-buy: var(--red);
+  --signal-buy-soft: var(--red-soft);
+  --signal-buy-line: var(--red-line);
+  --signal-sell: var(--rise-down);
+  --signal-sell-soft: var(--rise-down-soft);
+  --signal-sell-line: var(--rise-down-line);
+  --signal-weight: var(--teal-sig);
+  --signal-weight-soft: var(--teal-sig-soft);
+  --signal-weight-line: var(--teal-sig-line);
+}
+

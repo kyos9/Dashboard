@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>4차 상승 빨강 비중 색</title>
+<!--
+  디자인 4차 목업 06b — ② 주인 물음: 상승 빨강 설정(매수 빨강 · 매도 파랑)일 때 비중 색을 회색 말고 다른 색으로.
+  후보마다 라이트(왼쪽) · 다크(오른쪽). 글자 대비는 모두 4.5 넘음(흰 바탕 · #eef2f6 · #0d1627 · #0a0f18).
+-->
+<style>
+@font-face{font-family:'Pretendard';src:url('../assets/PretendardVariable-ko.woff2') format('woff2');font-weight:400 700;font-display:swap}
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:#6b7280}
+body{font-family:'Pretendard',system-ui,sans-serif;word-break:keep-all;padding:24px;display:grid;grid-template-columns:repeat(auto-fill,minmax(620px,1fr));gap:24px;max-width:1360px;margin:0 auto}
+.set{display:flex;flex-direction:column;gap:8px}
+.cap{font-weight:600;font-size:15px;color:#fff;line-height:1.35}
+.cap small{font-weight:400;font-size:12px;opacity:.85;margin-left:6px}
+.pair{display:flex;gap:12px}
+.card{flex:1;border-radius:14px;overflow:hidden;font-variant-numeric:tabular-nums;
+  --surf:#fff;--bg:#eef2f6;--text:#111827;--faint:#5b6472;--line:#dfe4ea;--buy:#b91c1c;--sell:#1d4ed8;--up:#dc2626;--down:#1d4ed8;
+  background:var(--bg);color:var(--text)}
+.card.d{--surf:#0d1627;--bg:#0a0f18;--text:#e6ebf2;--faint:#909aab;--line:#1d2a40;--buy:#f47171;--sell:#7aa7ff;--up:#f47171;--down:#7aa7ff}
+.sig{display:flex;margin:10px;background:var(--surf);border:1px solid var(--line);border-radius:8px}
+.sig div{flex:1;text-align:center;padding:8px 0 7px;border-right:1px solid var(--line);font-size:12px;color:var(--faint)}
+.sig div:last-child{border-right:0}
+.sig b{display:block;font-size:18px;font-weight:700}
+.shape{display:inline-block;width:.7em;height:.7em;margin-right:3px;background:currentColor}
+.up{clip-path:polygon(50% 0,100% 100%,0 100%)}.dn{clip-path:polygon(0 0,100% 0,50% 100%)}.dia{clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)}
+.row{background:var(--surf);border-top:1px solid var(--line);padding:10px 12px;display:flex;justify-content:space-between;gap:8px;font-size:13px}
+.row b{font-weight:600;display:block}
+.row small{display:block;font-size:12px;color:var(--faint);margin-top:2px}
+.sigs{display:flex;gap:6px;margin-top:5px;flex-wrap:wrap}
+.badge{font-size:12px;font-weight:600;white-space:nowrap;border-radius:6px;padding:1px 5px;background:color-mix(in srgb,currentColor 12%,transparent)}
+.r{text-align:right}
+.warn{margin:10px;font-size:12px;border-radius:6px;padding:6px 8px;background:#fff7e6;color:#8a4b00}
+.d .warn{background:#2a2210;color:#f0c46b}
+.pick{font-size:11px;color:#111827;background:#fff;border-radius:6px;padding:2px 6px;margin-left:6px}
+</style>
+</head>
+<body>
+<script>
+const C = [
+  ['회색', '#5b6472', '#aab3c0', '지금 앱 · 조용하지만 눈에 덜 띔'],
+  ['보라', '#6d28d9', '#b49cff', '빨강·파랑 사이 · 3차까지 비중 색'],
+  ['청록', '#0f766e', '#2dd4bf', '파랑과 다른 쪽 · 차분함', true],
+  ['초록', '#166534', '#3ccf71', '상승 빨강에선 초록이 비어 있음'],
+  ['자주', '#a21caf', '#f0abfc', '가장 눈에 띔 · 빨강과 가까운 편'],
+  ['호박', '#92400e', '#f0c46b', '경고 색과 같아 헷갈림'],
+  ['청람', '#0051a8', '#92b1db', '참고 · 매도 파랑과 붙음'],
+]
+const card = (wt, dark, n) => `<div class="card ${dark ? 'd' : ''}" style="--wt:${wt}">
+  <div class="sig"><div><b style="color:var(--buy)">3</b><i class="shape up" style="color:var(--buy)"></i>매수</div><div><b style="color:var(--sell)">4</b><i class="shape dn" style="color:var(--sell)"></i>매도</div><div><b style="color:var(--wt)">5</b><i class="shape dia" style="color:var(--wt)"></i>비중조절</div></div>
+  <div class="row"><div><b>NVDA</b><small>45주 · 비중 1.7%</small><div class="sigs"><span class="badge" style="color:var(--buy)"><i class="shape up"></i>매수</span><span class="badge" style="color:var(--wt)"><i class="shape dia"></i>비중 초과</span></div></div><div class="r">₩8,962,310<small style="color:var(--up)">+66.7%</small></div></div>
+  <div class="row"><div><b>VOO</b><small>40주 · 비중 5.7%</small><div class="sigs"><span class="badge" style="color:var(--sell)"><i class="shape dn"></i>매도</span><span class="badge" style="color:var(--wt)"><i class="shape dia"></i>비중 부족</span></div></div><div class="r">₩30,120,551<small style="color:var(--down)">−2.1%</small></div></div>
+  ${n === '호박' ? '<div class="warn">⚠ 경고 줄은 이런 색입니다</div>' : ''}
+</div>`
+document.body.innerHTML = C.map(([n, l, d, note, rec], i) => `<div class="set"><div class="cap">${i + 1} · ${n}${rec ? '<span class="pick">추천</span>' : ''}<small>${note}</small></div><div class="pair">${card(l, false, n)}${card(d, true, n)}</div></div>`).join('')
+</script>
+</body>
+</html>

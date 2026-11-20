@@ -1,5 +1,5 @@
 import { NoStocksYet } from '../components/NoStocksYet'
-import { useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useAppState } from '../AppState'
 import { api } from '../api/client'
 import { useAuth } from '../components/AuthGate'
@@ -7,8 +7,13 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ErrorNotice } from '../components/ErrorNotice'
 import { PageIntro } from '../components/PageIntro'
 import { NumberInput } from '../components/NumberInput'
-import { HOLDING_MINUS_HINT, TRADE_MINUS_HINT } from '../lib/numberDropped'
-import { MoneyLine } from '../components/PortfolioView'
+import { TRADE_MINUS_HINT } from '../lib/numberDropped'
+import { Link } from 'react-router-dom'
+import { Icon } from '../components/icons/Icon'
+import { Sheet } from '../components/ui/Sheet'
+import { OrderGroup, OrderRowButton, OrderSplit, type OrderRowItem } from '../components/rebalance/OrderRows'
+import { RebalanceSummary } from '../components/rebalance/RebalanceSummary'
+import { TargetSheet, type TargetLine } from '../components/rebalance/TargetSheet'
 import { usePrefs } from '../lib/prefs'
 import {
   amount,
@@ -24,7 +29,7 @@ import {
   stockLabel,
 } from '../lib/display'
 import { fxFromInput, fxToInput, fxUnitLabel } from '../lib/fxInput'
-import { useNarrow } from '../lib/narrow'
+import { useMedia, useNarrow } from '../lib/narrow'
 import {
   buildOrderPlan,
   isZeroTargetSell,
@@ -256,179 +261,6 @@ function TradeForm({
             : '수량만 뺍니다. 평단가는 그대로입니다.')}
       </span>
     </div>
-  )
-}
-
-/* ---------- 보유 · 목표 한 줄 ---------- */
-
-interface HoldingRowProps {
-  row: Row
-  draft: HoldingDraft
-  dirty: boolean
-  showFx: boolean
-  fxNow: number | null
-  busy: boolean
-  onChange: (draft: HoldingDraft) => void
-  onSaved: () => void
-  onError: (e: unknown) => void
-}
-
-function PnlCell({ current }: { current: RebalanceRow }) {
-  const pnl = current.shown_pnl ?? current.unrealized_pnl
-  const currency = current.shown_currency ?? current.currency
-  const pct = current.shown_return_pct ?? current.return_pct
-  if (pnl === null) return <span className="hint">평단가 입력 시</span>
-  return (
-    <div className="metric">
-      <span className="metric-value">{signedAmount(pnl, currency)}</span>
-      <span className="metric-note">{signed(pct, 1, '%')}</span>
-    </div>
-  )
-}
-
-function useRowFields({ row, draft, onChange }: Pick<HoldingRowProps, 'row' | 'draft' | 'onChange'>) {
-  const native = row.current.currency
-  const set = (patch: Partial<HoldingDraft>) => onChange({ ...draft, ...patch })
-  return {
-    quantity: <NumberInput value={draft.quantity} onChange={(v) => set({ quantity: v })} aria-label={`${row.ticker} 보유수량`} minusHint={HOLDING_MINUS_HINT} />,
-    avgCost: (
-      <div className="input-with-button tight">
-        <span className="unit">{CURRENCY_META[native].symbol}</span>
-        <NumberInput
-          value={draft.avg_cost}
-          onChange={(v) => set({ avg_cost: v })}
-          placeholder="모름"
-          aria-label={`${row.ticker} 평단가`}
-        />
-      </div>
-    ),
-    avgFx:
-      native === 'KRW' ? (
-        <span className="hint">—</span>
-      ) : (
-        <div className="input-with-button tight">
-          <NumberInput
-            value={draft.avg_fx}
-            onChange={(v) => set({ avg_fx: v })}
-            placeholder="모름"
-            aria-label={`${row.ticker} 산 환율`}
-          />
-          <span className="unit">{fxUnitLabel(native)}</span>
-        </div>
-      ),
-    target: (
-      <div className="input-with-button tight">
-        <NumberInput value={draft.target} onChange={(v) => set({ target: v })} aria-label={`${row.ticker} 목표 비중`} />
-        <span className="unit">%</span>
-      </div>
-    ),
-    band: (
-      <div className="input-with-button tight">
-        <NumberInput
-          placeholder="기본값"
-          value={draft.band}
-          onChange={(v) => set({ band: v })}
-          aria-label={`${row.ticker} 밴드 임계값`}
-        />
-        <span className="unit">%p</span>
-      </div>
-    ),
-  }
-}
-
-function HoldingTableRow(props: HoldingRowProps) {
-  const { row, dirty, showFx, fxNow, busy, onSaved, onError } = props
-  const fields = useRowFields(props)
-  const [trading, setTrading] = useState(false)
-  const columns = showFx ? 8 : 7
-  return (
-    <>
-      <tr className={dirty ? 'dirty' : undefined}>
-        <td>
-          <div className="ticker-cell">
-            <span className="ticker-name">
-              {labelOf(row)}
-              {dirty && <span className="dirty-mark" title="저장 안 한 변경">●</span>}
-            </span>
-            <span className="ticker-sub">
-              {row.ticker} · {price(row.current.last_close, row.current.currency)}
-            </span>
-          </div>
-        </td>
-        <td>{fields.quantity}</td>
-        <td>{fields.avgCost}</td>
-        {showFx && <td>{fields.avgFx}</td>}
-        <td className={`num-cell`}>
-          <PnlCell current={row.current} />
-        </td>
-        <td>{fields.target}</td>
-        <td>{fields.band}</td>
-        <td>
-          <button className="sm" onClick={() => setTrading((t) => !t)} aria-expanded={trading} disabled={busy}>
-            {trading ? '닫기' : '거래 입력'}
-          </button>
-        </td>
-      </tr>
-      {trading && (
-        <tr className="trade-row">
-          <td colSpan={columns}>
-            <TradeForm row={row} fxNow={fxNow} onSaved={onSaved} onError={onError} onClose={() => setTrading(false)} />
-          </td>
-        </tr>
-      )}
-    </>
-  )
-}
-
-/** 폰 — 한 종목이 카드 한 장. 칸마다 이름을 붙인다 (표 머리글이 없으므로) */
-function HoldingCard(props: HoldingRowProps) {
-  const { row, dirty, fxNow, busy, onSaved, onError } = props
-  const fields = useRowFields(props)
-  const [trading, setTrading] = useState(false)
-  const foreign = row.current.currency !== 'KRW'
-  return (
-    <li className={`holding-edit${dirty ? ' dirty' : ''}`}>
-      <div className="holding-edit-head">
-        <span className="ticker-name">
-          {shortLabel(row)}
-          {dirty && <span className="dirty-mark" title="저장 안 한 변경">●</span>}
-        </span>
-        <span className="hint mono">{price(row.current.last_close, row.current.currency)}</span>
-        <span className="holding-edit-pnl">
-          <PnlCell current={row.current} />
-        </span>
-      </div>
-      <div className="holding-edit-grid">
-        <label>
-          <span>보유수량</span>
-          {fields.quantity}
-        </label>
-        <label>
-          <span>평단가</span>
-          {fields.avgCost}
-        </label>
-        {foreign && (
-          <label>
-            <span>산 환율</span>
-            {fields.avgFx}
-          </label>
-        )}
-        <label>
-          <span>목표 비중</span>
-          {fields.target}
-        </label>
-        <label>
-          <span>밴드</span>
-          {fields.band}
-        </label>
-      </div>
-      <button className="sm trade-toggle" onClick={() => setTrading((t) => !t)} aria-expanded={trading} disabled={busy}>
-        {trading ? '닫기' : '거래 입력'}
-      </button>
-      {trading && (
-        <TradeForm row={row} fxNow={fxNow} onSaved={onSaved} onError={onError} onClose={() => setTrading(false)} />
-      )}
-    </li>
   )
 }
 
@@ -665,12 +497,12 @@ export function ValueRecordLine({ record }: { record: ValueRecord | null | undef
   if (!record?.enabled) return null
   return (
     <p className="hint value-record-line">
-      리뷰 기록과 따로, 서버가 매일 아침 평가금액과 보유 모습(수량·평단가·종가·현금·환율)을 남깁니다 —{' '}
+      리뷰 기록과 따로, 서버가 매일 아침 평가금액과 보유 모습(수량·평단가·종가·현금·환율)을 남깁니다.{' '}
       {record.days > 0 && record.since ? (
         <>
           {/* 날짜가 줄 끝에서 "2026-" / "10-12" 로 갈라지지 않게 */}
-          <span className="nowrap">{record.since}부터</span> <span className="nowrap">{record.days}일치</span> 쌓였습니다(쌓인 기록을 보는 화면은
-          아직 없습니다).
+          {/* "(쌓인 기록을 보는 화면은 아직 없습니다)"는 뺐다 — 할 수 없는 일을 알려 헷갈렸다(묶음 4 사용자 확인 2) */}
+          <span className="nowrap">{record.since}부터</span> <span className="nowrap">{record.days}일치</span> 쌓였습니다.
         </>
       ) : (
         '보유나 현금이 있으면 다음 아침부터 쌓입니다.'
@@ -834,6 +666,11 @@ function OrderTrade({
   onError: (e: unknown) => void
 }) {
   const [open, setOpen] = useState(false)
+  const formRef = useRef<HTMLDivElement>(null)
+  // 폰 320 에서 거래 칸이 시트 아래 화면 밖에 열려 "아무 일도 안 일어난 것"처럼 보였다 — 연 칸을 보이는 곳으로 (묶음 4 사용자 확인 2)
+  useEffect(() => {
+    if (open) formRef.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' })
+  }, [open])
   if (order.action === 'hold') return null
   return (
     <>
@@ -843,9 +680,10 @@ function OrderTrade({
         aria-expanded={open}
         aria-label={open ? `${shortLabel(row)} 거래 칸 닫기` : `${shortLabel(row)} 거래 입력`}
       >
-        {open ? '닫기' : '거래 입력'}
+        {open ? '거래 칸 닫기' : '거래 입력'}
       </button>
       {open && (
+        <div ref={formRef} className="order-trade-form">
         <TradeForm
           row={row}
           fxNow={fxNow}
@@ -855,6 +693,7 @@ function OrderTrade({
           onError={onError}
           onClose={() => setOpen(false)}
         />
+        </div>
       )}
     </>
   )
@@ -886,12 +725,12 @@ function OrderTableRow({
         <td>
           {order.action !== 'hold' && (
             <button
-              className="sm"
+              className="sm order-trade-toggle"
               onClick={() => setOpen((o) => !o)}
               aria-expanded={open}
               aria-label={open ? `${shortLabel(row)} 거래 칸 닫기` : `${shortLabel(row)} 거래 입력`}
             >
-              {open ? '닫기' : '거래 입력'}
+              {open ? '거래 칸 닫기' : '거래 입력'}
             </button>
           )}
         </td>
@@ -915,13 +754,6 @@ function OrderTableRow({
   )
 }
 
-/* 주문은 사기·팔기·유지 — 시그널의 "매수·매도"와 다른 말로 (디자인 2차, 용어 사전). 폰 카드는 이미 그랬다 */
-function ActionBadge({ action }: { action: OrderLine['action'] }) {
-  if (action === 'buy') return <span className="badge badge-green">사기</span>
-  if (action === 'sell') return <span className="badge badge-red">팔기</span>
-  return <span className="badge badge-grey">유지</span>
-}
-
 /**
  * 주문 옆의 신호 — 주문과 다른 것임이 보이게 이름표를 붙인다 (디자인 2차).
  * "사기" 카드에 "▼ 기간 내 매도"가, "사기" 바로 아래 "밴드 이내"가 이름표 없이 붙어 있어 무엇을 하라는지 헤맸다.
@@ -942,7 +774,8 @@ function SignalBadges({ current }: { current: RebalanceRow }) {
       {current.shoulder_signal_fired_in_period && (
         <span className="badge-group">
           <span className="badge-group-label">참고</span>
-          <span className="badge badge-red badge-nowrap" title="이번 리뷰 기간에 매도 시그널(참고)이 한 번 이상 떴습니다.">
+          {/* 참고 꼬리표는 회색 — 빨강이면 "늘릴 종목" 줄에서 팔라는 말로 읽혔다(② 주인 답, 사용자 확인 2) */}
+          <span className="badge badge-grey badge-nowrap" title="이번 리뷰 기간에 매도 시그널(참고)이 한 번 이상 떴습니다.">
             <SignalShape kind="sell" size={9} />
             기간 내 매도
           </span>
@@ -966,11 +799,24 @@ export function RebalancePanel() {
   usePrefs() // 금액 가리기를 바꾸면 주문 가이드·기록까지 다시 그린다 (ROADMAP 9-3)
   const { isAdmin } = useAuth()
   const narrow = useNarrow()
+  // 본문이 좁은 PC(확대 150% 등)는 6열 표의 오른쪽이 잘린다 — 그 폭에서는 폰과 같은 줄 묶음 (사용자 확인 4)
+  const compact = useMedia('(max-width: 1100px)') || narrow
   const [rows, setRows] = useState<Row[]>([])
   const [current, setCurrent] = useState<RebalanceCurrent | null>(null)
   // 주문 옆 거래 입력으로 반영한 뒤 한 줄 — 주문 가이드가 곧바로 다시 계산되어 "606주 사기"가 "109주 사기"로,
   // 다른 종목의 사기가 팔기로 바뀌는데 이유가 없었다 (디자인 2차 C 사용자 확인)
   const [tradeNote, setTradeNote] = useState<string | null>(null)
+  // 디자인 4차 목업 12c — 줄을 누르면 연 종목 · 목표 · 밴드 시트 · 폰의 새로 넣을 돈 · 유지 펼침
+  const [openTicker, setOpenTicker] = useState<string | null>(null)
+  const [targetsOpen, setTargetsOpen] = useState(false)
+  const [moneyOpen, setMoneyOpen] = useState(false)
+  const [holdOpen, setHoldOpen] = useState(false)
+  const [targetNote, setTargetNote] = useState<string | null>(null)
+  // 저장할 때마다 하나씩 — 같은 줄 수면 글이 같아 저장 줄을 다시 끌어오지 않았다(묶음 4 검토 8 조건 1)
+  const [targetSaves, setTargetSaves] = useState(0)
+  // 목업 12d A — 리뷰 · 기록과 설정은 화면 밖(시트)에서 연다. 화면에는 주문과 목록 한 장만
+  const [recordsOpen, setRecordsOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [settings, setSettings] = useState<Settings | null>(null)
   const [snapshots, setSnapshots] = useState<RebalanceSnapshot[]>([])
   const [bandInput, setBandInput] = useState('')
@@ -1006,6 +852,8 @@ export function RebalancePanel() {
   const [fxEffectDraft, setFxEffectDraft] = useState<boolean | null>(null)
   // 저장에 실패한 줄은 다시 받아 와도 고치던 값을 남긴다 — 나머지 줄만 서버 값으로 돌아간다
   const keepDrafts = useRef<Record<string, HoldingDraft>>({})
+  // 저장하지 않은 목표 · 밴드 — 다시 받아 올 때(거래 반영 · 새로고침) 남기려고 그릴 때마다 지금 값을 쥔다
+  const unsavedRef = useRef<Record<string, HoldingDraft>>({})
 
   // 탭을 옮겨 와도 들고 있던 값을 먼저 그린다 (ROADMAP 8-1)
   const { loading } = useCachedLoad(
@@ -1028,10 +876,18 @@ export function RebalancePanel() {
         stock: stockBy.get(c.ticker) ?? null,
       }))
       setRows(nextRows)
-      setDrafts({
-        ...Object.fromEntries(nextRows.map((r) => [r.ticker, draftOf(r)])),
-        ...keepDrafts.current,
-      })
+      // 고치던 목표 · 밴드는 다시 받아 와도 남긴다 — 실패한 줄, 그리고 저장하지 않고 시트를 닫은 채 거래를 반영한 줄(묶음 4 검토 조건 6).
+      // 수량 · 평단가 · 산 환율은 리밸런싱에서 고치지 않으니 서버 값으로 — 옛 수량을 다시 보내지 않게
+      const kept = { ...unsavedRef.current, ...keepDrafts.current }
+      setDrafts(
+        Object.fromEntries(
+          nextRows.map((r) => {
+            const fresh = draftOf(r)
+            const k = kept[r.ticker]
+            return [r.ticker, k ? { ...fresh, target: k.target, band: k.band } : fresh]
+          }),
+        ),
+      )
       keepDrafts.current = {}
       setCurrent(cur)
       setSettings(s)
@@ -1059,7 +915,7 @@ export function RebalancePanel() {
   const orderSaved = (row: Row) => (done?: { side: TradeSide; qty: number }) => {
     if (done)
       setTradeNote(
-        `${shortLabel(row)} ${done.qty.toLocaleString('ko-KR')}주 ${done.side === 'buy' ? '산' : '판'} 것을 반영했습니다 — 주문 가이드를 바뀐 보유로 다시 계산했습니다. 남은 주문이 줄거나 다른 종목의 사기·팔기가 바뀔 수 있습니다.`,
+        `${shortLabel(row)} ${done.qty.toLocaleString('ko-KR')}주 ${done.side === 'buy' ? '산' : '판'} 것을 반영했습니다 — 주문 가이드를 바뀐 보유로 다시 계산했습니다. 남은 주문이 줄거나 다른 종목의 사기·팔기가 바뀔 수 있습니다.${done.side === 'sell' ? ' 판 돈은 현금에 저절로 더해지지 않습니다 — "리밸런싱 설정"의 "현금"에 적으면 전체 자금에 들어갑니다.' : ''}`,
       )
     handleSaved()
   }
@@ -1118,6 +974,10 @@ export function RebalancePanel() {
     [rows, drafts],
   )
 
+  useEffect(() => {
+    unsavedRef.current = Object.fromEntries(dirtyTickers.map((t) => [t, drafts[t]]))
+  }, [dirtyTickers, drafts])
+
   const saveAll = async () => {
     if (dirtyTickers.length === 0) return
     setSaving(true)
@@ -1128,11 +988,16 @@ export function RebalancePanel() {
       dirtyTickers.map((t) => saveRow(byTicker.get(t)!, drafts[t])),
     )
     const failed = dirtyTickers.filter((_, i) => results[i].status === 'rejected')
+    // 저장한 줄은 서버 값으로 돌아오게 — 남길 것은 실패한 줄만
+    unsavedRef.current = {}
     keepDrafts.current = Object.fromEntries(failed.map((t) => [t, drafts[t]]))
     setSaving(false)
     const firstError = results.find((r) => r.status === 'rejected') as PromiseRejectedResult | undefined
     notifyDataChanged()
     if (firstError) setError(firstError.reason)
+    const saved = dirtyTickers.length - failed.length
+    setTargetNote(saved > 0 ? `${saved}줄을 저장했습니다 — 주문 가이드를 새 목표로 다시 계산했습니다.` : null)
+    setTargetSaves((n) => n + 1)
   }
 
   const resetDrafts = () => setDrafts(Object.fromEntries(rows.map((r) => [r.ticker, draftOf(r)])))
@@ -1255,21 +1120,199 @@ export function RebalancePanel() {
       </p>
     ) : null
 
-  const rowProps = (row: Row): HoldingRowProps => ({
-    row,
-    draft: drafts[row.ticker] ?? draftOf(row),
-    dirty: dirtyTickers.includes(row.ticker),
-    showFx: showFxColumn,
-    fxNow: fxNowOf(row.current.currency),
-    busy: saving,
-    onChange: (draft) => setDrafts((prev) => ({ ...prev, [row.ticker]: draft })),
-    onSaved: handleSaved,
-    onError: setError,
+  /* ---------- 디자인 4차 목업 12c — 줄일/늘릴 묶음, 부호 주수 + 왼쪽 띠, 누르면 시트 ---------- */
+
+  /** 줄에는 정수 주만 — 소수 주(1,638.42)는 이름을 밀어내 시트에만 (12c 앱 확인). 1주 미만은 그대로 "1주 미만 (0.06주)" */
+  const rowShares = (order: OrderLine) => {
+    if (order.action === 'hold') return '—'
+    if (order.shares === null) return `${signedAmount(order.adjustNative, order.currency)}어치`
+    const whole = Math.floor(Number(Math.abs(order.shares).toFixed(2)))
+    if (whole === 0) return sharesText(order.shares, true)
+    return `${order.shares > 0 ? '+' : '−'}${whole.toLocaleString('ko-KR')}주`
+  }
+  const weightNowOf = (row: Row) => (plan.total > 0 ? (row.current.current_value_base / plan.total) * 100 : 0)
+  const itemOf = (order: OrderLine): OrderRowItem | null => {
+    const row = rowByTicker.get(order.ticker)
+    if (!row) return null
+    const label = shortLabel(row)
+    return {
+      ticker: order.ticker,
+      label,
+      action: order.action,
+      shares: rowShares(order),
+      money: signedAmount(order.adjust, baseCurrency),
+      weights: `${num(weightNowOf(row), 1)}% → ${num(row.current.target_weight_pct, 0)}%`,
+      weightSignal: row.current.rebalance_signal.active,
+      spoken: [
+        orderTitle(label, order),
+        `비중 ${num(weightNowOf(row), 1)}%에서 목표 ${num(row.current.target_weight_pct, 0)}%`,
+        row.current.rebalance_signal.active ? '비중이 밴드 밖' : '',
+        order.action === 'hold' ? '' : signedAmount(order.adjust, baseCurrency),
+      ]
+        .filter(Boolean)
+        .join(' · '),
+    }
+  }
+  // 큰 것부터 — 무엇을 먼저 할지 (목업 12c). 계산은 그대로, 보이는 순서만
+  const bySize = (a: OrderLine, b: OrderLine) => Math.abs(b.adjust) - Math.abs(a.adjust)
+  const sells = plan.orders.filter((o) => o.action === 'sell').sort(bySize)
+  const buys = plan.orders.filter((o) => o.action === 'buy').sort(bySize)
+  const holds = plan.orders.filter((o) => o.action === 'hold')
+  const sellTotal = -sells.reduce((s, o) => s + o.adjust, 0)
+  const buyTotal = buys.reduce((s, o) => s + o.adjust, 0)
+  const items = (orders: OrderLine[]) => orders.map(itemOf).filter((i): i is OrderRowItem => i !== null)
+
+  const openOrder = openTicker ? plan.orders.find((o) => o.ticker === openTicker) : undefined
+  const openRow = openTicker ? rowByTicker.get(openTicker) : undefined
+
+  /** 목업 12d α — 세 카드 대신 목록 한 장(설정 탭처럼). 오른쪽에 지금 값 */
+  const moreList = (
+    <ul className="rb-list" aria-label="리밸런싱 더 보기">
+      <li>
+        <button type="button" onClick={() => setTargetsOpen(true)}>
+          <Icon name="edit" />
+          <span>목표 · 밴드 고치기</span>
+          <small className="mono">합계 {num(plan.targetSum, 1)}%</small>
+          <Icon name="forward" size={18} className="rb-list-go" />
+        </button>
+      </li>
+      <li>
+        <button type="button" onClick={() => setRecordsOpen(true)}>
+          <Icon name="doc" />
+          <span>리뷰 · 기록</span>
+          <small className="mono">
+            {reviewCountdown(current.review)} · {snapshots.length}건
+          </small>
+          <Icon name="forward" size={18} className="rb-list-go" />
+        </button>
+      </li>
+      <li>
+        <button type="button" onClick={() => setSettingsOpen(true)}>
+          <Icon name="settings" />
+          <span>리밸런싱 설정</span>
+          <small>주기, 현금, 환율, 밴드</small>
+          <Icon name="forward" size={18} className="rb-list-go" />
+        </button>
+      </li>
+    </ul>
+  )
+
+  const newMoneyToggle = (
+    <button
+      type="button"
+      className="rb-line"
+      aria-expanded={moneyOpen}
+      aria-controls={moneyOpen ? 'new-money-block' : undefined}
+      onClick={() => {
+        setMoneyOpen((o) => !o)
+        // 펼친 칸의 "팔지 않고 새 돈만 나누기"가 아래 탭 뒤에 걸렸다(사용자 확인 4) — 칸 전체가 보이게
+        requestAnimationFrame(() =>
+          document.getElementById('new-money-block')?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' }),
+        )
+      }}
+    >
+      <span>새로 넣을 돈</span>
+      <b className="mono">{plan.newMoney > 0 ? amount(plan.newMoney, baseCurrency) : `0${CURRENCY_META[baseCurrency].label}`}</b>
+      {plan.buyOnly && <span className="hint">팔지 않고 나누기</span>}
+      <Icon name="forward" size={18} className={`rb-line-go${moneyOpen ? ' open' : ''}`} />
+    </button>
+  )
+
+  /** PC 비중 차이 칩 — 밴드 밖이면 많음(줄일 색) · 적음(늘릴 색), 안이면 회색 (목업 12d 3 세 칸, 주인: "막대가 와닿지 않아") */
+  const driftChip = (row: Row) => {
+    const d = weightNowOf(row) - row.current.target_weight_pct
+    const tone = row.current.rebalance_signal.active ? (d > 0 ? 'over' : 'under') : 'ok'
+    return <span className={`drift-chip ${tone} mono`}>{signed(d, 1, '%p')}</span>
+  }
+
+  const tableRow = (order: OrderLine) => {
+    const row = rowByTicker.get(order.ticker)
+    if (!row) return null
+    const native = order.currency
+    const isForeign = native !== baseCurrency
+    const now = weightNowOf(row)
+    return (
+      <OrderTableRow
+        key={row.ticker}
+        row={row}
+        order={order}
+        fxNow={fxNowOf(native)}
+        columns={8}
+        onSaved={orderSaved(row)}
+        onError={setError}
+      >
+        <td>
+          {/* 구분 칩은 이름 옆(대시보드 표와 같게). 이름 = 티커면 아래에 다시 쓰지 않는다 (디자인 2차) */}
+          <div className={`ticker-cell order-stripe is-${order.action}`}>
+            <div className="stock-line">
+              {row.stock?.category && <span className="cat-tag">{row.stock.category}</span>}
+              <span className="ticker-name">{labelOf(row)}</span>
+            </div>
+            <span className="ticker-sub">
+              {labelOf(row) !== row.ticker && <>{row.ticker} · </>}
+              <span className="nowrap">{qty(row.current.quantity)}주</span> ·{' '}
+              <span className="nowrap">{price(row.current.last_close, native)}</span> ·{' '}
+              <span className="nowrap">
+                평가 <span>{amount(row.current.current_value_base, baseCurrency)}</span>
+              </span>
+              {isForeign && <span className="nowrap"> · 현지 {amount(row.current.current_value, native)}</span>}
+            </span>
+          </div>
+        </td>
+        <td className="num-cell mono">{num(now, 1)}%</td>
+        <td className="num-cell mono">{num(row.current.target_weight_pct, 0)}%</td>
+        <td className="num-cell">{driftChip(row)}</td>
+        <td className={`num-cell order-shares tone-${order.action}`} aria-label={orderTitle(shortLabel(row), order)}>
+          {rowShares(order)}
+          {zeroNote(order, row.current.target_weight_pct)}
+        </td>
+        <td className={`num-cell${order.adjust > 0 ? ' tone-buy' : order.adjust < 0 ? ' tone-sell' : ''}`}>
+          <div className="metric">
+            <span className="metric-value">{order.action === 'hold' ? '—' : signedAmount(order.adjust, baseCurrency)}</span>
+            {isForeign && order.action !== 'hold' && (
+              <span className="metric-note">주문 {signedAmount(order.adjustNative, native)}</span>
+            )}
+            <span className="metric-note">
+              목표 <span>{amount(order.targetValue, baseCurrency)}</span>
+            </span>
+          </div>
+        </td>
+        <td>
+          <SignalBadges current={row.current} />
+        </td>
+      </OrderTableRow>
+    )
+  }
+  const groupRow = (title: string, orders: OrderLine[], total?: string) =>
+    orders.length > 0 && (
+      <tr className="order-group-row">
+        <th colSpan={8} scope="colgroup">
+          {title} {orders.length}
+          {total && <span className="mono"> · {total}</span>}
+        </th>
+      </tr>
+    )
+
+  // 시트의 합계는 치는 값을 따라간다 — 저장된 합계(plan.targetSum)를 보여 +10 을 쳐도 90% 그대로였다(묶음 4 검토 조건 6)
+  const draftSum =
+    rows.reduce((sum, r) => sum + (Number((drafts[r.ticker] ?? draftOf(r)).target) || 0), 0) + plan.cash.targetPct
+  const draftOk = Math.abs(draftSum - 100) < 0.01
+
+  const targetLines: TargetLine[] = rows.map((row) => {
+    const draft = drafts[row.ticker] ?? draftOf(row)
+    return {
+      ticker: row.ticker,
+      label: shortLabel(row),
+      sub: `${qty(row.current.quantity)}주 · 지금 ${num(weightNowOf(row), 1)}%`,
+      target: draft.target,
+      band: draft.band,
+      dirty: changesOf(row, draft).target,
+    }
   })
 
   return (
     <div className="rebalance">
-      <div className="page-head">
+      <div className="page-head rb-head">
         <div>
           <h2>리밸런싱</h2>
           <PageIntro
@@ -1280,11 +1323,13 @@ export function RebalancePanel() {
             }
             firstVisit={loading ? null : rows.length === 0}
           >
-            주문 가이드는 지금 가격으로 목표 비중에 맞추려면 무엇을 얼마나 사고팔지 보여주는 참고입니다. 실제로
-            사고파는 것은 리뷰 때 정합니다. 보유·목표를 고치면 아래에 "바뀐 줄 저장"이 뜨고, 설정(리뷰 주기·현금·환율·
-            밴드)은 맨 아래에 접혀 있습니다.
+            주문은 지금 가격으로 목표 비중에 맞추려면 무엇을 얼마나 사고팔지 보여주는 참고입니다(−는 줄이기, +는 늘리기). 실제로
+            사고파는 것은 리뷰 때 정합니다. 줄을 누르면 자세히와 거래 입력이, &ldquo;목표 · 밴드&rdquo;에서 목표 비중을 한 번에 고칩니다.
           </PageIntro>
         </div>
+        <button type="button" className="rb-pill rb-review" onClick={() => setRecordsOpen(true)}>
+          다음 리뷰 <b className="mono">{reviewCountdown(current.review)}</b>
+        </button>
       </div>
 
       <ErrorNotice error={error} onDismiss={() => setError(null)} />
@@ -1295,48 +1340,69 @@ export function RebalancePanel() {
           <div>
             환율을 받아오지 못해 추정치로 계산하고 있습니다
             {estimatedCurrencies.length > 0 && ` (${estimatedCurrencies.join(', ')})`}. 통화가 섞인
-            포트폴리오라 비중이 실제와 다를 수 있으니, 아래 설정의 "적용 환율"에서 직접 입력하거나 다시
+            포트폴리오라 비중이 실제와 다를 수 있으니, "리밸런싱 설정"의 "적용 환율"에서 직접 입력하거나 다시
             조회해주세요.
           </div>
         </div>
       )}
 
-      <MoneyLine current={current} />
-
-      {!targetOk && (
-        <div className="callout amber">
-          <span className="ico">⚠</span>
-          <div>
-            목표 비중 합계가 {num(plan.targetSum, 1)}%입니다
-            {plan.cash.targetPct > 0 && ` (현금 ${num(plan.cash.targetPct, 1)}% 포함)`} — 100%에서{' '}
-            {signed(plan.targetSum - 100, 1, '%p')} 벗어나 목표 금액이 전체 자금과 어긋납니다.
+      <div className="rb-top">
+        <RebalanceSummary
+          total={amount(current.total_value_base, baseCurrency)}
+          cash={amount(cash?.value_base ?? 0, baseCurrency)}
+          band={`±${num(settings?.default_rebalance_band_pct ?? 0, 1)}%p`}
+          targetSum={`${num(plan.targetSum, 1)}%`}
+          targetOk={targetOk}
+          notes={`현금 포함, ${CURRENCY_META[baseCurrency].label} 기준${plan.cash.targetPct > 0 ? `, 현금 목표 ${num(plan.cash.targetPct, 0)}%` : ''}`}
+          onTargets={() => setTargetsOpen(true)}
+        />
+        {!narrow && (
+          <div className="rb-money-box" id="new-money-block">
+            {newMoneyBlock}
           </div>
-        </div>
+        )}
+      </div>
+
+      {/* 저장하지 않고 시트를 닫으면 아무 표시가 없었다(묶음 4 검토 조건 6) */}
+      {!targetsOpen && dirtyTickers.length > 0 && (
+        <p className="rb-unsaved" role="status">
+          목표 · 밴드에 저장하지 않은 변경 {dirtyTickers.length}줄 ({dirtyTickers.map((t) => shortLabel(rowByTicker.get(t)!)).join(', ')}){' '}
+          <button type="button" className="link-like" onClick={() => setTargetsOpen(true)}>
+            열어서 저장
+          </button>
+        </p>
       )}
 
-      <section className="section" aria-labelledby="orders-title">
+
+      <section className="section rb-orders" aria-labelledby="orders-title">
         <div className="section-head">
           <h3 id="orders-title">주문 가이드</h3>
           <span className="hint">
             주문 {orderCount} · 비중조절 신호 {signalled.length}종목 · {plan.buyOnly ? '나눈 몫이 새로 넣을 돈의' : '조정 금액이 전체의'}{' '}
-            {NOISE_THRESHOLD_PCT}% 미만이면 "유지"
+            {NOISE_THRESHOLD_PCT}% 미만이면 &ldquo;유지&rdquo;
           </span>
         </div>
-        {!narrow && newMoneyBlock}
+        <OrderSplit
+          money={
+            narrow ? (
+              <>
+                {newMoneyToggle}
+                {moneyOpen && <div id="new-money-block">{newMoneyBlock}</div>}
+              </>
+            ) : undefined
+          }
+          sellCount={sells.length}
+          buyCount={buys.length}
+          holdCount={holds.length}
+          sellTotal={sellTotal}
+          buyTotal={buyTotal}
+          sellText={signedAmount(-sellTotal, baseCurrency)}
+          buyText={signedAmount(buyTotal, baseCurrency)}
+        />
         {newMoneyLine}
         {tradeNote && (
           <p className="new-money-line" role="status">
             {tradeNote}
-          </p>
-        )}
-        {/* 폰에는 툴팁이 없다 — 주문 옆 이름표 둘의 뜻을 한 줄로 (디자인 2차 사용자 확인: "참고 ▼ 기간 내 매도"를 풀어 주는 곳이 없다) */}
-        {plan.orders.some((o) => {
-          const r = rowByTicker.get(o.ticker)?.current
-          return !!r && (r.rebalance_signal.active || r.shoulder_signal_fired_in_period)
-        }) && (
-          <p className="hint">
-            <b>비중</b> = 비중이 밴드를 벗어나 리뷰 때 맞출 종목 · <b>참고</b> = 이번 리뷰 기간에 매도 시그널이 뜬 적이 있음 —
-            주문 수량에는 영향이 없습니다
           </p>
         )}
         {zeroSummary && (
@@ -1344,169 +1410,90 @@ export function RebalancePanel() {
             {zeroSummary}
           </p>
         )}
-        {/* 폰은 답(카드)이 먼저라 넣는 칸이 카드 아래에 있다(8단계) — 찾으러 끝까지 내려가지 않게 바로 가는 길 (B 사용자 확인) */}
-        {narrow && (
-          <p className="hint">
-            <button
-              type="button"
-              className="link-btn"
-              onClick={() => {
-                const input = document.getElementById('new-money')
-                input?.scrollIntoView?.({ block: 'center' })
-                input?.focus({ preventScroll: true })
-              }}
-            >
-              새로 넣을 돈 넣기 ↓
-            </button>
-          </p>
-        )}
-        {narrow ? (
-          <ul className="order-cards">
-            {plan.orders.map((order) => {
-              const row = rowByTicker.get(order.ticker)
-              if (!row) return null
-              const weightNow = plan.total > 0 ? (row.current.current_value_base / plan.total) * 100 : 0
-              const drift = weightNow - row.current.target_weight_pct
-              const isForeign = order.currency !== baseCurrency
-              return (
-                <li key={order.ticker} className={`order-card ${order.action}`}>
-                  <div className="order-card-head">
-                    <b>{orderTitle(shortLabel(row), order)}</b>
-                    <span className="hint mono">
-                      {drift > 0 ? '과중' : drift < 0 ? '미달' : '목표'} {signed(drift, 1, '%p')}
-                    </span>
-                  </div>
-                  {/* 비중 줄과 금액 줄 — 한 줄이면 세 줄로 꺾이며 "+"가 줄 끝에 홀로 남았다 (디자인 2차) */}
-                  <p className="order-card-line mono">
-                    {num(weightNow, 1)}% → 목표 {num(row.current.target_weight_pct, 0)}%
-                  </p>
-                  {order.action !== 'hold' && (
-                    <p className="order-card-line mono">
-                      <span className="nowrap">{signedAmount(order.adjust, baseCurrency)}</span>
-                      {isForeign && (
-                        <>
-                          {' '}
-                          <span className="nowrap">({signedAmount(order.adjustNative, order.currency)})</span>
-                        </>
-                      )}
-                    </p>
-                  )}
-                  {zeroNote(order, row.current.target_weight_pct)}
-                  <SignalBadges current={row.current} />
-                  <OrderTrade
-                    row={row}
-                    order={order}
-                    fxNow={fxNowOf(row.current.currency)}
-                    onSaved={orderSaved(row)}
-                    onError={setError}
-                  />
-                </li>
-              )
-            })}
-            <li className="order-card cash">
-              <div className="order-card-head">
-                <b>현금</b>
-                <span className="hint mono">목표 {num(plan.cash.targetPct, 0)}%</span>
+        {compact ? (
+          <>
+            <OrderGroup
+              title="줄일 종목"
+              tone="sell"
+              total={signedAmount(-sellTotal, baseCurrency)}
+              items={items(sells)}
+              limit={3}
+              onOpen={setOpenTicker}
+            />
+            <OrderGroup
+              title="늘릴 종목"
+              tone="buy"
+              total={signedAmount(buyTotal, baseCurrency)}
+              items={items(buys)}
+              limit={3}
+              onOpen={setOpenTicker}
+            />
+            {holds.length > 0 && (
+              <div className="order-group">
+                <button
+                  type="button"
+                  className="rb-line rb-holds"
+                  aria-expanded={holdOpen}
+                  onClick={() => setHoldOpen((o) => !o)}
+                >
+                  <span>
+                    유지 {holds.length}
+                    {plan.buyOnly && ' (팔지 않고 나누기라 줄일 종목도 여기)'} · {holds.map((o) => (rowByTicker.get(o.ticker) ? shortLabel(rowByTicker.get(o.ticker)!) : o.ticker)).join(' · ')}
+                  </span>
+                  <Icon name="forward" size={18} className={`rb-line-go${holdOpen ? ' open' : ''}`} />
+                </button>
+                {holdOpen && (
+                  <ul className="order-card">
+                    {items(holds).map((item) => (
+                      <OrderRowButton key={item.ticker} item={item} onOpen={setOpenTicker} />
+                    ))}
+                  </ul>
+                )}
               </div>
-              <p className="order-card-line mono">
-                {/* 새 돈만 나누기면 산 뒤 실제로 남는 현금 — 목표가 아니다 (B 검토 D4) */}
-                {amount(plan.cash.current, baseCurrency)} →{' '}
-                {amount(plan.buyOnly ? plan.cash.current + plan.cash.adjust : plan.cash.targetValue, baseCurrency)}
-                {plan.buyOnly && ' 남음'}
-              </p>
-            </li>
-          </ul>
+            )}
+            <div className="order-group">
+              <div className="order-card cash-card">
+                <div className="order-row is-hold static">
+                  <span className="order-row-name">
+                    <span className="order-row-title">현금</span>
+                    <span className="order-row-sub mono">목표 {num(plan.cash.targetPct, 0)}%</span>
+                  </span>
+                  <span className="order-row-act">
+                    {/* 새 돈만 나누기면 산 뒤 실제로 남는 현금 — 목표가 아니다 (B 검토 D4) */}
+                    <span className="mono">
+                      {amount(plan.cash.current, baseCurrency)} →{' '}
+                      {amount(plan.buyOnly ? plan.cash.current + plan.cash.adjust : plan.cash.targetValue, baseCurrency)}
+                      {plan.buyOnly && ' 남음'}
+                    </span>
+                    {underOne > 0 && <span className="hint">1주 미만 {underOne}종목을 못 사면 그만큼 더 남음</span>}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </>
         ) : (
           <div className="table-scroll">
-            <table className="data-table sticky-first" style={{ minWidth: 1120 }}>
+            <table className="data-table sticky-first order-table">
               <thead>
                 <tr>
-                  <th style={{ minWidth: 150 }}>구분 / 종목</th>
-                  <th style={{ minWidth: 132 }}>현재 평가금액</th>
-                  <th style={{ minWidth: 118 }}>목표 금액</th>
-                  <th style={{ minWidth: 140 }}>조정 필요금액</th>
-                  <th style={{ minWidth: 104 }}>
-                    현재 비중
-                    <br />
-                    (목표 대비)
-                  </th>
-                  <th style={{ minWidth: 104 }}>주문 액션</th>
-                  <th style={{ minWidth: 104 }}>예상 주문 주수</th>
-                  <th style={{ minWidth: 140 }}>비중조절 신호</th>
-                  <th style={{ minWidth: 96 }}>거래</th>
+                  <th style={{ minWidth: 220 }}>구분 / 종목</th>
+                  <th className="num-cell" style={{ minWidth: 64 }}>지금</th>
+                  <th className="num-cell" style={{ minWidth: 56 }}>목표</th>
+                  <th className="num-cell" style={{ minWidth: 80 }}>차이</th>
+                  <th style={{ minWidth: 110 }}>주문</th>
+                  <th style={{ minWidth: 150 }}>조정 금액</th>
+                  <th style={{ minWidth: 150 }}>비중조절 신호</th>
+                  {/* 열린 "거래 칸 닫기"(한 줄) 폭까지 처음부터 — 열 때 열이 96 → 100px 로 넓어져 다른 칸이 꺾였다(검토 9 조건 1) */}
+                  <th style={{ minWidth: 104 }}>거래</th>
                 </tr>
               </thead>
               <tbody>
-                {plan.orders.map((order) => {
-                  const { ticker, currency: native, targetValue, adjust, adjustNative, shares, action } = order
-                  const row = rowByTicker.get(ticker)
-                  if (!row) return null
-                  const isForeign = native !== baseCurrency
-                  // 새로 넣을 돈이 있으면 비중도 그 돈까지 더한 전체 자금으로 다시 잰다
-                  const weightNow = plan.total > 0 ? (row.current.current_value_base / plan.total) * 100 : 0
-                  return (
-                    <OrderTableRow
-                      key={row.ticker}
-                      row={row}
-                      order={order}
-                      fxNow={fxNowOf(native)}
-                      columns={9}
-                      onSaved={orderSaved(row)}
-                      onError={setError}
-                    >
-                      <td>
-                        {/* 구분 칩은 이름 옆(대시보드 표와 같게) — 이름 위 한 줄을 따로 써서 줄이 높았다. 이름 = 티커면 아래에 다시 쓰지 않는다 (디자인 2차) */}
-                        <div className="ticker-cell">
-                          <div className="stock-line">
-                            {row.stock?.category && <span className="cat-tag">{row.stock.category}</span>}
-                            <span className="ticker-name">{labelOf(row)}</span>
-                          </div>
-                          <span className="ticker-sub">
-                            {labelOf(row) !== row.ticker && <>{row.ticker} · </>}
-                            <span className="nowrap">{qty(row.current.quantity)}주</span> ·{' '}
-                            <span className="nowrap">{price(row.current.last_close, native)}</span>
-                          </span>
-                        </div>
-                      </td>
-                      <td className="num-cell">
-                        <div className="metric">
-                          <span className="metric-value">{amount(row.current.current_value_base, baseCurrency)}</span>
-                          {isForeign && (
-                            <span className="metric-note">현지 {amount(row.current.current_value, native)}</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="num-cell">{amount(targetValue, baseCurrency)}</td>
-                      <td className={`num-cell ${adjust > 0 ? 'tone-buy' : adjust < 0 ? 'tone-sell' : ''}`}>
-                        <div className="metric">
-                          <span className="metric-value">{signedAmount(adjust, baseCurrency)}</span>
-                          {isForeign && action !== 'hold' && (
-                            <span className="metric-note">주문 {signedAmount(adjustNative, native)}</span>
-                          )}
-                        </div>
-                      </td>
-                      <td>
-                        <div className="metric">
-                          <span className="metric-value">{num(weightNow, 1)}%</span>
-                          <span className="metric-note">
-                            목표 {num(row.current.target_weight_pct, 0)}% ·{' '}
-                            {signed(weightNow - row.current.target_weight_pct, 1, '%p')}
-                          </span>
-                        </div>
-                      </td>
-                      <td>
-                        <ActionBadge action={action} />
-                        {zeroNote(order, row.current.target_weight_pct)}
-                      </td>
-                      <td className="num-cell">
-                        {shares === null || action === 'hold' ? '—' : sharesText(shares, true)}
-                      </td>
-                      <td>
-                        <SignalBadges current={row.current} />
-                      </td>
-                    </OrderTableRow>
-                  )
-                })}
+                {groupRow('줄일 종목', sells, signedAmount(-sellTotal, baseCurrency))}
+                {sells.map(tableRow)}
+                {groupRow('늘릴 종목', buys, signedAmount(buyTotal, baseCurrency))}
+                {buys.map(tableRow)}
+                {groupRow('유지', holds)}
+                {holds.map(tableRow)}
                 <tr className="cash-row">
                   <td>
                     <div className="ticker-cell">
@@ -1518,20 +1505,19 @@ export function RebalancePanel() {
                       </span>
                     </div>
                   </td>
-                  <td className="num-cell">{amount(plan.cash.current, baseCurrency)}</td>
-                  <td className="num-cell">{amount(plan.cash.targetValue, baseCurrency)}</td>
+                  <td className="num-cell mono">{num(plan.total > 0 ? (plan.cash.current / plan.total) * 100 : 0, 1)}%</td>
+                  <td className="num-cell mono">{num(plan.cash.targetPct, 0)}%</td>
+                  <td />
+                  <td />
                   <td className={`num-cell ${plan.cash.adjust > 0 ? 'tone-buy' : plan.cash.adjust < 0 ? 'tone-sell' : ''}`}>
-                    {signedAmount(plan.cash.adjust, baseCurrency)}
-                  </td>
-                  <td>
                     <div className="metric">
-                      <span className="metric-value">
-                        {num(plan.total > 0 ? (plan.cash.current / plan.total) * 100 : 0, 1)}%
+                      <span className="metric-value">{signedAmount(plan.cash.adjust, baseCurrency)}</span>
+                      <span className="metric-note">
+                        <span>{amount(plan.cash.current, baseCurrency)}</span> → <span>{amount(plan.cash.targetValue, baseCurrency)}</span>
                       </span>
-                      <span className="metric-note">목표 {num(plan.cash.targetPct, 0)}%</span>
                     </div>
                   </td>
-                  <td colSpan={4}>
+                  <td colSpan={2}>
                     <span className="hint">
                       {plan.cash.adjust < 0
                         ? '목표보다 많은 현금 — 매수 재원입니다.'
@@ -1545,95 +1531,168 @@ export function RebalancePanel() {
               <tfoot>
                 <tr>
                   <td>합계 ({CURRENCY_META[baseCurrency].symbol})</td>
-                  <td className="num-cell">{amount(plan.total, baseCurrency)}</td>
-                  <td className="num-cell">
-                    {amount(plan.orders.reduce((s, o) => s + o.targetValue, 0) + plan.cash.targetValue, baseCurrency)}
+                  <td className="num-cell" colSpan={3}>
+                    {amount(plan.total, baseCurrency)}
                   </td>
+                  <td />
                   <td className="num-cell">
                     {signedAmount(plan.orders.reduce((s, o) => s + o.adjust, 0) + plan.cash.adjust, baseCurrency)}
                   </td>
-                  <td colSpan={5} />
+                  <td colSpan={2} />
                 </tr>
               </tfoot>
             </table>
           </div>
         )}
-        {/* 폰에서는 답(카드)이 먼저 — 새로 넣을 돈은 그 아래 */}
-        {narrow && newMoneyBlock}
+        {moreList}
+        <p className="hint rb-foot">지금 가격으로 목표에 맞추는 참고입니다. 실제로 사고파는 것은 리뷰 때 정합니다.</p>
       </section>
 
-      <section className="section" aria-labelledby="holdings-edit-title">
-        <div className="section-head">
-          <h3 id="holdings-edit-title">보유 · 목표 비중</h3>
-          <span className="hint">
-            샀거나 팔았으면 "거래 입력"으로 반영하세요. 평단가·산 환율은 손익 표시에만 쓰이고 비중에는 영향이 없습니다.
-          </span>
-        </div>
-        {narrow ? (
-          <ul className="holding-edit-list">
-            {rows.map((row) => (
-              <HoldingCard key={row.ticker} {...rowProps(row)} />
-            ))}
-          </ul>
-        ) : (
-          <div className="table-scroll">
-            <table className="data-table fixed sticky-first" style={{ minWidth: showFxColumn ? 1120 : 980 }}>
-              <thead>
-                <tr>
-                  <th style={{ width: 190 }}>종목</th>
-                  <th style={{ width: 120 }}>보유수량</th>
-                  <th style={{ width: 150 }}>평단가</th>
-                  {showFxColumn && <th style={{ width: 150 }}>산 환율</th>}
-                  <th style={{ width: 130 }}>평가손익</th>
-                  <th style={{ width: 120 }}>목표 비중</th>
-                  <th style={{ width: 140 }}>
-                    밴드 임계값
-                    <br />
-                    (비워두면 기본값)
-                  </th>
-                  <th style={{ width: 120 }}>거래</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => (
-                  <HoldingTableRow key={row.ticker} {...rowProps(row)} />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        {dirtyTickers.length > 0 && (
-          <div className="save-bar" role="status">
+      {openOrder && openRow && (
+        <Sheet
+          title={shortLabel(openRow)}
+          label={`${shortLabel(openRow)} 주문 자세히`}
+          closeLabel="자세히 닫기"
+          className="order-sheet"
+          onClose={() => setOpenTicker(null)}
+          sub={
+            <>
+              {openRow.stock?.category && <>구분 {openRow.stock.category} · </>}
+              {qty(openRow.current.quantity)}주 · {price(openRow.current.last_close, openRow.current.currency)}
+            </>
+          }
+        >
+          <div className={`order-sheet-act is-${openOrder.action}`}>
+            <b className="mono">
+              {openOrder.action === 'hold' ? '유지' : rowShares(openOrder)}
+              {/* 괄호 소수가 무엇인지 몰랐다(사용자 확인 4) — 계산한 소수 주는 따로 한 줄로 */}
+              {openOrder.action !== 'hold' &&
+                openOrder.shares !== null &&
+                Math.abs(openOrder.shares) >= 1 &&
+                !Number.isInteger(Number(Math.abs(openOrder.shares).toFixed(2))) && (
+                  <small className="hint">계산으로는 {num(Math.abs(openOrder.shares), 2)}주 · 1주 단위로 내림</small>
+                )}
+            </b>
             <span>
-              바뀐 {dirtyTickers.length}줄 ({dirtyTickers.map((t) => shortLabel(rowByTicker.get(t)!)).join(', ')})
+              <span className="mono">{openOrder.action === 'hold' ? '' : signedAmount(openOrder.adjust, baseCurrency)}</span>
+              {openOrder.currency !== baseCurrency && openOrder.action !== 'hold' && (
+                <small className="hint mono">주문 {signedAmount(openOrder.adjustNative, openOrder.currency)}</small>
+              )}
             </span>
-            <div className="btn-group tight">
-              <button className="primary sm" onClick={() => void saveAll()} disabled={saving}>
-                {saving ? '저장 중…' : `바뀐 ${dirtyTickers.length}줄 저장`}
-              </button>
-              <button className="sm" onClick={resetDrafts} disabled={saving}>
-                되돌리기
-              </button>
-            </div>
           </div>
-        )}
-      </section>
+          <p className="order-sheet-say">
+            {openOrder.action === 'hold'
+              ? `${shortLabel(openRow)} 유지 — 조정이 전체의 ${NOISE_THRESHOLD_PCT}% 미만입니다`
+              : `${orderTitle(shortLabel(openRow), openOrder)} — 지금 가격으로 목표에 맞추는 참고입니다`}
+          </p>
+          <dl className="order-sheet-kv">
+            <div>
+              <dt>비중</dt>
+              <dd className="mono">
+                {num(weightNowOf(openRow), 1)}% → 목표 {num(openRow.current.target_weight_pct, 0)}%
+                <small>
+                  밴드 ±{num(openRow.current.band_pct, 1)}%p{' '}
+                  {openRow.current.rebalance_signal.active ? '밖 — 리뷰 때 맞출 종목' : '안'}
+                </small>
+              </dd>
+            </div>
+            <div>
+              <dt>평가금액</dt>
+              <dd className="mono">
+                {amount(openRow.current.current_value_base, baseCurrency)}
+                <small>목표 {amount(openOrder.targetValue, baseCurrency)}</small>
+              </dd>
+            </div>
+            <div>
+              <dt>신호</dt>
+              <dd>
+                <SignalBadges current={openRow.current} />
+                {openRow.current.shoulder_signal_fired_in_period && (
+                  <small>참고 = 이번 리뷰 기간에 매도 시그널이 뜬 적 있음 · 주문 수량에는 영향이 없습니다</small>
+                )}
+              </dd>
+            </div>
+          </dl>
+          {zeroNote(openOrder, openRow.current.target_weight_pct)}
+          <div className="order-sheet-actions">
+            <button
+              type="button"
+              onClick={() => {
+                setOpenTicker(null)
+                setTargetsOpen(true)
+              }}
+            >
+              목표 · 밴드 고치기
+            </button>
+            <Link className="link-button" to={`/stocks/${encodeURIComponent(openRow.ticker)}`}>
+              종목 화면 열기
+            </Link>
+            <OrderTrade
+              row={openRow}
+              order={openOrder}
+              fxNow={fxNowOf(openRow.current.currency)}
+              onSaved={(done) => {
+                orderSaved(openRow)(done)
+                setOpenTicker(null)
+              }}
+              onError={setError}
+            />
+          </div>
+          <p className="hint">수량 · 평단가는 종목 화면의 &ldquo;보유&rdquo; 탭에서 고칩니다.</p>
+        </Sheet>
+      )}
 
-      <section className="section" aria-labelledby="records-title">
-        <div className="section-head">
-          <h3 id="records-title">리뷰 · 기록 {snapshots.length > 0 && `${snapshots.length}건`}</h3>
-          <span className="hint">리뷰할 때 남긴 모습 그대로입니다. 종목을 지우거나 목표를 바꿔도 달라지지 않습니다.</span>
-        </div>
-        <RecordPanel review={current.review} onSaved={handleSaved} onError={setError} />
-        <SnapshotList snapshots={snapshots} onDeleted={handleSaved} onError={setError} />
-        <ValueRecordLine record={current.value_record} />
-      </section>
+      {targetsOpen && (
+        <TargetSheet
+          lines={targetLines}
+          sum={`${num(draftSum, 1)}%`}
+          sumOk={draftOk}
+          cashNote={`현금 목표 ${num(plan.cash.targetPct, 0)}% 포함(설정에서)`}
+          defaultBand={String(settings?.default_rebalance_band_pct ?? '')}
+          dirtyCount={dirtyTickers.length}
+          saving={saving}
+          onChange={(ticker, patch) =>
+            setDrafts((prev) => {
+              const row = rowByTicker.get(ticker)
+              const base = prev[ticker] ?? (row ? draftOf(row) : undefined)
+              return base ? { ...prev, [ticker]: { ...base, ...patch } } : prev
+            })
+          }
+          note={targetNote}
+          noteSeq={targetSaves}
+          onSave={() => void saveAll()}
+          onReset={resetDrafts}
+          onClose={() => {
+            setTargetsOpen(false)
+            setTargetNote(null)
+          }}
+        />
+      )}
 
-      <details className="section settings-fold">
-        <summary>
-          <h3>설정</h3>
-          <span className="hint">리뷰 주기 · 현금 · 기준통화·환율 · 밴드</span>
-        </summary>
+      {recordsOpen && (
+        <Sheet
+          title={`리뷰 · 기록${snapshots.length > 0 ? ` ${snapshots.length}건` : ''}`}
+          label="리뷰 · 기록"
+          closeLabel="리뷰 · 기록 닫기"
+          className="records-sheet"
+          sub="리뷰할 때 남긴 모습 그대로입니다. 종목을 지우거나 목표를 바꿔도 달라지지 않습니다."
+          onClose={() => setRecordsOpen(false)}
+        >
+          <RecordPanel review={current.review} onSaved={handleSaved} onError={setError} />
+          <SnapshotList snapshots={snapshots} onDeleted={handleSaved} onError={setError} />
+          <ValueRecordLine record={current.value_record} />
+        </Sheet>
+      )}
+
+      {settingsOpen && (
+        <Sheet
+          title="리밸런싱 설정"
+          label="리밸런싱 설정"
+          closeLabel="설정 닫기"
+          className="settings-sheet"
+          sub="리뷰 주기, 현금, 기준통화와 환율, 밴드"
+          onClose={() => setSettingsOpen(false)}
+        >
         <div className="kpi-grid">
           {settings && (
             <ReviewSettings
@@ -1771,7 +1830,8 @@ export function RebalancePanel() {
             </p>
           </div>
         </div>
-      </details>
+        </Sheet>
+      )}
     </div>
   )
 }

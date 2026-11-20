@@ -53,10 +53,11 @@ export function FundamentalsPanel({ data }: { data: FundamentalsResponse }) {
                   <span className="k">{item.label}</span>
                   <span className="v">{metricValue(byKey[item.key], data.currency)}</span>
                   <span className="k">
+                    {/* 조각 사이(" · ")에서만 줄을 바꾼다 — 구분자까지 묶으면 칸보다 길어져 옆 칸 위로 넘쳤다 (4차, 글자 겹침 검사) */}
                     {metricBasisParts(byKey[item.key]).map((part, i) => (
-                      <span key={part} className="nobr">
+                      <span key={part}>
                         {i > 0 && ' · '}
-                        {part}
+                        <span className="nobr">{part}</span>
                       </span>
                     ))}
                   </span>

@@ -39,6 +39,20 @@ export const SIGNAL_LABEL: Record<SignalKind, string> = {
   under: '비중 미달',
 }
 
+/** 카드 하나의 신호 — 종목 탭 줄·카드와 종목 안 머리가 쓴다. `signalsOf` 와 같은 규칙(보유 줄이 없을 때) */
+export function cardSignals(card: DashboardCard): SignalMark[] {
+  const out: SignalKind[] = []
+  if (trafficLight(card).state !== 'stale') {
+    if (card.knee_buy_v2) out.push('buy')
+    if (card.shoulder_sell_ref) out.push('sell')
+  }
+  // 옛 서버·덜 채운 카드는 비중 신호가 없을 수 있다
+  const reasons = card.rebalance_signal?.reasons ?? []
+  if (reasons.some((r) => r.includes('매도 검토'))) out.push('over')
+  if (reasons.some((r) => r.includes('매수 검토'))) out.push('under')
+  return out.map((kind) => ({ kind, label: SIGNAL_LABEL[kind] }))
+}
+
 export function signalsOf(item: PortfolioItem): SignalMark[] {
   const out: SignalKind[] = []
   const card = item.card
@@ -147,7 +161,6 @@ export function pnlIn(
    고른 정렬·보기는 이 기기의 편의다. 저장이 막힌 브라우저(사생활 보호 창)에서도 화면은 떠야 한다. */
 
 const SORT_STORE = 'dashboard.sort'
-const VIEW_STORE = 'dashboard.view'
 const PNL_STORE = 'dashboard.pnl-currency'
 
 export type DashboardView = 'portfolio' | 'signal'
@@ -175,14 +188,6 @@ export function loadSort(): SortKey {
 
 export function saveSort(key: SortKey) {
   write(SORT_STORE, key)
-}
-
-export function loadView(): DashboardView {
-  return read(VIEW_STORE) === 'signal' ? 'signal' : 'portfolio'
-}
-
-export function saveView(view: DashboardView) {
-  write(VIEW_STORE, view)
 }
 
 /** 고른 손익 통화. 기억이 없거나 이상하면 종목별 통화 */

@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>4차 아이콘 한 벌</title>
+<!--
+  디자인 4차 목업 08 — ② 주인: "B 좋아. 아이콘도 다시 다 구현해줘." 앱의 아이콘을 처음부터 한 벌로 그린다(24 칸).
+  같은 그림을 세 가지 모양으로:
+    1 · 둥근 선 1.75 — 켜진 탭은 속을 채움 (부드러움 · 토스 결)
+    2 · 각진 선 2 — 켜진 탭은 색만 (단단 · 증권사 결)
+    3 · 두 톤 — 선 + 옅은 면, 켜진 탭은 면이 진해짐
+  시그널 ▲▼◆ 는 아이콘이 아니라 모양 기호라 그대로. 토스페이스(그림 이모지)는 설정 · 빈 화면에만(묶음 2·6).
+  ?theme=light 로 라이트.
+-->
+<style>
+@font-face{font-family:'Pretendard';src:url('../assets/PretendardVariable-ko.woff2') format('woff2');font-weight:400 700;font-display:swap}
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:#6b7280}
+body{font-family:'Pretendard',system-ui,sans-serif;word-break:keep-all;padding:24px;display:flex;flex-direction:column;gap:28px;max-width:1300px;margin:0 auto}
+.sty{display:flex;flex-direction:column;gap:10px}
+.cap{font-weight:600;font-size:16px;color:#fff}
+.cap small{font-weight:400;font-size:13px;opacity:.85;margin-left:8px}
+.pair{display:flex;gap:16px}
+.card{flex:1;border-radius:16px;overflow:hidden;
+  --brand:#0051a8;--surf:#fff;--bg:#eef2f6;--text:#111827;--faint:#5b6472;--line:#dfe4ea;--link:#0051a8;
+  background:var(--bg);color:var(--text)}
+.card.d{--brand:#002f67;--surf:#0d1627;--bg:#0a0f18;--text:#e6ebf2;--faint:#909aab;--line:#1d2a40;--link:#92b1db}
+.top{background:var(--brand);color:#fff;display:flex;align-items:center;gap:2px;padding:10px 8px 10px 16px}
+.top b{flex:1;font-size:17px}
+.top .ic{width:40px;height:40px;display:grid;place-items:center}
+.grid{display:grid;grid-template-columns:repeat(8,1fr);gap:4px;padding:12px;background:var(--surf);border-bottom:1px solid var(--line)}
+.grid div{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 0;font-size:11px;color:var(--faint)}
+.grid svg{color:var(--text)}
+.row{display:flex;gap:8px;padding:12px;align-items:center;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surf);border-radius:8px;padding:8px 12px;font-size:13px;font-weight:600;color:var(--text)}
+.btn.p{background:var(--link);color:var(--surf);border-color:transparent}
+.tabbar{display:flex;padding:6px 6px 10px;background:var(--surf);border-top:1px solid var(--line);color:var(--faint)}
+.tabbar a{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:13px;font-weight:500}
+.tabbar .ico{width:56px;height:30px;border-radius:999px;display:grid;place-items:center}
+.tabbar .on{color:var(--link);font-weight:700}
+.tabbar .on .ico{background:color-mix(in srgb,var(--link) 14%,transparent)}
+.big{display:flex;gap:18px;padding:14px 16px;background:var(--surf);border-top:1px solid var(--line);color:var(--text)}
+.pick{font-size:11px;color:#111827;background:#fff;border-radius:6px;padding:2px 6px;margin-left:6px}
+</style>
+</head>
+<body>
+<script>
+if (new URLSearchParams(location.search).get('theme') === 'light') {} // 카드마다 라이트 · 다크를 나란히
+// 톱니: 이 8개, 바깥 9 · 안 7, 가운데 구멍 3
+const gear = (() => {
+  const n = 8, R = 9.2, r = 7, cx = 12, cy = 12, pts = []
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2, w = Math.PI / n
+    const p = (rad, ang) => `${(cx + rad * Math.cos(ang)).toFixed(2)} ${(cy + rad * Math.sin(ang)).toFixed(2)}`
+    pts.push(p(r, a - w * 0.62), p(R, a - w * 0.34), p(R, a + w * 0.34), p(r, a + w * 0.62))
+  }
+  return 'M' + pts.join('L') + 'Z'
+})()
+// 그림: [d, 닫힘(채울 수 있음), 채울 때 바탕색으로 뚫을 선]
+const IC = {
+  홈: [['M4 10.4 12 4l8 6.4V19a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z', 1], ['M10 20v-5h4v5', 0, 1]],
+  종목: [['M3.5 20h17', 0], ['M5.5 11h3v6h-3z', 1], ['M10.5 5.5h3V17h-3z', 1], ['M15.5 8.5h3V17h-3z', 1]],
+  리밸런싱: [['M12 4.5V19.5M8 19.5h8M5 7.5h14', 0], ['M5 7.5 2.5 13a2.5 2.5 0 0 0 5 0z', 1], ['M19 7.5 16.5 13a2.5 2.5 0 0 0 5 0z', 1]],
+  매크로: [['M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17z', 1], ['M3.5 12h17M12 3.5c3 3.2 3 13.8 0 17M12 3.5c-3 3.2-3 13.8 0 17', 0, 1]],
+  설정: [[gear, 1], ['M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z', 0, 1]],
+  새로고침: [['M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4', 0]],
+  뒤로: [['M15 5l-7 7 7 7', 0]],
+  닫기: [['M6 6l12 12M18 6 6 18', 0]],
+  찾기: [['M11 4.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13z', 1], ['M16 16l4 4', 0]],
+  추가: [['M12 5v14M5 12h14', 0]],
+  수정: [['M4 20h4L19 9l-4-4L4 16z', 1], ['M13.5 6.5l4 4', 0, 1]],
+  지우기: [['M4.5 7h15M9.5 7V4.5h5V7', 0], ['M6.5 7l1 13h9l1-13z', 1]],
+  순서: [['M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01', 0]],
+  보기: [['M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z', 1], ['M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z', 0, 1]],
+  가리기: [['M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z', 1], ['M4 4l16 16', 0, 1]],
+  AI: [['M12 3.5c.7 5 3.5 7.8 8.5 8.5-5 .7-7.8 3.5-8.5 8.5-.7-5-3.5-7.8-8.5-8.5 5-.7 7.8-3.5 8.5-8.5z', 1]],
+  알림: [['M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15z', 1], ['M10 21h4', 0]],
+  바깥: [['M14 4.5h5.5V10M19.5 4.5 11 13M18 14v5.5H4.5V6H10', 0]],
+  펼치기: [['M6 9l6 6 6-6', 0]],
+  정보: [['M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17z', 1], ['M12 11v5.5M12 7.8v.1', 0, 1]],
+  경고: [['M12 4 21 19.5H3z', 1], ['M12 10v4.5M12 17v.1', 0, 1]],
+  확인: [['M5 12.5l4.5 4.5L19 7.5', 0]],
+  정렬: [['M7 4.5v15M4 16.5l3 3 3-3M17 19.5v-15M14 7.5l3-3 3 3', 0]],
+  달력: [['M4.5 6h15v14h-15z', 1], ['M8 3.5v4M16 3.5v4M4.5 10.5h15', 0, 1]],
+  화면: [['M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17z', 0], ['M12 3.5a8.5 8.5 0 0 1 0 17z', 1]],
+  키: [['M8 11a4 4 0 1 0 0 8 4 4 0 0 0 0-8z', 1], ['M11 12l8.5-8.5M16 6.5l2.5 2.5', 0]],
+  진단: [['M3 12h4l2-5 4 10 2-5h6', 0]],
+  사용자: [['M12 4.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z', 1], ['M5 20a7 7 0 0 1 14 0z', 1]],
+  나가기: [['M14 4.5h4.5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H14M10 8l-4 4 4 4M6 12h9', 0]],
+  차트: [['M3.5 4v16h17', 0], ['M7 15l3.5-4 3 2.5L19 7.5', 0]],
+  재무: [['M5.5 3.5h13v17h-13z', 1], ['M9 8.5h6M9 12h6M9 15.5h3.5', 0, 1]],
+  별: [['M12 4l2.4 5 5.4.6-4 3.7 1.1 5.4L12 16l-4.9 2.7 1.1-5.4-4-3.7 5.4-.6z', 1]],
+}
+const STY = {
+  1: { w: 1.75, cap: 'round', join: 'round', tone: 0, fillOn: true },
+  2: { w: 2, cap: 'square', join: 'miter', tone: 0, fillOn: false },
+  3: { w: 1.75, cap: 'round', join: 'round', tone: 0.2, toneOn: 0.45 },
+}
+const svg = (name, st, on = false, size = 24) => {
+  const s = STY[st], els = IC[name]
+  const filled = on && s.fillOn
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="${s.w}" stroke-linecap="${s.cap}" stroke-linejoin="${s.join}" aria-hidden="true">${els.map(([d, c, k]) => {
+    if (filled) return c ? `<path d="${d}" fill="currentColor"/>` : `<path d="${d}"${k ? ' stroke="var(--surf)"' : ''}/>`
+    const t = c ? (on ? s.toneOn : s.tone) : 0
+    return `<path d="${d}"${t ? ` fill="currentColor" fill-opacity="${t}"` : ''}/>`
+  }).join('')}</svg>`
+}
+const TABS = ['홈', '종목', '리밸런싱', '매크로', '설정']
+const card = (st, dark) => `<div class="card ${dark ? 'd' : ''}">
+  <div class="top"><b>자산관리</b><span class="ic">${svg('새로고침', st)}</span></div>
+  <div class="grid">${Object.keys(IC).filter(n => !TABS.includes(n)).map(n => `<div>${svg(n, st)}${n}</div>`).join('')}</div>
+  <div class="row"><span class="btn">${svg('추가', st, false, 18)}종목 추가</span><span class="btn">${svg('수정', st, false, 18)}수정</span><span class="btn">${svg('가리기', st, false, 18)}금액 가리기</span><span class="btn p">${svg('AI', st, false, 18)}AI 진단</span></div>
+  <div class="big">${TABS.map(n => svg(n, st, false, 32)).join('')}${svg('홈', st, true, 32)}</div>
+  ${[0, 1].map(on => `<nav class="tabbar">${TABS.map((n, i) => `<a class="${i === on ? 'on' : ''}"><span class="ico">${svg(n, st, i === on)}</span>${n}</a>`).join('')}</nav>`).join('')}
+</div>`
+const NAMES = { 1: ['둥근 선 1.75', '켜진 탭은 속을 채움 — 부드러움 · 토스 결', true], 2: ['각진 선 2', '켜진 탭은 색만 — 단단 · 증권사 결'], 3: ['두 톤', '선 + 옅은 면 — 켜지면 면이 진해짐'] }
+document.body.innerHTML = [1, 2, 3].map(st => `<div class="sty"><div class="cap">${st} · ${NAMES[st][0]}${NAMES[st][2] ? '<span class="pick">추천</span>' : ''}<small>${NAMES[st][1]}</small></div><div class="pair">${card(st, false)}${card(st, true)}</div></div>`).join('')
+</script>
+</body>
+</html>

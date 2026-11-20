@@ -15,40 +15,13 @@ import { chartDate, chartPrice, chartTick, collapseStreaks, currencyOfTicker, ma
 import type { HistoryResponse } from '../types'
 import { useSignalRules } from '../lib/signalRules'
 import { SignalShape } from './SignalShape'
+import { orUndefined, readChartPalette, useChartThemeKey } from './chartTheme'
 
-/* 차트에는 매수/매도 두 가지 점만 찍는다. 색은 대시보드 신호등과 같은 뜻으로 맞춘다
-   (초록 = 매수 시그널, 빨강 = 매도 시그널). */
-export const MARKER_COLOR: Record<string, string> = {
-  buy: '#22c55e',
-  sell: '#f05252',
-}
-
-/** 차트는 CSS 변수를 읽지 못하므로 현재 테마를 직접 확인해 색을 넘긴다 */
-function chartPalette(light: boolean) {
-  return light
-    ? { text: '#52627a', grid: '#e5eaf2', line: '#0369a1', bg: '#ffffff' }
-    : { text: '#9fb0c3', grid: '#1c2736', line: '#38bdf8', bg: '#131b26' }
-}
-
-/**
- * 지금 테마를 구독한다.
- *
- * 렌더 중에 한 번 읽기만 하면, 테마를 바꿔도 이 컴포넌트가 다른 이유로 다시 그려질
- * 때까지 옛 색이 남는다. data-theme 속성을 직접 지켜본다.
- */
-function useThemeIsLight(): boolean {
-  const [light, setLight] = useState(
-    () => document.documentElement.getAttribute('data-theme') === 'light',
-  )
-  useEffect(() => {
-    const target = document.documentElement
-    const observer = new MutationObserver(() =>
-      setLight(target.getAttribute('data-theme') === 'light'),
-    )
-    observer.observe(target, { attributes: true, attributeFilter: ['data-theme'] })
-    return () => observer.disconnect()
-  }, [])
-  return light
+/* 차트에는 매수/매도 두 가지 점만 찍는다. 색은 화면의 시그널과 같은 뜻(--signal-buy · --signal-sell,
+   상승 빨강 설정이면 따라간다 — 디자인 4차). 값은 styles/tokens.css 에서 읽는다(chartTheme.ts). */
+export function markerColor(kind: 'buy' | 'sell'): string {
+  const palette = readChartPalette()
+  return kind === 'buy' ? palette.buy : palette.sell
 }
 
 /** 차트 위 한 줄에 보일 날 — `of` 는 그 날을 고른·가리킨 데이터 */
@@ -76,29 +49,34 @@ interface Props {
 export function PriceChart({ history, height = 440 }: Props) {
   const [container, setContainer] = useState<HTMLDivElement | null>(null)
   const [handles, setHandles] = useState<ChartHandles | null>(null)
-  const light = useThemeIsLight()
+  const themeKey = useChartThemeKey()
 
   useEffect(() => {
     if (!container) return
-    const palette = chartPalette(light)
+    const palette = readChartPalette()
     const chart = createChart(container, {
       height,
-      layout: { textColor: palette.text, background: { color: palette.bg }, attributionLogo: false },
+      layout: {
+        textColor: orUndefined(palette.text),
+        background: { color: orUndefined(palette.bg) },
+        fontFamily: orUndefined(palette.font),
+        attributionLogo: false,
+      },
       // 언어를 못 박는다 — 브라우저 언어 태그가 이상하면("en-US@posix") 라이브러리가 Intl 에서 넘어져 차트가 빈 칸이 됐다
       localization: { locale: 'ko-KR', timeFormatter: chartDate },
       grid: {
-        vertLines: { color: palette.grid },
-        horzLines: { color: palette.grid },
+        vertLines: { color: orUndefined(palette.grid) },
+        horzLines: { color: orUndefined(palette.grid) },
       },
-      rightPriceScale: { mode: PriceScaleMode.Logarithmic, borderColor: palette.grid },
+      rightPriceScale: { mode: PriceScaleMode.Logarithmic, borderColor: orUndefined(palette.grid) },
       // 오른쪽에 몇 칸 비워 둔다 — 오늘 찍은 ▲ 가 끝에서 반쯤 잘리고 현재가 이름표와 겹쳤다 (B 사용자 확인)
-      timeScale: { borderColor: palette.grid, tickMarkFormatter: chartTick, rightOffset: 3 },
+      timeScale: { borderColor: orUndefined(palette.grid), tickMarkFormatter: chartTick, rightOffset: 3 },
       crosshair: {
-        vertLine: { labelBackgroundColor: palette.line },
-        horzLine: { labelBackgroundColor: palette.line },
+        vertLine: { labelBackgroundColor: orUndefined(palette.line) },
+        horzLine: { labelBackgroundColor: orUndefined(palette.line) },
       },
     })
-    const series = chart.addSeries(LineSeries, { color: palette.line, lineWidth: 2 })
+    const series = chart.addSeries(LineSeries, { color: orUndefined(palette.line), lineWidth: 2 })
     setHandles({ chart, series, markers: createSeriesMarkers(series, []) })
 
     // 모달 안에서는 창 크기가 안 바뀌어도 컨테이너 폭이 달라진다 (열릴 때 등)
@@ -111,7 +89,7 @@ export function PriceChart({ history, height = 440 }: Props) {
       chart.remove()
       setHandles(null)
     }
-  }, [container, light, height])
+  }, [container, themeKey, height])
 
   useEffect(() => {
     if (!handles || !history) return
@@ -129,7 +107,7 @@ export function PriceChart({ history, height = 440 }: Props) {
       markerDays(history.markers.filter((m) => m.kind === kind), tradingDays).map((day) => ({
         time: day.date as Time,
         position: kind === 'buy' ? 'belowBar' : 'aboveBar',
-        color: MARKER_COLOR[kind],
+        color: markerColor(kind),
         shape: kind === 'buy' ? 'arrowUp' : 'arrowDown',
       }))
 

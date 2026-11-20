@@ -1,0 +1,52 @@
+/* ---------- 툴바 / 필터 칩 ---------- */
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.toolbar-label {
+  font-size: var(--fs-sub);
+  color: var(--text-faint);
+  font-weight: 600;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.chip {
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text-dim);
+  font-size: var(--fs-sub);
+  font-weight: 600;
+  cursor: pointer;
+  white-space: normal;
+  word-break: keep-all;
+}
+
+.chip:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+.chip.active {
+  color: var(--text);
+  background: var(--panel-soft);
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.spacer {
+  margin-left: auto;
+}
+

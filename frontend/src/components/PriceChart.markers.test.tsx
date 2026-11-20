@@ -1,7 +1,7 @@
 import { render } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { HistoryResponse } from '../types'
-import { MARKER_COLOR, PriceChart } from './PriceChart'
+import { markerColor, PriceChart } from './PriceChart'
 
 /**
  * 차트에 찍히는 점만 본다.
@@ -62,7 +62,12 @@ function history(markers: HistoryResponse['markers']): HistoryResponse {
 
 const lastMarkers = () => setMarkers.mock.lastCall![0] as Record<string, unknown>[]
 
-beforeEach(() => setMarkers.mockClear())
+beforeEach(() => {
+  setMarkers.mockClear()
+  // 차트 색은 styles/tokens.css 의 CSS 변수에서 읽는다(디자인 4차). 테스트는 CSS 를 싣지 않으므로 루트에 직접 둔다
+  document.documentElement.style.setProperty('--signal-buy', 'rgb(1, 2, 3)')
+  document.documentElement.style.setProperty('--signal-sell', 'rgb(4, 5, 6)')
+})
 
 describe('차트 마커', () => {
   it('매수와 매도를 색과 위치로 구분한다', () => {
@@ -80,8 +85,9 @@ describe('차트 마커', () => {
 
     const buy = markers.find((m) => m.time === '2026-09-14')!
     const sell = markers.find((m) => m.time === '2026-09-16')!
-    expect(buy.color).toBe(MARKER_COLOR.buy)
-    expect(sell.color).toBe(MARKER_COLOR.sell)
+    expect(buy.color).toBe(markerColor('buy'))
+    expect(buy.color).toBe('rgb(1, 2, 3)')
+    expect(sell.color).toBe(markerColor('sell'))
     expect(buy.color).not.toBe(sell.color)
     // 색만으로 구분되지 않게 위치도 나눈다
     expect(buy.position).toBe('belowBar')

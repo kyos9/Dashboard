@@ -174,9 +174,9 @@ def test_ai_contexts_send_only_what_the_policy_lists(ai_contexts):
 def test_policy_says_what_each_ai_feature_sends():
     flat = _flat(POLICY)
     # 기능 이름이 방침에 있다
-    for feature in ("AI 정리", "AI 포트폴리오 진단", "AI 종목 분석"):
+    for feature in ("AI 정리", "AI 포트폴리오 점검", "AI 종목 분석"):
         assert f"<b>{feature}</b>" in flat, feature
-    portfolio = flat[flat.index("<b>AI 포트폴리오 진단</b>"):flat.index("<b>AI 종목 분석</b>")]
+    portfolio = flat[flat.index("<b>AI 포트폴리오 점검</b>"):flat.index("<b>AI 종목 분석</b>")]
     research = flat[flat.index("<b>AI 종목 분석</b>"):]
     research = research[:research.index("</li>")]
     # 진단은 비중·밴드·수익률·현금 비중·리뷰·내 시그널 기준을, 종목 분석은 비중을 보내고 수익률은 안 보낸다

@@ -341,12 +341,12 @@ export function DiagnosticsModal({ onClose }: { onClose: () => void }) {
         className="modal diag-modal"
         role="dialog"
         aria-modal="true"
-        aria-label="진단"
+        aria-label="서버 상태"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="modal-head">
           <div className="modal-title">
-            <h3>진단</h3>
+            <h3>서버 상태</h3>
             <SummaryLine
               logs={logs}
               backupWarn={records?.status.backup ? backupWarnings(records.status.backup, records.at).any : false}

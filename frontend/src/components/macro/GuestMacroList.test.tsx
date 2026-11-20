@@ -1,0 +1,215 @@
+import { render, screen } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { api } from '../../api/client'
+import { AppStateProvider } from '../../AppState'
+import type { MacroPinned, MacroSeriesInfo } from '../../types'
+import { GuestMacroList } from './GuestMacroList'
+
+function series(overrides: Partial<MacroSeriesInfo> & { code: string }): MacroSeriesInfo {
+  return {
+    name: overrides.code,
+    note: null,
+    unit: 'level',
+    transform: 'none',
+    transform_label: null,
+    frequency: 'daily',
+    as_of: '2026-09-21',
+    value: 18.4,
+    previous: 17.9,
+    change: 0.5,
+    released_at: null,
+    source: 'yahoo',
+    zone: null,
+    forecastable: false,
+    forecast: null,
+    pending_forecast: null,
+    stale: false,
+    last_checked_at: '2026-09-21T23:00:00',
+    last_ok_at: '2026-09-21T23:00:00',
+    last_error: null,
+    ...overrides,
+  }
+}
+
+function mockPinned(body: Partial<MacroPinned> = {}) {
+  return vi.spyOn(api, 'getMacroPinned').mockResolvedValue({
+    codes: ['VIX'],
+    series: [series({ code: 'VIX', name: 'VIX' })],
+    badges: [],
+    ...body,
+  })
+}
+
+function renderList() {
+  return render(
+    <MemoryRouter>
+      <AppStateProvider>
+        <GuestMacroList />
+      </AppStateProvider>
+    </MemoryRouter>,
+  )
+}
+
+beforeEach(() => {
+  vi.restoreAllMocks()
+})
+
+describe('손님 첫 화면 매크로 목록 (목업 15 ③ 나)', () => {
+  it('고른 지표를 값과 함께 보여준다', async () => {
+    mockPinned()
+    renderList()
+
+    expect(await screen.findByText('VIX')).toBeInTheDocument()
+    expect(screen.getByText('18.4')).toBeInTheDocument()
+    expect(screen.getByText('+0.5')).toBeInTheDocument()
+  })
+
+  it('고른 순서를 그대로 지킨다', async () => {
+    mockPinned({
+      codes: ['DGS10', 'VIX'],
+      series: [
+        series({ code: 'DGS10', name: '미 10년물 금리', unit: 'percent', value: 4.11 }),
+        series({ code: 'VIX', name: 'VIX' }),
+      ],
+    })
+    renderList()
+
+    await screen.findByText('VIX')
+    const names = Array.from(document.querySelectorAll('.macro-row-name > b')).map(
+      (el) => el.textContent,
+    )
+    expect(names).toEqual(['미 10년물 금리', 'VIX'])
+  })
+
+  it('구간이 있는 지표는 점수 옆에 구간 이름을 쓴다', async () => {
+    mockPinned({
+      codes: ['FEARGREED'],
+      series: [
+        series({
+          code: 'FEARGREED',
+          name: '공포·탐욕 지수',
+          value: 33.7,
+          zone: { label: '공포', range: '25~44', extreme: false },
+        }),
+      ],
+    })
+    renderList()
+
+    expect(await screen.findByText(/공포 구간/)).toBeInTheDocument()
+    expect(screen.getByText('25~44')).toBeInTheDocument()
+  })
+
+  it('누르면 매크로 탭으로 간다 — 자세한 것은 거기서 본다', async () => {
+    mockPinned()
+    renderList()
+
+    expect(await screen.findByRole('link', { name: /^VIX, .*매크로 탭에서 보기$/ })).toHaveAttribute('href', '/macro')
+    expect(screen.getByRole('link', { name: '매크로 지표 모두 보기' })).toHaveAttribute('href', '/macro')
+  })
+
+  it('다 껐으면 지표 줄 자체가 없다', async () => {
+    mockPinned({ codes: [], series: [] })
+    const { container } = renderList()
+
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(container.querySelector('.macro-list')).toBeNull()
+  })
+
+  it('장단기 금리차도 지표 하나처럼 한 줄에 들어간다 — 값은 %p', async () => {
+    mockPinned({
+      codes: ['TERM_SPREAD'],
+      series: [
+        series({
+          code: 'TERM_SPREAD',
+          name: '장단기 금리차',
+          unit: 'percent',
+          value: -0.25,
+          change: -0.1,
+        }),
+      ],
+    })
+    renderList()
+
+    expect(await screen.findByText('장단기 금리차')).toBeInTheDocument()
+    expect(screen.getByText('-0.25%p')).toBeInTheDocument()
+  })
+
+  it('국면 배지도 홈에 같이 뜬다', async () => {
+    mockPinned({
+      badges: [
+        { key: 'vix_fear', label: '공포 구간', detail: 'VIX 32.4', tone: 'amber', as_of: null },
+      ],
+    })
+    renderList()
+
+    expect(await screen.findByText('공포 구간')).toBeInTheDocument()
+    expect(screen.getByText('VIX 32.4')).toBeInTheDocument()
+  })
+
+  it('지표를 다 내려도 배지는 남는다 — 껐다는 건 "알리지 말라"가 아니다', async () => {
+    mockPinned({
+      codes: [],
+      series: [],
+      badges: [
+        {
+          key: 'inverted_curve',
+          label: '장단기 금리 역전',
+          detail: 'DGS10 − DGS2 -0.27%p',
+          tone: 'amber',
+          as_of: null,
+        },
+      ],
+    })
+    const { container } = renderList()
+
+    expect(await screen.findByText('장단기 금리 역전')).toBeInTheDocument()
+    expect(container.querySelector('.macro-list')).toBeNull()
+  })
+
+  it('배지도 지표도 없으면 아무것도 안 붙는다', async () => {
+    mockPinned({ codes: [], series: [], badges: [] })
+    const { container } = renderList()
+
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(container.querySelector('.guest-macro')).toBeNull()
+  })
+
+  it('매크로를 못 받아와도 홈에 오류를 띄우지 않는다 — 종목 표를 가리면 안 된다', async () => {
+    vi.spyOn(api, 'getMacroPinned').mockRejectedValue(new Error('백엔드가 응답하지 않습니다'))
+    const { container } = renderList()
+
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(container.querySelector('.macro-list')).toBeNull()
+    expect(screen.queryByText(/응답하지 않습니다/)).not.toBeInTheDocument()
+  })
+
+  it('풀이 줄에 설명 · 꼬리표 · 달을 쉼표로 — 매크로 탭의 줄과 같은 말', async () => {
+    mockPinned({
+      codes: ['CPI'],
+      series: [
+        series({ code: 'CPI', name: 'CPI', note: '뉴스에 나오는 물가', unit: 'percent', transform_label: '전년비', frequency: 'monthly', as_of: '2026-10-01', value: 2.65 }),
+      ],
+    })
+    renderList()
+
+    expect(await screen.findByText('뉴스에 나오는 물가, 전년비, 2026년 10월분')).toBeInTheDocument()
+    // "%p" 는 금리차에만 — 물가 같은 % 지표는 % 그대로 (검토 6 조건 2)
+    expect(screen.getByText('2.65%')).toBeInTheDocument()
+    expect(screen.queryByText('2.65%p')).toBeNull()
+  })
+
+  it('머리에 가장 늦은 기준일 하나', async () => {
+    mockPinned({
+      codes: ['CPI', 'VIX'],
+      series: [
+        series({ code: 'CPI', name: 'CPI', frequency: 'monthly', as_of: '2026-10-01' }),
+        series({ code: 'VIX', name: 'VIX', as_of: '2026-11-19' }),
+      ],
+    })
+    renderList()
+
+    expect(await screen.findByRole('heading', { name: '오늘 매크로' })).toBeInTheDocument()
+    expect(screen.getByText('11/19 기준')).toBeInTheDocument()
+  })
+})

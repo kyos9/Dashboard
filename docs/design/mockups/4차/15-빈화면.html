@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>4차 빈 화면</title>
+<!--
+  디자인 4차 목업 15 — 묶음 6 손님 · 처음 온 사람 · 빈 화면.
+  여기서 정할 것:
+  ① 빈 화면 모양 — 가 지금 점선 상자 / 나 토스페이스 그림 + 상자 없음 / 다 글만 왼쪽
+  ② 처음 온 사람 홈 — 가 지금 / 나 그림 + 짧은 세 단계 줄 / 다 예시 화면 미리보기
+  ③ 손님 첫 화면 — 가 지금 / 나 매크로 목록 먼저 / 다 소개 먼저
+  ④ 글 고치기 표
+  토스페이스 SVG 는 원본 그대로(tossface/, LICENSE.txt 같이 둠). 기본은 라이트, ?theme=dark 로 다크.
+-->
+<link rel="stylesheet" href="../../../../frontend/src/styles/tokens.css">
+<style>
+
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:#6b7280}
+body{font-family:var(--font-sans);word-break:keep-all;padding:24px;display:flex;gap:24px;align-items:flex-start;justify-content:center;flex-wrap:wrap;max-width:1700px;margin:0 auto;color:var(--text)}
+.part{width:100%;color:#fff;font-size:20px;font-weight:700;padding:18px 0 0;border-top:1px solid rgba(255,255,255,.3)}
+.part:first-child{border-top:0;padding-top:0}
+.part small{display:block;font-size:13px;font-weight:400;opacity:.9;margin-top:4px;max-width:1100px;line-height:1.5}
+.col{display:flex;flex-direction:column;gap:10px;align-items:center}
+.cap{font-weight:600;font-size:15px;color:#fff;text-align:center;line-height:1.35;max-width:390px}
+.cap small{display:block;font-weight:400;font-size:12px;opacity:.88;margin-top:2px}
+.num{font-variant-numeric:tabular-nums;font-family:var(--font-num)}
+.phone{width:390px;height:844px;position:relative;border-radius:28px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.35);background:var(--bg);display:flex;flex-direction:column;color:var(--text)}
+.phone.short{height:auto;padding-bottom:16px}
+.scroll{flex:1;overflow:hidden;padding-bottom:84px}
+.status{height:44px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 28px;font-size:14px;font-weight:600;background:var(--brand);color:var(--on-brand)}
+.top{background:var(--brand);color:var(--on-brand);display:flex;align-items:center;gap:4px;padding:2px 8px 8px 16px;flex:none}
+.top b{font-size:17px;font-weight:700;flex:1}
+.top .fresh{font-size:12px;color:var(--on-brand-dim);margin-right:4px}
+.ic{width:44px;height:44px;display:grid;place-items:center;flex:none}
+svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+svg.i.s{width:16px;height:16px}
+.tabbar{position:absolute;left:0;right:0;bottom:0;height:84px;display:flex;padding:8px 6px 26px;background:var(--panel);border-top:1px solid var(--border);color:var(--text-faint)}
+.tabbar a{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:var(--fs-caption)}
+.tabbar .on{color:var(--accent);font-weight:600}
+.tabbar .on svg path.f{fill:currentColor}
+.shape{display:inline-block;width:.68em;height:.68em;margin-right:3px;vertical-align:0;background:currentColor}
+.tri-up{clip-path:polygon(50% 0,100% 100%,0 100%)}.tri-dn{clip-path:polygon(0 0,100% 0,50% 100%)}.dia{clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)}
+.badge{display:inline-flex;align-items:center;font-size:var(--fs-caption);font-weight:600;white-space:nowrap;border-radius:6px;padding:2px 6px}
+.b-buy{color:var(--signal-buy);background:var(--signal-buy-soft)}
+.b-sell{color:var(--signal-sell);background:var(--signal-sell-soft)}
+.b-wt{color:var(--signal-weight);background:var(--signal-weight-soft)}
+.up{color:var(--up)} .down{color:var(--down)} .faint{color:var(--text-faint)} .dim{color:var(--text-dim)}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius)}
+.hint{font-size:var(--fs-caption);color:var(--text-faint);line-height:1.5}
+.go{color:var(--text-faint);flex:none}
+a.lk{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
+.hl{outline:2px dashed var(--amber);outline-offset:2px;border-radius:4px}
+
+/* 홈 요약 (지금 · 바꾼 것 같음) */
+.sum{margin:12px 16px 0;padding:14px 16px}
+.sum .t{display:flex;justify-content:space-between;font-size:var(--fs-sub);font-weight:600}
+.sum .big{font-family:var(--font-summary-num);font-size:28px;font-weight:700;letter-spacing:-.02em;margin:6px 0 10px}
+.sum .g{display:grid;grid-template-columns:1fr 1fr;gap:10px 12px}
+.sum .g span{display:block;font-size:var(--fs-caption);color:var(--text-faint)}
+.sum .g b{font-family:var(--font-summary-num);font-size:var(--fs-strong);font-weight:700}
+.sum .foot{margin-top:10px}
+/* 신호 칸 셋 */
+.tiles3{display:grid;grid-template-columns:repeat(3,1fr);margin:8px 16px 0}
+.tiles3 > div{text-align:center;padding:10px 4px}
+.tiles3 > div + div{border-left:1px solid var(--border)}
+.tiles3 b{display:block;font-size:22px;font-weight:700}
+.tiles3 span{font-size:var(--fs-caption);font-weight:600}
+.tiles3.flat{margin:4px 16px 0}
+/* AI 줄 */
+.airow{display:flex;align-items:center;gap:10px;margin:8px 16px 0;padding:12px 14px}
+.airow b{display:block;font-size:var(--fs-body)}
+.airow small{display:block;font-size:var(--fs-caption);color:var(--text-faint);margin-top:2px}
+.airow .sp{color:var(--accent);font-size:18px}
+.airow.flat{margin:0;padding:12px 16px;border-top:1px solid var(--border);border-bottom:1px solid var(--border);background:var(--panel)}
+.airow.flat .go{margin-left:auto}
+/* 보유 목록 */
+.sech{display:flex;align-items:baseline;gap:6px;padding:16px 16px 8px;font-size:var(--fs-strong);font-weight:700}
+.sech small{font-size:var(--fs-caption);color:var(--text-faint);font-weight:600}
+.list{background:var(--panel)}
+.list.boxed{margin:0 16px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.list.flat{border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.lh{display:flex;justify-content:space-between;padding:8px 14px;font-size:var(--fs-caption);color:var(--text-faint);background:var(--panel-soft);border-bottom:1px solid var(--border)}
+.row{display:flex;gap:10px;padding:10px 14px;align-items:flex-start}
+.row + .row{border-top:1px solid var(--border)}
+.list.flat .row{padding:10px 16px}
+.row .nm{flex:1;min-width:0}
+.row .nm b{display:block;font-size:var(--fs-body);font-weight:600}
+.row .nm small{display:block;font-size:var(--fs-caption);color:var(--text-faint);margin-top:2px}
+.row .nm .badge{margin-top:6px}
+.row .v{text-align:right}
+.row .v b{display:block;font-size:var(--fs-body);font-weight:700}
+.row .v small{display:block;font-size:var(--fs-caption);margin-top:2px}
+
+/* 매크로 */
+.mh{padding:14px 16px 4px}
+.mh b{font-size:var(--fs-title);font-weight:700}
+.mh p{margin-top:4px}
+.band{display:flex;align-items:center;gap:8px;margin:8px 16px 0;padding:10px 12px;border:1px solid var(--accent-line);background:var(--accent-soft);border-radius:var(--radius);font-size:var(--fs-sub);color:var(--accent)}
+.mcard{margin:8px 16px 0;padding:12px 14px}
+.mcard .n{display:flex;justify-content:space-between;font-size:var(--fs-strong);font-weight:700}
+.mcard .n u{text-decoration:underline dotted;text-underline-offset:3px}
+.mcard .v{font-size:26px;font-weight:700;margin:6px 0 4px}
+.mcard .v small{font-size:var(--fs-sub);font-weight:500;margin-left:6px}
+.mrow{display:flex;align-items:center;gap:10px;padding:10px 16px;min-height:60px}
+.mrow + .mrow{border-top:1px solid var(--border)}
+.mrow .nm{flex:1;min-width:0}
+.mrow .nm b{display:block;font-size:var(--fs-body);font-weight:600}
+.mrow .nm small{display:block;font-size:var(--fs-caption);color:var(--text-faint);margin-top:2px}
+.mrow .v{text-align:right}
+.mrow .v b{display:block;font-size:var(--fs-strong);font-weight:700}
+.mrow .v small{display:block;font-size:var(--fs-caption);margin-top:1px}
+.mrow .st{width:20px;text-align:center;color:var(--text-faint)}
+.mrow .st.on{color:var(--amber)}
+.subh{display:flex;justify-content:space-between;padding:14px 16px 6px;font-size:var(--fs-caption);font-weight:600;color:var(--text-faint)}
+
+/* 단추 */
+.tb{display:flex;flex-wrap:wrap;gap:6px;padding:12px 16px}
+.pillb{border:1px solid var(--border-strong);background:var(--panel);border-radius:999px;height:40px;padding:0 14px;display:inline-flex;align-items:center;gap:4px;font-size:var(--fs-sub);font-weight:600}
+.pillb.on{border:2px solid var(--accent)}
+.pillb.amb{background:var(--amber-soft);border-color:transparent;color:var(--amber);border-radius:6px;height:28px;font-size:var(--fs-caption)}
+.seg{display:inline-flex;background:var(--panel-soft);border:1px solid var(--border);border-radius:var(--radius-sm);padding:3px;gap:2px}
+.seg span{height:34px;padding:0 14px;display:inline-flex;align-items:center;justify-content:center;font-size:var(--fs-sub);font-weight:600;color:var(--text-dim);border-radius:6px;flex:1}
+.seg span.on{background:var(--panel);color:var(--text);box-shadow:0 0 0 1px var(--border-strong)}
+.seg.full{display:flex;margin:0 16px}
+.sqb{height:40px;padding:0 12px;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);background:var(--panel);font-size:var(--fs-sub);font-weight:600}
+.txtb{height:40px;padding:0 6px;display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-sub);font-weight:600;color:var(--accent)}
+.chipf{border:1px solid var(--border);background:var(--panel);border-radius:999px;height:36px;padding:0 12px;display:inline-flex;align-items:center;font-size:var(--fs-sub);color:var(--text-dim)}
+.chipf.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft);font-weight:600}
+.per{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:0 16px}
+.per span{height:40px;border:1px solid var(--border);border-radius:999px;display:grid;place-items:center;font-size:var(--fs-sub);font-weight:600;background:var(--panel)}
+.per span.on{border:2px solid var(--accent-line);background:var(--accent-soft)}
+.lbl{padding:14px 16px 6px;font-size:var(--fs-caption);font-weight:600;color:var(--text-faint)}
+
+/* 글 고치기 표 */
+.words{width:1180px;padding:6px 0;overflow:hidden}
+.words table{width:100%;border-collapse:collapse;font-size:var(--fs-sub)}
+.words th{font-size:var(--fs-caption);color:var(--text-faint);font-weight:600;text-align:left;padding:10px 14px;background:var(--panel-soft);border-bottom:1px solid var(--border)}
+.words td{padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:top;line-height:1.5}
+.words tr:last-child td{border-bottom:0}
+.words td:first-child{color:var(--text-faint);font-size:var(--fs-caption);width:150px}
+.words td:nth-child(2){color:var(--text-dim)}
+.words td:nth-child(3){font-weight:600}
+.words td:nth-child(4){color:var(--text-faint);font-size:var(--fs-caption);width:230px}
+.words del{text-decoration:none;background:var(--red-soft);color:var(--red);border-radius:3px;padding:0 2px}
+
+/* 색 견본 */
+.sw{display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 12px}
+.sw i{display:inline-flex;flex-direction:column;gap:3px;font-style:normal;font-size:11px;color:var(--text-faint)}
+.sw i::before{content:'';width:40px;height:26px;border-radius:6px;background:var(--c);border:1px solid var(--border)}
+/* 로그인 */
+.login{margin:16px;padding:20px 18px;text-align:center}
+.login.dashed{border:1.5px dashed var(--border-strong);border-radius:var(--radius);background:var(--panel)}
+.login.plain{text-align:left;padding:8px 4px}
+.login h3{font-size:var(--fs-strong);font-weight:700;margin-bottom:12px}
+.login ul{text-align:left;font-size:var(--fs-sub);line-height:1.55;padding-left:18px;color:var(--text-dim)}
+.login.plain ul{list-style:none;padding:0;display:grid;gap:10px}
+.login.plain li b{display:block;color:var(--text)}
+.login .btnb{display:inline-flex;height:48px;align-items:center;justify-content:center;padding:0 22px;border-radius:var(--radius-sm);background:var(--brand);color:var(--on-brand);font-weight:700;font-size:var(--fs-body);margin:16px 0 10px}
+.login.plain .btnb{display:flex}
+.fine{padding:0 16px;font-size:var(--fs-caption);color:var(--text-faint);line-height:1.5}
+/* 14 */
+.mrow .tag{font-size:11px;font-weight:600;color:var(--accent);background:var(--accent-soft);border-radius:4px;padding:1px 5px;margin-left:6px;vertical-align:1px}
+.more14{padding:0 16px 10px 46px;display:grid;gap:6px}
+.more14 .zone{display:inline-flex;gap:6px;align-items:center;font-size:var(--fs-caption);font-weight:600;background:var(--slate-soft);border-radius:6px;padding:4px 8px;width:max-content}
+.more14 .fc{font-size:var(--fs-caption);color:var(--text-dim)}
+.more14 .lk{font-size:var(--fs-sub)}
+.grph{display:flex;justify-content:space-between;padding:14px 16px 6px;font-size:var(--fs-caption);font-weight:700;color:var(--text-dim)}
+.grph em{font-style:normal;font-weight:400;color:var(--text-faint)}
+.strip{display:flex;gap:8px;overflow:hidden;padding:0 16px;margin-top:8px}
+.strip .chip2{flex:none;display:flex;gap:6px;align-items:baseline;border:1px solid var(--border);background:var(--panel);border-radius:var(--radius-sm);padding:8px 10px;font-size:var(--fs-caption);color:var(--text-dim)}
+.strip .chip2 b{font-size:var(--fs-body);color:var(--text)}
+.modal14{position:absolute;inset:auto 0 0 0;top:110px;background:var(--bg-elevated);border-radius:16px 16px 0 0;box-shadow:var(--shadow-up);padding:14px 16px}
+.dimbg{position:absolute;inset:0;background:var(--scrim)}
+.modal14 .mh2{display:flex;align-items:baseline;gap:8px}
+.modal14 .mh2 b{font-size:var(--fs-strong)}
+.modal14 .x{margin-left:auto;width:40px;height:40px;border:1px solid var(--border);border-radius:var(--radius-sm);display:grid;place-items:center}
+.chartbox{height:190px;margin:10px 0;border:1px solid var(--border);border-radius:var(--radius);background:var(--panel);position:relative;overflow:hidden}
+.chartbox svg{position:absolute;inset:0;width:100%;height:100%}
+.fbox{border-top:1px solid var(--border);padding-top:10px;display:grid;gap:8px}
+.fbox .r{display:flex;gap:8px;align-items:flex-end}
+.fbox label{display:grid;gap:4px;font-size:var(--fs-caption);color:var(--text-faint)}
+.fbox .in{height:44px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);display:flex;align-items:center;padding:0 10px;font-size:var(--fs-body);background:var(--panel);min-width:96px}
+.fbox .pb{height:44px;display:flex;align-items:center;padding:0 14px;border-radius:var(--radius-sm);background:var(--brand);color:var(--on-brand);font-weight:700;font-size:var(--fs-sub)}
+.cmp{width:820px;padding:4px 0}
+.cmp table{width:100%;border-collapse:collapse;font-size:var(--fs-sub)}
+.cmp th{font-size:var(--fs-caption);color:var(--text-faint);text-align:left;padding:10px 14px;background:var(--panel-soft);border-bottom:1px solid var(--border)}
+.cmp td{padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:top}
+.cmp tr:last-child td{border-bottom:0}
+.cmp td:first-child{color:var(--text-faint);font-size:var(--fs-caption);width:120px}
+
+/* 15 — 빈 화면 */
+.es{margin:16px}
+.es.dash{text-align:center;padding:48px 18px;border:1px dashed var(--border-strong);border-radius:var(--radius);background:var(--panel);color:var(--text-dim)}
+.es.pic{text-align:center;padding:56px 24px 24px}
+.es.pic img{width:64px;height:64px;display:block;margin:0 auto 16px}
+.es.left{padding:24px 4px}
+.es h3{font-size:var(--fs-strong);font-weight:700;color:var(--text);margin-bottom:8px;line-height:1.4}
+.es p{font-size:var(--fs-sub);color:var(--text-dim);line-height:1.55}
+.es .pb{display:inline-flex;height:48px;align-items:center;justify-content:center;padding:0 22px;border-radius:var(--radius-sm);background:var(--brand);color:var(--on-brand);font-weight:700;font-size:var(--fs-body);margin-top:16px}
+.es .gb{display:inline-flex;height:44px;align-items:center;justify-content:center;padding:0 16px;border-radius:var(--radius-sm);border:1px solid var(--border-strong);background:var(--panel);font-weight:600;font-size:var(--fs-sub);margin-top:14px}
+.es.left .pb{display:flex}
+.es .hint{margin-top:12px}
+.es ol{text-align:left;font-size:var(--fs-sub);line-height:1.6;padding-left:20px;color:var(--text-dim);margin-top:12px}
+.es ol b{color:var(--text)}
+.steps{list-style:none;margin:20px 0 0;padding:0;text-align:left;border-top:1px solid var(--border)}
+.steps li{display:flex;gap:12px;padding:14px 4px;border-bottom:1px solid var(--border);align-items:flex-start}
+.steps .n{flex:none;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:var(--fs-caption);font-weight:700;background:var(--accent-soft);color:var(--accent)}
+.steps .n.done{background:var(--accent);color:var(--on-accent,#fff)}
+.steps b{display:block;font-size:var(--fs-body);color:var(--text)}
+.steps small{display:block;font-size:var(--fs-caption);color:var(--text-faint);margin-top:2px;line-height:1.5}
+.ghost{opacity:.42;filter:saturate(.6);pointer-events:none}
+.prev{position:relative;margin:12px 16px 0;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;background:var(--bg)}
+.prev .lbl2{position:absolute;top:8px;right:8px;font-size:11px;font-weight:700;color:var(--text-dim);background:var(--panel);border:1px solid var(--border-strong);border-radius:4px;padding:2px 6px}
+.gtop{background:var(--brand);color:var(--on-brand);display:flex;align-items:center;gap:4px;padding:2px 8px 8px 16px;flex:none}
+.gtop b{font-size:17px;font-weight:700;flex:1}
+.gtop .lg{height:36px;padding:0 12px;border:1px solid var(--on-brand-dim);border-radius:var(--radius-sm);display:inline-flex;align-items:center;font-size:var(--fs-sub);font-weight:600}
+.feat{list-style:none;padding:0;margin:12px 0 0;display:grid;gap:10px}
+.feat b{display:block;font-size:var(--fs-body);color:var(--text)}
+.feat span{display:block;font-size:var(--fs-caption);color:var(--text-faint);line-height:1.5}
+.gal{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;width:100%}
+.mini{width:300px;border-radius:18px;overflow:hidden;background:var(--bg);box-shadow:0 6px 18px rgba(0,0,0,.3);color:var(--text)}
+.mini .cap2{padding:10px 14px;font-size:var(--fs-caption);font-weight:700;color:var(--text-faint);border-bottom:1px solid var(--border);background:var(--panel)}
+.mini .es.pic{padding:28px 18px 22px}
+.mini .es.pic img{width:52px;height:52px;margin-bottom:12px}
+.mini .es{margin:0}
+</style>
+</head>
+<body>
+<script>
+const q = new URLSearchParams(location.search)
+if (q.get('theme') !== 'dark') document.documentElement.dataset.theme = 'light'
+if (q.get('rise') === 'red') document.documentElement.dataset.rise = 'red'
+/* 앱 아이콘(iconPaths.ts)에서 가져온 그림 */
+const P = {
+  home: [['M3.8 11.2 10.7 5a2 2 0 0 1 2.6 0l6.9 6.2V19a1.5 1.5 0 0 1-1.5 1.5H5.3A1.5 1.5 0 0 1 3.8 19z', 1], ['M12 14.5v3']],
+  stocks: [['M7 3.5v3M7 15.5v4M17 4.5v4M17 15.5v4'], ['M5 6.5h4v9H5z', 1], ['M15 8.5h4v7h-4z', 1]],
+  rebalance: [['M20.5 12A8.5 8.5 0 1 1 12 3.5M17 12a5 5 0 1 1-5-5'], ['M12 3.5A8.5 8.5 0 0 1 20.5 12H17a5 5 0 0 0-5-5z', 1]],
+  macro: [['M3.5 16.5a8.5 8.5 0 1 1 17 0z', 1], ['M12 16.5l3.5-5'], ['M3.5 16.5h17']],
+  settings: [['M18.66 9.84L20.55 10.37Q21.60 12.00 20.55 13.63L18.66 14.16L17.20 16.68L17.68 18.59Q16.80 20.31 14.86 20.22L13.46 18.85L10.54 18.85L9.14 20.22Q7.20 20.31 6.32 18.59L6.80 16.68L5.34 14.16L3.45 13.63Q2.40 12.00 3.45 10.37L5.34 9.84L6.80 7.32L6.32 5.41Q7.20 3.69 9.14 3.78L10.54 5.15L13.46 5.15L14.86 3.78Q16.80 3.69 17.68 5.41L17.20 7.32Z'], ['M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z']],
+  more: [['M4.5 12a1 1 0 1 0 2 0 1 1 0 1 0-2 0M11 12a1 1 0 1 0 2 0 1 1 0 1 0-2 0M17.5 12a1 1 0 1 0 2 0 1 1 0 1 0-2 0']],
+  edit: [['M4 20h4L19 9l-4-4L4 16z'], ['M13.5 6.5l4 4']],
+  doc: [['M5.5 3.5h13v17h-13z'], ['M9 8.5h6M9 12h6M9 15.5h3.5']],
+  refresh: [['M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4']],
+  chev: [['M6 9l6 6 6-6']],
+}
+const ic = (n, cls = 'i') => `<svg class="${cls}" viewBox="0 0 24 24">${P[n].map(([d, f]) => `<path d="${d}"${f ? ' class="f"' : ''}/>`).join('')}</svg>`
+const status = () => `<div class="status"><span class="num">8:12</span><span>●●● ▮</span></div>`
+const topBar = () => `<div class="top"><b>자산관리</b><span class="fresh">방금 받음</span><span class="ic">${ic('refresh')}</span></div>`
+const TABS = [['home', '홈'], ['stocks', '종목'], ['rebalance', '리밸런싱'], ['macro', '매크로'], ['settings', '설정']]
+const tabbar = (on = 2) => `<nav class="tabbar">${TABS.map(([k, n], i) => `<a class="${i === on ? 'on' : ''}">${ic(k)}${n}</a>`).join('')}</nav>`
+const sh = { buy: '<i class="shape tri-up"></i>', sell: '<i class="shape tri-dn"></i>', wt: '<i class="shape dia"></i>' }
+const col = (cap, sub, body) => `<div class="col"><div class="cap">${cap}<small>${sub}</small></div>${body}</div>`
+const part = (t, s) => `<div class="part">${t}<small>${s}</small></div>`
+const phone = (inner, cls = '') => `<div class="phone ${cls}">${inner}</div>`
+const chev = `<svg class="i s" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>`
+
+const out = []
+const summary = () => `<div class="card sum"><div class="t"><span>총 평가금액</span><a class="lk" style="font-weight:400;font-size:12px">금액 가리기</a></div>
+  <div class="big num">₩515,890,971</div>
+  <div class="g"><div><span>평가손익</span><b class="up num">+₩57,963,643</b></div><div><span>수익률</span><b class="up num">+12.7%</b></div></div>
+  <p class="hint foot">현금 ₩0 포함, 원 기준</p></div>`
+const tiles = () => `<div class="tiles3 flat"><div><b style="color:var(--signal-buy)">3</b><span style="color:var(--signal-buy)">${sh.buy}매수</span></div><div><b style="color:var(--signal-sell)">3</b><span style="color:var(--signal-sell)">${sh.sell}매도</span></div><div><b style="color:var(--signal-weight)">5</b><span style="color:var(--signal-weight)">${sh.wt}비중조절</span></div></div>`
+
+const tf = (u) => `<img src="tossface/u${u}.svg" alt="">`
+const guestTop = () => `<div class="gtop"><b>자산관리</b><span class="lg">로그인</span></div>`
+const strip = () => `<div class="strip"><span class="chip2">VIX <b class="num">21.0</b><span class="num">−0.0</span></span><span class="chip2">장단기 금리차 <b class="num">0.36%p</b><span class="num">+0.08%p</span></span><span class="chip2">공포·탐욕 <b class="num">37.9</b></span></div>`
+/* 빈 화면 셋 모양 */
+const esDash = (h, p, btn) => `<div class="es dash"><h3>${h}</h3><p>${p}</p>${btn ? `<span class="pb">${btn}</span>` : ''}</div>`
+const esPic = (u, h, p, btn, ghost) => `<div class="es pic">${tf(u)}<h3>${h}</h3><p>${p}</p>${btn ? `<span class="pb">${btn}</span>` : ''}${ghost ? `<br><span class="gb">${ghost}</span>` : ''}</div>`
+const esLeft = (h, p, btn) => `<div class="es left" style="margin:16px"><h3>${h}</h3><p>${p}</p>${btn ? `<span class="pb">${btn}</span>` : ''}</div>`
+
+/* ① 빈 화면 모양 */
+out.push(part('① 빈 화면의 모양 — 점선 상자', '종목이 없을 때 · 없는 종목 · 없는 화면 · 신호 없는 날 · 승인 대기가 모두 같은 점선 상자(가운데 정렬)입니다. AI 티 점검 11번 "여기에 무언가 들어갈 자리" 꼴. 주인 규칙: 토스페이스는 메뉴 · 설정 · 빈 화면만. 아래는 리밸런싱 탭(종목 0개)으로 그린 것.'))
+const rbH = '리밸런싱할 종목이 없습니다', rbP = '종목을 담으면 여기에 목표 비중과 지금 비중이 보입니다.'
+out.push(col('가 · 지금', '점선 상자 · 가운데 · 그림 없음', phone(`${status()}${topBar()}<div class="scroll">${esDash(rbH, '종목 탭에서 종목을 담으면 여기에 목표 비중과 지금 비중이 보입니다.', '종목 추가하러 가기')}</div>${tabbar(2)}`)))
+out.push(col('나 · 토스페이스 그림 + 상자 없음 (추천)', '그림 하나 · 제목 · 한 줄 · 단추. 상자를 빼고 바탕 위에 바로. 빈 화면마다 그림이 다름', phone(`${status()}${topBar()}<div class="scroll">${esPic('1F4CA', rbH, rbP, '종목 담으러 가기')}</div>${tabbar(2)}`)))
+out.push(col('다 · 글만, 왼쪽', '그림 · 상자 없이 제목 아래 글과 꽉 찬 단추. 가장 조용함', phone(`${status()}${topBar()}<div class="scroll">${esLeft(rbH, rbP, '종목 담으러 가기')}</div>${tabbar(2)}`)))
+out.push(part('나를 고르면 — 빈 화면 모두', '그림은 하는 일에 맞춰 하나씩. 원본 그대로 쓰고(모양 · 색을 바꾸지 않음), 설정 "만든 이와 글꼴"의 토스페이스 줄은 이미 있음. 목록 안의 작은 빈 칸(보유 없음 · 조건에 맞는 종목 없음)은 그림 없이 글 한 줄.'))
+const minis = [
+  ['종목 탭 · 0개', esPic('1F9FA', '담은 종목이 없습니다', '위 찾기 칸에 이름이나 코드를 넣어 담습니다.')],
+  ['종목 안 · 담지 않은 종목', esPic('1F9ED', '담은 종목에 없는 종목입니다', '종목 탭에서 찾아 담으면 차트, 신호, 재무를 볼 수 있습니다.', '종목 탭으로')],
+  ['없는 주소', esPic('1F9ED', '없는 화면입니다', '주소가 바뀌었거나 잘못 들어왔습니다.', '첫 화면으로')],
+  ['시그널 · 신호 없는 날', esPic('1F4ED', '오늘은 신호가 뜬 종목이 없습니다', '매수, 매도, 비중조절 모두 조용합니다.', '', '전체 15종목 보기')],
+  ['손님 · 종목 탭', esPic('1F512', '로그인하면 종목을 담을 수 있습니다', '계정마다 자기 종목이 따로 저장됩니다.', '구글 계정으로 로그인')],
+  ['승인 대기', esPic('23F3', '가입 신청을 받았습니다', '<b>pending@example.com</b>으로 신청했습니다. 관리자가 승인하면 바로 쓸 수 있고, 그동안 매크로 탭은 볼 수 있습니다.', '승인됐는지 확인')],
+]
+out.push(`<div class="gal">${minis.map(([c, b]) => `<div class="mini"><div class="cap2">${c}</div>${b}</div>`).join('')}</div>`)
+
+/* ② 처음 온 사람 */
+out.push(part('② 처음 온 사람(종목 0개)의 홈', '첫인상 정답(plan.md 8): "종목을 담으면 신호 · 비중을 보여 주는 앱. \'종목 추가하러 가기\'." 지금은 점선 상자 안에 줄표로 이은 긴 세 단계(문단 셋).'))
+out.push(col('가 · 지금', '제목에 줄표 · 단계마다 두세 줄 글', phone(`${status()}${topBar()}<div class="scroll"><div class="es dash" style="text-align:left;padding:22px 18px"><h3 style="text-align:center">아직 담은 종목이 없습니다 — 세 단계면 시작합니다</h3><ol><li><b>종목 담기</b> — 종목 탭의 찾기 칸에서 이름이나 티커로 찾아 추가합니다 (예: 삼성전자, VOO). 시세와 지표는 알아서 받습니다.</li><li><b>보유수량 적기</b> — 추가할 때나 종목 안의 \'보유\'에서 수량·평단가·목표 비중을 적으면 비중이 얼마나 벗어났는지 알려줍니다.</li><li><b>내 포트폴리오 보기</b> — 종목을 담으면 이 화면에 평가금액·수익률이 나오고, 매수·매도·비중조절 신호 칸을 누르면 종목마다 시그널이 보입니다.</li></ol><div style="text-align:center"><span class="pb">종목 추가하러 가기</span></div><p class="hint" style="text-align:center">종목은 30개까지 담을 수 있습니다. 시그널은 참고용이며 투자 권유가 아닙니다.</p></div></div>${tabbar(0)}`)))
+out.push(col('나 · 그림 + 짧은 세 단계 줄 (추천)', '새싹 그림 하나 · 한 줄 소개 · 단계는 이름 + 한 줄 · 단추는 맨 아래 하나', phone(`${status()}${topBar()}<div class="scroll"><div class="es pic" style="padding-top:36px">${tf('1F331')}<h3>종목을 담으면 시작합니다</h3><p>담은 종목마다 매수, 매도 신호와 비중을 보여 줍니다.</p>
+  <ol class="steps"><li><span class="n">1</span><div><b>종목 담기</b><small>종목 탭에서 이름이나 코드로 찾습니다. 시세는 알아서 받습니다.</small></div></li><li><span class="n">2</span><div><b>보유수량 적기</b><small>수량과 목표 비중을 적으면 비중이 얼마나 벗어났는지 봅니다.</small></div></li><li><span class="n">3</span><div><b>홈에서 보기</b><small>평가금액, 수익률, 오늘 뜬 신호가 여기에 나옵니다.</small></div></li></ol>
+  <span class="pb" style="display:flex">종목 담으러 가기</span><p class="hint">30개까지 담을 수 있습니다.</p></div></div>${tabbar(0)}`)))
+const prevHome = `<div class="ghost">${summary()}${tiles()}<div class="sech">보유 종목 <small>3</small></div><div class="list flat"><div class="row"><div class="nm"><b>삼성전자</b><small>40% · 목표 35%</small></div><div class="v"><b class="num">₩2,180,000</b><small class="num up">+8.2%</small></div></div><div class="row"><div class="nm"><b>VOO</b><small>35%</small></div><div class="v"><b class="num">₩1,905,000</b><small class="num up">+12.1%</small></div></div></div></div>`
+out.push(col('다 · 예시 화면 미리보기', '흐린 예시 홈(“예시” 꼬리표) + 단추 하나. 담으면 무엇이 보일지 그림으로 — 숫자는 가짜라 헷갈릴 수 있음', phone(`${status()}${topBar()}<div class="scroll"><div style="padding:16px 16px 0"><h3 style="font-size:var(--fs-strong)">종목을 담으면 이렇게 보입니다</h3><p class="hint">담은 종목마다 신호와 비중, 평가금액을 보여 줍니다.</p></div><div class="prev"><span class="lbl2">예시</span>${prevHome}</div><div style="padding:0 16px"><span class="pb" style="display:flex;height:48px;align-items:center;justify-content:center;border-radius:var(--radius-sm);background:var(--brand);color:var(--on-brand);font-weight:700;margin-top:16px">종목 담으러 가기</span></div></div>${tabbar(0)}`)))
+
+/* ③ 손님 첫 화면 */
+out.push(part('③ 손님(로그인 전) 첫 화면', '첫인상 정답: "매크로는 볼 수 있고, 내 종목은 구글 로그인." 지금은 매크로 칩 셋이 폰 폭을 넘어 잘리고(셋째 칩이 안 보임), 로그인 단추가 머리줄과 본문에 두 번.'))
+const login = (title, extra = '') => `<div class="login plain" style="margin:16px"><h3>${title}</h3>${extra}<span class="btnb">구글 계정으로 로그인</span><p class="hint">계정마다 자기 종목이 따로 저장됩니다.</p><p class="hint">로그인하면 <a class="lk">개인정보처리방침과 이용약관</a>에 동의하는 것으로 봅니다.</p></div>`
+const feats = `<ul class="feat"><li><b>매수 · 매도 시그널</b><span>담은 종목마다 기술적 타이밍 시그널과 마지막으로 뜬 날을 보여줍니다.</span></li><li><b>리밸런싱</b><span>목표 비중에서 얼마나 벗어났는지, 언제 조정할지 알려줍니다.</span></li><li><b>매크로</b><span>금리 · 물가 · 공포지수 같은 국면 지표를 봅니다.</span></li></ul>`
+out.push(col('가 · 지금', '매크로 칩 셋(잘림) · 로그인 소개 · 단추 · 안내 두 줄', phone(`${status()}${guestTop()}<div class="scroll">${strip()}${login('로그인하면 내 포트폴리오를 볼 수 있습니다', feats)}</div>${tabbar(0)}`)))
+const gRows = [['VIX', '변동성 지수, 시장의 공포', '21.0', '−0.0'], ['공포·탐욕 지수', '0 공포 ~ 100 탐욕', '37.9', '−5.2'], ['미 10년물 금리', '장기 금리의 기준', '4.37%', '+0.06%p']]
+const gList = `<div class="grph" style="padding-top:12px"><span>오늘 매크로</span><em>11/19 기준</em></div><div class="list flat">${gRows.map((m) => `<div class="mrow"><div class="nm"><b>${m[0]}</b><small>${m[1]}</small></div><div class="v"><b class="num">${m[2]}</b><small class="num faint">${m[3]}</small></div><span class="go">${chev}</span></div>`).join('')}</div><div style="padding:8px 16px 0"><a class="lk" style="font-size:var(--fs-sub)">매크로 지표 12개 모두 보기</a></div>`
+out.push(col('나 · 매크로 목록 먼저 (추천)', '매크로 탭과 같은 줄 셋 + "모두 보기" · 아래에 로그인. 머리줄 로그인은 그대로', phone(`${status()}${guestTop()}<div class="scroll">${gList}<div style="border-top:1px solid var(--border);margin-top:16px"></div>${login('로그인하면 내 포트폴리오를 볼 수 있습니다', '<p class="hint" style="margin:-4px 0 4px">담은 종목의 매수, 매도 시그널과 리밸런싱을 봅니다.</p>')}</div>${tabbar(0)}`)))
+out.push(col('다 · 소개 먼저, 매크로는 아래', '손 흔드는 그림 + 로그인 소개를 맨 위에, 매크로 칩은 아래 "로그인 없이 볼 수 있는 것"', phone(`${status()}${guestTop()}<div class="scroll"><div class="es pic" style="padding:28px 20px 8px">${tf('1F44B')}<h3>종목을 담으면 신호와 비중을 보여 주는 앱입니다</h3><p>내 종목은 구글 계정으로 로그인해 담습니다.</p><span class="pb" style="display:flex">구글 계정으로 로그인</span></div><div class="grph"><span>로그인 없이 볼 수 있는 것</span><em>매크로</em></div>${strip()}<p class="fine" style="margin-top:14px">로그인하면 <a class="lk">개인정보처리방침과 이용약관</a>에 동의하는 것으로 봅니다.</p></div>${tabbar(0)}`)))
+
+/* ④ 글 */
+const W = [
+  ['처음 온 사람 홈 제목', '아직 담은 종목이 없습니다 <del>— 세 단계면 시작합니다</del>', '종목을 담으면 시작합니다', '줄표 빼기 · 무엇을 하면 되는지 먼저'],
+  ['처음 온 사람 단계', '<b>종목 담기</b> <del>—</del> 종목 탭의 찾기 칸에서 이름이나 티커로 찾아 추가합니다 (예: 삼성전자, VOO). 시세와 지표는 알아서 받습니다.', '종목 담기 / 종목 탭에서 이름이나 코드로 찾습니다. 시세는 알아서 받습니다.', '이름과 풀이를 두 줄로'],
+  ['종목 탭 0개', '도움말이 펼친 채(긴 문단) + 상자 "위 찾기 칸에 종목명(삼성전자)이나 티커(VOO)를 넣어 추가해주세요."', '도움말은 접힌 채 · "위 찾기 칸에 이름이나 코드를 넣어 담습니다."', '같은 말이 두 번(찾기 칸 안내도 같은 예)'],
+  ['담지 않은 종목', '‘AAPL’<del>은(는)</del> 담은 종목에 없습니다 · 차트 <del>·</del> 신호 <del>·</del> 재무', '담은 종목에 없는 종목입니다 · 차트, 신호, 재무', '티커는 바로 위 제목에 있음 · 은(는) 빼기'],
+  ['신호 없는 날', '매수 <del>·</del> 매도 <del>·</del> 비중조절 모두 조용합니다.', '매수, 매도, 비중조절 모두 조용합니다.', '띄어 쓴 가운뎃점'],
+  ['승인 대기', '…승인을 기다리는 동안에도 매크로 탭은 볼 수 있습니다. 승인된 뒤에는 다시 로그인할 필요 없이 아래 버튼이나 새로고침으로 바로 들어옵니다.', '관리자가 승인하면 바로 쓸 수 있고, 그동안 매크로 탭은 볼 수 있습니다.', '세 문장 → 한 문장 · 문의 줄은 그대로'],
+  ['매크로 지표 없음', '서버를 다시 띄우면… <del>docker compose exec app python diagnose.py</del> 로…', '(관리자 아님) 아직 지표를 받지 못했습니다. 잠시 뒤 다시 열어 주세요. · 관리자는 지금 그대로', '명령어는 관리자에게만'],
+  ['AI 점검 없는 주소', '없는 화면입니다 (단추 없음)', '없는 화면입니다 + "첫 화면으로"', '다른 없는 화면과 같게'],
+  ['빈 화면 단추', '종목 추가하러 가기', '종목 담으러 가기', '종목 탭 말("찾아서 담기")과 같게'],
+]
+out.push(part('④ 글 고치기', '빈 화면 · 손님 · 대기의 글. 모두 바꾸는 것이 추천입니다(문구변경.md 에 옮겨 적음).'))
+out.push(`<div class="col"><div class="card words"><table><thead><tr><th>어디</th><th>지금</th><th>바꾼 것</th><th>까닭</th></tr></thead><tbody>${W.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`)
+document.body.innerHTML = out.join('')
+</script>
+</body>
+</html>

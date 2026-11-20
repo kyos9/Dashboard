@@ -634,6 +634,36 @@ def _adopt_official_names(db: Session, official: dict[str, str]) -> None:
         logger.info("국내 종목 %d개의 이름을 거래소 정식 이름으로 맞췄습니다", changed)
 
 
+_HANGUL_RE = re.compile(r"[\uac00-\ud7a3]")
+
+
+def adopt_jp_seed_names(db: Session) -> int:
+    """이미 담긴 일본 종목의 이름을 내장 목록의 한글 이름으로 맞춘다 (디자인 4차 묶음 4, 주인: "일본 종목은 한글로").
+
+    야후 검색으로 들어온 일본 종목은 영문("Toyota Motor Corp")이나 일본어("トヨタ自動車") 이름이 붙어 있다.
+    내장 목록(`jp_seed.json`)에 있는 종목만, 공용 이름에 **한글이 하나도 없을 때만** 바꾼다. 국내 종목처럼
+    **사람이 직접 고친 이름은 건드리지 않는다** — 내 행의 이름이 비었거나 공용 행의 옛 이름과 같을 때만. 바꾼 수를 돌려준다.
+    """
+    from app.models import Instrument, UserStock
+
+    changed = 0
+    for instrument in db.query(Instrument).filter(Instrument.market == Market.JP.value).all():
+        code = parse_tse_ticker(instrument.ticker)
+        name = jp_seed_name(code) if code else None
+        old = instrument.name
+        if not name or old == name or (old and _HANGUL_RE.search(old)):
+            continue
+        for stock in db.query(UserStock).filter(UserStock.ticker == instrument.ticker).all():
+            if stock.name is not None and stock.name == old:
+                stock.name = name
+        instrument.name = name
+        changed += 1
+    if changed:
+        db.commit()
+        logger.info("일본 종목 %d개의 이름을 한글 이름으로 맞췄습니다", changed)
+    return changed
+
+
 def _search_yahoo(query: str, limit: int, timeout: int = 5) -> list[SymbolMatch]:
     """야후 검색 — 해외 종목과 국내 ETF까지 덮는다. 막혀 있으면 빈 목록."""
     import requests

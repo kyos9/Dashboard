@@ -18,14 +18,20 @@ const loaders = {
   macro: () => import('../pages/MacroPanel'),
   fundamentals: () => import('../pages/FundamentalsPage'),
   stocks: () => import('../pages/StockManager'),
+  stockDetail: () => import('../pages/StockDetailPage'),
   policy: () => import('../pages/Policy'),
+  settings: () => import('../pages/SettingsPage'),
+  ai: () => import('../pages/AiSummaryPage'),
 }
 
 export const RebalancePanel = lazyChunk(loaders.rebalance, 'RebalancePanel')
 export const MacroPanel = lazyChunk(loaders.macro, 'MacroPanel')
 export const FundamentalsPage = lazyChunk(loaders.fundamentals, 'FundamentalsPage')
 export const StockManager = lazyChunk(loaders.stocks, 'StockManager')
+export const StockDetailPage = lazyChunk(loaders.stockDetail, 'StockDetailPage')
 export const Policy = lazyChunk(loaders.policy, 'Policy')
+export const SettingsPage = lazyChunk(loaders.settings, 'SettingsPage')
+export const AiSummaryPage = lazyChunk(loaders.ai, 'AiSummaryPage')
 
 /**
  * 헤더·메뉴에서 여는 팝업 — 누를 때만 쓴다. 첫 화면에서 빼고 탭과 같이 미리 받는다.

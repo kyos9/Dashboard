@@ -26,6 +26,8 @@ describe('내 종목이 필요한 화면', () => {
     expect(await screen.findByText('로그인하면 종목을 담을 수 있습니다')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '구글 계정으로 로그인' })).toBeInTheDocument()
     expect(screen.queryByText('내 종목 화면')).not.toBeInTheDocument()
+    // 종목 · 리밸런싱 탭에서는 로그인 없이 볼 수 있는 곳을 알려 준다 (손님 첫 화면은 매크로가 바로 위라 끈다)
+    expect(screen.getByText(/로그인 없이도/)).toBeInTheDocument()
   })
 
   it('들어와 있으면 화면을 그대로 보여준다', async () => {

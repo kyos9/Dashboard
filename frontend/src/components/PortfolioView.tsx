@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Icon } from './icons/Icon'
 import {
   amount,
   avgPrice,
@@ -41,7 +42,6 @@ import { useSignalRules } from '../lib/signalRules'
 import type { Currency, DashboardCard, FxInfo, RebalanceCurrent, Stock } from '../types'
 import type { EditField, HoldingValues } from '../lib/stockEdit'
 import { StockEditModal } from './StockEditModal'
-import { MacroStrip } from './MacroStrip'
 import { SignalShape, type ShapeKind } from './SignalShape'
 import { hasWeightSignal } from './weightSignal'
 
@@ -57,6 +57,8 @@ interface Props {
   onSignal: (ticker: string) => void
   /** 맨 위 "확인할 신호" — 종류를 누르면 그 종류만 걸러진 시그널 보기로, "시그널 보기"는 모두 (디자인 2차, 주인 결정 ②) */
   onOpenSignals: (kind?: SignalFilter) => void
+  /** AI 포트폴리오 점검을 쓸 수 있나 — 관리자는 늘, 사용자는 관리자가 열어 둔 동안 (9-15) */
+  canAdvise?: boolean
   onSaved: () => void
 }
 
@@ -76,7 +78,7 @@ function labelOf(item: PortfolioItem): string {
  *
  * 숫자는 전부 리밸런싱과 같은 응답에서 온다 — 두 화면의 합계가 원 단위까지 같다.
  */
-export function PortfolioView({ current, cards, stocks, narrow, onChart, onSignal, onOpenSignals, onSaved }: Props) {
+export function PortfolioView({ current, cards, stocks, narrow, onChart, onSignal, onOpenSignals, canAdvise, onSaved }: Props) {
   const base = current.base_currency
   const [sort, setSort] = useState<SortKey>(loadSort)
   // 종목 한 번에 수정 — 열려 있으면 처음 커서를 둘 자리 (ROADMAP 9-11)
@@ -141,14 +143,53 @@ export function PortfolioView({ current, cards, stocks, narrow, onChart, onSigna
 
   return (
     <div className="portfolio">
-      <SignalLine kinds={signalKinds} onOpen={onOpenSignals} />
+      {/* 디자인 4차 B (목업 05b): 요약 칸(총액 크게 + 네 칸) → 신호 칸 셋 → 표. 매크로 줄은 대시보드에서 뺐다(주인 답 ㉡) */}
+      <MoneyLine current={current} review />
 
-      <MoneyLine current={current} />
-
-      <div className="portfolio-sub">
-        <MacroStrip />
-        <ReviewLine current={current} />
-      </div>
+      {/* PC 는 오른쪽 칸(목업 09b A), 폰은 요약 아래 — 신호 칸과 AI 진단 한 줄 (디자인 4차 묶음 2) */}
+      <aside className="portfolio-rail" aria-label="신호와 AI">
+        <SignalLine kinds={signalKinds} onOpen={onOpenSignals} />
+        {!narrow && signalCount > 0 && (
+          // PC 만 — 신호가 뜬 종목 몇 개를 미리. 폰은 칸 셋으로 충분하다(첫 화면이 길어진다)
+          <div className="rail-signals">
+            {/* 다섯까지만 — 몇 중 몇인지 제목에 적는다 (사용자 확인: 전부처럼 읽혔다) */}
+            <h3 className="rail-title">
+              신호가 뜬 종목 <span className="hint">{Math.min(5, signalCount)} / {signalCount}</span>
+            </h3>
+            <ul>
+              {held
+                .concat(watching)
+                .filter((i) => signalsOf(i).length > 0)
+                .slice(0, 5)
+                .map((item) => (
+                  <li key={item.row.ticker}>
+                    {item.card ? (
+                      <button type="button" className="rail-name stock-name" onClick={() => onChart(item.card!)}>
+                        {labelOf(item)}
+                      </button>
+                    ) : (
+                      <span className="rail-name">{labelOf(item)}</span>
+                    )}
+                    <SignalBadges label={labelOf(item)} signals={signalsOf(item)} ticker={item.row.ticker} onSignal={onSignal} />
+                  </li>
+                ))}
+            </ul>
+            <button type="button" className="rail-more" onClick={() => onOpenSignals()}>
+              시그널 {signalCount}종목 모두 보기
+            </button>
+          </div>
+        )}
+        {canAdvise && (
+          // 반짝이 표시(✦)는 뺐다 — AI 기능에 붙는 가장 흔한 장식이라(목업 13 ④)
+          <Link to="/ai/portfolio" className="ai-row">
+            <span className="ai-row-text">
+              AI 포트폴리오 점검
+              <span className="hint">비중과 수익률로 전체를 봅니다</span>
+            </span>
+            <Icon name="forward" size={18} className="ai-row-go" />
+          </Link>
+        )}
+      </aside>
 
       <section className="section" aria-labelledby="holdings-title">
         <div className="section-head">
@@ -184,7 +225,7 @@ export function PortfolioView({ current, cards, stocks, narrow, onChart, onSigna
             )}
             {editable.length > 0 && (
               <button className="sm" onClick={() => startEdit({ ticker: null, field: 'quantity' })} aria-label="종목 한 번에 수정">
-                ✎ 수정
+                수정
               </button>
             )}
           </div>
@@ -198,7 +239,7 @@ export function PortfolioView({ current, cards, stocks, narrow, onChart, onSigna
         {held.length === 0 ? (
           <div className="empty-state compact">
             <p>
-              아직 보유수량을 적은 종목이 없습니다. 위의 "수정"이나 <Link to="/rebalance">리밸런싱</Link>에서 수량과 평단가를
+              아직 보유수량을 적은 종목이 없습니다. 보유 종목의 "수정"이나 <Link to="/rebalance">리밸런싱</Link>에서 수량과 평단가를
               적으면 여기에 평가금액·수익률이 나옵니다.
             </p>
           </div>
@@ -256,43 +297,58 @@ function SignalLine({
     { kind: 'sell', filter: 'sell', label: '매도', n: kinds.sell, tone: 'tone-sell' },
     { kind: 'rebalance', filter: 'rebalance', label: '비중조절', n: kinds.rebalance, tone: 'tone-rebalance' },
   ]
-  const shown = parts.filter((p) => p.n > 0)
-  if (shown.length === 0) {
+  if (parts.every((p) => p.n === 0)) {
     return (
+      // 신호가 없어도 시그널 목록(지표 표 · AI 종목 정리 · 시그널 기준 · 종목 설정)으로 갈 길은 남긴다 (묶음 2 검토 조건 1)
       <p className="signal-line quiet">
         확인할 신호가 없습니다
+        <button type="button" className="link-like signal-line-go" onClick={() => onOpen()}>
+          시그널 목록 보기
+        </button>
       </p>
     )
   }
-  // 줄 하나가 단추 하나였다 — "▼ 매도 3"을 눌러도 매도만 걸러지지 않았다 (디자인 2차 사용자 확인, 주인 결정 ②)
+  // 칸 셋은 늘 같은 자리 — 0 인 칸은 누를 것이 없어 글자로만 둔다 (디자인 4차 B, 목업 05b)
+  // 칸 하나가 단추 하나 — 누르면 그 종류만 걸러진 시그널 보기 (디자인 2차 사용자 확인, 주인 결정 ②)
   return (
-    <section className="signal-line" aria-label="확인할 신호">
-      <span className="signal-line-title">확인할 신호</span>
-      <span className="signal-line-counts">
-        {shown.map((p) => (
+    <section className="signal-counts" aria-label="확인할 신호">
+      {parts.map((p) =>
+        p.n > 0 ? (
           <button
             key={p.kind}
             type="button"
-            className={`signal-line-count ${p.tone}`}
+            className={`signal-count ${p.tone}`}
             onClick={() => onOpen(p.filter)}
             aria-label={`${p.label} ${p.n}종목 — 시그널 보기에서 ${p.label}만`}
           >
-            <SignalShape kind={p.kind} size={10} />
-            {p.label} <b className="mono">{p.n}</b>
+            <b className="signal-count-n">{p.n}</b>
+            <span className="signal-count-label">
+              <SignalShape kind={p.kind} size={10} />
+              {p.label}
+            </span>
           </button>
-        ))}
-      </span>
-      <button type="button" className="signal-line-go" onClick={() => onOpen()}>
-        시그널 보기 →
-      </button>
+        ) : (
+          <span key={p.kind} className="signal-count zero">
+            <b className="signal-count-n">0</b>
+            <span className="signal-count-label">
+              <SignalShape kind={p.kind} size={10} />
+              {p.label}
+            </span>
+          </span>
+        ),
+      )}
     </section>
   )
 }
 
 /* ---------- 맨 위 — 내 돈 한 줄 ---------- */
 
-/** 대시보드와 리밸런싱이 같이 쓴다 — 두 화면의 요약 숫자가 같은 자리에서 나온다 */
-export function MoneyLine({ current, signalCount }: { current: RebalanceCurrent; signalCount?: number }) {
+/**
+ * 대시보드와 리밸런싱이 같이 쓴다 — 두 화면의 요약 숫자가 같은 자리에서 나온다.
+ * 디자인 4차 B(목업 01c 가 · 05b): 총 평가금액만 크게, 그 아래 네 칸(평가손익 · 수익률 · 최근 거래일 대비 · 다음 리뷰/현금).
+ * 숫자는 Spoqa Han Sans Neo(요약 칸 숫자만 — 주인 답 ㉣).
+ */
+export function MoneyLine({ current, signalCount, review = false }: { current: RebalanceCurrent; signalCount?: number; review?: boolean }) {
   const base = current.base_currency
   const pnl = current.unrealized_pnl_base
   const pnlPct = pnl !== null && current.cost_value_base ? (pnl / current.cost_value_base) * 100 : null
@@ -300,6 +356,15 @@ export function MoneyLine({ current, signalCount }: { current: RebalanceCurrent;
   const unpriced = current.unpriced_count ?? 0
   const fxMissing = current.include_fx_effect ? (current.fx_missing_count ?? 0) : 0
   const { hideAmounts } = usePrefs()
+  const next = current.review
+
+  const notes = [
+    // 띄어 쓴 가운뎃점으로 낱말을 줄 세우지 않고 문장으로 (목업 13 ④)
+    review ? `현금 ${amount(current.cash.value_base, base)} 포함, ${CURRENCY_META[base].label} 기준` : `현금 포함, ${CURRENCY_META[base].label} 기준`,
+    unpriced > 0 && `평단가 없는 ${unpriced}종목은 손익에서 뺐습니다`,
+    current.include_fx_effect && '손익에 환율 효과 포함',
+    fxMissing > 0 && `환율 미반영 ${fxMissing}종목`,
+  ].filter(Boolean)
 
   return (
     <section className="money-line" aria-label="내 자산">
@@ -315,21 +380,19 @@ export function MoneyLine({ current, signalCount }: { current: RebalanceCurrent;
             {hideAmounts ? '금액 보기' : '금액 가리기'}
           </button>
         </span>
-        <span className="money-big mono">{amount(current.total_value_base, base)}</span>
-        <span className="hint">현금 포함 · {CURRENCY_META[base].label} 기준</span>
+        <span className="money-big summary-num">{amount(current.total_value_base, base)}</span>
       </div>
       <dl className="money-facts">
         <div>
           <dt>평가손익</dt>
           <dd className={tone(pnl)}>
-            {pnl === null ? (
-              <span className="hint">평단가 입력 시</span>
-            ) : (
-              <>
-                <span className="mono">{signedAmount(pnl, base)}</span>{' '}
-                <span className="mono">{pnlPct === null ? '' : signed(pnlPct, 1, '%')}</span>
-              </>
-            )}
+            {pnl === null ? <span className="hint">평단가 입력 시</span> : <span className="summary-num">{signedAmount(pnl, base)}</span>}
+          </dd>
+        </div>
+        <div>
+          <dt>수익률</dt>
+          <dd className={tone(pnl)}>
+            {pnlPct === null ? <span className="hint">—</span> : <span className="summary-num">{signed(pnlPct, 1, '%')}</span>}
           </dd>
         </div>
         <div>
@@ -341,49 +404,40 @@ export function MoneyLine({ current, signalCount }: { current: RebalanceCurrent;
               '—'
             ) : (
               <>
-                <span className="mono">{signedAmount(day, base)}</span>{' '}
-                <span className="mono">{signed(current.day_change_pct ?? null, 2, '%')}</span>
+                <span className="summary-num">{signedAmount(day, base)}</span>{' '}
+                <span className="summary-num money-sub">{signed(current.day_change_pct ?? null, 2, '%')}</span>
               </>
             )}
           </dd>
         </div>
-        <div>
-          <dt>현금</dt>
-          <dd className="mono">{amount(current.cash.value_base, base)}</dd>
-        </div>
+        {review ? (
+          <div className={next.due ? 'review-due' : undefined}>
+            <dt>
+              다음 리뷰 ({next.period === 'annual' ? '1년에 한 번' : `${REVIEW_PERIOD_LABEL[next.period]}마다`})
+            </dt>
+            <dd>
+              <span className="summary-num">{next.due ? '리뷰할 때' : reviewCountdown(next)}</span>{' '}
+              <Link to="/rebalance" className="money-link">
+                리밸런싱
+              </Link>
+              <span className="money-date summary-num">{next.next_date}</span>
+            </dd>
+          </div>
+        ) : (
+          <div>
+            <dt>현금</dt>
+            <dd className="summary-num">{amount(current.cash.value_base, base)}</dd>
+          </div>
+        )}
         {signalCount !== undefined && (
           <div>
             <dt>신호</dt>
-            <dd className="mono">{signalCount}</dd>
+            <dd className="summary-num">{signalCount}</dd>
           </div>
         )}
       </dl>
-      {(unpriced > 0 || fxMissing > 0 || current.include_fx_effect) && (
-        <p className="money-note hint">
-          {[
-            unpriced > 0 && `평단가 없는 ${unpriced}종목은 손익에서 뺐습니다`,
-            current.include_fx_effect && '손익에 환율 효과 포함',
-            fxMissing > 0 && `환율 미반영 ${fxMissing}종목`,
-          ]
-            .filter(Boolean)
-            .join(' · ')}
-        </p>
-      )}
+      <p className="money-note hint">{notes.join(', ')}</p>
     </section>
-  )
-}
-
-function ReviewLine({ current }: { current: RebalanceCurrent }) {
-  const review = current.review
-  return (
-    <p className={`review-line${review.due ? ' due' : ''}`}>
-      <span>
-        다음 리뷰 · {REVIEW_PERIOD_LABEL[review.period]}{' '}
-        <b>{review.due ? '리뷰할 때' : reviewCountdown(review)}</b>{' '}
-        <span className="mono hint">{review.next_date}</span>
-      </span>
-      <Link to="/rebalance">리밸런싱 →</Link>
-    </p>
   )
 }
 
@@ -409,6 +463,36 @@ function SignalDot({ label, signals, onSignal, ticker }: {
     >
       {shapes.map((shape) => (
         <SignalShape key={shape} kind={shape} size={11} />
+      ))}
+    </button>
+  )
+}
+
+/** 폰 표의 신호 — 모양 + 짧은 글자 배지(디자인 4차 B). 누르면 시그널 보기로(SignalDot 과 같은 이름) */
+const BADGE_TEXT: Record<SignalKind, string> = { buy: '매수', sell: '매도', over: '비중 초과', under: '비중 미달' }
+const BADGE_TONE: Record<SignalKind, string> = { buy: 'tone-buy', sell: 'tone-sell', over: 'weight', under: 'weight' }
+
+function SignalBadges({ label, signals, onSignal, ticker }: {
+  label: string
+  signals: SignalMark[]
+  ticker: string
+  onSignal: (ticker: string) => void
+}) {
+  if (signals.length === 0) return null
+  const text = signals.map((s) => s.label).join(' · ')
+  return (
+    <button
+      type="button"
+      className="holding-signals"
+      onClick={() => onSignal(ticker)}
+      title={`${text} — 눌러서 시그널 보기`}
+      aria-label={`${label} 신호: ${text}. 시그널 보기로`}
+    >
+      {signals.map((s) => (
+        <span key={s.kind} className={`holding-badge ${BADGE_TONE[s.kind]}`}>
+          <SignalShape kind={SHAPE_OF[s.kind]} size={9} />
+          {BADGE_TEXT[s.kind]}
+        </span>
       ))}
     </button>
   )
@@ -504,27 +588,39 @@ interface ListProps {
   onEdit: OnEdit
 }
 
+/** 비중 — 숫자와 막대, 막대 위의 선이 목표 (목업 09b). 막대는 가장 큰 비중 40% 를 끝으로 본다 */
+function WeightMeter({ actual, target }: { actual: number | null; target: number | null }) {
+  const scale = (v: number | null) => `${Math.min(100, Math.max(0, ((v ?? 0) / 40) * 100))}%`
+  return (
+    <span className="weight-meter">
+      <span className="weight-meter-text">
+        <span className="mono">{num(actual, 1)}%</span>
+        <span className="hint mono">목표 {num(target, 0)}%</span>
+      </span>
+      <span className="weight-meter-bar" aria-hidden="true">
+        <i style={{ width: scale(actual) }} />
+        {target != null && <em style={{ left: scale(target) }} />}
+      </span>
+    </span>
+  )
+}
+
 function HoldingTable({ items, base, pnl: pnlCurrency, fx, onChart, onSignal, onEdit }: ListProps) {
   return (
     <div className="table-scroll">
       <table className="data-table holdings-table">
         <thead>
           <tr>
-            <th>종목</th>
-            <th className="num-head">수량</th>
+            {/* 디자인 4차 묶음 2 (목업 09b A) — 수량 · 평단가는 종목 아래 작게, 비중은 목표선이 있는 막대, 신호는 글자 배지 */}
+            <th>
+              종목
+              <br />
+              <span className="th-sub">수량 · 평단가</span>
+            </th>
             <th className="num-head">
               현재가
               <br />
               <span className="th-sub">(전일 대비)</span>
-            </th>
-            <th className="num-head">평단가</th>
-            <th className="num-head">수익률</th>
-            <th className="num-head">
-              평가손익
-              <br />
-              <span className="th-sub">
-                {pnlCurrency === 'local' ? '(종목 통화)' : `(${CURRENCY_META[pnlCurrency].symbol} 기준)`}
-              </span>
             </th>
             <th className="num-head">
               평가금액
@@ -535,6 +631,14 @@ function HoldingTable({ items, base, pnl: pnlCurrency, fx, onChart, onSignal, on
               비중
               <br />
               <span className="th-sub">(목표)</span>
+            </th>
+            <th className="num-head">수익률</th>
+            <th className="num-head">
+              평가손익
+              <br />
+              <span className="th-sub">
+                {pnlCurrency === 'local' ? '(종목 통화)' : `(${CURRENCY_META[pnlCurrency].symbol} 기준)`}
+              </span>
             </th>
             <th className="signal-head">신호</th>
           </tr>
@@ -549,25 +653,25 @@ function HoldingTable({ items, base, pnl: pnlCurrency, fx, onChart, onSignal, on
                   <div className="stock-line">
                     <NameButton item={item} onChart={onChart} />
                   </div>
+                  <span className="holding-sub mono">
+                    {qty(row.quantity)}주 · 평단 {avgPrice(row.avg_cost, row.currency)}
+                  </span>
                 </td>
-                <td className="num-cell mono">{qty(row.quantity)}</td>
                 <td className="num-cell">
                   <PriceWithChange item={item} />
                 </td>
-                <td className="num-cell mono">{avgPrice(row.avg_cost, row.currency)}</td>
+                <td className="num-cell mono" title={row.currency === base ? undefined : `현지 ${amount(row.current_value, row.currency)}`}>
+                  <strong>{amount(row.current_value_base, base)}</strong>
+                </td>
+                <td className="num-cell">
+                  <WeightMeter actual={row.actual_weight_pct} target={row.target_weight_pct} />
+                </td>
                 <td className="num-cell">
                   <ReturnCell item={item} onEnter={() => onEdit(item, 'avgCost')} />
                 </td>
                 <td className={`num-cell mono ${tone(pnl.value)}`}>{signedAmount(pnl.value, pnl.currency)}</td>
-                <td className="num-cell mono" title={row.currency === base ? undefined : `현지 ${amount(row.current_value, row.currency)}`}>
-                  {amount(row.current_value_base, base)}
-                </td>
-                <td className="num-cell">
-                  <span className="mono">{num(row.actual_weight_pct, 1)}%</span>{' '}
-                  <span className="hint mono">({num(row.target_weight_pct, 0)}%)</span>
-                </td>
                 <td className="signal-cell">
-                  <SignalDot label={labelOf(item)} signals={signalsOf(item)} ticker={row.ticker} onSignal={onSignal} />
+                  <SignalBadges label={labelOf(item)} signals={signalsOf(item)} ticker={row.ticker} onSignal={onSignal} />
                 </td>
               </tr>
             )
@@ -591,6 +695,7 @@ function HoldingList({ items, base, pnl: pnlCurrency, fx, onChart, onSignal, onE
     })
 
   return (
+    <>
     <ul className="holding-list">
       {items.map((item) => {
         const row = item.row
@@ -601,6 +706,8 @@ function HoldingList({ items, base, pnl: pnlCurrency, fx, onChart, onSignal, onE
         const value = row.shown_return_pct ?? row.return_pct
         return (
           <li key={row.ticker} className={`holding-item${expanded ? ' open' : ''}`} data-ticker={row.ticker}>
+            {/* 디자인 4차 B (목업 05b) — 한 줄이 표의 한 줄: 종목 · 수량 | 평가금액 · 비중 % | 수익률 · 수익금. 신호는 이름 아래.
+                비중 % 는 금액 아래(폰 360 에서 이름 칸 아래에 두면 두 줄로 접혔다) */}
             <div className="holding-main">
               <button
                 className="holding-toggle"
@@ -609,25 +716,30 @@ function HoldingList({ items, base, pnl: pnlCurrency, fx, onChart, onSignal, onE
                 aria-label={`${label} 자세히`}
                 onClick={() => toggle(row.ticker)}
               >
-                <span className="holding-top">
-                  <span className="holding-name">
-                    {label} <span className="holding-qty mono">{qty(row.quantity)}주</span>
-                  </span>
-                  <span className="holding-value mono">{amount(row.current_value_base, base)}</span>
+                <span className="holding-name-col">
+                  <span className="holding-name">{label}</span>
+                  <span className="holding-sub holding-qty">{qty(row.quantity)}주</span>
                 </span>
-                <span className="holding-bottom">
-                  <PriceWithChange item={item} />
-                  <span className={`mono ${tone(value)}`}>
-                    {row.avg_cost === null ? <span className="hint">평단가 —</span> : signed(value, 1, '%')}
-                  </span>
-                  <span className="mono">{num(row.actual_weight_pct, 1)}%</span>
+                <span className="holding-value">
+                  <span className="holding-amount">{amount(row.current_value_base, base)}</span>
+                  <span className="holding-weight">비중 {num(row.actual_weight_pct, 1)}%</span>
+                </span>
+                <span className={`holding-return ${tone(value)}`}>
+                  {row.avg_cost === null ? <span className="hint">평단가 —</span> : <span className="holding-pct">{signed(value, 1, '%')}</span>}
+                  {row.avg_cost !== null && <span className={`holding-pnl ${tone(pnl.value)}`}>{signedAmount(pnl.value, pnl.currency)}</span>}
                 </span>
               </button>
-              <SignalDot label={label} signals={signals} ticker={row.ticker} onSignal={onSignal} />
+              <SignalBadges label={label} signals={signals} ticker={row.ticker} onSignal={onSignal} />
             </div>
             {expanded && (
               <div className="holding-detail" id={`holding-${row.ticker}`}>
                 <dl>
+                  <div>
+                    <dt>현재가</dt>
+                    <dd>
+                      <PriceWithChange item={item} />
+                    </dd>
+                  </div>
                   <div>
                     <dt>보유 수량</dt>
                     <dd className="mono">{qty(row.quantity)}주</dd>
@@ -665,7 +777,7 @@ function HoldingList({ items, base, pnl: pnlCurrency, fx, onChart, onSignal, onE
                         <span className="hint">없음</span>
                       ) : (
                         <button className="link-like" onClick={() => onSignal(row.ticker)}>
-                          {signals.map((s) => s.label).join(' · ')} →
+                          {signals.map((s) => s.label).join(', ')}
                         </button>
                       )}
                     </dd>
@@ -684,6 +796,7 @@ function HoldingList({ items, base, pnl: pnlCurrency, fx, onChart, onSignal, onE
         )
       })}
     </ul>
+    </>
   )
 }
 

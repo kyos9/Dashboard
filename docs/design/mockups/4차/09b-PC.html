@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>4차 PC 화면</title>
+<!--
+  디자인 4차 목업 09b — 주인: "PC 버전은 너무 어색한데? 모바일 화면을 옮겨 놓은 거 같아. 다시"
+  넓은 화면용으로 처음부터: 요약은 가로 한 줄, 표는 열을 다 펼침(현재가 · 등락 · 비중 막대 · 수익금 · 신호), 오른쪽 칸에 시그널과 AI.
+  A · 왼쪽 메뉴(사이드바)   B · 위 가로 메뉴(흰 머리줄)
+  1440 폭. ?theme=light 로 라이트.
+-->
+<style>
+@font-face{font-family:'Pretendard';src:url('../assets/PretendardVariable-ko.woff2') format('woff2');font-weight:400 700;font-display:swap}
+</style>
+<link rel="stylesheet" href="../assets/fonts-02d/fonts.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:#6b7280}
+body{font-family:'Pretendard',system-ui,sans-serif;word-break:keep-all;padding:24px;display:flex;flex-direction:column;gap:28px;align-items:center}
+.cap{font-weight:600;font-size:16px;color:#fff;align-self:flex-start;margin-left:calc(50% - 720px)}
+.cap small{font-weight:400;font-size:13px;opacity:.85;margin-left:8px}
+.pick{font-size:11px;color:#111827;background:#fff;border-radius:6px;padding:2px 6px;margin-left:6px}
+.num{font-variant-numeric:tabular-nums}
+.pc{width:1440px;height:900px;border-radius:14px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.35);display:flex;
+  --brand:#0051a8;--bg:#eef2f6;--surf:#fff;--text:#111827;--dim:#374151;--faint:#5b6472;--line:#dfe4ea;--hover:#f5f7fa;
+  --buy:#166534;--sell:#b91c1c;--wt:#0051a8;--up:#15803d;--down:#dc2626;--link:#0051a8;background:var(--bg);color:var(--text)}
+.dark .pc{--brand:#002f67;--bg:#0a0f18;--surf:#0d1627;--text:#e6ebf2;--dim:#c3cad5;--faint:#909aab;--line:#1d2a40;--hover:#122036;
+  --buy:#3ccf71;--sell:#f47171;--wt:#92b1db;--up:#3ccf71;--down:#f47171;--link:#92b1db}
+.pc.col{flex-direction:column}
+/* A 사이드바 */
+.side{width:232px;flex:none;background:var(--surf);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:20px 12px}
+.logo{display:flex;align-items:center;gap:10px;font-size:18px;font-weight:700;padding:0 10px 22px}
+.logo i{width:30px;height:30px;border-radius:8px;background:var(--brand);display:grid;place-items:center;color:#fff;font-style:normal;font-size:15px}
+.side a{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:10px;font-size:15px;font-weight:500;color:var(--dim);margin-bottom:2px}
+.side a.on{background:color-mix(in srgb,var(--link) 12%,transparent);color:var(--link);font-weight:700}
+.side .sp{flex:1}
+.side .me{border-top:1px solid var(--line);padding:14px 12px 0;font-size:13px;color:var(--faint)}
+.side .me b{display:block;color:var(--text);font-size:14px;margin-bottom:2px}
+/* B 위 메뉴 */
+.hbar{height:64px;flex:none;background:var(--surf);border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 32px;gap:36px}
+.hbar .logo{padding:0}
+.hbar nav{display:flex;gap:6px;height:100%}
+.hbar nav a{display:flex;align-items:center;gap:8px;padding:0 14px;font-size:15px;font-weight:600;color:var(--faint);border-bottom:3px solid transparent;margin-bottom:-1px}
+.hbar nav a.on{color:var(--text);border-color:var(--link)}
+.hbar .r{margin-left:auto;display:flex;align-items:center;gap:14px;font-size:13px;color:var(--faint)}
+.main{flex:1;overflow:hidden;padding:24px 32px;display:flex;flex-direction:column;gap:16px}
+.ptitle{display:flex;align-items:center;gap:12px}
+.ptitle h1{font-size:22px;font-weight:700}
+.ptitle .fresh{font-size:13px;color:var(--faint)}
+.ptitle .r{margin-left:auto;display:flex;gap:8px}
+.b{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surf);border-radius:8px;padding:8px 12px;font-size:13px;font-weight:600;color:var(--text)}
+/* 요약 가로 */
+.kpis{display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr 1fr;background:var(--surf);border:1px solid var(--line);border-radius:14px}
+.kpi{padding:18px 22px;border-left:1px solid var(--line)}
+.kpi:first-child{border-left:0}
+.kpi .k{font-size:13px;color:var(--faint);display:flex;justify-content:space-between}
+.kpi .k u{color:var(--link);text-underline-offset:3px;font-size:12px}
+.kpi .v{font-family:'Spoqa Han Sans Neo',sans-serif;font-weight:700;font-size:22px;margin-top:6px}
+.kpi .v.huge{font-size:34px;letter-spacing:-.02em}
+.kpi .s{font-size:12px;color:var(--faint);margin-top:4px}
+.kpi .s a{color:var(--link);text-decoration:underline;text-underline-offset:3px}
+.grid2{display:grid;grid-template-columns:1fr 320px;gap:16px;min-height:0;flex:1}
+.panel{background:var(--surf);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
+.ph{display:flex;align-items:center;gap:8px;padding:14px 18px;border-bottom:1px solid var(--line)}
+.ph h2{font-size:16px;font-weight:700}
+.ph small{color:var(--faint);font-size:13px}
+.ph .r{margin-left:auto;display:flex;gap:6px}
+.chip{border:1px solid var(--line);border-radius:999px;padding:5px 11px;font-size:12px;color:var(--dim)}
+.chip.on{border-color:var(--link);color:var(--link);font-weight:600}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{font-size:12px;font-weight:500;color:var(--faint);text-align:right;padding:9px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:11px 12px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+td:first-child{white-space:normal;max-width:210px}
+td:last-child{white-space:normal}
+tr:nth-child(3) td{background:var(--hover)}
+td b{font-weight:600}
+td small{display:block;font-size:12px;color:var(--faint);margin-top:2px}
+.wbar{display:inline-flex;align-items:center;gap:8px}
+.wbar span{display:inline-block;width:70px;height:6px;border-radius:3px;background:color-mix(in srgb,var(--faint) 20%,transparent);position:relative;overflow:hidden}
+.wbar span i{position:absolute;inset:0 auto 0 0;background:var(--link);border-radius:3px}
+.wbar span em{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--text)}
+.badge{display:inline-flex;align-items:center;gap:3px;font-size:12px;font-weight:600;border-radius:6px;padding:2px 6px;background:color-mix(in srgb,currentColor 12%,transparent)}
+.shape{display:inline-block;width:.7em;height:.7em;background:currentColor}
+.up{clip-path:polygon(50% 0,100% 100%,0 100%)}.dn{clip-path:polygon(0 0,100% 0,50% 100%)}.dia{clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)}
+.counts{display:grid;grid-template-columns:repeat(3,1fr);border-bottom:1px solid var(--line)}
+.counts div{text-align:center;padding:12px 0;font-size:12px;color:var(--faint);border-left:1px solid var(--line)}
+.counts div:first-child{border-left:0}
+.counts b{display:block;font-size:22px;font-weight:700}
+.si{display:flex;justify-content:space-between;align-items:center;padding:11px 18px;border-bottom:1px solid var(--line);font-size:14px}
+.si small{display:block;font-size:12px;color:var(--faint);margin-top:2px}
+.more{padding:11px 18px;font-size:13px;color:var(--link);font-weight:600}
+.ai{padding:16px 18px;font-size:13px;line-height:1.6;color:var(--dim)}
+.ai b{color:var(--text)}
+.ai .go{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:12px;border-radius:8px;padding:10px;background:var(--link);color:var(--surf);font-weight:700;font-size:14px}
+.legend{font-size:12px;color:var(--faint);padding:10px 14px}
+.rail{display:flex;flex-direction:column;gap:16px;min-height:0}
+</style>
+</head>
+<body>
+<script>
+if (new URLSearchParams(location.search).get('theme') !== 'light') document.documentElement.classList.add('dark')
+const gear = (() => { let d = ''; for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2, w = Math.PI / 6, p = (r, g) => `${(12 + r * Math.cos(g)).toFixed(2)} ${(12 + r * Math.sin(g)).toFixed(2)}`; d += (i ? 'L' : 'M') + p(7, a - w * 0.6) + `L${p(8.7, a - w * 0.36)}Q${p(9.6, a)} ${p(8.7, a + w * 0.36)}L${p(7, a + w * 0.6)}` } return d + 'Z' })()
+const IC = {
+  홈: [['M3.8 11.2 10.7 5a2 2 0 0 1 2.6 0l6.9 6.2V19a1.5 1.5 0 0 1-1.5 1.5H5.3A1.5 1.5 0 0 1 3.8 19z', 1], ['M12 14.5v3', 0, 1]],
+  종목: [['M7 3.5v3M7 15.5v4M17 4.5v4M17 15.5v4', 0], ['M5 6.5h4v9H5z', 1], ['M15 8.5h4v7h-4z', 1]],
+  리밸런싱: [['M20.5 12A8.5 8.5 0 1 1 12 3.5M17 12a5 5 0 1 1-5-5', 0], ['M12 3.5A8.5 8.5 0 0 1 20.5 12H17a5 5 0 0 0-5-5z', 1]],
+  매크로: [['M3.5 16.5a8.5 8.5 0 1 1 17 0z', 1], ['M12 16.5l3.5-5', 0, 1], ['M3.5 16.5h17', 0]],
+  설정: [[gear, 1], ['M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z', 0, 1]],
+  AI: [['M12 3.5c.7 5 3.5 7.8 8.5 8.5-5 .7-7.8 3.5-8.5 8.5-.7-5-3.5-7.8-8.5-8.5 5-.7 7.8-3.5 8.5-8.5z', 1]],
+  새로고침: [['M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4', 0]],
+  수정: [['M4 20h4L19 9l-4-4L4 16z', 1], ['M13.5 6.5l4 4', 0, 1]],
+  가리기: [['M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z', 1], ['M4 4l16 16', 0, 1]],
+}
+const ico = (n, on = false, size = 20) => `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${IC[n].map(([d, c, k]) => on ? (c ? `<path d="${d}" fill="currentColor"/>` : `<path d="${d}"${k ? ' stroke="var(--surf)"' : ''}/>`) : `<path d="${d}"/>`).join('')}</svg>`
+const TAB5 = ['홈', '종목', '리밸런싱', '매크로', '설정']
+const H = [
+  ['삼성전자', '005930 · 1,500주', '₩55,500', '−0.9%', 'down', '₩83,250,000', 15.9, 12, '−7.4%', '−₩6,652,700', 'down', ['buy']],
+  ['TIGER 미국필라델피아반도체나스닥', '381180 · 2,000주', '₩19,210', '+1.2%', 'up', '₩38,420,000', 7.3, 6, '+11.6%', '+₩3,993,103', 'up', ['buy']],
+  ['VOO', 'VOO · 40주', '$542.11', '+0.4%', 'up', '₩30,120,551', 5.7, 8, '+21.9%', '+₩5,411,612', 'up', ['sell']],
+  ['NVDA', 'NVDA · 45주', '$143.20', '+2.8%', 'up', '₩8,962,310', 1.7, 1, '+66.7%', '+₩3,585,820', 'up', ['buy', 'wt']],
+  ['トヨタ自動車', '7203 · 300주', '¥2,612', '−0.3%', 'down', '₩7,812,004', 1.5, 1, '−9.1%', '−₩782,140', 'down', ['wt']],
+  ['KODEX 200', '069500 · 120주', '₩35,120', '+0.6%', 'up', '₩4,214,400', 0.8, 2, '+3.2%', '+₩130,800', 'up', []],
+  ['SCHD', 'SCHD · 60주', '$27.80', '−0.1%', 'down', '₩2,301,840', 0.4, 2, '+1.9%', '+₩42,900', 'up', []],
+]
+const sb = { buy: '<span class="badge" style="color:var(--buy)"><i class="shape up"></i>매수</span>', sell: '<span class="badge" style="color:var(--sell)"><i class="shape dn"></i>매도</span>', wt: '<span class="badge" style="color:var(--wt)"><i class="shape dia"></i>비중</span>' }
+const kpis = `<div class="kpis">
+  <div class="kpi"><div class="k">총 평가금액 <u>금액 가리기</u></div><div class="v huge num">₩525,114,227</div><div class="s">현금 ₩0 포함 · 원화 기준</div></div>
+  <div class="kpi"><div class="k">평가손익</div><div class="v num" style="color:var(--up)">+₩58,154,466</div></div>
+  <div class="kpi"><div class="k">수익률</div><div class="v num" style="color:var(--up)">+12.5%</div></div>
+  <div class="kpi"><div class="k">최근 거래일 대비</div><div class="v num" style="color:var(--up)">+₩2,733,187</div><div class="s num" style="color:var(--up)">+0.52%</div></div>
+  <div class="kpi"><div class="k">다음 리뷰 · 분기</div><div class="v num">55일 뒤</div><div class="s">2026-12-30 · <a>리밸런싱</a></div></div></div>`
+const table = `<div class="panel"><div class="ph"><h2>보유 종목</h2><small>15</small><div class="r"><span class="chip on">평가금액순</span><span class="chip">수익률순</span><span class="chip">비중 차이순</span><span class="chip">종목별 통화</span><span class="b">${ico('수정', false, 16)}수정</span></div></div>
+  <table><tr><th>종목</th><th>현재가 · 등락</th><th>평가금액</th><th>비중 · 목표</th><th>수익률</th><th>수익금</th><th>신호</th></tr>
+  ${H.map(h => `<tr><td><b>${h[0]}</b><small>${h[1]}</small></td><td class="num">${h[2]}<small style="color:var(--${h[4]})">${h[3]}</small></td><td class="num"><b>${h[5]}</b></td>
+  <td class="num"><span class="wbar">${h[6].toFixed(1)}%<span><i style="width:${h[6] * 4}%"></i><em style="left:${h[7] * 4}%"></em></span></span><small>목표 ${h[7]}%</small></td>
+  <td class="num" style="color:var(--${h[10]})"><b>${h[8]}</b></td><td class="num" style="color:var(--${h[10]})">${h[9]}</td><td>${h[11].map(k => sb[k]).join(' ')}</td></tr>`).join('')}
+  </table><div class="legend">▲ 매수 · ▼ 매도(참고) · ◆ 비중조절 — 시그널은 참고용이며 투자 권유가 아닙니다. · 막대의 검은 선이 목표 비중</div></div>`
+const rail = `<div class="rail"><div class="panel"><div class="ph"><h2>오늘의 시그널</h2><small>12</small></div>
+  <div class="counts"><div><b style="color:var(--buy)">3</b><i class="shape up" style="color:var(--buy)"></i> 매수</div><div><b style="color:var(--sell)">4</b><i class="shape dn" style="color:var(--sell)"></i> 매도</div><div><b style="color:var(--wt)">5</b><i class="shape dia" style="color:var(--wt)"></i> 비중</div></div>
+  ${[['삼성전자', '20일선을 거래량과 함께 넘음', 'buy'], ['VOO', '목표가를 넘음', 'sell'], ['NVDA', '눌림 뒤 반등 3/3', 'buy'], ['トヨタ自動車', '목표 1.0% → 1.5%', 'wt']].map(s => `<div class="si"><div>${s[0]}<small>${s[1]}</small></div>${sb[s[2]]}</div>`).join('')}
+  <div class="more">시그널 12개 모두 보기 ›</div></div>
+  <div class="panel"><div class="ph" style="color:var(--link)">${ico('AI', false, 18)}<h2 style="color:var(--text)">AI 포트폴리오 진단</h2></div>
+  <div class="ai"><b>한 줄</b> · 반도체 비중이 목표보다 9%p 높고, 나머지는 목표 근처입니다.<br><span style="font-size:12px;color:var(--faint)">11월 5일 15:42 진단</span><div class="go">${ico('AI', false, 16)}전체 보기</div></div></div></div>`
+const page = `<div class="ptitle"><h1>홈</h1><span class="fresh">방금 받음 · 15:30 기준</span><div class="r"><span class="b">${ico('새로고침', false, 16)}새로고침</span></div></div>${kpis}<div class="grid2">${table}${rail}</div>`
+const A = `<div class="pc"><aside class="side"><div class="logo"><i>₩</i>자산관리</div>${TAB5.map((n, i) => `<a class="${i === 0 ? 'on' : ''}">${ico(n, i === 0, 22)}${n}</a>`).join('')}<div class="sp"></div><div class="me"><b>내 포트폴리오</b>관리자 · 알림 켜짐</div></aside><main class="main">${page}</main></div>`
+const B = `<div class="pc col"><header class="hbar"><div class="logo"><i>₩</i>자산관리</div><nav>${TAB5.map((n, i) => `<a class="${i === 0 ? 'on' : ''}">${ico(n, i === 0, 20)}${n}</a>`).join('')}</nav><div class="r">방금 받음 ${ico('새로고침', false, 18)}</div></header><main class="main">${page.replace('<span class="fresh">방금 받음 · 15:30 기준</span><div class="r"><span class="b">' + ico('새로고침', false, 16) + '새로고침</span></div>', '<span class="fresh">15:30 기준</span>')}</main></div>`
+document.body.innerHTML = `<div class="cap">A · 왼쪽 메뉴 <span class="pick">추천</span><small>대시보드형 · 메뉴가 늘 보이고 본문이 넓음</small></div>${A}<div class="cap">B · 위 가로 메뉴<small>웹사이트형 · 토스증권 PC 결</small></div>${B}`
+</script>
+</body>
+</html>

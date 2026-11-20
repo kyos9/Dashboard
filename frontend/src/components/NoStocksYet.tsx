@@ -8,9 +8,9 @@ export function NoStocksYet({ title, shows }: { title: string; shows: string }) 
   return (
     <div className="empty-state">
       <h3>{title}</h3>
-      <p>종목 관리에서 종목을 담으면 여기에 {shows} 보입니다.</p>
-      <Link to="/stocks" className="link-button">
-        종목 추가하러 가기
+      <p>종목 탭에서 종목을 담으면 여기에 {shows} 보입니다.</p>
+      <Link to="/stocks" state={{ focusSearch: true }} className="link-button">
+        종목 담으러 가기
       </Link>
     </div>
   )

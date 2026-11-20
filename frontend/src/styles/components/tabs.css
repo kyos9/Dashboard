@@ -1,0 +1,32 @@
+/* ---------- 탭 ---------- */
+
+.tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px var(--gutter-right) 8px var(--gutter-left);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elevated);
+}
+
+.tab {
+  padding: 8px 16px;
+  border-radius: 999px;
+  text-decoration: none;
+  color: var(--text-dim);
+  font-weight: 600;
+  font-size: var(--fs-sub);
+  border: 1px solid transparent;
+}
+
+.tab:hover {
+  color: var(--text);
+  background: var(--panel-soft);
+}
+
+.tab.active {
+  color: var(--text);
+  background: var(--panel-soft);
+  border-color: var(--border-strong);
+}
+

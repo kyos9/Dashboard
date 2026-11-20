@@ -34,7 +34,7 @@ export function AiKeyModal({ account, onClose }: { account: string; onClose: () 
         <div className="modal-head">
           <div className="modal-title">
             <h3>AI 키</h3>
-            <span className="hint">대시보드·종목 팝업의 "AI 분석"에 씁니다</span>
+            <span className="hint">시그널 목록 · 종목 팝업의 "AI 분석"과 AI 정리 화면에 씁니다</span>
           </div>
           <button className="icon-btn" onClick={onClose} aria-label="닫기">
             ✕
