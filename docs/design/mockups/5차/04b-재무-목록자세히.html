@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="ko" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>5차 재무 목록 자세히</title>
+<!--
+  디자인 5차 목업 04b — 04 에서 주인이 나(왼쪽 목록 + 오른쪽 자세히)를 고름. 주인 답:
+  2 왼쪽은 종목명만 · 3 PER 위치가 한눈에 안 들어옴 → 고칠 안 셋(가 큰 숫자 + 다섯 칸 / 나 반원 계기 / 다 5년 PER 선 그래프)
+  4 최근 분기에 전년비 · 전분기비, 가이던스(예상치)와 그 변화율
+  전년비 · 전분기비는 지금 받는 분기 8개로 계산 가능. 예상치는 앱에 없는 데이터 — 야후의 애널리스트 평균 예상(다음 분기 · 올해)과
+  30일 전 예상 대비 변화를 새로 받아야 함. 회사가 직접 내는 가이던스는 정리된 데이터가 없어 이 목업은 애널리스트 평균으로 그림.
+  다 의 선 그래프는 서버가 이미 날마다 계산하는 PER 5년 값을 화면에 보내기만 하면 됨.
+  PC 1400 · 라이트 · 색과 글꼴은 앱 tokens.css · 데이터는 가짜.
+-->
+<link rel="stylesheet" href="../../../../frontend/src/styles/tokens.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:#5f646b}
+body{font-family:var(--font-sans);word-break:keep-all;padding:28px 20px 40px;color:#fff;font-size:14px}
+.part{max-width:1400px;margin:0 auto 14px;font-size:22px;font-weight:700}
+.part small{display:block;font-size:14px;font-weight:400;opacity:.9;margin-top:6px;line-height:1.55}
+.cap{max-width:1400px;margin:30px auto 10px;font-size:17px;font-weight:700}
+.cap small{font-size:13px;font-weight:400;opacity:.88;margin-left:8px}
+.frame{width:1400px;margin:0 auto;background:var(--bg);color:var(--text);border-radius:10px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.frame.bare{padding:20px 24px}
+td,b,.v{font-variant-numeric:tabular-nums}
+.up{color:var(--up)}.down{color:var(--down)}.faint{color:var(--text-faint)}.dim{color:var(--text-dim)}
+.nav{height:60px;display:flex;align-items:center;gap:6px;padding:0 32px;background:var(--panel);border-bottom:1px solid var(--border)}
+.logo{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:700;margin-right:28px}
+.logo i{width:30px;height:30px;border-radius:8px;background:var(--brand);color:var(--on-brand);display:grid;place-items:center;font-style:normal;font-size:15px;font-weight:800}
+.nav a{height:60px;display:inline-flex;align-items:center;padding:0 14px;font-size:15px;font-weight:600;color:var(--text-dim);border-bottom:3px solid transparent;margin-bottom:-1px}
+.nav a.on{color:var(--accent);border-bottom-color:var(--accent)}
+.page{padding:26px 32px 34px}
+.head{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:16px}
+.head h2{font-size:22px}
+.box{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.split{display:grid;grid-template-columns:220px 1fr;gap:16px;align-items:start}
+.li{padding:12px 16px;border-top:1px solid var(--border);font-size:14px;font-weight:600}
+.li:first-child{border-top:0}
+.li.on{background:var(--accent-soft);box-shadow:inset 3px 0 0 var(--accent);color:var(--accent)}
+.li.off{color:var(--text-faint);font-weight:400}
+.grp{padding:8px 16px;font-size:12px;color:var(--text-faint);background:var(--panel-soft);border-top:1px solid var(--border)}
+.det{padding:20px 22px}
+.det h3{font-size:20px;display:flex;align-items:baseline;gap:10px}
+.det h3 small{font-size:13px;font-weight:400;color:var(--text-faint)}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:16px}
+.card{border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.ch{padding:9px 14px;font-size:14px;font-weight:700;background:var(--panel-soft)}
+.ln{display:flex;justify-content:space-between;align-items:center;padding:9px 14px;font-size:13px;border-top:1px solid var(--border)}
+.ln span{color:var(--text-dim)}.ln b{font-size:15px}
+.g-val{color:var(--accent)}.g-pro{color:var(--signal-buy)}.g-gro{color:#7a4fa8}.g-sta{color:var(--text-dim)}
+.sec{margin-top:22px}
+.sec h4{font-size:15px;margin-bottom:10px;display:flex;align-items:baseline;gap:10px}
+.sec h4 small{font-size:12px;font-weight:400;color:var(--text-faint)}
+/* PER 가: 큰 숫자 + 다섯 칸 */
+.perA{display:grid;grid-template-columns:200px 1fr;gap:24px;align-items:center;border:1px solid var(--border);border-radius:10px;padding:18px 20px}
+.big{font-size:40px;font-weight:800;line-height:1;color:var(--accent)}
+.big small{font-size:16px;font-weight:600;margin-left:2px}
+.bigsub{font-size:13px;color:var(--text-dim);margin-top:8px}
+.five{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
+.five div{height:34px;border-radius:6px;background:var(--panel-soft);border:1px solid var(--border);display:grid;place-items:center;font-size:12px;color:var(--text-faint)}
+.five div.on{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:700;font-size:13px}
+.fivescale{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-top:6px;font-size:12px;color:var(--text-faint)}
+.fivescale span{text-align:center}
+.pin{position:relative;height:22px;margin-bottom:4px}
+.pin b{position:absolute;transform:translateX(-50%);font-size:12px;color:var(--accent);white-space:nowrap}
+/* PER 나: 반원 */
+.perB{display:grid;grid-template-columns:320px 1fr;gap:28px;align-items:center;border:1px solid var(--border);border-radius:10px;padding:16px 20px}
+.perB svg{width:300px;height:170px}
+.facts{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.facts div{border:1px solid var(--border);border-radius:8px;padding:10px 12px}
+.facts span{display:block;font-size:12px;color:var(--text-faint)}.facts b{font-size:18px}
+/* PER 다: 선 그래프 */
+.perC{border:1px solid var(--border);border-radius:10px;padding:14px 18px}
+.perC .top{display:flex;align-items:baseline;gap:14px;margin-bottom:6px}
+.perC svg{width:100%;height:190px;display:block}
+/* 분기 */
+table{width:100%;border-collapse:collapse}
+th,td{text-align:center;padding:10px 8px;font-size:14px;white-space:nowrap}
+thead th{font-size:13px;font-weight:600;color:var(--text-dim);background:var(--panel-soft);border-bottom:1px solid var(--border)}
+tbody tr+tr td,tbody tr+tr th{border-top:1px solid var(--border)}
+tbody th{text-align:left;font-weight:600;padding-left:16px}
+tbody th small{display:block;font-weight:400;font-size:12px;color:var(--text-faint)}
+.cell b{display:block;font-size:15px}
+.cell small{display:block;font-size:12px;margin-top:2px}
+.cell small em{font-style:normal;color:var(--text-faint);margin-right:3px}
+tr.est{background:var(--accent-soft)}
+tr.est th{color:var(--accent)}
+.tag{font-size:11px;font-weight:700;color:var(--accent);margin-left:6px}
+.guide{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.gc{border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+.gc>span{display:block;font-size:12px;color:var(--text-faint)}
+.gc b{display:block;font-size:20px;margin:4px 0 6px}
+.gc small{display:block;font-size:12px;color:var(--text-dim);line-height:1.6}
+.note{font-size:12px;color:var(--text-faint);margin-top:8px}
+.qopt{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+</style>
+</head>
+<body>
+<div class="part">5차 목업 04b · 재무 (나 고름)<small>왼쪽은 종목명만 남겼습니다. PER 위치는 고칠 안 셋을 아래에 따로 놓았고, 최근 분기에는 전년비와 전분기비, 예상치를 넣었습니다. 숫자는 가짜입니다.</small></div>
+<div id="out"></div>
+<script>
+const nav = `<div class="nav"><div class="logo"><i>₩</i>자산관리</div><a>홈</a><a class="on">재무</a><a>리밸런싱</a><a>매크로</a></div>`
+const s = (v, d = 1, u = '%') => v == null ? '<span class="faint">—</span>' : `<span class="${v > 0 ? 'up' : v < 0 ? 'down' : ''}">${v > 0 ? '+' : ''}${v.toFixed(d)}${u}</span>`
+const NAMES = ['AAPL', 'MSFT', 'NVDA', 'GOOG', 'TSLA', '삼성전자', '삼성전자우', 'SK하이닉스', '도요타자동차', '도쿄해상홀딩스']
+const HID = ['VOO', 'QQQ', 'SCHD', 'KODEX 200', 'TIGER 미국필라델피아반도체나스닥']
+const list = `<div class="box">${NAMES.map((n, i) => `<div class="li${i === 0 ? ' on' : ''}">${n}</div>`).join('')}<div class="grp">재무가 없는 종목</div>${HID.map(n => `<div class="li off">${n}</div>`).join('')}</div>`
+const card = (t, cls, lines) => `<div class="card"><div class="ch ${cls}">${t}</div>${lines.map(([k, v]) => `<div class="ln"><span>${k}</span><b>${v}</b></div>`).join('')}</div>`
+const cards = `<div class="cards">
+  ${card('가치', 'g-val', [['PER', '17.5배'], ['PBR', '2.53배'], ['배당수익률', '<span class="faint">—</span>']])}
+  ${card('수익성', 'g-pro', [['ROE', '14.5%'], ['영업이익률', '25.6%']])}
+  ${card('성장', 'g-gro', [['매출', s(4.4)], ['영업이익', s(7.8)], ['EPS', s(7.8)]])}
+  ${card('안정', 'g-sta', [['부채비율', '70%'], ['FCF (1년)', '$108.2B']])}</div>`
+
+// ── PER 안 셋 ──
+const PER = { now: 17.5, min: 9.2, med: 11.4, max: 17.5, pos: 100 }
+const perA = (p) => {
+  const zone = Math.min(4, Math.floor(p.pos / 20))
+  return `<div class="perA"><div><div class="big">${p.pos}<small>%</small></div><div class="bigsub">지난 5년 중 PER이 지금보다 낮았던 날의 비율. 지금 ${p.now}배</div></div>
+  <div><div class="five">${['하위 20%', '20~40%', '40~60%', '60~80%', '상위 20%'].map((t, i) => `<div class="${i === zone ? 'on' : ''}">${i === zone ? '지금 ' + p.now + '배' : t}</div>`).join('')}</div>
+  <div class="fivescale"><span>5년 최저 ${p.min}배</span><span></span><span>중앙값 ${p.med}배</span><span></span><span>5년 최고 ${p.max}배</span></div></div></div>`
+}
+const arc = (p) => {
+  const a = Math.PI * (1 - p.pos / 100), cx = 150, cy = 150, r = 120
+  const x = cx + r * Math.cos(a), y = cy - r * Math.sin(a)
+  const ma = Math.PI * (1 - 50 / 100)
+  return `<div class="perB"><svg viewBox="0 0 300 170">
+    <path d="M30 150 A120 120 0 0 1 270 150" fill="none" stroke="var(--border)" stroke-width="18" stroke-linecap="round"/>
+    <path d="M30 150 A120 120 0 0 1 ${x.toFixed(1)} ${y.toFixed(1)}" fill="none" stroke="var(--accent)" stroke-width="18" stroke-linecap="round"/>
+    <line x1="${cx + 100 * Math.cos(ma)}" y1="${cy - 100 * Math.sin(ma)}" x2="${cx + 140 * Math.cos(ma)}" y2="${cy - 140 * Math.sin(ma)}" stroke="var(--text-faint)" stroke-width="2"/>
+    <text x="150" y="128" text-anchor="middle" font-size="40" font-weight="800" fill="var(--accent)">${p.pos}%</text>
+    <text x="150" y="152" text-anchor="middle" font-size="13" fill="var(--text-dim)">5년 중 위치</text>
+    <text x="30" y="168" text-anchor="middle" font-size="11" fill="var(--text-faint)">0%</text><text x="270" y="168" text-anchor="middle" font-size="11" fill="var(--text-faint)">100%</text></svg>
+    <div><div class="facts"><div><span>지금 PER</span><b>${p.now}배</b></div><div><span>5년 중앙값</span><b>${p.med}배</b></div><div><span>5년 범위</span><b>${p.min} ~ ${p.max}배</b></div></div>
+    <p class="note">지난 5년 중 PER이 지금보다 낮았던 날의 비율입니다. 가운데 눈금이 중앙값입니다.</p></div></div>`
+}
+const line = (p) => {
+  // 가짜 5년 PER 선
+  const N = 60, W = 1000, H = 160, pts = []
+  for (let i = 0; i < N; i++) { const t = i / (N - 1); pts.push(p.min + (p.max - p.min) * (0.45 + 0.35 * Math.sin(t * 7) * (1 - t) + 0.55 * t * t) ) }
+  pts[N - 1] = p.now
+  const lo = p.min - 1, hi = p.max + 1, Y = (v) => H - (v - lo) / (hi - lo) * H + 10
+  const d = pts.map((v, i) => `${i ? 'L' : 'M'}${(i / (N - 1) * W).toFixed(1)} ${Y(Math.max(p.min, Math.min(p.max, v))).toFixed(1)}`).join(' ')
+  return `<div class="perC"><div class="top"><span class="big" style="font-size:30px">${p.now}<small>배</small></span><span class="dim">지난 5년 중 <b>${p.pos}%</b> 위치. 중앙값 ${p.med}배, 범위 ${p.min} ~ ${p.max}배</span></div>
+  <svg viewBox="0 0 1060 180" preserveAspectRatio="none">
+    <line x1="0" x2="${W}" y1="${Y(p.med)}" y2="${Y(p.med)}" stroke="var(--text-faint)" stroke-dasharray="5 5"/>
+    <text x="${W + 8}" y="${Y(p.med) + 4}" font-size="12" fill="var(--text-faint)">중앙값</text>
+    <path d="${d}" fill="none" stroke="var(--accent)" stroke-width="2.2"/>
+    <circle cx="${W}" cy="${Y(p.now)}" r="6" fill="var(--accent)"/>
+    ${['2021', '2022', '2023', '2024', '2025', '2026'].map((y, i) => `<text x="${i * W / 5}" y="178" font-size="12" fill="var(--text-faint)" text-anchor="${i === 0 ? 'start' : i === 5 ? 'end' : 'middle'}">${y}</text>`).join('')}
+  </svg></div>`
+}
+
+// ── 최근 분기 ──
+const Q = [
+  // 분기, 공시, 매출, 전년, 전분기, 영업이익, 전년, 전분기, 순이익, 전년, 전분기, EPS, 전년, 전분기
+  ['2026년 3분기', '10월 30일', '$94.9B', 4.4, 6.5, '$29.5B', 7.8, 9.3, '$24.8B', 6.9, 8.3, '$1.64', 7.8, 8.6],
+  ['2026년 2분기', '7월 31일', '$89.1B', 5.1, -6.6, '$27.0B', 6.2, -8.8, '$22.9B', 4.1, -5.4, '$1.51', 5.6, -5.0],
+  ['2026년 1분기', '5월 1일', '$95.4B', 3.9, -23.3, '$29.6B', 5.0, -30.8, '$24.2B', 2.5, -33.3, '$1.59', 3.2, -33.8],
+  ['2025년 4분기', '1월 30일', '$124.3B', 4.0, 36.7, '$42.8B', 7.1, 54.0, '$36.3B', 7.1, 51.9, '$2.40', 10.1, 60.0],
+]
+const cell = (v, y, q) => `<td class="cell"><b>${v}</b><small><em>전년</em>${s(y)}</small><small><em>전분기</em>${s(q)}</small></td>`
+const qtable = `<div class="box"><table><thead><tr><th style="text-align:left;padding-left:16px">분기</th><th>매출</th><th>영업이익</th><th>순이익</th><th>EPS</th></tr></thead><tbody>
+  <tr class="est"><th>2026년 4분기<span class="tag">예상</span><small>1월 말 발표 예정</small></th>
+    <td class="cell"><b>$128.6B</b><small><em>전년</em>${s(3.5)}</small><small><em>30일 전 예상보다</em>${s(1.2)}</small></td>
+    <td class="cell"><b class="faint">—</b><small class="faint">예상 없음</small></td>
+    <td class="cell"><b class="faint">—</b><small class="faint">예상 없음</small></td>
+    <td class="cell"><b>$2.61</b><small><em>전년</em>${s(8.8)}</small><small><em>30일 전 예상보다</em>${s(2.0)}</small></td></tr>
+  ${Q.map(q => `<tr><th>${q[0]}<small>공시 ${q[1]}</small></th>${cell(q[2], q[3], q[4])}${cell(q[5], q[6], q[7])}${cell(q[8], q[9], q[10])}${cell(q[11], q[12], q[13])}</tr>`).join('')}
+</tbody></table></div>`
+const guide = `<div class="guide">
+  <div class="gc"><span>다음 분기 매출 예상</span><b>$128.6B</b><small>전년보다 ${s(3.5)}<br>30일 전 예상보다 ${s(1.2)}</small></div>
+  <div class="gc"><span>다음 분기 EPS 예상</span><b>$2.61</b><small>전년보다 ${s(8.8)}<br>30일 전 예상보다 ${s(2.0)}</small></div>
+  <div class="gc"><span>올해 매출 예상</span><b>$416.2B</b><small>작년보다 ${s(4.3)}<br>30일 전 예상보다 ${s(0.4)}</small></div>
+  <div class="gc"><span>올해 EPS 예상</span><b>$7.36</b><small>작년보다 ${s(6.7)}<br>30일 전 예상보다 ${s(0.9)}</small></div></div>
+  <p class="note">애널리스트 41명 평균. 30일 전 예상보다 오르면 실적 눈높이가 올라간 것입니다.</p>`
+const qtablePlain = `<div class="box"><table><thead><tr><th style="text-align:left;padding-left:16px">분기</th><th>매출</th><th>영업이익</th><th>순이익</th><th>EPS</th></tr></thead><tbody>
+  ${Q.map(q => `<tr><th>${q[0]}<small>공시 ${q[1]}</small></th>${cell(q[2], q[3], q[4])}${cell(q[5], q[6], q[7])}${cell(q[8], q[9], q[10])}${cell(q[11], q[12], q[13])}</tr>`).join('')}</tbody></table></div>`
+
+const full = `${nav}<div class="page"><div class="head"><h2>재무</h2></div>
+<div class="split">${list}
+  <div class="box det"><h3>AAPL<small>2026년 3분기까지 SEC 공시, 종가는 11월 19일</small></h3>
+    ${cards}
+    <div class="sec"><h4>PER 지난 5년 중 어디쯤</h4>${perA(PER)}</div>
+    <div class="sec"><h4>최근 분기<small>위 줄은 애널리스트 평균 예상</small></h4>${qtable}</div>
+  </div></div></div>`
+
+const out = [
+  ['전체 화면', 'PER은 아래 안 가, 최근 분기는 표 맨 위에 예상 줄을 넣은 모양', `<div class="frame">${full}</div>`],
+  ['PER 가 · 큰 숫자 + 다섯 칸', '5년 중 위치를 큰 숫자로, 다섯 구간 중 지금 칸을 칠함. 한눈에 "어느 칸"인지', `<div class="frame bare">${perA(PER)}<div style="height:12px"></div>${perA({ now: 11.0, min: 9.0, med: 14.6, max: 20.0, pos: 12 })}</div>`],
+  ['PER 나 · 반원 계기', '계기판처럼 0~100%. 옆에 지금, 중앙값, 범위 숫자', `<div class="frame bare">${arc(PER)}<div style="height:12px"></div>${arc({ now: 11.0, min: 9.0, med: 14.6, max: 20.0, pos: 12 })}</div>`],
+  ['PER 다 · 5년 선 그래프', '지난 5년 PER이 어떻게 움직였는지 선으로, 점선이 중앙값, 오른쪽 끝 점이 지금. 서버가 이미 계산하는 값을 화면에 보내야 함', `<div class="frame bare">${line(PER)}</div>`],
+  ['최근 분기 가 · 예상을 표 맨 위 줄로', '칸마다 값 아래 전년비, 전분기비. 예상 줄만 옅은 파랑, 변화는 30일 전 예상 대비', `<div class="frame bare">${qtable}</div>`],
+  ['최근 분기 나 · 예상은 위에 카드 넷, 표는 실적만', '다음 분기와 올해 예상을 카드로 먼저, 아래 표는 공시된 실적만', `<div class="frame bare">${guide}<div style="height:14px"></div>${qtablePlain}</div>`],
+]
+document.getElementById('out').innerHTML = out.map(([t, d, h]) => `<div class="cap">${t}<small>${d}</small></div>${h}`).join('')
+</script>
+</body>
+</html>
