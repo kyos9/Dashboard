@@ -489,7 +489,8 @@ button.sig-item.active {
   align-items: baseline;
   justify-content: space-between;
   padding: 12px 16px;
-  color: var(--on-brand);
+  /* 색 띠 위 글자 — 라이트는 흰색, 다크는 띠가 밝아 어두운 글자 (--on-accent, 대비 4.5 넘음) */
+  color: var(--on-accent);
 }
 
 .sig-card.buy .sig-card-head {

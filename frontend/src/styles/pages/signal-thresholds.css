@@ -140,7 +140,7 @@
 .threshold-group-head {
   margin: 0;
   padding: 10px 14px;
-  color: var(--on-brand);
+  color: var(--on-accent);
   font-size: var(--fs-body);
 }
 
