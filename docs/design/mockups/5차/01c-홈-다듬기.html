@@ -6,6 +6,7 @@
 <title>5차 홈 다듬기</title>
 <!--
   디자인 5차 목업 01c — 01b 에 주인 답 일곱:
+  (더: 다음 리뷰 "12월 30일 (D-40)" · 종목 추가 · 수정 단추 대신 ⋯ 하나에 모음)
   1 홈에 관심 종목이 있으니 종목 메뉴는 뺌 → 메뉴 홈 · 리밸런싱 · 매크로. 종목 탭에 있던 일(종목 추가 · 순서 · 한 번에 수정 · 재무 한눈에)은 표 위 단추로
   2 총액 아래 "평가손익 · 현금 포함" 글과 최근 거래일 대비 뺌 · 3 다음 리뷰의 리밸런싱 바로가기 뺌
   4 열 순서: 종목 · 현재가 · 평가금액 · 수익률 · 평가손익 · 비중 · 신호 · 5 열 머리는 한 줄 이름만
@@ -162,7 +163,7 @@ const sums = {
       <div class="big num">₩517,690,260</div>
       <div class="pl num up">+₩56,816,577 <span>(+12.3%)</span></div></div>
     <div class="side">
-      <div><span>다음 리뷰 (분기마다)</span><b class="num">D-40 · 12월 30일</b></div>
+      <div><span>다음 리뷰 (분기마다)</span><b class="num">12월 30일 (D-40)</b></div>
     </div></div>`,
   B: () => `<div class="sumB">
     <div class="lab">총 평가금액 <a>금액 가리기</a></div>
@@ -197,12 +198,11 @@ const table = (aiMark = true) => `
   </table>
 `
 
-const menu = `<div style="position:absolute;right:0;top:44px;width:200px;background:var(--panel);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow-pop);padding:6px;z-index:2;font-size:14px;font-weight:500;color:var(--text)">${['한 번에 수정 (수량 · 목표)', '순서 바꾸기', '재무 한눈에', '거래소 목록 갱신'].map(t => `<div style="padding:10px 12px;border-radius:6px">${t}</div>`).join('')}</div>`
+const menu = `<div style="position:absolute;right:0;top:44px;width:210px;background:var(--panel);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow-pop);padding:6px;z-index:2;font-size:14px;font-weight:500;color:var(--text)">${['＋ 종목 추가', '한 번에 수정 (수량 · 목표)', '순서 바꾸기', '재무 한눈에', '거래소 목록 갱신'].map(t => `<div style="padding:10px 12px;border-radius:6px">${t}</div>`).join('')}</div>`
 const tools = `<div class="tools">
   <span class="sel">정렬 <em>평가금액 ▾</em></span>
   <span class="sel">손익 통화 <em>종목별 ▾</em></span>
-  <span class="sqb mark">＋ 종목 추가</span>
-  <span class="sqb mark" style="position:relative">${ic.edit}수정 ▾${menu}</span>
+  <span class="sqb mark" style="position:relative;width:38px;justify-content:center;padding:0;font-size:18px;letter-spacing:1px">⋯${menu}</span>
   <span class="sqb ai mark">${ic.spark}AI 포트폴리오 점검</span>
 </div>`
 
@@ -221,7 +221,7 @@ const tabbed = home(`<div class="vtabs"><a class="on">보유 종목<span class="
   ${table()}`)
 
 const out = []
-out.push(`<div class="cap">홈 다듬기<small>메뉴 홈 · 리밸런싱 · 매크로 · 총액은 큰 금액 · 손익 · 다음 리뷰만 · 열 순서와 한 줄 머리 · 범례 없음. 점선: 종목 메뉴가 하던 일 — 종목 추가 · 수정 ▾ (펼친 모양)</small></div><div class="frame">${navC}${tabbed}</div>`)
+out.push(`<div class="cap">홈 다듬기<small>메뉴 홈 · 리밸런싱 · 매크로 · 총액은 큰 금액 · 손익 · 다음 리뷰만 · 열 순서와 한 줄 머리 · 범례 없음. 점선: 종목 메뉴가 하던 일을 ⋯ 하나로 (펼친 모양) · 다음 리뷰 12월 30일 (D-40)</small></div><div class="frame">${navC}${tabbed}</div>`)
 document.getElementById('out').innerHTML = out.join('')
 </script>
 </body>
