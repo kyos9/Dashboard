@@ -157,15 +157,16 @@ export function SignalThresholdsModal({
             onChange={(v) => setDraft((d) => ({ ...d, [f.key]: v }))}
           />
           {f.unit && <span className="unit">{f.unit}</span>}
-          <span className={`hint${changed ? ' changed' : ''}`}>
-            기본 {show(defaults[f.key])}
+          {/* 기본값과 넣을 수 있는 범위를 다른 모양으로 — 둘 다 흐린 글자라 구분이 안 됐다 (디자인 5차, 주인) */}
+          <span className={`threshold-default${changed ? ' changed' : ''}`}>
+            기본값 {show(defaults[f.key])}
             {f.unit}
-            {changed && ' · 바꿈'}
+            {changed && ' (바꿈)'}
           </span>
           {/* 넣을 수 있는 범위를 틀리기 전에 보이게 (0.42.0 사용자 확인) */}
           {limits?.[f.key] && (
-            <span className="hint">
-              {show(limits[f.key].min)} ~ {show(limits[f.key].max)}
+            <span className="hint threshold-range">
+              입력 범위 {show(limits[f.key].min)} ~ {show(limits[f.key].max)}
             </span>
           )}
         </div>
