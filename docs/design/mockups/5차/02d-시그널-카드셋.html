@@ -6,6 +6,7 @@
 <title>5차 시그널 카드 셋</title>
 <!--
   디자인 5차 목업 02d — 02c 에 주인 답 셋:
+  (더: 카드 아래 "다 채우면 매수" 같은 글 뺌 · "기준" 단추는 글씨만 — 글씨와 아이콘을 같이 쓰지 않음)
   1 글 안에서 낱말 사이를 " · " 로 잇는 것(AI 티) → 쉼표 · 문장 · 줄 나눔으로. 화면 글 전체 규칙으로 status 에 적음
   2 오른쪽 매수 조건 · 매도 조건 · 비중 표의 크기가 다 다름 → 같은 크기 카드 셋을 나란히(줄 높이 같게)
   3 기준은 칸에서 뺌 → 시그널 탭 오른쪽 위 "기준" 단추로 따로 보는 창(앱에 있는 "시그널 기준" 창과 같은 자리)
@@ -238,7 +239,7 @@ table.wt td small{display:inline;margin-left:8px}
 .gk em{font-style:normal;font-weight:700;font-size:11px;color:var(--text-dim);background:var(--panel-soft);border:1px solid var(--border);border-radius:4px;padding:0 4px;margin-right:5px}
 .cards3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px}
 .c3{border:1px solid var(--border);border-radius:10px;padding:14px 16px 8px;background:var(--panel)}
-.c3h{display:flex;justify-content:space-between;align-items:baseline;font-size:15px}
+.c3h{display:flex;justify-content:space-between;align-items:baseline;font-size:15px;padding-bottom:12px}
 .c3.buy .c3h{color:var(--signal-buy)}.c3.sell .c3h{color:var(--signal-sell)}.c3.wt .c3h{color:var(--signal-weight)}
 .c3h span{font-weight:700}
 .c3 p{font-size:12px;color:var(--text-faint);margin:4px 0 8px;height:18px}
@@ -409,7 +410,7 @@ const sigTable = `<table class="st">
 const spark = (up) => { const pts = []; let v = 50; for (let i = 0; i < 60; i++) { v += Math.sin(i / 5) * 2.2 + (up ? .25 : -.35) + Math.cos(i * 1.7) * 1.4; pts.push(`${i * 10},${100 - v}`) } return `<svg class="chart" viewBox="0 0 590 120" preserveAspectRatio="none"><polyline points="${pts.join(' ')}" fill="none" stroke="var(--accent)" stroke-width="2"/><line x1="0" x2="590" y1="62" y2="62" stroke="var(--text-faint)" stroke-dasharray="4 4" stroke-width="1"/><text x="584" y="58" text-anchor="end" font-size="11" fill="var(--text-faint)">MA20</text></svg>` }
 const sel = SIG[0]
 const row = (t, ok, now, kind) => `<div class="cr ${ok ? 'ok-' + kind : ''}"><span class="mk">${kind === 'wt' ? '' : ok ? '✓' : '·'}</span><span class="ct">${t}</span><b class="cv num">${now}</b></div>`
-const card3 = (title, kind, sub, count, rows) => `<div class="c3 ${kind}"><div class="c3h"><b>${title}</b><span class="num">${count}</span></div><p>${sub}</p>${rows.join('')}${'<div class="cr blank"></div>'.repeat(4 - rows.length)}</div>`
+const card3 = (title, kind, sub, count, rows) => `<div class="c3 ${kind}"><div class="c3h"><b>${title}</b><span class="num">${count}</span></div>${rows.join('')}${'<div class="cr blank"></div>'.repeat(4 - rows.length)}</div>`
 const md = `<div class="md">
   <div class="mlist">${SIG.map(([n, c, p, d, k], i) => `<div class="mi ${i === 0 ? 'on' : ''}"><div><b>${n}</b><small class="num">${p} ${chg(d)}</small></div><div class="mb">${badges(k)}</div></div>`).join('')}</div>
   <div class="mdet">
@@ -442,18 +443,18 @@ const watchTable = `<table class="wt">
 const sigTools = `<div class="tools"><span class="seg"><span class="on">전체 9</span><span>매수 4</span><span>매도 2</span><span>비중 4</span></span></div>`
 const watchTools = `<div class="tools"><span class="sqb ico" title="정렬"><svg class="i" viewBox="0 0 24 24"><path d="M4 6h9M4 12h6M4 18h3"/><path d="M17.5 5v14M14 15.5l3.5 3.5 3.5-3.5"/></svg></span><span class="sqb more">⋯</span></div>`
 
-const sigTools2 = `<div class="tools"><span class="sqb mark">${ic.gear.replace('class="i"', 'class="i" style="width:16px;height:16px"')}기준</span></div>`
+const sigTools2 = `<div class="tools"><span class="sqb mark">기준</span></div>`
 const crit = `<div class="scrim"></div><div class="modal crit">
   <div class="mh"><b>시그널 기준</b><span class="dim">내 기준, 모든 종목에 같이 씀</span><span class="x">✕</span></div>
   <div class="kg"><h4 class="buy">매수 조건</h4>
     <div class="kr"><span>하락 우세</span><em>−DI 가 +DI 보다 클 때</em></div>
     <div class="kr"><span>이격도 (MA20)</span><span class="inp num">0<em>% 보다 작을 때</em></span></div>
     <div class="kr"><span>거래량 (20일 평균 대비)</span><span class="inp num">1.1<em>배 보다 클 때</em></span></div>
-    <div class="kr"><span>변동성 비교 기간</span><span class="inp num">5<em>거래일 전보다 줄면</em></span></div>
+    <div class="kr"><span>비교 기간 (변동성, 매도 ADX 같이)</span><span class="inp num">5<em>거래일 전과 비교</em></span></div>
     <div class="kr"><span>ADX</span><span class="inp num">20<em>보다 클 때</em></span></div></div>
   <div class="kg"><h4 class="sell">매도 조건 (참고)</h4>
     <div class="kr"><span>MA50 대비</span><em>0% 보다 클 때</em></div>
-    <div class="kr"><span>ADX</span><em>5일 전보다 클 때</em></div>
+    <div class="kr"><span>ADX</span><em>비교 기간 전보다 클 때</em></div>
     <div class="kr"><span>5일 거래량</span><em>20일 평균보다 클 때</em></div></div>
   <div class="kg"><h4 class="wt">비중조절</h4>
     <div class="kr"><span>목표와 차이 (기본값)</span><span class="inp num">±5<em>%p 를 넘을 때</em></span></div><p class="hint">종목마다 따로 정한 값이 있으면 그 값을 씁니다. 종목 수정에서 바꿉니다.</p></div>
