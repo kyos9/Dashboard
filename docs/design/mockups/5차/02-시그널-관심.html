@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="ko" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>5차 시그널 관심 종목</title>
+<!--
+  디자인 5차 목업 02 — 홈 안 보기 탭 "시그널" · "관심 종목" 안의 화면 (홈 묶음 01 · 01b~g 에서 고른 틀 위: 메뉴 홈 · 재무 · 리밸런싱 · 매크로,
+  총액 A, AI 점검 나(총액 아래 띠)).
+  시그널 탭 안 셋: 가 신호별 세 칸(매수 · 매도 · 비중조절 보드) / 나 표 하나(조건 칸 ✓·) / 다 왼쪽 목록 + 오른쪽 자세히
+  관심 종목 탭: 표 하나(보유 표와 같은 결) — 안 하나, 고칠 곳을 받는다.
+  PC 1400 · 라이트 · 색과 글꼴은 앱 tokens.css · 데이터는 가짜.
+-->
+<link rel="stylesheet" href="../../../../frontend/src/styles/tokens.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:#5f646b}
+body{font-family:var(--font-sans);word-break:keep-all;padding:28px 20px 40px;color:#fff;font-size:14px}
+.part{max-width:1400px;margin:0 auto 14px;font-size:22px;font-weight:700}
+.part small{display:block;font-size:14px;font-weight:400;opacity:.9;margin-top:6px;line-height:1.55}
+.cap{max-width:1400px;margin:30px auto 10px;font-size:17px;font-weight:700}
+.cap small{font-size:13px;font-weight:400;opacity:.88;margin-left:8px}
+.num{font-variant-numeric:tabular-nums}
+.frame{width:1400px;margin:0 auto;background:var(--bg);color:var(--text);border-radius:10px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.frame.short{padding-bottom:4px}
+svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.shape{display:inline-block;width:.68em;height:.68em;margin-right:3px;background:currentColor}
+.tri-up{clip-path:polygon(50% 0,100% 100%,0 100%)}.tri-dn{clip-path:polygon(0 0,100% 0,50% 100%)}.dia{clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)}
+.badge{display:inline-flex;align-items:center;font-size:12px;font-weight:600;white-space:nowrap;border-radius:6px;padding:2px 6px}
+.b-buy{color:var(--signal-buy);background:var(--signal-buy-soft)}
+.b-sell{color:var(--signal-sell);background:var(--signal-sell-soft)}
+.b-wt{color:var(--signal-weight);background:var(--signal-weight-soft)}
+.up{color:var(--up)}.down{color:var(--down)}.faint{color:var(--text-faint)}.dim{color:var(--text-dim)}
+.cnt{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 6px;border-radius:10px;font-size:12px;font-weight:700;background:var(--panel-soft);color:var(--text-dim);margin-left:6px}
+
+/* ── 메뉴 가: 위 한 줄 ── */
+.nav1{height:60px;display:flex;align-items:center;gap:6px;padding:0 32px;background:var(--panel);border-bottom:1px solid var(--border)}
+.logo{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:700;margin-right:28px}
+.logo i{width:30px;height:30px;border-radius:8px;background:var(--brand);color:var(--on-brand);display:grid;place-items:center;font-style:normal;font-size:15px;font-weight:800}
+.nav1 a{height:60px;display:inline-flex;align-items:center;padding:0 14px;font-size:15px;font-weight:600;color:var(--text-dim);border-bottom:3px solid transparent;margin-bottom:-1px}
+.nav1 a.on{color:var(--accent);border-bottom-color:var(--accent)}
+.nav1 a .cnt.sig{background:var(--signal-sell-soft);color:var(--signal-sell)}
+.right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.fresh{font-size:12px;color:var(--text-faint);display:inline-flex;align-items:center;gap:6px;margin-right:6px}
+.fresh::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--green)}
+.icb{width:38px;height:38px;border-radius:8px;display:grid;place-items:center;color:var(--text-dim);border:1px solid var(--border)}
+.who{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;margin-left:6px}
+.who i{width:32px;height:32px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-style:normal;font-weight:700}
+
+/* ── 메뉴 나: 위 두 줄 ── */
+.bar2{height:56px;display:flex;align-items:center;padding:0 32px;background:var(--brand);color:var(--on-brand)}
+.bar2 .logo i{background:var(--on-brand);color:var(--brand)}
+.bar2 .fresh{color:var(--on-brand-dim)}
+.bar2 .icb{color:var(--on-brand);border-color:var(--on-brand-line)}
+.bar2 .who i{background:var(--on-brand-soft);color:var(--on-brand)}
+.tabs2{height:50px;display:flex;align-items:flex-end;gap:4px;padding:0 32px;background:var(--panel);border-bottom:1px solid var(--border)}
+.tabs2 a{height:50px;display:inline-flex;align-items:center;padding:0 16px;font-size:15px;font-weight:600;color:var(--text-dim);border-bottom:3px solid transparent;margin-bottom:-1px}
+.tabs2 a.on{color:var(--text);border-bottom-color:var(--brand)}
+.tabs2 a .cnt.sig{background:var(--signal-sell-soft);color:var(--signal-sell)}
+
+/* ── 본문 ── */
+.main{max-width:1240px;margin:0 auto;padding:28px 32px 36px}
+
+/* 총액 A — 증권식 한 줄 */
+.sumA{display:flex;align-items:flex-end;gap:40px;padding:26px 30px;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius)}
+.sumA .lab{font-size:13px;font-weight:600;color:var(--text-faint);display:flex;gap:12px;align-items:center}
+.sumA .lab a{color:var(--accent);font-weight:500;text-decoration:underline;text-underline-offset:2px}
+.sumA .big{font-family:var(--font-summary-num);font-size:38px;font-weight:700;letter-spacing:-.02em;margin-top:6px;line-height:1.1}
+.sumA .pl{font-family:var(--font-summary-num);font-size:18px;font-weight:700;margin-top:8px}
+.sumA .pl small{font-size:13px;font-weight:500;color:var(--text-faint);margin-left:8px;font-family:var(--font-sans)}
+.sumA .side{margin-left:auto;display:flex;gap:36px;padding-bottom:4px}
+.sumA .side span{display:block;font-size:12px;color:var(--text-faint);margin-bottom:4px}
+.sumA .side b{font-family:var(--font-summary-num);font-size:16px;font-weight:700}
+.sumA .side a{font-size:12px;color:var(--accent);text-decoration:underline;margin-left:6px;font-weight:500}
+
+/* 총액 B — 큰 총액 + 칸 없는 숫자 (바탕 위에 바로) */
+.sumB{padding:6px 2px 22px;border-bottom:1px solid var(--border)}
+.sumB .lab{font-size:14px;font-weight:600;color:var(--text-dim);display:flex;gap:12px;align-items:center}
+.sumB .lab a{color:var(--accent);font-weight:500;font-size:13px;text-decoration:underline;text-underline-offset:2px}
+.sumB .big{font-family:var(--font-summary-num);font-size:44px;font-weight:700;letter-spacing:-.02em;margin:6px 0 14px;line-height:1.1}
+.sumB .row{display:flex;gap:0}
+.sumB .row div{padding-right:28px;margin-right:28px;border-right:1px solid var(--border)}
+.sumB .row div:last-child{border-right:0}
+.sumB .row span{font-size:12px;color:var(--text-faint);margin-right:8px}
+.sumB .row b{font-family:var(--font-summary-num);font-size:17px;font-weight:700}
+
+/* 총액 C — 카드 셋 */
+.sumC{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:14px}
+.sumC > div{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:20px 22px}
+.sumC .lab{font-size:13px;font-weight:600;color:var(--text-faint);display:flex;justify-content:space-between}
+.sumC .lab a{color:var(--accent);font-weight:500;text-decoration:underline}
+.sumC .big{font-family:var(--font-summary-num);font-size:34px;font-weight:700;letter-spacing:-.02em;margin-top:8px}
+.sumC .mid{font-family:var(--font-summary-num);font-size:24px;font-weight:700;margin-top:8px}
+.sumC small{display:block;font-size:13px;color:var(--text-faint);margin-top:6px}
+.sumC small b{font-family:var(--font-summary-num);font-weight:700}
+
+/* 보유 표 */
+.sech{display:flex;align-items:center;gap:8px;margin:30px 0 12px}
+.sech h2{font-size:18px;font-weight:700}
+.sech h2 small{font-size:14px;color:var(--text-faint);font-weight:600;margin-left:4px}
+.sech .tools{margin-left:auto;display:flex;gap:8px;align-items:center}
+.sel{height:38px;padding:0 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);background:var(--panel);display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600}
+.sel em{font-style:normal;color:var(--text-faint);font-weight:500}
+.sqb{height:38px;padding:0 14px;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);background:var(--panel);font-size:13px;font-weight:600}
+.sqb.ai{border-color:var(--accent-line);color:var(--accent);background:var(--accent-soft)}
+.vtabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin:28px 0 0;align-items:flex-end}
+.vtabs a{padding:12px 18px;font-size:15px;font-weight:600;color:var(--text-dim);border-bottom:3px solid transparent;margin-bottom:-1px}
+.vtabs a.on{color:var(--accent);border-bottom-color:var(--accent)}
+.vtabs a .cnt.sig{background:var(--signal-sell-soft);color:var(--signal-sell)}
+.vtabs{align-items:center}.vtabs .tools{margin-left:auto;display:flex;gap:8px;padding-bottom:8px}.vtabs + table{margin-top:14px}
+table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;font-size:14px}
+th{font-size:12px;font-weight:600;color:var(--text-faint);background:var(--panel-soft);padding:11px 12px;border-bottom:1px solid var(--border);text-align:center;line-height:1.4}
+td{padding:13px 12px;border-bottom:1px solid var(--border);text-align:center;vertical-align:middle}
+tr:last-child td{border-bottom:0}
+th:first-child,td:first-child{text-align:left;padding-left:20px}
+td b{font-weight:700}
+td .nm{font-weight:700;text-decoration:underline;text-decoration-color:var(--border-strong);text-underline-offset:3px}
+td small{display:block;font-size:12px;color:var(--text-faint);margin-top:2px}
+td .chg{display:block;font-size:12px;margin-top:2px}
+td.w b{font-weight:700}
+td.t{color:var(--text-dim)}
+td .badge + .badge{margin-left:4px}
+.legend{display:flex;gap:18px;margin-top:12px;font-size:12px;color:var(--text-faint)}
+.legend .buy{color:var(--signal-buy)}.legend .sell{color:var(--signal-sell)}.legend .wt{color:var(--signal-weight)}
+.mark{outline:2px dashed var(--amber);outline-offset:3px;border-radius:6px}
+.sqb.more{position:relative;width:38px;justify-content:center;padding:0;font-size:18px;letter-spacing:1px}
+.pop{position:absolute;right:0;top:44px;width:max-content;min-width:112px;background:var(--panel);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow-pop);padding:6px;z-index:2;font-size:14px;font-weight:500;color:var(--text);letter-spacing:0;text-align:left}
+.pop div{padding:8px 12px;border-radius:6px}
+.tip{position:absolute;right:0;top:46px;white-space:nowrap;background:var(--text);color:var(--panel);font-size:12px;font-weight:500;padding:6px 10px;border-radius:6px;z-index:3}
+.ck{display:inline-block;width:18px;height:18px;border:1.5px solid var(--border-strong);border-radius:4px;vertical-align:middle;background:var(--panel)}
+.ck.on{background:var(--accent);border-color:var(--accent);position:relative}
+.ck.on::after{content:'';position:absolute;left:5px;top:1px;width:5px;height:10px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+tr.picked td{background:var(--accent-soft)}
+.pickbar{align-items:center;gap:10px;padding-bottom:8px}
+.txtb{color:var(--accent);font-size:13px;font-weight:600;cursor:pointer}
+.sqb.pri{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.scrim{position:absolute;inset:0;background:var(--scrim);opacity:.55}
+.modal{position:absolute;left:50%;top:330px;transform:translateX(-50%);width:640px;background:var(--panel);border-radius:14px;box-shadow:var(--shadow-modal);padding:22px 24px}
+.modal .mh{display:flex;align-items:baseline;gap:10px;margin-bottom:14px}
+.modal .mh b{font-size:18px}
+.modal .mh .x{margin-left:auto;color:var(--text-faint)}
+.modal table.ed{border:0;border-radius:0}
+.modal table.ed th{background:none;text-align:left;padding:8px 6px;border-bottom:1px solid var(--border)}
+.modal table.ed td{text-align:left;padding:10px 6px}
+.modal table.ed th:first-child,.modal table.ed td:first-child{padding-left:0}
+.inp{display:inline-flex;align-items:center;justify-content:flex-end;width:120px;height:38px;border:1px solid var(--border-strong);border-radius:8px;padding:0 10px;font-weight:600}
+.inp em{font-style:normal;color:var(--text-faint);font-weight:500;margin-left:6px}
+.del{color:var(--red)}
+.modal .hint{font-size:12px;color:var(--text-faint);margin:12px 0 0;line-height:1.5}
+.modal .mf{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+table.pk th:nth-child(2),table.pk td:nth-child(2){text-align:left}
+.hd{display:inline-block;width:24px;margin-right:12px;color:var(--text-faint);font-size:20px;cursor:grab;vertical-align:middle;text-align:center}
+tr.drag td{background:var(--panel-soft)}
+table.pk td:first-child,table.pk th:first-child{white-space:nowrap;width:96px}
+tr.drag{outline:2px solid var(--accent);outline-offset:-2px}
+.tg{display:inline-flex;align-items:center;height:38px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);background:var(--panel);padding:3px;gap:2px;font-size:13px;font-weight:600}
+
+.tg span:not(.lb){height:30px;padding:0 12px;display:inline-flex;align-items:center;border-radius:6px;color:var(--text-dim)}
+.tg span.on{background:var(--accent);color:var(--on-accent)}
+
+.aiband{display:flex;align-items:center;gap:14px;margin-top:14px;padding:14px 20px;border:1px solid var(--accent-line);background:var(--accent-soft);border-radius:var(--radius)}
+.aiband .ico{width:36px;height:36px;border-radius:50%;background:var(--panel);display:grid;place-items:center;color:var(--accent)}
+.aiband b{display:block;color:var(--accent);font-size:15px}
+.aiband small{display:block;font-size:12px;color:var(--text-dim);margin-top:2px}
+.aiband .sqb{margin-left:auto}
+.sqb.ai.top{margin-right:6px}
+.sumA .side span{white-space:nowrap}
+.sumA .side span.sqb{display:inline-flex;font-size:13px;color:var(--accent);margin:0;height:38px}
+.board{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:16px}
+.bcol{background:var(--panel-soft);border:1px solid var(--border);border-radius:var(--radius);padding:12px}
+.bh{display:flex;align-items:center;font-size:15px;font-weight:700;padding:4px 4px 12px}
+.bh.buy{color:var(--signal-buy)}.bh.sell{color:var(--signal-sell)}.bh.wt{color:var(--signal-weight)}
+.bcard{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-top:8px}
+.bcard:first-of-type{margin-top:0}
+.bt{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.bt b{font-size:14px}.bt span{font-size:13px;font-weight:600;white-space:nowrap}
+.why{font-size:12px;color:var(--text-dim);margin-top:6px;line-height:1.5}
+.bd{display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:12px;color:var(--text-faint)}
+.vtabs + .board,.vtabs + table,.vtabs + .md{margin-top:16px}
+table.st th{padding:9px 8px}
+table.st th.grp{border-bottom:1px solid var(--border)}
+table.st th.grp.buy{color:var(--signal-buy)}table.st th.grp.sell{color:var(--signal-sell)}
+table.st th.c{font-weight:500;font-size:11.5px}
+table.st td{padding:11px 8px}
+table.st td.c{width:62px}
+table.st td.c.hit{background:var(--panel-soft)}
+i.ok{font-style:normal;color:var(--signal-buy);font-weight:700}
+i.no{font-style:normal;color:var(--text-faint)}
+table.st td.c:nth-child(n+8) i.ok{color:var(--signal-sell)}
+table.st td small,table.wt td small{display:block;font-size:12px;color:var(--text-faint);margin-top:2px}
+.seg{display:inline-flex;background:var(--panel-soft);border:1px solid var(--border);border-radius:var(--radius-sm);padding:3px;gap:2px}
+.seg span{height:30px;padding:0 12px;display:inline-flex;align-items:center;font-size:13px;font-weight:600;color:var(--text-dim);border-radius:6px}
+.seg span.on{background:var(--panel);color:var(--text);box-shadow:0 0 0 1px var(--border-strong)}
+.md{display:grid;grid-template-columns:360px 1fr;gap:16px}
+.mlist{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.mi{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:11px 16px;border-bottom:1px solid var(--border)}
+.mi:last-child{border-bottom:0}
+.mi.on{background:var(--accent-soft);box-shadow:inset 3px 0 0 var(--accent)}
+.mi b{display:block;font-size:14px}.mi small{display:block;font-size:12px;margin-top:2px;color:var(--text-dim)}
+.mb{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+.mdet{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:22px 24px}
+.dh{display:flex;justify-content:space-between;align-items:flex-start}
+.dh b{font-size:20px}.dh small{display:block;font-size:12px;color:var(--text-faint);margin-top:2px}
+.dh .big{font-size:22px;font-weight:700;text-align:right}.dh .big small{font-size:13px;font-weight:600}
+.dsig{display:flex;align-items:center;gap:10px;margin:12px 0 8px;font-size:13px;color:var(--text-dim)}
+svg.chart{width:100%;height:150px;display:block;margin:6px 0 10px;background:var(--panel-soft);border-radius:8px}
+.conds{border-top:1px solid var(--border)}
+.cd{display:flex;align-items:center;gap:12px;padding:11px 2px;border-bottom:1px solid var(--border);font-size:14px}
+.cd b{margin-left:auto;font-weight:600;color:var(--text-dim)}
+.dfoot{display:flex;justify-content:space-between;align-items:center;margin-top:16px;font-size:13px}
+table.wt .dots{display:inline-flex;gap:4px;vertical-align:middle}
+table.wt .dots i{width:9px;height:9px;border-radius:50%;background:var(--border-strong)}
+table.wt .dots i.on{background:var(--signal-buy)}
+table.wt td small{display:inline;margin-left:8px}
+</style>
+</head>
+<body>
+<div class="part">5차 목업 02 · 홈 — 시그널 탭 · 관심 종목 탭<small>01 에서 고른 틀(메뉴 홈 · 재무 · 리밸런싱 · 매크로 · 총액 A · AI 점검 띠) 위에 그렸습니다. 시그널 탭은 안 셋, 관심 종목 탭은 하나. <span style="display:none">짚어 주신 일곱 가지 중 <b>1 메뉴 자리 · 2 총액 모양 · 3·7 시그널과 관심 종목 자리</b>는 안을 나눠 그렸고, <b>4 가운데 정렬 · 5 비중 숫자 두 칸 · 6 AI 점검 단추</b>는 모든 안에 넣었습니다(점선이 바뀐 자리). 메뉴 안 가 · 나 · 다 에는 총액 A 를 같이 그렸고, 총액 셋은 맨 아래에 따로 있습니다. </span>PC 1400 · 가짜 데이터.</small></div>
+<div id="out"></div>
+<script>
+const q = new URLSearchParams(location.search)
+const SUM = q.get('sum') || 'A'
+const ic = {
+  refresh: '<svg class="i" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4"/></svg>',
+  gear: '<svg class="i" viewBox="0 0 24 24"><path d="M18.66 9.84L20.55 10.37Q21.60 12.00 20.55 13.63L18.66 14.16L17.20 16.68L17.68 18.59Q16.800 20.31 14.86 20.22L13.46 18.85L10.54 18.85L9.14 20.22Q7.20 20.31 6.32 18.59L6.80 16.68L5.34 14.16L3.45 13.63Q2.40 12.00 3.45 10.37L5.34 9.84L6.80 7.32L6.32 5.41Q7.20 3.69 9.14 3.78L10.54 5.15L13.46 5.15L14.86 3.78Q16.80 3.69 17.68 5.41L17.20 7.32Z"/><path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/></svg>',
+  spark: '<svg class="i" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M4 19l5-6 4 3 7-9"/><path d="M15 7h5v5"/></svg>',
+  edit: '<svg class="i" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>',
+}
+const B = {
+  buy: '<span class="badge b-buy"><i class="shape tri-up"></i>매수</span>',
+  sell: '<span class="badge b-sell"><i class="shape tri-dn"></i>매도</span>',
+  over: '<span class="badge b-wt"><i class="shape dia"></i>비중 초과</span>',
+  under: '<span class="badge b-wt"><i class="shape dia"></i>비중 미달</span>',
+}
+const ROWS = [
+  ['TIGER 미국필라델피아반도체나스닥', '2,000주 · 평단 ₩77,770', '₩88,375', '+1.01%', '₩176,750,000', '34.1%', '6%', '+13.6%', '+₩21,210,000', B.over],
+  ['삼성전자', '1,500주 · 평단 ₩49,104', '₩45,467', '−0.75%', '₩68,200,500', '13.2%', '10%', '−7.4%', '−₩5,456,040', B.buy],
+  ['삼성전자우', '600주 · 평단 ₩98,399', '₩109,332', '−0.12%', '₩65,599,200', '12.7%', '4%', '+11.1%', '+₩6,559,920', B.over],
+  ['AAPL', '30주 · 평단 $1,207.37', '$1,420.43', '+1.09%', '₩59,027,389', '11.4%', '5%', '+17.6%', '+₩8,820,684', B.sell + B.over],
+  ['NVDA', '45주 · 평단 $409.54', '$682.56', '−1.91%', '₩42,546,695', '8.2%', '6%', '+66.7%', '+₩16,954,542', B.buy],
+  ['QQQ', '25주 · 평단 $589.64', '$755.95', '−1.21%', '₩26,178,549', '5.1%', '10%', '+28.2%', '+₩5,737,695', ''],
+  ['KODEX 200', '900주 · 평단 ₩25,446', '₩27,659', '+0.10%', '₩24,893,100', '4.8%', '6%', '+8.7%', '+₩1,991,448', ''],
+  ['SK하이닉스', '150주 · 평단 ₩57,824', '₩82,605', '+0.90%', '₩12,390,750', '2.4%', '4%', '+42.9%', '+₩3,717,225', B.sell],
+]
+const cls = s => s.startsWith('−') ? 'down' : 'up'
+
+const sums = {
+  A: () => `<div class="sumA">
+    <div><div class="lab">총 평가금액 <a>금액 가리기</a></div>
+      <div class="big num">₩517,690,260</div>
+      <div class="pl num up">+₩56,816,577 <span>(+12.3%)</span></div></div>
+    <div class="side">
+      <div><span>다음 리뷰 (분기마다)</span><b class="num">12월 30일 (D-40)</b></div>
+    </div></div>`,
+  B: () => `<div class="sumB">
+    <div class="lab">총 평가금액 <a>금액 가리기</a></div>
+    <div class="big num">₩517,690,260</div>
+    <div class="row">
+      <div><span>평가손익</span><b class="num up">+₩56,816,577</b></div>
+      <div><span>수익률</span><b class="num up">+12.3%</b></div>
+      <div><span>최근 거래일 대비</span><b class="num up">+₩727,537 (+0.14%)</b></div>
+      <div><span>다음 리뷰</span><b class="num">D-40</b> <span style="margin-left:6px">12월 30일</span></div>
+    </div></div>`,
+  C: () => `<div class="sumC">
+    <div><div class="lab">총 평가금액 <a>금액 가리기</a></div><div class="big num">₩517,690,260</div><small>현금 ₩0 포함 · 원 기준</small></div>
+    <div><div class="lab">평가손익</div><div class="mid num up">+₩56,816,577</div><small>수익률 <b class="up">+12.3%</b> · 최근 거래일 <b class="up">+0.14%</b></small></div>
+    <div><div class="lab">다음 리뷰 <a>리밸런싱</a></div><div class="mid num">D-40</div><small>2026년 12월 30일 · 분기마다</small></div>
+  </div>`,
+}
+
+const table = (pick = null) => `
+  <table class="${pick ? 'pk' : ''}">
+    <thead><tr>
+      ${pick ? '<th style="width:84px;padding-left:20px"><span class="hd" style="visibility:hidden">≡</span><span class="ck"></span></th>' : ''}
+      <th style="width:26%">종목</th><th>현재가</th><th>평가금액</th><th>수익률</th><th>평가손익</th><th>비중</th><th>신호</th>
+    </tr></thead>
+    <tbody>${ROWS.slice(0, 5).map(([n, s, p, c, v, w, t, r, pl, b], i) => `<tr class="${pick && pick.includes(i) ? 'picked' : ''} ${pick && i === 2 ? 'drag' : ''}">
+      ${pick ? `<td style="padding-left:20px"><span class="hd">≡</span><span class="ck ${pick.includes(i) ? 'on' : ''}"></span></td>` : ''}
+      <td><span class="nm">${n}</span><small class="num">${s.split(' · ')[0]}</small></td>
+      <td class="num"><b>${p}</b><small>${s.split('평단 ')[1]}</small></td>
+      <td class="num"><b>${v}</b></td>
+      <td class="num ${cls(r)}">${r}</td>
+      <td class="num ${cls(pl)}">${pl}</td>
+      <td class="num w"><b>${w}</b><small>목표 ${t}</small></td>
+      <td>${b || '<span class="faint">—</span>'}</td>
+    </tr>`).join('')}</tbody>
+  </table>
+`
+const menu = `<div class="pop">${['종목 추가', '종목 수정'].map(t => `<div>${t}</div>`).join('')}</div>`
+const tools = (open) => `<div class="tools">
+  <span class="sel">정렬 <em>평가금액 ▾</em></span>
+  <span class="tg" title="손익 통화"><span class="on">₩</span><span>$</span></span>
+  <span class="sqb more ${open ? 'mark' : ''}">⋯${open ? menu : ''}</span>
+</div>`
+const pickBar = `<div class="tools pickbar mark"><span class="sel">정렬 <em>내 순서</em></span><span class="dim" style="font-weight:600">2개 고름</span><span class="txtb">전체 고르기</span><span class="sqb">완료</span><span class="sqb pri">수정 (2)</span></div>`
+
+const right = (mk) => `<div class="right">${AIW === 'da' ? AIB.replace('sqb ai', 'sqb ai top') : ''}<span class="fresh">방금 받음</span><span class="icb ${mk ? 'mark' : ''}" style="position:relative">${ic.refresh}${mk ? '<span class="tip">새로고침 — 시세 · 거래소 목록을 같이 받음</span>' : ''}</span><span class="icb">${ic.gear}</span><span class="who"><i>o</i>owner</span></div>`
+const menuItems = (items) => items.map(([n, on, mk]) => `<a class="${on ? 'on' : ''} ${mk ? 'mark' : ''}">${n}</a>`).join('')
+const nav = (mk) => `<div class="nav1"><span class="logo"><i>₩</i>자산관리</span>${menuItems([['홈', 1], ['재무'], ['리밸런싱'], ['매크로']])}${right(mk)}</div>`
+const vtabs = (right, on = 0) => `<div class="vtabs"><a class="${on === 0 ? 'on' : ''}">보유 종목<span class="cnt">15</span></a><a class="${on === 1 ? 'on' : ''}">시그널<span class="cnt sig">9</span></a><a class="${on === 2 ? 'on' : ''}">관심 종목<span class="cnt">3</span></a>${right}</div>`
+const AIB = `<span class="sqb ai mark">${ic.spark}AI 포트폴리오 점검</span>`
+let AIW = 'na'
+const sumWithAI = () => AIW === 'ga' ? sums.A().replace('<div><span>다음 리뷰 (분기마다)</span><b class="num">12월 30일 (D-40)</b></div>', '<div style="text-align:right"><span>다음 리뷰 (분기마다)</span><b class="num">12월 30일 (D-40)</b><div style="margin-top:14px">' + AIB + '</div></div>') : sums.A()
+const band = `<div class="aiband"><span class="ico">${ic.spark}</span><div><b>AI 포트폴리오 점검</b><small>비중 · 수익 · 신호를 한 번에 보고 지금 할 일을 정리합니다 · 마지막 점검 11월 18일</small></div><span class="sqb pri">점검하기</span></div>`
+const home = (inner) => `<div class="main">${sumWithAI()}${AIW === 'na' ? band : ''}${inner}</div>`
+
+const PICK = [1, 4]
+const modal = `<div class="scrim"></div><div class="modal">
+  <div class="mh"><b>수정</b><span class="dim">고른 종목 2개</span><span class="x">✕</span></div>
+  <table class="ed"><thead><tr><th>종목</th><th>수량</th><th>평단가</th><th>목표 비중</th><th></th></tr></thead><tbody>
+    ${[['삼성전자', '1,500', '49,104', '10', '₩'], ['NVDA', '45', '409.54', '6', '$']].map(([n, q, a, t, cur]) => `<tr><td><b>${n}</b></td>
+      <td><span class="inp num">${q}<em>주</em></span></td><td><span class="inp num"><em style="margin:0 6px 0 0">${cur}</em>${a}</span></td><td><span class="inp num">${t}<em>%</em></span></td>
+      <td><span class="txtb del">삭제</span></td></tr>`).join('')}
+  </tbody></table>
+  <p class="hint">수량을 0 으로 하면 관심 종목으로 옮겨집니다. 목표 비중 합계 <b>90%</b> — 현금 포함 100% 가 되게 맞추세요.</p>
+  <div class="mf"><span class="sqb">취소</span><span class="sqb pri">저장</span></div>
+</div>`
+
+
+/* ── 시그널 데이터 ── */
+const Y = '<i class="ok">✓</i>', N = '<i class="no">·</i>'
+const SIG = [
+  // 이름, 코드, 현재가, 전일, 종류[], 이유, 날짜, 매수조건[4], 매도조건[3], 비중[현재,목표]
+  ['삼성전자', '005930.KS', '₩45,467', '−0.75%', ['buy'], 'MA20 아래 −4.2% · 하락 우세 · 거래량 1.3배', '11월 19일', [1, 1, 1, 1], [0, 0, 0], ['13.2%', '10%']],
+  ['NVDA', 'NVDA', '$682.56', '−1.91%', ['buy'], 'MA20 아래 −3.1% · 변동성 줄어듦 · ADX 26', '11월 18일', [1, 1, 1, 1], [0, 1, 0], ['8.2%', '6%']],
+  ['SCHD', 'SCHD', '$42.60', '+0.76%', ['buy'], 'MA20 아래 −1.2% · 거래량 1.2배 · ADX 22', '11월 20일', [1, 1, 1, 1], [0, 0, 1], ['1.4%', '6%']],
+  ['도쿄해상홀딩스', '8766.T', '¥1,809', '−0.39%', ['buy'], 'MA20 아래 −2.0% · 변동성 줄어듦 · ADX 24', '11월 17일', [1, 1, 1, 1], [0, 0, 0], ['0.3%', '2%']],
+  ['AAPL', 'AAPL', '$1,420.43', '+1.09%', ['sell', 'over'], 'MA50 위 · ADX 오름 · 5일 거래량 > 20일', '11월 19일', [0, 0, 1, 1], [1, 1, 1], ['11.4%', '5%']],
+  ['SK하이닉스', '000660.KS', '₩82,605', '+0.90%', ['sell'], 'MA50 위 · ADX 오름 · 5일 거래량 > 20일', '11월 20일', [0, 0, 0, 1], [1, 1, 1], ['2.4%', '4%']],
+  ['TIGER 미국필라델피아반도체나스닥', '381180.KS', '₩88,375', '+1.01%', ['over'], '목표 6% · 밴드 ±5%p 밖 (+28.1%p)', '11월 3일', [0, 0, 1, 1], [1, 0, 1], ['34.1%', '6%']],
+  ['삼성전자우', '005935.KS', '₩109,332', '−0.12%', ['over'], '목표 4% · 밴드 ±5%p 밖 (+8.7%p)', '11월 10일', [0, 0, 0, 0], [1, 0, 0], ['12.7%', '4%']],
+  ['VOO', 'VOO', '$105.87', '+0.04%', ['under'], '목표 18% · 밴드 ±5%p 밖 (−16.9%p)', '10월 28일', [0, 1, 0, 0], [0, 0, 1], ['1.1%', '18%']],
+]
+const KB = { buy: B.buy, sell: B.sell, over: B.over, under: B.under }
+const badges = (k) => k.map((x) => KB[x]).join(' ')
+const chg = (c) => `<span class="${c.startsWith('−') ? 'down' : 'up'}">${c}</span>`
+
+/* 가 — 신호별 세 칸 */
+const col = (title, cls, items) => `<div class="bcol"><div class="bh ${cls}">${title}<span class="cnt">${items.length}</span></div>${items.map(([n, c, p, d, k, why, day]) => `
+  <div class="bcard"><div class="bt"><b>${n}</b><span class="num">${p} ${chg(d)}</span></div>
+  <div class="why">${why}</div><div class="bd"><span>${day}부터</span>${k.length > 1 ? badges(k.filter((x) => !title.includes(x === 'buy' ? '매수' : x === 'sell' ? '매도' : '비중'))) : ''}</div></div>`).join('')}</div>`
+const board = `<div class="board">
+  ${col('▲ 매수', 'buy', SIG.filter((r) => r[4].includes('buy')))}
+  ${col('▼ 매도', 'sell', SIG.filter((r) => r[4].includes('sell')))}
+  ${col('◆ 비중조절', 'wt', SIG.filter((r) => r[4].some((x) => x === 'over' || x === 'under')))}
+</div>`
+
+/* 나 — 표 하나 */
+const sigTable = `<table class="st">
+  <thead><tr><th rowspan="2" style="width:22%">종목</th><th rowspan="2">현재가</th><th rowspan="2">신호</th>
+    <th colspan="4" class="grp buy">매수 조건</th><th colspan="3" class="grp sell">매도 조건</th><th rowspan="2">비중</th><th rowspan="2">신호 뜬 날</th></tr>
+  <tr><th class="c">하락 우세</th><th class="c">MA20 아래</th><th class="c">변동성·거래량</th><th class="c">ADX &gt; 20</th><th class="c">MA50 위</th><th class="c">ADX 오름</th><th class="c">거래량</th></tr></thead>
+  <tbody>${SIG.map(([n, c, p, d, k, why, day, bc, sc, w]) => `<tr>
+    <td><span class="nm">${n}</span><small>${c}</small></td>
+    <td class="num"><b>${p}</b><small>${chg(d)}</small></td>
+    <td>${badges(k)}</td>
+    ${bc.map((x) => `<td class="c ${k.includes('buy') ? 'hit' : ''}">${x ? Y : N}</td>`).join('')}
+    ${sc.map((x) => `<td class="c ${k.includes('sell') ? 'hit' : ''}">${x ? Y : N}</td>`).join('')}
+    <td class="num"><b>${w[0]}</b><small>목표 ${w[1]}</small></td>
+    <td class="num dim">${day}</td>
+  </tr>`).join('')}</tbody></table>`
+
+/* 다 — 왼쪽 목록 + 오른쪽 자세히 */
+const spark = (up) => { const pts = []; let v = 50; for (let i = 0; i < 60; i++) { v += Math.sin(i / 5) * 2.2 + (up ? .25 : -.35) + Math.cos(i * 1.7) * 1.4; pts.push(`${i * 10},${100 - v}`) } return `<svg class="chart" viewBox="0 0 590 120" preserveAspectRatio="none"><polyline points="${pts.join(' ')}" fill="none" stroke="var(--accent)" stroke-width="2"/><line x1="0" x2="590" y1="62" y2="62" stroke="var(--text-faint)" stroke-dasharray="4 4" stroke-width="1"/><text x="584" y="58" text-anchor="end" font-size="11" fill="var(--text-faint)">MA20</text></svg>` }
+const md = `<div class="md">
+  <div class="mlist">${SIG.map(([n, c, p, d, k], i) => `<div class="mi ${i === 0 ? 'on' : ''}"><div><b>${n}</b><small class="num">${p} ${chg(d)}</small></div><div class="mb">${badges(k)}</div></div>`).join('')}</div>
+  <div class="mdet">
+    <div class="dh"><div><b>삼성전자</b><small>005930.KS · 한국</small></div><div class="num big">₩45,467 <small>${chg('−0.75%')}</small></div></div>
+    <div class="dsig">${B.buy}<span>11월 19일부터 · 네 조건을 모두 채움</span></div>
+    ${spark(false)}
+    <div class="conds">
+      ${[['하락이 우세 (−DI &gt; +DI)', '−DI 27.4 · +DI 15.1'], ['종가가 MA20 아래 (이격도 &lt; 0)', '이격도 −4.2%'], ['변동성이 줄거나 거래량이 붙음', '거래량 1.3배 (기준 1.1배)'], ['추세가 있음 (ADX &gt; 20)', 'ADX 26.8']].map(([t, v]) => `<div class="cd"><i class="ok">✓</i><span>${t}</span><b class="num">${v}</b></div>`).join('')}
+    </div>
+    <div class="dfoot"><span class="dim">보유 1,500주 · 비중 13.2% (목표 10%)</span><span class="sqb">종목 화면 열기</span></div>
+  </div>
+</div>`
+
+/* 관심 종목 */
+const WATCH = [
+  ['AMZN', '미국', '$214.30', '+0.62%', '−2.8%', [1, 1, 0, 1], '', '10월 30일'],
+  ['META', '미국', '$588.12', '−1.05%', '+3.4%', [0, 0, 1, 1], '', '9월 12일'],
+  ['NAVER', '035420.KS · 한국', '₩186,500', '+1.36%', '−5.1%', [1, 1, 1, 1], 'buy', '11월 20일'],
+]
+const watchTable = `<table class="wt">
+  <thead><tr><th style="width:26%">종목</th><th>현재가</th><th>전일 대비</th><th>MA20 대비</th><th>매수 조건</th><th>신호</th><th>마지막 매수 신호</th><th></th></tr></thead>
+  <tbody>${WATCH.map(([n, c, p, d, gap, bc, k, last]) => `<tr>
+    <td><span class="nm">${n}</span><small>${c}</small></td>
+    <td class="num"><b>${p}</b></td><td class="num">${chg(d)}</td><td class="num">${gap}</td>
+    <td><span class="dots">${bc.map((x) => `<i class="${x ? 'on' : ''}"></i>`).join('')}</span><small class="num">${bc.filter(Boolean).length} / 4</small></td>
+    <td>${k ? KB[k] : '<span class="faint">—</span>'}</td><td class="num dim">${last}</td>
+    <td><span class="txtb">보유로 담기</span></td>
+  </tr>`).join('')}</tbody></table>`
+
+const sigTools = `<div class="tools"><span class="seg"><span class="on">전체 9</span><span>매수 4</span><span>매도 2</span><span>비중 4</span></span></div>`
+const watchTools = `<div class="tools"><span class="sel">정렬 <em>내 순서 ▾</em></span><span class="sqb more">⋯</span></div>`
+
+const out = []
+out.push(`<div class="cap">시그널 탭 가 · 신호별 세 칸<small>매수 · 매도 · 비중조절을 칸으로 나눠 카드로. 한 종목에 신호가 둘이면 두 칸에 다 나옴(AAPL). 카드를 누르면 종목 화면 — 추천</small></div><div class="frame">${nav(false)}${home(vtabs('', 1) + board)}</div>`)
+out.push(`<div class="cap">시그널 탭 나 · 표 하나<small>보유 표와 같은 결. 조건마다 칸(✓ 채움 · · 못 채움), 신호가 난 쪽 조건 칸만 색. 위에서 신호 종류로 거름. 가장 촘촘 — 조건을 한눈에</small></div><div class="frame">${nav(false)}${home(vtabs(sigTools, 1) + sigTable)}</div>`)
+out.push(`<div class="cap">시그널 탭 다 · 왼쪽 목록 + 오른쪽 자세히<small>목록에서 하나를 고르면 오른쪽에 차트 · 조건 넷과 값. 종목 화면에 가지 않고 이유를 봄</small></div><div class="frame">${nav(false)}${home(vtabs('', 1) + md)}</div>`)
+out.push(`<div class="cap">관심 종목 탭<small>보유 0 인 종목. 보유 표와 같은 결 — 현재가 · 전일 대비 · MA20 대비 · 매수 조건 몇 개 채웠나 · 신호 · 마지막 매수 신호. "보유로 담기"는 수량 넣는 창. 추가는 ⋯ (홈과 같음)</small></div><div class="frame">${nav(false)}${home(vtabs(watchTools, 2) + watchTable)}</div>`)
+document.getElementById('out').innerHTML = out.join('')
+</script>
+</body>
+</html>
