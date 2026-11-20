@@ -140,16 +140,18 @@
 .threshold-group-head {
   margin: 0;
   padding: 10px 14px;
-  color: var(--on-accent);
   font-size: var(--fs-body);
 }
 
+/* 옅은 띠 + 그 색 글자 — 홈 시그널 카드와 같게 (목업 03 나) */
 .threshold-group.buy .threshold-group-head {
-  background: var(--signal-buy);
+  background: var(--signal-buy-soft);
+  color: var(--signal-buy);
 }
 
 .threshold-group.sell .threshold-group-head {
-  background: var(--signal-sell);
+  background: var(--signal-sell-soft);
+  color: var(--signal-sell);
 }
 
 .threshold-group .threshold-row {
