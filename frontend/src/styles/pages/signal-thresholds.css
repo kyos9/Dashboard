@@ -184,25 +184,23 @@
   padding: 10px 14px;
 }
 
-/* 기본값은 테두리 꼬리표, 범위는 글 — 구분되게 (디자인 5차) */
+/* 기본값은 입력칸 옆 글(숫자만 굵게), 범위는 칸 아래 흐린 줄 — 자리로 구분 (디자인 5차) */
 .threshold-default {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 8px;
-  border: 1px solid var(--border-strong);
-  border-radius: 6px;
-  background: var(--panel-soft);
+  margin-left: 4px;
   color: var(--text-dim);
-  font-size: var(--fs-caption);
-  font-weight: 600;
+  font-size: var(--fs-sub);
 }
 
-.threshold-default.changed {
-  border-color: var(--accent-line);
-  background: var(--accent-soft);
+.threshold-default b {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.threshold-default.changed,
+.threshold-default.changed b {
   color: var(--accent);
 }
 
-.threshold-range {
-  margin-left: 4px;
+.threshold-row .threshold-range {
+  font-size: var(--fs-caption);
 }
