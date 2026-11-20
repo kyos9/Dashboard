@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="ko" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>5차 시그널 색</title>
+<!--
+  디자인 5차 목업 03 — 주인: "시그널 색상 좀 바꾸고 싶어 너무 진해" (앱에 넣은 홈 시그널 탭을 보고).
+  진하게 보이는 곳: 카드 머리의 꽉 찬 색 띠(매수 초록 #18694a · 매도 빨강 #b02a2a · 비중 청람 #0051a8).
+  가 지금 / 나 옅은 띠(색 바탕 옅게 + 색 글자) / 다 흰 머리 + 위 색 선 / 라 파스텔 띠(밝은 색 + 진한 글자) / 마 색 자체를 밝은 쪽으로(띠 · 배지 · 글자 모두)
+  글자로 쓰는 색은 흰 바탕 대비 4.5 넘어야 함 — 마 는 그 안에서 가장 밝게 뽑은 값. 라이트만. 데이터는 가짜.
+-->
+<link rel="stylesheet" href="../../../../frontend/src/styles/tokens.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:#5f646b}
+body{font-family:var(--font-sans);word-break:keep-all;padding:28px 20px 40px;color:#fff;font-size:14px}
+.part{max-width:1180px;margin:0 auto 6px;font-size:22px;font-weight:700}
+.part small{display:block;font-size:14px;font-weight:400;opacity:.9;margin-top:6px;line-height:1.55}
+.cap{max-width:1180px;margin:26px auto 10px;font-size:17px;font-weight:700}
+.cap small{font-size:13px;font-weight:400;opacity:.88;margin-left:8px}
+.frame{max-width:1180px;margin:0 auto;background:var(--bg);color:var(--text);border-radius:10px;padding:20px 24px;display:grid;grid-template-columns:300px 1fr;gap:16px}
+.list{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden;align-self:start}
+.li{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-top:1px solid var(--border)}
+.li:first-child{border-top:0;background:var(--accent-soft);box-shadow:inset 3px 0 0 var(--accent)}
+.li b{display:block;font-size:14px}.li small{font-size:12px;color:var(--text-dim)}
+.badge{display:inline-flex;align-items:center;gap:3px;font-size:12px;font-weight:600;border-radius:6px;padding:2px 6px;color:var(--b);background:var(--bs)}
+.det{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px 20px}
+.dh{display:flex;align-items:center;gap:10px}.dh h3{font-size:20px}
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px}
+.card{border:1px solid var(--border);border-radius:10px;overflow:hidden;height:220px;display:flex;flex-direction:column;background:var(--panel)}
+.ch{display:flex;justify-content:space-between;padding:11px 14px;font-weight:700;font-size:15px}
+.cb{flex:1;display:flex;flex-direction:column;padding:0 14px}
+.ln{flex:1;display:flex;align-items:center;gap:8px;font-size:13px}
+.ln+.ln{border-top:1px solid var(--border)}
+.ln .m{width:14px;text-align:center;font-weight:800;color:var(--text-faint)}
+.ln .n{color:var(--text-dim)}
+.ln .v{margin-left:auto;font-size:16px;font-weight:700;font-variant-numeric:tabular-nums}
+.ln.ok .m,.ln.ok .v{color:var(--c)}
+.buy{--c:var(--buy);--cs:var(--buys);--cp:var(--buyp)}.sell{--c:var(--sell);--cs:var(--sells);--cp:var(--sellp)}.wt{--c:var(--wt);--cs:var(--wts);--cp:var(--wtp)}
+/* 안마다 머리 모양 */
+.v-now .ch{background:var(--c);color:#fff}
+.v-soft .ch{background:var(--cs);color:var(--c)}
+.v-line .card{border-top:4px solid var(--c)}.v-line .ch{color:var(--c)}
+.v-pastel .ch{background:var(--cp);color:var(--text)}
+.v-bright .ch{background:var(--c);color:#fff}
+/* 색 값 */
+.frame{--buy:#18694a;--sell:#b02a2a;--wt:#0051a8;--buys:rgba(24,105,74,.09);--sells:rgba(176,42,42,.08);--wts:rgba(0,81,168,.08);--buyp:#d6ecdf;--sellp:#f6dada;--wtp:#d9e5f4}
+.v-bright{--buy:#2b7d57;--sell:#c23b3b;--wt:#2f6db5;--buys:rgba(43,125,87,.1);--sells:rgba(194,59,59,.09);--wts:rgba(47,109,181,.09)}
+.sw{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--text-dim);margin-top:12px}
+.sw i{width:18px;height:18px;border-radius:4px;background:var(--c);display:inline-block}
+</style>
+</head>
+<body>
+<div class="part">5차 목업 03 · 시그널 색<small>앱에 넣은 시그널 탭을 그대로 옮겨, 카드 머리와 배지의 색만 바꿨습니다. 가 가 지금입니다. 글자로 쓰는 색은 흰 바탕 대비 4.5를 넘어야 해서 마 는 그 안에서 가장 밝은 값입니다.</small></div>
+<div id="out"></div>
+<script>
+const card = (k, title, count, rows) => `<div class="card ${k}"><div class="ch"><span>${title}</span><span>${count}</span></div><div class="cb">${rows.map(([n, v, ok]) => `<div class="ln ${ok ? 'ok' : ''}"><span class="m">${k === 'wt' ? '' : ok ? '✓' : '·'}</span><span class="n">${n}</span><b class="v">${v}</b></div>`).join('')}</div></div>`
+const badge = (k, t) => `<span class="badge" style="--b:var(--${k});--bs:var(--${k}s)">${t}</span>`
+const ITEMS = [['SCHD', '$42.60 +0.76%', badge('buy', '▲ 매수')], ['AAPL', '$1,420.43 +1.09%', badge('sell', '▼ 매도') + ' ' + badge('wt', '◆ 비중 초과')], ['SK하이닉스', '₩82,605 +0.90%', badge('sell', '▼ 매도')], ['VOO', '$105.87 +0.04%', badge('wt', '◆ 비중 미달')]]
+const frame = (v) => `<div class="frame ${v}">
+  <div class="list">${ITEMS.map(([n, p, b]) => `<div class="li"><div><b>${n}</b><small>${p}</small></div><div>${b}</div></div>`).join('')}</div>
+  <div class="det"><div class="dh"><h3>SCHD</h3>${badge('buy', '▲ 매수')}<span style="font-size:13px;color:var(--text-faint)">11월 19일부터</span></div>
+    <div class="cards">
+      ${card('buy', '매수 조건', '4 / 4', [['하락 우세 (−DI / +DI)', '27.4 / 15.1', 1], ['이격도 (MA20)', '-4.2%', 1], ['거래량 (20일 평균 대비)', '1.30배', 1], ['ADX', '26.8', 1]])}
+      ${card('sell', '매도 조건', '1 / 3', [['MA50 대비', '-5.3%', 0], ['ADX 오름', '26.8', 0], ['5일 거래량 (20일 대비)', '1.30배', 1]])}
+      ${card('wt', '비중', '-4.6%p', [['현재', '1.4%'], ['목표', '6%'], ['목표와 차이', '-4.6%p']])}
+    </div>
+    <div class="sw"><span class="buy"><i></i></span>매수 <span class="sell"><i></i></span>매도 <span class="wt"><i></i></span>비중</div>
+  </div></div>`
+const T = [
+  ['v-now', '가 · 지금', '꽉 찬 진한 색 띠 + 흰 글자'],
+  ['v-soft', '나 · 옅은 띠 (추천)', '색 바탕을 아주 옅게, 머리 글자를 그 색으로. 배지와 같은 결이라 화면 전체가 한 톤'],
+  ['v-line', '다 · 흰 머리 + 위 색 선', '카드는 흰색, 위쪽 4px 선과 머리 글자만 색. 가장 차분'],
+  ['v-pastel', '라 · 파스텔 띠', '밝은 색 띠 + 진한 글자. 칸이 나뉜 느낌은 남기고 진하기만 뺌'],
+  ['v-bright', '마 · 색 자체를 밝게', '띠 모양은 그대로, 초록 · 빨강 · 파랑을 한 단계 밝게(배지 · 표 글자도 같이 바뀜)'],
+]
+document.getElementById('out').innerHTML = T.map(([v, t, d]) => `<div class="cap">${t}<small>${d}</small></div>${frame(v)}`).join('')
+</script>
+</body>
+</html>
