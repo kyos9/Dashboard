@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="ko" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>5차 재무</title>
+<!--
+  디자인 5차 목업 04 — 재무 화면(위 메뉴 "재무"). 지금: PER 그래프 + 지표 11칸 표 + 재무 없는 종목 목록이 위아래로 길게.
+  가 표 하나: 지표를 가치 / 수익성 / 성장 / 안정 묶음 머리로 나누고 가운데 정렬. PER 그래프는 표 칸 안 작은 막대로.
+  나 목록 + 자세히: 홈 시그널 탭처럼 왼쪽 종목, 오른쪽에 그 종목의 묶음 카드 넷 + PER 5년 막대 + 최근 분기 표(지금 팝업에 있는 것).
+  다 묶음 탭: 가치 / 수익성 / 성장 / 안정 탭. 탭마다 몇 칸만. 가치 탭에는 PER 5년 그래프.
+  PC 1400 · 라이트 · 색과 글꼴은 앱 tokens.css · 데이터는 가짜.
+-->
+<link rel="stylesheet" href="../../../../frontend/src/styles/tokens.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:#5f646b}
+body{font-family:var(--font-sans);word-break:keep-all;padding:28px 20px 40px;color:#fff;font-size:14px}
+.part{max-width:1400px;margin:0 auto 14px;font-size:22px;font-weight:700}
+.part small{display:block;font-size:14px;font-weight:400;opacity:.9;margin-top:6px;line-height:1.55}
+.cap{max-width:1400px;margin:30px auto 10px;font-size:17px;font-weight:700}
+.cap small{font-size:13px;font-weight:400;opacity:.88;margin-left:8px}
+.frame{width:1400px;margin:0 auto;background:var(--bg);color:var(--text);border-radius:10px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.num,td,.v{font-variant-numeric:tabular-nums}
+.up{color:var(--up)}.down{color:var(--down)}.faint{color:var(--text-faint)}.dim{color:var(--text-dim)}
+/* 위 메뉴 — 앱과 같게 */
+.nav{height:60px;display:flex;align-items:center;gap:6px;padding:0 32px;background:var(--panel);border-bottom:1px solid var(--border)}
+.logo{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:700;margin-right:28px}
+.logo i{width:30px;height:30px;border-radius:8px;background:var(--brand);color:var(--on-brand);display:grid;place-items:center;font-style:normal;font-size:15px;font-weight:800}
+.nav a{height:60px;display:inline-flex;align-items:center;padding:0 14px;font-size:15px;font-weight:600;color:var(--text-dim);border-bottom:3px solid transparent;margin-bottom:-1px}
+.nav a.on{color:var(--accent);border-bottom-color:var(--accent)}
+.page{padding:26px 32px 34px}
+.head{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:16px}
+.head h2{font-size:22px}
+.head p{font-size:13px;color:var(--text-faint);margin-top:4px}
+.box{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+/* 표 */
+table{width:100%;border-collapse:collapse}
+th,td{text-align:center;padding:12px 8px;font-size:14px;white-space:nowrap}
+thead th{font-size:13px;font-weight:600;color:var(--text-dim);background:var(--panel-soft);border-bottom:1px solid var(--border)}
+thead tr.grp th{font-size:13px;font-weight:700;padding:8px;border-bottom:1px solid var(--border)}
+thead tr.grp th+th,tbody td.gs,thead tr:not(.grp) th.gs{border-left:1px solid var(--border)}
+tbody tr+tr td,tbody tr+tr th{border-top:1px solid var(--border)}
+tbody th{text-align:left;font-weight:700;padding-left:18px}
+.name{color:var(--text);font-weight:700;text-decoration:underline;text-decoration-color:var(--border-strong,#c5ceda);text-underline-offset:3px}
+.g-val{color:var(--accent)}.g-pro{color:var(--signal-buy)}.g-gro{color:#7a4fa8}.g-sta{color:var(--text-dim)}
+/* 표 안 작은 PER 막대 */
+.mini{position:relative;display:inline-block;width:110px;height:10px;vertical-align:middle}
+.mini::before{content:'';position:absolute;left:0;right:0;top:4px;height:2px;border-radius:1px;background:var(--border)}
+.mini i{position:absolute;top:0;width:10px;height:10px;margin-left:-5px;border-radius:50%;background:var(--accent)}
+.mini b{position:absolute;top:-1px;width:2px;height:12px;margin-left:-1px;background:var(--text-faint)}
+.foot{display:flex;justify-content:space-between;font-size:12px;color:var(--text-faint);margin-top:10px}
+.hidden{margin-top:22px;font-size:13px;color:var(--text-dim)}
+.hidden b{color:var(--text);margin-right:4px}
+.hidden span+span::before{content:'  ';white-space:pre}
+/* 나 */
+.split{display:grid;grid-template-columns:300px 1fr;gap:16px;align-items:start}
+.li{display:flex;justify-content:space-between;align-items:center;padding:11px 16px;border-top:1px solid var(--border)}
+.li:first-child{border-top:0}
+.li.on{background:var(--accent-soft);box-shadow:inset 3px 0 0 var(--accent)}
+.li b{font-size:14px}.li small{display:block;font-size:12px;color:var(--text-faint);margin-top:2px}
+.li .r{text-align:right;font-size:14px;font-weight:700}
+.li .r small{font-weight:400}
+.li.off{color:var(--text-faint)}.li.off b{color:var(--text-faint)}
+.det{padding:20px 22px}
+.det h3{font-size:20px;display:flex;align-items:baseline;gap:10px}
+.det h3 small{font-size:13px;font-weight:400;color:var(--text-faint)}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:16px}
+.card{border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.ch{padding:9px 14px;font-size:14px;font-weight:700;background:var(--panel-soft)}
+.ln{display:flex;justify-content:space-between;align-items:center;padding:9px 14px;font-size:13px;border-top:1px solid var(--border)}
+.ln span{color:var(--text-dim)}.ln b{font-size:15px}
+.sec{margin-top:20px}
+.sec h4{font-size:15px;margin-bottom:10px}
+.range{position:relative;height:28px;margin:6px 4px 0}
+.range .t{position:absolute;left:0;right:0;top:12px;height:4px;border-radius:2px;background:var(--border)}
+.range .m{position:absolute;top:6px;width:2px;height:16px;background:var(--text-faint)}
+.range .n{position:absolute;top:7px;width:14px;height:14px;margin-left:-7px;border-radius:50%;background:var(--accent)}
+.scale{display:flex;justify-content:space-between;font-size:12px;color:var(--text-faint)}
+.qt th,.qt td{padding:9px 8px;font-size:13px}
+.qt tbody th{font-weight:600;padding-left:14px}
+.qt tbody th small{display:block;font-weight:400;font-size:12px;color:var(--text-faint)}
+/* 다 */
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:16px}
+.tabs a{padding:10px 16px;font-size:15px;font-weight:600;color:var(--text-dim);border-bottom:3px solid transparent;margin-bottom:-1px}
+.tabs a.on{color:var(--text);border-bottom-color:var(--accent)}
+.pr{display:grid;grid-template-columns:150px 1fr 160px;align-items:center;gap:14px;padding:10px 18px;border-top:1px solid var(--border)}
+.pr:first-child{border-top:0}
+.pr .plot{position:relative;height:16px}
+.pr .plot .bar{position:absolute;top:6px;height:4px;border-radius:2px;background:var(--border)}
+.pr .plot .m{position:absolute;top:1px;width:2px;height:14px;background:var(--text-faint)}
+.pr .plot .n{position:absolute;top:1px;width:14px;height:14px;margin-left:-7px;border-radius:50%;background:var(--accent)}
+.pr .val{text-align:right;font-weight:700}
+.pr .val small{font-weight:400;color:var(--text-faint);margin-left:6px}
+.two{display:grid;grid-template-columns:1.5fr 1fr;gap:16px;align-items:start}
+.note{font-size:12px;color:var(--text-faint);margin-top:10px}
+</style>
+</head>
+<body>
+<div class="part">5차 목업 04 · 재무<small>지금 재무 화면은 PER 그래프, 지표 11칸 표, 재무 없는 종목 목록이 위아래로 길게 이어집니다. 같은 숫자를 세 가지로 놓아 봤습니다. 숫자는 가짜입니다.</small></div>
+<div id="out"></div>
+<script>
+const R = [
+  // 이름, PER, 5년위치, 최저, 중앙, 최고, PBR, 배당, ROE, 영업이익률, 매출성장, 영업이익성장, EPS성장, 부채비율, FCF
+  ['AAPL', 17.5, 100, 9.2, 11.4, 17.5, 2.53, null, 14.5, 25.6, 4.4, 7.8, 7.8, 70, '$108.2B'],
+  ['MSFT', 16.8, 86, 10.1, 14.9, 19.6, 1.62, null, 9.6, 16.8, 13.8, 2.6, 2.6, 70, '$62.4B'],
+  ['NVDA', 23.4, 49, 14.0, 23.9, 38.1, 1.77, null, 7.6, 16.5, 2.2, -1.7, -1.7, 70, '$41.0B'],
+  ['GOOG', 21.3, 48, 16.5, 21.0, 41.5, 2.96, null, 13.9, 10.4, -0.4, 59.8, 59.8, 70, '$55.3B'],
+  ['TSLA', null, null, 8.0, 10.9, 49.0, 3.80, null, -11.2, -3.3, -5.8, -169.6, -169.6, 70, '-$1.2B'],
+  ['삼성전자', 23.4, 14, 19.4, 25.9, 36.0, 2.88, 2.1, 12.3, 10.5, 0.9, -41.6, -41.6, 70, '₩9.8조'],
+  ['삼성전자우', 11.0, 12, 9.0, 14.6, 20.0, 4.83, 2.6, 44.0, 27.9, 14.2, 11.3, 11.3, 70, '₩9.8조'],
+  ['SK하이닉스', 33.7, 58, 22.0, 32.2, 44.5, 4.73, 0.9, 14.0, 9.5, 16.1, -39.7, -39.7, 70, '₩4.1조'],
+  ['도요타자동차', 16.6, 98, 11.0, 14.3, 17.0, 2.02, 2.8, 12.1, 29.2, -0.1, -5.7, -5.7, 70, '¥2.1조'],
+  ['도쿄해상홀딩스', 19.5, 91, 8.4, 16.1, 20.3, 0.94, 3.4, 4.8, 20.0, -7.2, -11.5, -11.5, 70, '¥0.8조'],
+]
+const HIDDEN = [['VOO', 'ETF'], ['QQQ', 'ETF'], ['SCHD', 'ETF'], ['KODEX 200', 'ETF'], ['TIGER 미국필라델피아반도체나스닥', 'ETF']]
+const f = (v, d = 1, u = '') => v == null ? '<span class="faint">—</span>' : `${v.toFixed(d)}${u}`
+const s = (v, d = 1, u = '%') => v == null ? '<span class="faint">—</span>' : `<span class="${v > 0 ? 'up' : v < 0 ? 'down' : ''}">${v > 0 ? '+' : ''}${v.toFixed(d)}${u}</span>`
+const nav = `<div class="nav"><div class="logo"><i>₩</i>자산관리</div><a>홈</a><a class="on">재무</a><a>리밸런싱</a><a>매크로</a></div>`
+const LOG = (v) => (Math.log(v) - Math.log(7)) / (Math.log(52) - Math.log(7)) * 100
+const head = (sub) => `<div class="head"><div><h2>재무</h2><p>${sub}</p></div><div class="faint" style="font-size:13px">2026년 3분기까지 공시, 종가는 11월 19일</div></div>`
+const hidden = `<p class="hidden">재무가 없는 종목 ${HIDDEN.map(([n]) => `<span><b>${n}</b></span>`).join('')} <span class="faint">ETF와 펀드는 재무제표가 없습니다</span></p>`
+
+// ── 가 ──
+const mini = (r) => r[1] == null ? '<span class="faint">적자</span>' : `<span class="mini"><b style="left:${(r[4]-r[3])/(r[5]-r[3])*100}%"></b><i style="left:${(r[1]-r[3])/(r[5]-r[3])*100}%"></i></span>`
+const A = `${nav}<div class="page">${head('종목 이름을 누르면 분기 표가 열립니다')}
+<div class="box"><table>
+<thead><tr class="grp"><th></th><th colspan="4" class="g-val">가치</th><th colspan="2" class="g-pro">수익성</th><th colspan="3" class="g-gro">성장 (1년 전 같은 분기 대비)</th><th colspan="2" class="g-sta">안정</th></tr>
+<tr><th style="text-align:left;padding-left:18px">종목</th><th class="gs">PER</th><th>5년 중 위치</th><th>PBR</th><th>배당</th><th class="gs">ROE</th><th>영업이익률</th><th class="gs">매출</th><th>영업이익</th><th>EPS</th><th class="gs">부채비율</th><th>FCF</th></tr></thead>
+<tbody>${R.map(r => `<tr><th><span class="name">${r[0]}</span></th><td class="gs"><b>${r[1] == null ? '<span class="faint">적자</span>' : r[1].toFixed(1) + '배'}</b></td><td>${mini(r)}</td><td>${f(r[6], 2, '배')}</td><td>${f(r[7], 1, '%')}</td><td class="gs">${f(r[8], 1, '%')}</td><td>${f(r[9], 1, '%')}</td><td class="gs">${s(r[10])}</td><td>${s(r[11])}</td><td>${s(r[12])}</td><td class="gs">${f(r[13], 0, '%')}</td><td>${r[14]}</td></tr>`).join('')}</tbody>
+</table></div>
+<div class="foot"><span>5년 중 위치: 막대 왼쪽 끝이 5년 최저, 오른쪽 끝이 최고, 세로 눈금이 중앙값, 점이 지금</span><span>— 공시에 없거나 계산할 수 없는 값</span></div>
+${hidden}</div>`
+
+// ── 나 ──
+const sel = R[0]
+const card = (t, cls, lines) => `<div class="card"><div class="ch ${cls}">${t}</div>${lines.map(([k, v]) => `<div class="ln"><span>${k}</span><b>${v}</b></div>`).join('')}</div>`
+const Q = [['2026년 3분기', '10월 30일', '$94.9B', '$29.5B', '$24.8B', '$1.64'], ['2026년 2분기', '7월 31일', '$89.1B', '$27.0B', '$22.9B', '$1.51'], ['2026년 1분기', '5월 1일', '$95.4B', '$29.6B', '$24.2B', '$1.59'], ['2025년 4분기', '1월 30일', '$124.3B', '$42.8B', '$36.3B', '$2.40']]
+const B = `${nav}<div class="page">${head('왼쪽에서 종목을 고르면 오른쪽에 그 종목의 재무가 나옵니다')}
+<div class="split">
+  <div class="box">${R.map((r, i) => `<div class="li${i === 0 ? ' on' : ''}"><div><b>${r[0]}</b><small>5년 중 위치 ${r[2] == null ? '—' : r[2] + '%'}</small></div><div class="r">${r[1] == null ? '<span class="faint">적자</span>' : r[1].toFixed(1) + '배'}<small class="faint" style="display:block;font-size:12px">PER</small></div></div>`).join('')}
+    ${HIDDEN.map(([n]) => `<div class="li off"><div><b>${n}</b><small>재무 없음 (ETF)</small></div></div>`).join('')}</div>
+  <div class="box det">
+    <h3>${sel[0]}<small>2026년 3분기까지 SEC 공시</small></h3>
+    <div class="cards">
+      ${card('가치', 'g-val', [['PER', sel[1] + '배'], ['PBR', sel[6] + '배'], ['배당수익률', '—']])}
+      ${card('수익성', 'g-pro', [['ROE', sel[8] + '%'], ['영업이익률', sel[9] + '%']])}
+      ${card('성장', 'g-gro', [['매출', s(sel[10])], ['영업이익', s(sel[11])], ['EPS', s(sel[12])]])}
+      ${card('안정', 'g-sta', [['부채비율', sel[13] + '%'], ['FCF (1년)', sel[14]]])}
+    </div>
+    <div class="sec"><h4>PER 지난 5년 중 어디쯤</h4>
+      <div class="range"><div class="t"></div><div class="m" style="left:${(sel[4]-sel[3])/(sel[5]-sel[3])*100}%"></div><div class="n" style="left:${(sel[1]-sel[3])/(sel[5]-sel[3])*100}%"></div></div>
+      <div class="scale"><span>최저 ${sel[3]}</span><span>중앙값 ${sel[4]}</span><span>최고 ${sel[5]}</span></div>
+      <p class="note">지금 PER 17.5배는 지난 5년 중 가장 높습니다.</p></div>
+    <div class="sec"><h4>최근 분기</h4><div class="box"><table class="qt"><thead><tr><th style="text-align:left;padding-left:14px">분기</th><th>매출</th><th>영업이익</th><th>순이익</th><th>EPS</th></tr></thead>
+      <tbody>${Q.map(q => `<tr><th>${q[0]}<small>공시 ${q[1]}</small></th><td>${q[2]}</td><td>${q[3]}</td><td>${q[4]}</td><td>${q[5]}</td></tr>`).join('')}</tbody></table></div></div>
+  </div>
+</div></div>`
+
+// ── 다 ──
+const prow = (r) => `<div class="pr"><b>${r[0]}</b><div class="plot">${[10, 20, 30, 40].map(t => `<span style="position:absolute;left:${LOG(t)}%;top:0;bottom:0;border-left:1px dashed var(--border)"></span>`).join('')}<span class="bar" style="left:${LOG(r[3])}%;right:${100 - LOG(r[5])}%"></span><span class="m" style="left:${LOG(r[4])}%"></span>${r[1] == null ? '' : `<span class="n" style="left:${LOG(r[1])}%"></span>`}</div><div class="val">${r[1] == null ? '<span class="faint">적자</span>' : r[1].toFixed(1) + '배'}<small>${r[2] == null ? '' : '위치 ' + r[2] + '%'}</small></div></div>`
+const C = `${nav}<div class="page">${head('묶음을 고르면 그 지표만 봅니다')}
+<div class="tabs"><a class="on">가치</a><a>수익성</a><a>성장</a><a>안정</a></div>
+<div class="two">
+  <div class="box"><div style="padding:12px 18px;font-weight:700;border-bottom:1px solid var(--border)">PER 지난 5년 범위와 지금</div>${R.map(prow).join('')}
+    <div class="pr" style="padding-top:4px"><span></span><div class="scale">${['7배', '10배', '20배', '30배', '40배'].map(t => `<span>${t}</span>`).join('')}</div><span></span></div></div>
+  <div class="box"><table><thead><tr><th style="text-align:left;padding-left:18px">종목</th><th>PER</th><th>PBR</th><th>배당</th></tr></thead>
+    <tbody>${R.map(r => `<tr><th><span class="name">${r[0]}</span></th><td><b>${r[1] == null ? '<span class="faint">적자</span>' : r[1].toFixed(1) + '배'}</b></td><td>${f(r[6], 2, '배')}</td><td>${f(r[7], 1, '%')}</td></tr>`).join('')}</tbody></table></div>
+</div>
+${hidden}</div>`
+
+const T = [
+  ['가 · 표 하나, 묶음 머리', '지표를 가치 / 수익성 / 성장 / 안정으로 묶어 머리를 두 줄로. 가운데 정렬. 위 PER 그래프는 없애고 표 칸 안 작은 막대로. 분기 날짜는 오른쪽 위에 한 번만', A],
+  ['나 · 왼쪽 목록 + 오른쪽 자세히', '홈 시그널 탭과 같은 모양. 지금 팝업에 있는 묶음 숫자, PER 5년 막대, 최근 분기 표를 화면에 바로. 팝업 없음. 여러 종목을 한눈에 비교하기는 어려움', B],
+  ['다 · 묶음 탭', '가치 / 수익성 / 성장 / 안정 탭. 탭마다 칸이 몇 개뿐이라 넓고 시원함. 가치 탭에는 지금의 PER 그래프를 왼쪽에. 이름을 누르면 팝업', C],
+]
+document.getElementById('out').innerHTML = T.map(([t, d, h]) => `<div class="cap">${t}<small>${d}</small></div><div class="frame">${h}</div>`).join('')
+</script>
+</body>
+</html>
