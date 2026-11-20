@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="ko" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>5차 홈 고른 것</title>
+<!--
+  디자인 5차 목업 01b — 01 에서 주인이 고른 것: 메뉴 다(위 한 줄 + 홈 안 보기 탭) · 총액 A · 종목 이름 칸 왼쪽.
+  더 받은 답: 1 현재가 아래에 평단가, 전일 대비는 뺌 → 이름 아래는 수량만 · 2 현재 비중과 목표 비중을 한 칸에.
+  PC 1400 · 라이트 · 색과 글꼴은 앱 tokens.css · 데이터는 가짜.
+-->
+<link rel="stylesheet" href="../../../../frontend/src/styles/tokens.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:#5f646b}
+body{font-family:var(--font-sans);word-break:keep-all;padding:28px 20px 40px;color:#fff;font-size:14px}
+.part{max-width:1400px;margin:0 auto 14px;font-size:22px;font-weight:700}
+.part small{display:block;font-size:14px;font-weight:400;opacity:.9;margin-top:6px;line-height:1.55}
+.cap{max-width:1400px;margin:30px auto 10px;font-size:17px;font-weight:700}
+.cap small{font-size:13px;font-weight:400;opacity:.88;margin-left:8px}
+.num{font-variant-numeric:tabular-nums}
+.frame{width:1400px;margin:0 auto;background:var(--bg);color:var(--text);border-radius:10px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.frame.short{padding-bottom:4px}
+svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.shape{display:inline-block;width:.68em;height:.68em;margin-right:3px;background:currentColor}
+.tri-up{clip-path:polygon(50% 0,100% 100%,0 100%)}.tri-dn{clip-path:polygon(0 0,100% 0,50% 100%)}.dia{clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)}
+.badge{display:inline-flex;align-items:center;font-size:12px;font-weight:600;white-space:nowrap;border-radius:6px;padding:2px 6px}
+.b-buy{color:var(--signal-buy);background:var(--signal-buy-soft)}
+.b-sell{color:var(--signal-sell);background:var(--signal-sell-soft)}
+.b-wt{color:var(--signal-weight);background:var(--signal-weight-soft)}
+.up{color:var(--up)}.down{color:var(--down)}.faint{color:var(--text-faint)}.dim{color:var(--text-dim)}
+.cnt{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 6px;border-radius:10px;font-size:12px;font-weight:700;background:var(--panel-soft);color:var(--text-dim);margin-left:6px}
+
+/* ── 메뉴 가: 위 한 줄 ── */
+.nav1{height:60px;display:flex;align-items:center;gap:6px;padding:0 32px;background:var(--panel);border-bottom:1px solid var(--border)}
+.logo{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:700;margin-right:28px}
+.logo i{width:30px;height:30px;border-radius:8px;background:var(--brand);color:var(--on-brand);display:grid;place-items:center;font-style:normal;font-size:15px;font-weight:800}
+.nav1 a{height:60px;display:inline-flex;align-items:center;padding:0 14px;font-size:15px;font-weight:600;color:var(--text-dim);border-bottom:3px solid transparent;margin-bottom:-1px}
+.nav1 a.on{color:var(--accent);border-bottom-color:var(--accent)}
+.nav1 a .cnt.sig{background:var(--signal-sell-soft);color:var(--signal-sell)}
+.right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.fresh{font-size:12px;color:var(--text-faint);display:inline-flex;align-items:center;gap:6px;margin-right:6px}
+.fresh::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--green)}
+.icb{width:38px;height:38px;border-radius:8px;display:grid;place-items:center;color:var(--text-dim);border:1px solid var(--border)}
+.who{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;margin-left:6px}
+.who i{width:32px;height:32px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-style:normal;font-weight:700}
+
+/* ── 메뉴 나: 위 두 줄 ── */
+.bar2{height:56px;display:flex;align-items:center;padding:0 32px;background:var(--brand);color:var(--on-brand)}
+.bar2 .logo i{background:var(--on-brand);color:var(--brand)}
+.bar2 .fresh{color:var(--on-brand-dim)}
+.bar2 .icb{color:var(--on-brand);border-color:var(--on-brand-line)}
+.bar2 .who i{background:var(--on-brand-soft);color:var(--on-brand)}
+.tabs2{height:50px;display:flex;align-items:flex-end;gap:4px;padding:0 32px;background:var(--panel);border-bottom:1px solid var(--border)}
+.tabs2 a{height:50px;display:inline-flex;align-items:center;padding:0 16px;font-size:15px;font-weight:600;color:var(--text-dim);border-bottom:3px solid transparent;margin-bottom:-1px}
+.tabs2 a.on{color:var(--text);border-bottom-color:var(--brand)}
+.tabs2 a .cnt.sig{background:var(--signal-sell-soft);color:var(--signal-sell)}
+
+/* ── 본문 ── */
+.main{max-width:1240px;margin:0 auto;padding:28px 32px 36px}
+
+/* 총액 A — 증권식 한 줄 */
+.sumA{display:flex;align-items:flex-end;gap:40px;padding:26px 30px;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius)}
+.sumA .lab{font-size:13px;font-weight:600;color:var(--text-faint);display:flex;gap:12px;align-items:center}
+.sumA .lab a{color:var(--accent);font-weight:500;text-decoration:underline;text-underline-offset:2px}
+.sumA .big{font-family:var(--font-summary-num);font-size:38px;font-weight:700;letter-spacing:-.02em;margin-top:6px;line-height:1.1}
+.sumA .pl{font-family:var(--font-summary-num);font-size:18px;font-weight:700;margin-top:8px}
+.sumA .pl small{font-size:13px;font-weight:500;color:var(--text-faint);margin-left:8px;font-family:var(--font-sans)}
+.sumA .side{margin-left:auto;display:flex;gap:36px;padding-bottom:4px}
+.sumA .side span{display:block;font-size:12px;color:var(--text-faint);margin-bottom:4px}
+.sumA .side b{font-family:var(--font-summary-num);font-size:16px;font-weight:700}
+.sumA .side a{font-size:12px;color:var(--accent);text-decoration:underline;margin-left:6px;font-weight:500}
+
+/* 총액 B — 큰 총액 + 칸 없는 숫자 (바탕 위에 바로) */
+.sumB{padding:6px 2px 22px;border-bottom:1px solid var(--border)}
+.sumB .lab{font-size:14px;font-weight:600;color:var(--text-dim);display:flex;gap:12px;align-items:center}
+.sumB .lab a{color:var(--accent);font-weight:500;font-size:13px;text-decoration:underline;text-underline-offset:2px}
+.sumB .big{font-family:var(--font-summary-num);font-size:44px;font-weight:700;letter-spacing:-.02em;margin:6px 0 14px;line-height:1.1}
+.sumB .row{display:flex;gap:0}
+.sumB .row div{padding-right:28px;margin-right:28px;border-right:1px solid var(--border)}
+.sumB .row div:last-child{border-right:0}
+.sumB .row span{font-size:12px;color:var(--text-faint);margin-right:8px}
+.sumB .row b{font-family:var(--font-summary-num);font-size:17px;font-weight:700}
+
+/* 총액 C — 카드 셋 */
+.sumC{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:14px}
+.sumC > div{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:20px 22px}
+.sumC .lab{font-size:13px;font-weight:600;color:var(--text-faint);display:flex;justify-content:space-between}
+.sumC .lab a{color:var(--accent);font-weight:500;text-decoration:underline}
+.sumC .big{font-family:var(--font-summary-num);font-size:34px;font-weight:700;letter-spacing:-.02em;margin-top:8px}
+.sumC .mid{font-family:var(--font-summary-num);font-size:24px;font-weight:700;margin-top:8px}
+.sumC small{display:block;font-size:13px;color:var(--text-faint);margin-top:6px}
+.sumC small b{font-family:var(--font-summary-num);font-weight:700}
+
+/* 보유 표 */
+.sech{display:flex;align-items:center;gap:8px;margin:30px 0 12px}
+.sech h2{font-size:18px;font-weight:700}
+.sech h2 small{font-size:14px;color:var(--text-faint);font-weight:600;margin-left:4px}
+.sech .tools{margin-left:auto;display:flex;gap:8px;align-items:center}
+.sel{height:38px;padding:0 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);background:var(--panel);display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600}
+.sel em{font-style:normal;color:var(--text-faint);font-weight:500}
+.sqb{height:38px;padding:0 14px;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);background:var(--panel);font-size:13px;font-weight:600}
+.sqb.ai{border-color:var(--accent-line);color:var(--accent);background:var(--accent-soft)}
+.vtabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin:28px 0 0}
+.vtabs a{padding:12px 18px;font-size:15px;font-weight:600;color:var(--text-dim);border-bottom:3px solid transparent;margin-bottom:-1px}
+.vtabs a.on{color:var(--accent);border-bottom-color:var(--accent)}
+.vtabs a .cnt.sig{background:var(--signal-sell-soft);color:var(--signal-sell)}
+.vtabs + .sech{margin-top:16px}
+table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;font-size:14px}
+th{font-size:12px;font-weight:600;color:var(--text-faint);background:var(--panel-soft);padding:11px 12px;border-bottom:1px solid var(--border);text-align:center;line-height:1.4}
+td{padding:13px 12px;border-bottom:1px solid var(--border);text-align:center;vertical-align:middle}
+tr:last-child td{border-bottom:0}
+th:first-child,td:first-child{text-align:left;padding-left:20px}
+td b{font-weight:700}
+td .nm{font-weight:700;text-decoration:underline;text-decoration-color:var(--border-strong);text-underline-offset:3px}
+td small{display:block;font-size:12px;color:var(--text-faint);margin-top:2px}
+td .chg{display:block;font-size:12px;margin-top:2px}
+td.w b{font-weight:700}
+td.t{color:var(--text-dim)}
+td .badge + .badge{margin-left:4px}
+.legend{display:flex;gap:18px;margin-top:12px;font-size:12px;color:var(--text-faint)}
+.legend .buy{color:var(--signal-buy)}.legend .sell{color:var(--signal-sell)}.legend .wt{color:var(--signal-weight)}
+.mark{outline:2px dashed var(--amber);outline-offset:3px;border-radius:6px}
+</style>
+</head>
+<body>
+<div class="part">5차 목업 01b · PC 홈 고른 것<small>01 에서 고른 메뉴 다 · 총액 A · 이름 왼쪽에, 표 두 가지를 더 바꿨습니다. <span style="display:none">짚어 주신 일곱 가지 중 <b>1 메뉴 자리 · 2 총액 모양 · 3·7 시그널과 관심 종목 자리</b>는 안을 나눠 그렸고, <b>4 가운데 정렬 · 5 비중 숫자 두 칸 · 6 AI 점검 단추</b>는 모든 안에 넣었습니다(점선이 바뀐 자리). 메뉴 안 가 · 나 · 다 에는 총액 A 를 같이 그렸고, 총액 셋은 맨 아래에 따로 있습니다. </span>PC 1400 · 가짜 데이터.</small></div>
+<div id="out"></div>
+<script>
+const q = new URLSearchParams(location.search)
+const SUM = q.get('sum') || 'A'
+const ic = {
+  refresh: '<svg class="i" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4"/></svg>',
+  gear: '<svg class="i" viewBox="0 0 24 24"><path d="M18.66 9.84L20.55 10.37Q21.60 12.00 20.55 13.63L18.66 14.16L17.20 16.68L17.68 18.59Q16.800 20.31 14.86 20.22L13.46 18.85L10.54 18.85L9.14 20.22Q7.20 20.31 6.32 18.59L6.80 16.68L5.34 14.16L3.45 13.63Q2.40 12.00 3.45 10.37L5.34 9.84L6.80 7.32L6.32 5.41Q7.20 3.69 9.14 3.78L10.54 5.15L13.46 5.15L14.86 3.78Q16.80 3.69 17.68 5.41L17.20 7.32Z"/><path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/></svg>',
+  spark: '<svg class="i" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M4 19l5-6 4 3 7-9"/><path d="M15 7h5v5"/></svg>',
+  edit: '<svg class="i" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>',
+}
+const B = {
+  buy: '<span class="badge b-buy"><i class="shape tri-up"></i>매수</span>',
+  sell: '<span class="badge b-sell"><i class="shape tri-dn"></i>매도</span>',
+  over: '<span class="badge b-wt"><i class="shape dia"></i>비중 초과</span>',
+  under: '<span class="badge b-wt"><i class="shape dia"></i>비중 미달</span>',
+}
+const ROWS = [
+  ['TIGER 미국필라델피아반도체나스닥', '2,000주 · 평단 ₩77,770', '₩88,375', '+1.01%', '₩176,750,000', '34.1%', '6%', '+13.6%', '+₩21,210,000', B.over],
+  ['삼성전자', '1,500주 · 평단 ₩49,104', '₩45,467', '−0.75%', '₩68,200,500', '13.2%', '10%', '−7.4%', '−₩5,456,040', B.buy],
+  ['삼성전자우', '600주 · 평단 ₩98,399', '₩109,332', '−0.12%', '₩65,599,200', '12.7%', '4%', '+11.1%', '+₩6,559,920', B.over],
+  ['AAPL', '30주 · 평단 $1,207.37', '$1,420.43', '+1.09%', '₩59,027,389', '11.4%', '5%', '+17.6%', '+$6,391.80', B.sell + B.over],
+  ['NVDA', '45주 · 평단 $409.54', '$682.56', '−1.91%', '₩42,546,695', '8.2%', '6%', '+66.7%', '+$12,285.90', B.buy],
+  ['QQQ', '25주 · 평단 $589.64', '$755.95', '−1.21%', '₩26,178,549', '5.1%', '10%', '+28.2%', '+$4,157.75', ''],
+  ['KODEX 200', '900주 · 평단 ₩25,446', '₩27,659', '+0.10%', '₩24,893,100', '4.8%', '6%', '+8.7%', '+₩1,991,448', ''],
+  ['SK하이닉스', '150주 · 평단 ₩57,824', '₩82,605', '+0.90%', '₩12,390,750', '2.4%', '4%', '+42.9%', '+₩3,717,225', B.sell],
+]
+const cls = s => s.startsWith('−') ? 'down' : 'up'
+
+const sums = {
+  A: () => `<div class="sumA">
+    <div><div class="lab">총 평가금액 <a>금액 가리기</a></div>
+      <div class="big num">₩517,690,260</div>
+      <div class="pl num up">+₩56,816,577 <span>(+12.3%)</span><small>평가손익 · 현금 ₩0 포함</small></div></div>
+    <div class="side">
+      <div><span>최근 거래일 대비</span><b class="num up">+₩727,537 (+0.14%)</b></div>
+      <div><span>다음 리뷰 (분기마다)</span><b class="num">D-40 · 12월 30일</b><a>리밸런싱</a></div>
+    </div></div>`,
+  B: () => `<div class="sumB">
+    <div class="lab">총 평가금액 <a>금액 가리기</a></div>
+    <div class="big num">₩517,690,260</div>
+    <div class="row">
+      <div><span>평가손익</span><b class="num up">+₩56,816,577</b></div>
+      <div><span>수익률</span><b class="num up">+12.3%</b></div>
+      <div><span>최근 거래일 대비</span><b class="num up">+₩727,537 (+0.14%)</b></div>
+      <div><span>다음 리뷰</span><b class="num">D-40</b> <span style="margin-left:6px">12월 30일</span></div>
+    </div></div>`,
+  C: () => `<div class="sumC">
+    <div><div class="lab">총 평가금액 <a>금액 가리기</a></div><div class="big num">₩517,690,260</div><small>현금 ₩0 포함 · 원 기준</small></div>
+    <div><div class="lab">평가손익</div><div class="mid num up">+₩56,816,577</div><small>수익률 <b class="up">+12.3%</b> · 최근 거래일 <b class="up">+0.14%</b></small></div>
+    <div><div class="lab">다음 리뷰 <a>리밸런싱</a></div><div class="mid num">D-40</div><small>2026년 12월 30일 · 분기마다</small></div>
+  </div>`,
+}
+
+const table = (aiMark = true) => `
+  <table>
+    <thead><tr>
+      <th style="width:25%">종목<br>수량</th>
+      <th class="mark">현재가<br>평단가</th>
+      <th>평가금액<br>(₩ 기준)</th>
+      <th class="mark">비중<br>현재 · 목표</th>
+      <th>수익률</th>
+      <th>평가손익<br>(종목 통화)</th>
+      <th>신호</th>
+    </tr></thead>
+    <tbody>${ROWS.map(([n, s, p, c, v, w, t, r, pl, b]) => `<tr>
+      <td><span class="nm">${n}</span><small class="num">${s.split(' · ')[0]}</small></td>
+      <td class="num"><b>${p}</b><small>${s.split('평단 ')[1]}</small></td>
+      <td class="num"><b>${v}</b></td>
+      <td class="num w"><b>${w}</b><small>목표 ${t}</small></td>
+      <td class="num ${cls(r)}">${r}</td>
+      <td class="num ${cls(pl)}">${pl}</td>
+      <td>${b || '<span class="faint">—</span>'}</td>
+    </tr>`).join('')}</tbody>
+  </table>
+  <div class="legend"><span class="buy">▲ 매수 시그널</span><span class="sell">▼ 매도 시그널</span><span class="wt">◆ 비중조절(비중 초과 · 미달)</span><span>종목 이름을 누르면 차트</span></div>`
+
+const tools = `<div class="tools">
+  <span class="sel">정렬 <em>평가금액 ▾</em></span>
+  <span class="sel">손익 통화 <em>종목별 ▾</em></span>
+  <span class="sqb">${ic.edit}수정</span>
+  <span class="sqb ai mark">${ic.spark}AI 포트폴리오 점검</span>
+</div>`
+
+const right = `<div class="right"><span class="fresh">방금 받음</span><span class="icb">${ic.refresh}</span><span class="icb">${ic.gear}</span><span class="who"><i>o</i>owner</span></div>`
+
+const MENU = [['홈', 1], ['시그널', 0, '9'], ['관심 종목', 0, '3'], ['종목'], ['리밸런싱'], ['매크로']]
+const menuItems = (items) => items.map(([n, on, c]) => `<a class="${on ? 'on' : ''}">${n}${c ? `<span class="cnt ${n === '시그널' ? 'sig' : ''}">${c}</span>` : ''}</a>`).join('')
+
+const navA = `<div class="nav1"><span class="logo"><i>₩</i>자산관리</span>${menuItems(MENU)}${right}</div>`
+const navB = `<div class="bar2"><span class="logo"><i>₩</i>자산관리</span>${right}</div><div class="tabs2">${menuItems(MENU)}</div>`
+const navC = `<div class="nav1"><span class="logo"><i>₩</i>자산관리</span>${menuItems([['홈', 1], ['종목'], ['리밸런싱'], ['매크로']])}${right}</div>`
+
+const home = (inner) => `<div class="main">${sums[SUM]()}${inner}</div>`
+const plain = home(`<div class="sech"><h2>보유 종목<small>15</small></h2>${tools}</div>${table()}`)
+const tabbed = home(`<div class="vtabs mark"><a class="on">보유 종목<span class="cnt">15</span></a><a>시그널<span class="cnt sig">9</span></a><a>관심 종목<span class="cnt">3</span></a></div>
+  <div class="sech"><h2 style="font-size:15px;color:var(--text-dim)">원 기준 평가금액순</h2>${tools}</div>${table()}`)
+
+const out = []
+out.push(`<div class="cap">고른 것 · 메뉴 다 + 총액 A<small>점선: 현재가 아래 평단가(전일 대비 뺌 · 이름 아래는 수량만) · 비중 한 칸(현재 위, 목표 아래)</small></div><div class="frame">${navC}${tabbed}</div>`)
+document.getElementById('out').innerHTML = out.join('')
+</script>
+</body>
+</html>
