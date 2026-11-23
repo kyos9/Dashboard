@@ -59,14 +59,6 @@ function useResults(row: FundamentalsResponse): Results | null {
 
 type Mode = 'quarter' | 'year'
 
-/** 그 분기에서 끝나는 1년 — "2026-06-30" → "25년 3분기 ~ 26년 2분기" */
-function trailingName(periodEnd: string): string {
-  const [y, m] = periodEnd.split('-').map(Number)
-  const q = Math.ceil(m / 3)
-  const startQ = (q % 4) + 1
-  const startY = q === 4 ? y : y - 1
-  return `${String(startY).slice(2)}년 ${startQ}분기 ~ ${String(y).slice(2)}년 ${q}분기`
-}
 
 function ResultsTable({ row, results, mode }: { row: FundamentalsResponse; results: Results; mode: Mode }) {
   const all = mode === 'quarter' ? results.quarters : results.years
@@ -79,7 +71,7 @@ function ResultsTable({ row, results, mode }: { row: FundamentalsResponse; resul
       <table className="fd-quarters">
         <thead>
           <tr>
-            <th>{mode === 'quarter' ? '분기' : '연도'}</th>
+            <th>분기</th>
             {QUARTER_COLUMNS.map((c) => (
               <th key={c.key}>{c.label}</th>
             ))}
@@ -87,12 +79,12 @@ function ResultsTable({ row, results, mode }: { row: FundamentalsResponse; resul
         </thead>
         <tbody>
           {shown.map((q, i) => {
-            // 분기는 전분기비만, 연은 1년 전 같은 분기까지의 1년과 비교 (주인 요청)
+            // 분기는 전분기비만, 연은 최신 분기와 같은 분기를 해마다 — 바로 아랫줄이 1년 전 (주인 요청)
             const prev = all[i + 1]
             return (
               <tr key={q.period_end}>
                 <th scope="row">
-                  {mode === 'quarter' ? quarterName(q.period_end) : trailingName(q.period_end)}
+                  {quarterName(q.period_end)}
                   <small>
                     공시 {dayLabel(q.filed_at)}
                     {q.estimated ? ' (추정)' : ''}
@@ -190,6 +182,11 @@ function Detail({ row }: { row: FundamentalsResponse }) {
         ))}
       </div>
 
+      <div className="fd-line" aria-label="회사 가이던스">
+        <h4>회사 가이던스</h4>
+        <span>아직 모으지 않습니다</span>
+      </div>
+
       <section className="fd-sec" aria-label="실적">
         <div className="fd-sec-head">
           <h4>실적</h4>
@@ -202,13 +199,7 @@ function Detail({ row }: { row: FundamentalsResponse }) {
           </div>
         </div>
         {results === null ? <p className="hint">실적을 받는 중입니다.</p> : <ResultsTable row={row} results={results} mode={mode} />}
-        {/* 회사 가이던스는 분기마다 나오므로 분기 실적에만 (주인 요청) */}
-        {mode === 'quarter' && (
-          <div className="fd-line" aria-label="회사 가이던스">
-            <h4>회사 가이던스</h4>
-            <span>아직 모으지 않습니다</span>
-          </div>
-        )}
+
       </section>
     </article>
   )
@@ -216,7 +207,7 @@ function Detail({ row }: { row: FundamentalsResponse }) {
 
 /**
  * PC 재무 화면 (디자인 5차 목업 04 나 · 04c · 04d 가) — 왼쪽 종목명 목록, 오른쪽에 고른 종목의 카드 다섯
- * (PER, 가치, 수익성, 성장, 안정), 실적(분기는 전분기비와 회사 가이던스, 연은 최신 분기까지 1년과 전년비).
+ * (PER, 가치, 수익성, 성장, 안정), 회사 가이던스 한 줄, 실적(분기는 전분기비, 연은 최신 분기와 같은 분기를 해마다, 전년비).
  */
 export function DesktopFundamentals({
   rows,

@@ -470,60 +470,29 @@ def per_history(facts: list[Fact], prices: list[tuple[dt.date, float]], current:
 TABLE_METRICS = ("revenue", "operating_income", "net_income", "eps_diluted", "operating_cf", "capex")
 
 
-def _trailing(qs: dict[dt.date, Period], years: dict[dt.date, Period], end: dt.date) -> Period | None:
-    """`end` 분기에서 끝나는 1년 합 — 네 분기가 이어져 있으면 그 합, 아니면 그날 끝나는 연간 값."""
-    if end in qs:
-        chain = [qs[end]]
-        for k in (1, 2, 3):
-            found = _near(end - dt.timedelta(days=91 * k), qs.keys())
-            if found is None or qs[found] in chain:
-                break
-            chain.append(qs[found])
-        if len(chain) == 4:
-            return Period(
-                value=sum(p.value for p in chain),
-                end=end,
-                start=chain[-1].start,
-                filed=max(p.filed for p in chain),
-                estimated=any(p.estimated for p in chain),
-                revised=any(p.revised for p in chain),
-            )
-    found = _near(end, years.keys())
-    return years[found] if found is not None else None
-
-
 def annual_table(facts: list[Fact], limit: int = 5) -> list[dict]:
-    """최신 분기를 끝으로 한 1년 실적 표 (재무 화면의 "연 실적", 디자인 5차 — 주인 요청).
+    """최신 분기와 같은 분기를 해마다 (재무 화면의 "연 실적", 디자인 5차 — 주인 요청).
 
-    맨 윗줄은 최근 네 분기 합, 그 아래는 1년씩 앞으로 같은 분기에서 끝나는 네 분기 합이라
-    줄끼리 바로 전년비가 된다. 네 분기가 다 없으면 그날 끝나는 연간 보고서 값을 쓴다.
-    행 모양은 분기 표와 같다 — 화면이 같은 표로 그린다.
+    최신 실적이 26년 3분기면 26년 3분기, 25년 3분기, 24년 3분기 … 라 줄끼리 바로 전년비가 된다.
+    값은 그 분기(3개월) 값. 행 모양은 분기 표와 같다 — 화면이 같은 표로 그린다.
     """
     v = view(facts)
-    qs = {metric: quarters(v, metric) for metric in TABLE_METRICS}
-    years = {
-        metric: {f.end: _period(v, [f], f.value, f.start, f.end)
-                 for f in v.of(metric) if f.is_duration and _is_year(f.start, f.end)}
-        for metric in TABLE_METRICS
-    }
-    ends = set(qs["revenue"]) | set(qs["net_income"]) | set(qs["eps_diluted"])
-    if not ends:
-        ends = set(years["revenue"]) | set(years["net_income"]) | set(years["eps_diluted"])
+    series = {metric: quarters(v, metric) for metric in TABLE_METRICS}
+    ends = set(series["revenue"]) | set(series["net_income"]) | set(series["eps_diluted"])
     if not ends:
         return []
     anchor = max(ends)
     rows = []
     for k in range(limit):
-        target = anchor - dt.timedelta(days=round(365.25 * k))
-        end = _near(target, ends | set(years["revenue"]) | set(years["net_income"])) or target
-        cells = {metric: _trailing(qs[metric], years[metric], end) for metric in TABLE_METRICS}
-        present = [p for p in cells.values() if p is not None]
-        if not present:
+        end = _near(anchor - dt.timedelta(days=round(365.25 * k)), ends)
+        if end is None:
             break
+        cells = {metric: series[metric].get(end) for metric in TABLE_METRICS}
+        present = [p for p in cells.values() if p is not None]
         ocf, capex = cells["operating_cf"], cells["capex"]
         rows.append({
             "period_end": end,
-            "filed_at": max(p.filed for p in present),
+            "filed_at": min(p.filed for p in present),
             "estimated": any(p.estimated for p in present),
             "revised": any(p.revised for p in present),
             **{metric: (p.value if p else None) for metric, p in cells.items()},

@@ -55,7 +55,7 @@ describe('PC 재무 화면 (디자인 5차)', () => {
     expect(within(detail).getByRole('region', { name: '가치' })).not.toHaveTextContent('PER')
   })
 
-  it('실적: 분기는 전분기비만, 회사 가이던스는 분기에만', async () => {
+  it('실적: 분기는 전분기비만, 회사 가이던스 한 줄', async () => {
     render(<Harness rows={[GOOG, ETF]} />)
     const table = within(screen.getByRole('region', { name: '실적' })).getByRole('table')
     const first = within(table).getAllByRole('row')[1]
@@ -63,13 +63,12 @@ describe('PC 재무 화면 (디자인 5차)', () => {
     const revenue = within(first).getAllByRole('cell')[0]
     expect(revenue).toHaveTextContent('전분기 +9.0%') // 119.8B ÷ 109.9B
     expect(revenue).not.toHaveTextContent('전년')
-    const results = screen.getByRole('region', { name: '실적' })
-    expect(within(results).getByLabelText('회사 가이던스')).toHaveTextContent('아직 모으지 않습니다')
+    expect(screen.getByLabelText('회사 가이던스')).toHaveTextContent('아직 모으지 않습니다')
     await userEvent.click(screen.getByRole('button', { name: '연' }))
-    expect(within(results).queryByLabelText('회사 가이던스')).toBeNull()
+    expect(screen.getByLabelText('회사 가이던스')).toBeInTheDocument()
   })
 
-  it('실적: 연으로 바꾸면 최신 분기까지 1년씩, 전년비만', async () => {
+  it('실적: 연으로 바꾸면 최신 분기와 같은 분기를 해마다, 전년비만', async () => {
     const year = (end: string, revenue: number) => ({ ...FUNDAMENTALS.quarters[0], period_end: end, filed_at: '2026-07-30', revenue })
     const withYears = { ...GOOG, years: [year('2026-06-30', 120), year('2025-06-30', 100)] }
     render(<Harness rows={[withYears]} />)
@@ -77,10 +76,11 @@ describe('PC 재무 화면 (디자인 5차)', () => {
     expect(screen.getByRole('button', { name: '연' })).toHaveAttribute('aria-pressed', 'true')
     const table = within(screen.getByRole('region', { name: '실적' })).getByRole('table')
     const first = within(table).getAllByRole('row')[1]
-    expect(within(first).getByRole('rowheader')).toHaveTextContent('25년 3분기 ~ 26년 2분기공시 7월 30일')
+    expect(within(first).getByRole('rowheader')).toHaveTextContent('2026년 2분기공시 7월 30일')
     const revenue = within(first).getAllByRole('cell')[0]
     expect(revenue).toHaveTextContent('전년 +20.0%')
     expect(revenue).not.toHaveTextContent('전분기')
+    expect(within(table).getAllByRole('row')[2]).toHaveTextContent('2025년 2분기')
   })
 
   it('목록 응답에 분기가 없으면 그 종목만 따로 받는다', async () => {
