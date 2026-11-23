@@ -370,7 +370,7 @@ button.rb-strip-cell:hover {
 .rb-sell-mark {
   font-size: var(--fs-caption);
   font-weight: 600;
-  color: var(--signal-sell);
+  color: var(--text);
   white-space: nowrap;
 }
 .order-table .rb-sig-cell .hint {

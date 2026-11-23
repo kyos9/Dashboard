@@ -57,29 +57,29 @@ export function TargetSheet({
   }, [note, noteSeq])
   return (
     <Sheet
-      title="목표 비중 · 밴드"
-      label="목표 비중 · 밴드 고치기"
-      closeLabel="목표 · 밴드 닫기"
+      title="목표 수정"
+      label="목표 수정"
+      closeLabel="목표 수정 닫기"
       className="target-sheet"
       onClose={onClose}
       initialFocus={() => document.querySelector<HTMLInputElement>('.target-sheet input')}
       sub={
         <>
-          합계 <b className={sumOk ? 'tone-good' : 'tone-warn'}>{sum}</b> · {cashNote}
-          {sumOk ? ' — 100%로 맞습니다' : ' — 100%가 되게 맞추면 주문 계산이 맞습니다'}
+          합계 <b className={sumOk ? 'tone-good' : 'tone-warn'}>{sum}</b>, {cashNote}.
+          {sumOk ? '' : ' 100%가 되게 맞추세요.'}
         </>
       }
     >
       {/* 저장한 뒤 한 줄은 맨 위에 — 긴 목록 맨 아래에 있어 보이지 않았다(묶음 4 사용자 확인 2) */}
       {note && (
         <p ref={noteRef} className="hint saved-note" role="status">
-          ✓ {note}
+          {note}
         </p>
       )}
       <div className="target-head" aria-hidden="true">
         <span>종목</span>
         <span>목표</span>
-        <span>밴드</span>
+        <span>밴드 (기본 {defaultBand}%p)</span>
       </div>
       <ul className="target-list">
         {lines.map((l) => (
@@ -102,7 +102,7 @@ export function TargetSheet({
             <span className="input-with-button tight">
               <NumberInput
                 value={l.band}
-                placeholder="기본"
+                placeholder={`기본 ${defaultBand}`}
                 onChange={(v) => onChange(l.ticker, { band: v })}
                 aria-label={`${l.label} 밴드 임계값`}
               />
@@ -112,15 +112,14 @@ export function TargetSheet({
         ))}
       </ul>
       <p className="hint">
-        밴드를 비워 두면 설정의 기본 밴드({defaultBand}%p)를 씁니다. 수량 · 평단가 · 산 환율은 종목 탭의 ⋯ &ldquo;한 번에 수정&rdquo;이나 종목 화면의
-        &ldquo;보유&rdquo; 탭에서 고칩니다.
+        밴드를 비워 두면 기본 밴드 {defaultBand}%p를 씁니다(설정에서 바꿉니다). 수량, 평단가, 산 환율은 종목 수정에서 고칩니다.
       </p>
       <div className="target-actions">
         <button type="button" onClick={onReset} disabled={saving || dirtyCount === 0}>
           되돌리기
         </button>
         <button type="button" className="primary" onClick={onSave} disabled={saving || dirtyCount === 0}>
-          {saving ? '저장 중…' : dirtyCount > 0 ? `바뀐 ${dirtyCount}줄 저장` : '바뀐 것 없음'}
+          {saving ? '저장 중…' : dirtyCount > 0 ? `바뀐 ${dirtyCount}줄 저장` : '저장'}
         </button>
       </div>
     </Sheet>

@@ -136,6 +136,9 @@ async function saveRow(row: Row, draft: HoldingDraft) {
   }
 }
 
+/** 매도 시그널 칸 머리 — 리뷰 주기의 지금 기간 (서버 _shoulder_flags 와 같은 구간) */
+const PERIOD_NOW: Record<ReviewPeriod, string> = { quarterly: '이번 분기', semiannual: '이번 반기', annual: '올해' }
+
 /* ---------- 거래 입력 ---------- */
 
 function TradeForm({
@@ -310,7 +313,7 @@ function CashCard({
       <div className="kpi-head">
         <span className="kpi-title">현금</span>
         <span className="hint">
-          {cash ? `${num(cash.actual_pct, 1)}% · 목표 ${num(cash.target_pct, 1)}%` : ''}
+          {cash ? `현재 ${num(cash.actual_pct, 1)}%, 목표 ${num(cash.target_pct, 1)}%` : ''}
         </span>
       </div>
       {currencies.map((c) => (
@@ -335,7 +338,7 @@ function CashCard({
       </div>
       <p className="kpi-foot">
         {cash && cash.value_base > 0
-          ? `합계 ${amount(cash.value_base, baseCurrency)} · 목표 대비 ${signed(cash.excess_pct, 1, '%p')}`
+          ? `합계 ${amount(cash.value_base, baseCurrency)}, 목표 대비 ${signed(cash.excess_pct, 1, '%p')}`
           : '예수금·예금처럼 투자 대기 중인 돈. 목표비중은 현금까지 포함한 전체 자금 기준입니다.'}
       </p>
     </div>
@@ -479,7 +482,7 @@ function RecordPanel({
           aria-label="기록 메모"
         />
         <button className="primary" onClick={() => void record()} disabled={busy}>
-          {busy ? '기록 중…' : '지금 상태 기록하기'}
+          {busy ? '기록 중…' : '현재 상태 기록'}
         </button>
       </div>
     </div>
@@ -498,7 +501,7 @@ export function ValueRecordLine({ record }: { record: ValueRecord | null | undef
   if (!record?.enabled) return null
   return (
     <p className="hint value-record-line">
-      리뷰 기록과 따로, 서버가 매일 아침 평가금액과 보유 모습(수량·평단가·종가·현금·환율)을 남깁니다.{' '}
+      이와 따로 서버가 매일 아침 평가금액과 보유 모습을 남깁니다.{' '}
       {record.days > 0 && record.since ? (
         <>
           {/* 날짜가 줄 끝에서 "2026-" / "10-12" 로 갈라지지 않게 */}
@@ -541,8 +544,8 @@ function SnapshotList({
   if (snapshots.length === 0) {
     return (
       <p className="hint">
-        아직 리뷰 기록이 없습니다. 리뷰할 때 "지금 상태 기록하기"를 누르면 그날의 수량·가격·비중이 그대로
-        남아, 다음 리뷰 때 지난번과 비교할 수 있습니다.
+        아직 기록이 없습니다. 리뷰 날 "현재 상태 기록"을 누르면 그날의 수량, 가격, 비중이 남아 다음 리뷰 때
+        비교할 수 있습니다.
       </p>
     )
   }
@@ -1200,7 +1203,7 @@ export function RebalancePanel() {
       <li>
         <button type="button" onClick={() => setTargetsOpen(true)}>
           <Icon name="edit" />
-          <span>목표 · 밴드 고치기</span>
+          <span>목표 수정</span>
           <small className="mono">합계 {num(plan.targetSum, 1)}%</small>
           <Icon name="forward" size={18} className="rb-list-go" />
         </button>
@@ -1208,9 +1211,9 @@ export function RebalancePanel() {
       <li>
         <button type="button" onClick={() => setRecordsOpen(true)}>
           <Icon name="doc" />
-          <span>리뷰 · 기록</span>
+          <span>리뷰 기록</span>
           <small className="mono">
-            {reviewCountdown(current.review)} · {snapshots.length}건
+            {reviewCountdown(current.review)}, {snapshots.length}건
           </small>
           <Icon name="forward" size={18} className="rb-list-go" />
         </button>
@@ -1316,8 +1319,8 @@ export function RebalancePanel() {
         <td className="rb-sig-cell">
           {/* 신호는 둘만: 밴드 밖은 차이 칸 색, 매도 신호는 이 칸 (목업 05) */}
           {row.current.shoulder_signal_fired_in_period ? (
-            <span className="rb-sell-mark" title="이번 리뷰 기간에 매도 시그널(참고)이 한 번 이상 떴습니다. 주문 수량에는 영향이 없습니다.">
-              기간 내 매도
+            <span className="rb-sell-mark" title={`${PERIOD_NOW[current.review.period]} 어깨매도 시그널(참고)이 한 번 이상 떴습니다. 주문 수량과는 상관없습니다.`}>
+              있음
             </span>
           ) : (
             <span className="hint">—</span>
@@ -1345,7 +1348,7 @@ export function RebalancePanel() {
     return {
       ticker: row.ticker,
       label: shortLabel(row),
-      sub: `${qty(row.current.quantity)}주 · 현재 ${num(weightNowOf(row), 1)}%`,
+      sub: `${qty(row.current.quantity)}주, 현재 ${num(weightNowOf(row), 1)}%`,
       target: draft.target,
       band: draft.band,
       dirty: changesOf(row, draft).target,
@@ -1367,7 +1370,7 @@ export function RebalancePanel() {
             firstVisit={loading ? null : rows.length === 0}
           >
             주문은 지금 가격으로 목표 비중에 맞추려면 무엇을 얼마나 사고팔지 보여주는 참고입니다(−는 줄이기, +는 늘리기). 실제로
-            사고파는 것은 리뷰 때 정합니다. 줄을 누르면 자세히와 거래 입력이, &ldquo;목표 · 밴드&rdquo;에서 목표 비중을 한 번에 고칩니다.
+            사고파는 것은 리뷰 때 정합니다. 줄을 누르면 자세히와 거래 입력이, &ldquo;목표 수정&rdquo;에서 목표 비중을 한 번에 고칩니다.
           </PageIntro>
         </div>
         <button type="button" className="rb-pill rb-review" onClick={() => setRecordsOpen(true)}>
@@ -1445,7 +1448,7 @@ export function RebalancePanel() {
       {/* 저장하지 않고 시트를 닫으면 아무 표시가 없었다(묶음 4 검토 조건 6) */}
       {!targetsOpen && dirtyTickers.length > 0 && (
         <p className="rb-unsaved" role="status">
-          목표 · 밴드에 저장하지 않은 변경 {dirtyTickers.length}줄 ({dirtyTickers.map((t) => shortLabel(rowByTicker.get(t)!)).join(', ')}){' '}
+          목표 수정에 저장하지 않은 변경 {dirtyTickers.length}줄 ({dirtyTickers.map((t) => shortLabel(rowByTicker.get(t)!)).join(', ')}){' '}
           <button type="button" className="link-like" onClick={() => setTargetsOpen(true)}>
             열어서 저장
           </button>
@@ -1565,7 +1568,9 @@ export function RebalancePanel() {
                   <th className="num-cell" style={{ minWidth: 80 }} title="색이 있으면 비중이 밴드 밖">차이</th>
                   <th className="num-cell" style={{ minWidth: 110 }}>주문</th>
                   <th className="num-cell" style={{ minWidth: 150 }}>금액</th>
-                  <th style={{ minWidth: 110 }}>매도 신호</th>
+                  <th style={{ minWidth: 110 }} title="어깨매도 시그널(참고)이 이 기간에 한 번이라도 떴는지. 주문 수량과는 상관없습니다.">
+                    {PERIOD_NOW[current.review.period]} 매도 시그널
+                  </th>
                   {/* 열린 "거래 칸 닫기"(한 줄) 폭까지 처음부터 — 열 때 열이 96 → 100px 로 넓어져 다른 칸이 꺾였다(검토 9 조건 1) */}
                   <th style={{ minWidth: 104 }}>
                     <span className="sr-only">거래</span>
@@ -1701,7 +1706,7 @@ export function RebalancePanel() {
                 setTargetsOpen(true)
               }}
             >
-              목표 · 밴드 고치기
+              목표 수정
             </button>
             <Link className="link-button" to={`/stocks/${encodeURIComponent(openRow.ticker)}`}>
               종목 화면 열기
@@ -1726,7 +1731,7 @@ export function RebalancePanel() {
           lines={targetLines}
           sum={`${num(draftSum, 1)}%`}
           sumOk={draftOk}
-          cashNote={`현금 목표 ${num(plan.cash.targetPct, 0)}% 포함(설정에서)`}
+          cashNote={`현금 목표 ${num(plan.cash.targetPct, 0)}% 포함`}
           defaultBand={String(settings?.default_rebalance_band_pct ?? '')}
           dirtyCount={dirtyTickers.length}
           saving={saving}
@@ -1750,11 +1755,11 @@ export function RebalancePanel() {
 
       {recordsOpen && (
         <Sheet
-          title={`리뷰 · 기록${snapshots.length > 0 ? ` ${snapshots.length}건` : ''}`}
-          label="리뷰 · 기록"
-          closeLabel="리뷰 · 기록 닫기"
+          title={`리뷰 기록${snapshots.length > 0 ? ` ${snapshots.length}건` : ''}`}
+          label="리뷰 기록"
+          closeLabel="리뷰 기록 닫기"
           className="records-sheet"
-          sub="리뷰할 때 남긴 모습 그대로입니다. 종목을 지우거나 목표를 바꿔도 달라지지 않습니다."
+          sub="남긴 날의 모습 그대로입니다. 종목을 지우거나 목표를 바꿔도 달라지지 않습니다."
           onClose={() => setRecordsOpen(false)}
         >
           <RecordPanel review={current.review} onSaved={handleSaved} onError={setError} />
@@ -1769,7 +1774,6 @@ export function RebalancePanel() {
           label="리밸런싱 설정"
           closeLabel="설정 닫기"
           className="settings-sheet"
-          sub="리뷰 주기, 현금, 기준통화와 환율, 밴드"
           onClose={() => setSettingsOpen(false)}
         >
         <div className="kpi-grid">
@@ -1796,7 +1800,7 @@ export function RebalancePanel() {
 
           <div className="kpi">
             <div className="kpi-head">
-              <span className="kpi-title">기준통화 · 적용 환율</span>
+              <span className="kpi-title">기준통화와 환율</span>
             </div>
             <div className="btn-group" style={{ marginBottom: 8 }}>
               {(['KRW', 'USD', 'JPY'] as Currency[]).map((c) => (
@@ -1837,7 +1841,7 @@ export function RebalancePanel() {
                       </div>
                       <p className="kpi-foot">
                         {quote
-                          ? `1${meta.label} = ${num(quote.krw_rate, 2)}원 · ${
+                          ? `1${meta.label} = ${num(quote.krw_rate, 2)}원, ${
                               quote.source === 'override'
                                 ? '직접 입력한 값'
                                 : quote.source === 'fallback'
@@ -1882,32 +1886,20 @@ export function RebalancePanel() {
 
           <div className="kpi">
             <div className="kpi-head">
-              <span className="kpi-title">전역 기본 밴드</span>
+              <span className="kpi-title">기본 밴드</span>
             </div>
             <div className="input-with-button">
-              <NumberInput value={bandInput} onChange={setBandInput} aria-label="전역 기본 밴드" />
+              <NumberInput value={bandInput} onChange={setBandInput} aria-label="기본 밴드" />
               <span className="unit">%p</span>
               <button className="primary sm" onClick={saveBand} disabled={settingsBusy}>
                 저장
               </button>
             </div>
             <p className="kpi-foot">
-              종목별 밴드를 비워두면 이 값이 적용됩니다. 현재 적용값 {settings?.default_rebalance_band_pct ?? '—'}%p
+              종목마다 밴드를 비워 두면 이 값을 씁니다.
             </p>
           </div>
 
-          <div className="kpi">
-            <div className="kpi-head">
-              <span className="kpi-title">목표 비중 합계</span>
-            </div>
-            <div className="kpi-figure">
-              <span className={`big ${targetOk ? 'tone-good' : 'tone-bad'}`}>{num(plan.targetSum, 1)}%</span>
-            </div>
-            <p className="kpi-foot">
-              {plan.cash.targetPct > 0 && `현금 ${num(plan.cash.targetPct, 1)}% 포함 · `}
-              {targetOk ? '합계가 100%로 맞습니다.' : '100%가 되게 맞춰주세요.'}
-            </p>
-          </div>
         </div>
         </Sheet>
       )}

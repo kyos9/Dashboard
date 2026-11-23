@@ -130,7 +130,7 @@ function act(tr: HTMLElement) {
 /** PC 오른쪽 위 글 단추 "목표 수정"로 시트를 연다 (디자인 5차 목업 05 가) */
 async function openTargets(user: ReturnType<typeof userEvent.setup>) {
   await user.click(await screen.findByRole('button', { name: '목표 수정' }))
-  return screen.getByRole('dialog', { name: '목표 비중 · 밴드 고치기' })
+  return screen.getByRole('dialog', { name: '목표 수정' })
 }
 
 /** 설정 · 리뷰 기록은 화면 밖 시트 — PC 는 오른쪽 위 글 단추에서 연다 (목업 05 가) */
@@ -139,7 +139,7 @@ async function openSheet(name: RegExp, dialog: string) {
   return screen.getByRole('dialog', { name: dialog })
 }
 const openSettings = () => openSheet(/^설정$/, '리밸런싱 설정')
-const openRecords = () => openSheet(/^리뷰 기록$/, '리뷰 · 기록')
+const openRecords = () => openSheet(/^리뷰 기록$/, '리뷰 기록')
 
 beforeEach(() => {
   vi.restoreAllMocks()
@@ -188,7 +188,7 @@ describe('리밸런싱 · 통화 표기', () => {
     mockApi()
     renderPanel()
     await openSettings()
-    expect(await screen.findByText(/1달러 = 1,300.00원 · 자동 조회값/)).toBeInTheDocument()
+    expect(await screen.findByText(/1달러 = 1,300.00원, 자동 조회값/)).toBeInTheDocument()
   })
 
   it('환율이 추정치면 통화가 섞였을 때 경고한다', async () => {
@@ -433,7 +433,7 @@ describe('리밸런싱 · 평단가와 거래 입력', () => {
     expect(screen.queryByLabelText('VOO 보유수량')).toBeNull()
     expect(screen.queryByLabelText('VOO 평단가')).toBeNull()
     expect(screen.queryByLabelText('VOO 산 환율')).toBeNull()
-    expect(sheet).toHaveTextContent('수량 · 평단가 · 산 환율은 종목 탭의 ⋯ “한 번에 수정”이나 종목 화면의 “보유” 탭에서 고칩니다')
+    expect(sheet).toHaveTextContent('수량, 평단가, 산 환율은 종목 수정에서 고칩니다')
   })
 
 })
@@ -480,7 +480,7 @@ describe('리밸런싱 · 리뷰와 기록', () => {
 
     expect(await screen.findByText('리뷰할 때')).toBeInTheDocument()
     await user.type(screen.getByLabelText('기록 메모'), '3분기 리뷰')
-    await user.click(screen.getByRole('button', { name: '지금 상태 기록하기' }))
+    await user.click(screen.getByRole('button', { name: '현재 상태 기록' }))
 
     await waitFor(() => expect(create).toHaveBeenCalledWith('3분기 리뷰'))
   })
@@ -531,12 +531,12 @@ describe('리밸런싱 · 리뷰와 기록', () => {
     expect(screen.getByRole('alertdialog')).toBeInTheDocument()
     await user.keyboard('{Escape}')
     await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
-    expect(screen.getByRole('dialog', { name: '리뷰 · 기록' })).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: '리뷰 기록' })).toBeInTheDocument()
     expect(remove).not.toHaveBeenCalled()
 
     // 확인창이 없으면 Esc 한 번에 시트가 닫힌다
     await user.keyboard('{Escape}')
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: '리뷰 · 기록' })).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: '리뷰 기록' })).not.toBeInTheDocument())
   })
 })
 
@@ -602,7 +602,7 @@ describe('리밸런싱 · 보유·목표는 한 번에 저장', () => {
     const user = userEvent.setup()
     renderPanel()
     const sheet = await openTargets(user)
-    expect(within(sheet).getByRole('button', { name: '바뀐 것 없음' })).toBeDisabled()
+    expect(within(sheet).getByRole('button', { name: '저장' })).toBeDisabled()
 
     await user.type(within(sheet).getByLabelText('VOO 밴드 임계값'), '3')
     await user.clear(within(sheet).getByLabelText('삼성전자 목표 비중'))
@@ -613,7 +613,7 @@ describe('리밸런싱 · 보유·목표는 한 번에 저장', () => {
 
     await user.click(within(sheet).getByRole('button', { name: '되돌리기' }))
     expect(within(sheet).getByLabelText('삼성전자 목표 비중')).toHaveValue('40')
-    expect(within(sheet).getByRole('button', { name: '바뀐 것 없음' })).toBeDisabled()
+    expect(within(sheet).getByRole('button', { name: '저장' })).toBeDisabled()
   })
 
   it('고친 것만 보낸다 — 목표 · 밴드만, 보유는 보내지 않는다', async () => {
@@ -684,10 +684,10 @@ describe('리밸런싱 · 산 환율과 환율 효과', () => {
     let sheet = await openTargets(user)
     expect(document.activeElement).toBe(within(sheet).getByLabelText('VOO 목표 비중'))
     await user.keyboard('{Escape}')
-    expect(screen.queryByRole('dialog', { name: '목표 비중 · 밴드 고치기' })).toBeNull()
+    expect(screen.queryByRole('dialog', { name: '목표 수정' })).toBeNull()
     sheet = await openTargets(user)
-    await user.click(within(sheet).getByRole('button', { name: '목표 · 밴드 닫기' }))
-    expect(screen.queryByRole('dialog', { name: '목표 비중 · 밴드 고치기' })).toBeNull()
+    await user.click(within(sheet).getByRole('button', { name: '목표 수정 닫기' }))
+    expect(screen.queryByRole('dialog', { name: '목표 수정' })).toBeNull()
   })
 
   it('원화 종목만 있으면 산 환율 칸도 환율 효과 설정도 없다', async () => {
@@ -768,7 +768,7 @@ describe('리밸런싱 · 산 환율과 환율 효과', () => {
     const pill = await screen.findByRole('button', { name: '목표 합계 90.0%, 10.0%p 비어 있음, 목표 수정' })
     expect(pill).toHaveClass('warn')
     await user.click(pill)
-    expect(screen.getByRole('dialog', { name: '목표 비중 · 밴드 고치기' })).toHaveTextContent('합계 90.0%')
+    expect(screen.getByRole('dialog', { name: '목표 수정' })).toHaveTextContent('합계 90.0%')
   })
 
 })
@@ -806,16 +806,16 @@ describe('리밸런싱 · 폰', () => {
     const list = await screen.findByRole('list', { name: '리밸런싱 더 보기' })
     const items = within(list).getAllByRole('button')
     expect(items.map((b) => b.textContent)).toEqual([
-      '목표 · 밴드 고치기합계 100.0%',
-      expect.stringMatching(/^리뷰 · 기록D-\d+ · 0건$/),
+      '목표 수정합계 100.0%',
+      expect.stringMatching(/^리뷰 기록D-\d+, 0건$/),
       '리밸런싱 설정주기, 현금, 환율, 밴드',
     ])
     await user.click(items[2])
     const sheet = screen.getByRole('dialog', { name: '리밸런싱 설정' })
-    expect(within(sheet).getByLabelText('전역 기본 밴드')).toBeInTheDocument()
+    expect(within(sheet).getByLabelText('기본 밴드')).toBeInTheDocument()
     await user.click(within(sheet).getByRole('button', { name: '설정 닫기' }))
     await user.click(items[1])
-    expect(screen.getByRole('dialog', { name: '리뷰 · 기록' })).toHaveTextContent('지금 상태 기록하기')
+    expect(screen.getByRole('dialog', { name: '리뷰 기록' })).toHaveTextContent('현재 상태 기록')
   })
 
 })
@@ -964,7 +964,7 @@ describe('리밸런싱 · 주문과 신호를 다른 말로 (디자인 2차)', (
     expect(act(voo)).toMatch(/팔기$/)
     expect(voo).not.toHaveTextContent('SELL')
     expect(voo.querySelector('.drift-chip')).toHaveClass('over')
-    expect(voo.querySelector('.rb-sig-cell')).toHaveTextContent('기간 내 매도')
+    expect(voo.querySelector('.rb-sig-cell')).toHaveTextContent('있음')
     expect(voo).not.toHaveTextContent('비중 초과')
     const samsung = await orderRow('005930.KS')
     expect(act(samsung)).toMatch(/사기$/)
@@ -1052,7 +1052,7 @@ describe('리밸런싱 · 주문 옆 거래 입력 (디자인 2차, 주인 결�
     expect(tables).toHaveLength(1)
     expect(tables[0]).toHaveClass('sticky-first')
     expect(Array.from(tables[0].querySelectorAll('thead th')).map((h) => h.textContent)).toEqual([
-      '종목', '현재', '목표', '차이', '주문', '금액', '매도 신호', '거래',
+      '종목', '현재', '목표', '차이', '주문', '금액', '이번 분기 매도 시그널', '거래',
     ])
     expect(within(tables[0]).getAllByRole('columnheader', { name: /^(팔 것|살 것) \d종목$/ })).toHaveLength(2)
     const voo = await orderRow('VOO')
@@ -1070,13 +1070,13 @@ describe('날마다의 평가금액 안내 (0.44.0)', () => {
     const section = await openRecords()
     const line = section.querySelector('.value-record-line') as HTMLElement
     expect(line.textContent?.replace(/\s+/g, ' ')).toBe(
-      '리뷰 기록과 따로, 서버가 매일 아침 평가금액과 보유 모습(수량·평단가·종가·현금·환율)을 남깁니다. ' +
+      '이와 따로 서버가 매일 아침 평가금액과 보유 모습을 남깁니다. ' +
         '2026-10-05부터 12일치 쌓였습니다.',
     )
     // 날짜는 줄 끝에서 갈라지지 않는다
     expect(within(line).getByText('2026-10-05부터').classList.contains('nowrap')).toBe(true)
     // 리뷰 기록이 하나도 없다는 말과 같이 보여도 서로 어긋나지 않는다 — "따로"
-    expect(within(section).getByText(/아직 리뷰 기록이 없습니다/)).toBeTruthy()
+    expect(within(section).getByText(/아직 기록이 없습니다/)).toBeTruthy()
   })
 
   it('아직 쌓이지 않았으면 언제부터인지', () => {
@@ -1115,7 +1115,7 @@ describe('목표 0%라 전부 파는 계산 (0.45.4 C)', () => {
     expect(act(k)).toMatch(/팔기$/)
     // PC 는 한 줄 — 줄에는 "목표 0%", 긴 풀이는 마우스를 올리면
     expect(k.querySelector('.zero-target-note')).toHaveTextContent(/^목표 0%$/)
-    expect(k.querySelector('.order-shares')).toHaveAttribute('title', "목표 0%라 전부 파는 계산입니다 · 목표는 '목표 · 밴드'에서 정합니다")
+    expect(k.querySelector('.order-shares')).toHaveAttribute('title', "목표가 0%라 전부 파는 계산입니다. 목표는 '목표 수정'에서 정합니다.")
     expect(await orderRow('VOO')).not.toHaveTextContent('전부 파는')
     expect(await orderRow('삼성전자')).not.toHaveTextContent('전부 파는')
     // 비중 칸의 "목표 0%" 는 원래 있다 — 풀이(꼬리)만 없다
@@ -1162,7 +1162,7 @@ describe('목표 0%라 전부 파는 계산 (0.45.4 C)', () => {
       const user = userEvent.setup()
       renderPanel()
       await user.click(await screen.findByRole('button', { name: /^카카오 10주 팔기 · .* — 자세히$/ }))
-      expect(screen.getByRole('dialog', { name: '카카오 주문 자세히' })).toHaveTextContent('목표 0%라 전부 파는 계산입니다')
+      expect(screen.getByRole('dialog', { name: '카카오 주문 자세히' })).toHaveTextContent('목표가 0%라 전부 파는 계산입니다')
     } finally {
       forgetPhone()
     }
@@ -1176,7 +1176,7 @@ describe('리밸런싱 · 디자인 4차 목업 12c', () => {
     const user = userEvent.setup()
     renderPanel()
     await user.click(await screen.findByRole('button', { name: /^다음 리뷰 D-\d+$/ }))
-    expect(screen.getByRole('dialog', { name: '리뷰 · 기록' })).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: '리뷰 기록' })).toBeInTheDocument()
   })
 
   it('줄을 눌러 연 시트 — Tab 은 시트 안에서 돌고, Esc 로 닫힌다 (새 팝업 가두기)', async () => {
@@ -1277,7 +1277,7 @@ describe('리밸런싱 · 묶음 4 사용자 확인 보완', () => {
     await user.type(within(sheet).getByLabelText('삼성전자 밴드 임계값'), '4')
     await user.click(within(sheet).getByRole('button', { name: '바뀐 1줄 저장' }))
     await waitFor(() => expect(scroll.mock.contexts.filter((el) => el === within(sheet).getByRole('status')).length).toBeGreaterThan(first))
-    await user.click(within(sheet).getByRole('button', { name: '목표 · 밴드 닫기' }))
+    await user.click(within(sheet).getByRole('button', { name: '목표 수정 닫기' }))
     const again = await openTargets(user)
     expect(within(again).queryByRole('status')).toBeNull()
   })
@@ -1296,9 +1296,9 @@ describe('리밸런싱 · 묶음 4 사용자 확인 보완', () => {
       // 기간 내 매도는 참고 꼬리표라 회색 — 빨강이면 늘릴 종목 줄에서 팔라는 말로 읽혔다 (② 주인 답 "회색으로")
       expect(within(sheet).getByText('기간 내 매도')).toHaveClass('badge-grey')
       expect(within(sheet).getByText('기간 내 매도')).not.toHaveClass('badge-sell')
-      await user.click(within(sheet).getByRole('button', { name: '목표 · 밴드 고치기' }))
+      await user.click(within(sheet).getByRole('button', { name: '목표 수정' }))
       expect(screen.queryByRole('dialog', { name: 'VOO 주문 자세히' })).toBeNull()
-      expect(screen.getByRole('dialog', { name: '목표 비중 · 밴드 고치기' })).toBeInTheDocument()
+      expect(screen.getByRole('dialog', { name: '목표 수정' })).toBeInTheDocument()
     } finally {
       forgetPhone()
     }
@@ -1344,7 +1344,7 @@ describe('리밸런싱 · 묶음 4 검토 보완', () => {
     await user.clear(within(sheet).getByLabelText('VOO 목표 비중'))
     await user.type(within(sheet).getByLabelText('VOO 목표 비중'), '60')
     expect(sheet).toHaveTextContent('합계 100.0%')
-    expect(sheet).toHaveTextContent('100%로 맞습니다')
+    expect(sheet).not.toHaveTextContent('100%가 되게')
   })
 
   it('저장하지 않고 닫으면 화면에 한 줄, 거래를 반영해도 고친 목표는 남고 수량은 서버 값으로 (조건 6)', async () => {
@@ -1356,8 +1356,8 @@ describe('리밸런싱 · 묶음 4 검토 보완', () => {
     let sheet = await openTargets(user)
     await user.clear(within(sheet).getByLabelText('VOO 목표 비중'))
     await user.type(within(sheet).getByLabelText('VOO 목표 비중'), '55')
-    await user.click(within(sheet).getByRole('button', { name: '목표 · 밴드 닫기' }))
-    const line = screen.getByText(/목표 · 밴드에 저장하지 않은 변경 1줄 \(VOO\)/)
+    await user.click(within(sheet).getByRole('button', { name: '목표 수정 닫기' }))
+    const line = screen.getByText(/목표 수정에 저장하지 않은 변경 1줄 \(VOO\)/)
     expect(within(line).getByRole('button', { name: '열어서 저장' })).toBeInTheDocument()
 
     // 그사이 거래 반영 — 다시 받아 오는 동안에도 55 가 남는다
@@ -1467,8 +1467,8 @@ describe('리밸런싱 · 목업 12d (주인: 너무 길다)', () => {
     const user = userEvent.setup()
     renderPanel()
     await openRecords()
-    await user.click(screen.getByRole('button', { name: '리뷰 · 기록 닫기' }))
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: '리뷰 · 기록' })).not.toBeInTheDocument())
+    await user.click(screen.getByRole('button', { name: '리뷰 기록 닫기' }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: '리뷰 기록' })).not.toBeInTheDocument())
   })
 
   it('폰: 새로 넣을 돈은 줄일 · 늘릴 막대 카드 안 한 줄 — 요약은 한 줄(전체 자금 · 큰 금액)과 알약 줄', async () => {

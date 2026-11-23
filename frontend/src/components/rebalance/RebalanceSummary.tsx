@@ -47,7 +47,7 @@ export function RebalanceSummary({
           type="button"
           className={`rb-pill${targetOk ? '' : ' warn'}`}
           onClick={onTargets}
-          aria-label={`목표 합계 ${targetSum}${targetOk ? '' : ' — 100%가 아님'} · 목표 · 밴드 고치기`}
+          aria-label={`목표 합계 ${targetSum}${targetOk ? '' : ', 100%가 아님'}, 목표 수정`}
         >
           {!targetOk && '⚠ '}목표 합계 <b className="mono">{targetSum}</b>
         </button>
