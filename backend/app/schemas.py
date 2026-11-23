@@ -774,6 +774,8 @@ class FundamentalsOut(BaseModel):
     metrics: list[FundamentalMetric] = []
     per_range: Optional[PerRange] = None
     quarters: list[FundamentalQuarter] = []
+    # 최근 회계연도 (연간 보고서의 1년 값) — 행 모양은 분기와 같다. 목록 응답에는 빈다
+    years: list[FundamentalQuarter] = []
 
 
 # --- AI 정리 (3c) -----------------------------------------------------------

@@ -40,31 +40,109 @@ function Change({ label, value }: { label: string; value: number | null }) {
   )
 }
 
-// 목록 응답에는 분기 표가 없다 — 고른 종목만 따로 받아 둔다
-const quarterCache = new Map<string, FundamentalQuarter[]>()
+type Results = { quarters: FundamentalQuarter[]; years: FundamentalQuarter[] }
 
-function useQuarters(row: FundamentalsResponse): FundamentalQuarter[] | null {
+// 목록 응답에는 분기 · 연 표가 없다 — 고른 종목만 따로 받아 둔다
+const resultCache = new Map<string, Results>()
+
+function useResults(row: FundamentalsResponse): Results | null {
   const [, bump] = useState(0)
   const ticker = row.ticker
-  const want = row.metrics.length > 0 && row.quarters.length === 0 && !quarterCache.has(ticker)
+  const inline = row.quarters.length > 0
+  const want = row.metrics.length > 0 && !inline && !resultCache.has(ticker)
   useEffect(() => {
     if (!want) return
     let live = true
     api
       .getFundamentals(ticker)
-      .then((full) => quarterCache.set(ticker, full.quarters))
-      .catch(() => quarterCache.set(ticker, []))
+      .then((full) => resultCache.set(ticker, { quarters: full.quarters, years: full.years ?? [] }))
+      .catch(() => resultCache.set(ticker, { quarters: [], years: [] }))
       .finally(() => live && bump((n) => n + 1))
     return () => {
       live = false
     }
   }, [ticker, want])
-  if (row.quarters.length > 0) return row.quarters
-  return quarterCache.get(ticker) ?? null
+  if (inline) return { quarters: row.quarters, years: row.years ?? [] }
+  return resultCache.get(ticker) ?? null
+}
+
+type Mode = 'quarter' | 'year'
+
+/** "2025-09-27" → "2025년" — 12월 결산이 아니면 결산 달은 표에 따로 적는다 */
+function yearName(periodEnd: string): string {
+  return `${periodEnd.slice(0, 4)}년`
+}
+
+function ResultsTable({ row, results, mode }: { row: FundamentalsResponse; results: Results; mode: Mode }) {
+  const all = mode === 'quarter' ? results.quarters : results.years
+  const shown = all.slice(0, 4)
+  if (shown.length === 0) {
+    return <p className="hint">{mode === 'quarter' ? '분기 실적이 없습니다.' : '연 실적이 없습니다.'}</p>
+  }
+  return (
+    <div className="fd-table-wrap">
+      <table className="fd-quarters">
+        <thead>
+          <tr>
+            <th>{mode === 'quarter' ? '분기' : '연도'}</th>
+            {QUARTER_COLUMNS.map((c) => (
+              <th key={c.key}>{c.label}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {shown.map((q, i) => {
+            const prev = all[i + 1]
+            const year = mode === 'quarter' ? yearBefore(all, q) : prev
+            const month = Number(q.period_end.slice(5, 7))
+            return (
+              <tr key={q.period_end}>
+                <th scope="row">
+                  {mode === 'quarter' ? quarterName(q.period_end) : yearName(q.period_end)}
+                  <small>
+                    {mode === 'year' && month !== 12 ? `${month}월 결산, ` : ''}공시 {dayLabel(q.filed_at)}
+                    {q.estimated ? ' (추정)' : ''}
+                  </small>
+                </th>
+                {QUARTER_COLUMNS.map((c) => {
+                  const value = q[c.key] as number | null
+                  const pick = (o: FundamentalQuarter | undefined) => (o ? (o[c.key] as number | null) : null)
+                  return (
+                    <td key={c.key}>
+                      <b>{c.key === 'eps_diluted' ? price(value, row.currency) : bigAmount(value, row.currency)}</b>
+                      <Change label="전년" value={growth(value, pick(year))} />
+                      {mode === 'quarter' && <Change label="전분기" value={growth(value, pick(prev))} />}
+                    </td>
+                  )
+                })}
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function Card({ title, lines }: { title: string; lines: { label: string; value: string; help?: string; sub?: boolean }[] }) {
+  return (
+    <section className="fd-card" aria-label={title}>
+      <h4>{title}</h4>
+      <ul>
+        {lines.map((l) => (
+          <li key={l.label} title={l.help} className={l.sub ? 'sub' : undefined}>
+            <span>{l.label}</span>
+            <b>{l.value}</b>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
 }
 
 function Detail({ row }: { row: FundamentalsResponse }) {
-  const all = useQuarters(row)
+  const results = useResults(row)
+  const [mode, setMode] = useState<Mode>('quarter')
   if (row.metrics.length === 0) {
     return (
       <article className="sig-detail fd-detail" aria-label={`${rowLabel(row)} 재무`}>
@@ -80,9 +158,8 @@ function Detail({ row }: { row: FundamentalsResponse }) {
   const perNow = byKey.per?.value ?? null
   const perMean = range?.mean ?? null
   const gap = perNow != null && perMean ? (perNow / perMean - 1) * 100 : null
-  const latest = all?.[0]
+  const latest = results?.quarters[0]
   const priceDay = dayLabel(row.price_date)
-  const quarters = (all ?? []).slice(0, 4)
 
   return (
     <article className="sig-detail fd-detail" aria-label={`${rowLabel(row)} 재무`}>
@@ -94,108 +171,57 @@ function Detail({ row }: { row: FundamentalsResponse }) {
         </span>
       </header>
 
+      {/* PER 카드는 다른 묶음과 같은 모양 · 같은 글자 크기 (주인: PER 만 크면 통일성이 없다) */}
       <div className="fd-cards">
+        <Card
+          title="PER"
+          lines={[
+            { label: '지금', value: perNow == null ? metricValue(byKey.per, row.currency) : `${num(perNow, 1)}배` },
+            { label: '5년 평균', value: perMean == null ? '—' : `${num(perMean, 1)}배` },
+            {
+              label: '5년 범위',
+              value: range ? `${num(range.min, 1)} ~ ${num(range.max, 1)}배` : '—',
+              sub: true,
+            },
+            { label: '평균과 차이', value: signed(gap, 0, '%') },
+          ]}
+        />
         {METRIC_GROUPS.map((group, i) => (
-          <section key={group.title} className="fd-card" aria-label={GROUP_TITLES[i]}>
-            <h4>{GROUP_TITLES[i]}</h4>
-            <ul>
-              {group.items.map((item) => (
-                <li key={item.key} title={item.help}>
-                  <span>{item.label}</span>
-                  <b>{metricValue(byKey[item.key], row.currency)}</b>
-                </li>
-              ))}
-            </ul>
-          </section>
+          <Card
+            key={group.title}
+            title={GROUP_TITLES[i]}
+            lines={group.items
+              .filter((item) => item.key !== 'per')
+              .map((item) => ({ label: item.label, value: metricValue(byKey[item.key], row.currency), help: item.help }))}
+          />
         ))}
       </div>
 
-      <section className="fd-sec" aria-label="PER">
-        <h4>PER</h4>
-        <div className="fd-per">
-          <div className="now">
-            <span>지금 PER</span>
-            <b>{perNow == null ? metricValue(byKey.per, row.currency) : <>{num(perNow, 1)}<small>배</small></>}</b>
-          </div>
-          <div>
-            <span>5년 평균 PER</span>
-            <b>{perMean == null ? '—' : <>{num(perMean, 1)}<small>배</small></>}</b>
-          </div>
-          <div>
-            <span>평균과 차이</span>
-            <b className={tone(gap)}>{signed(gap, 0, '%')}</b>
-            {range ? (
-              <p>
-                5년 범위 {num(range.min, 1)} ~ {num(range.max, 1)}배
-              </p>
-            ) : (
-              <p>5년 기록이 없습니다</p>
-            )}
+      <div className="fd-line" aria-label="회사 가이던스">
+        <h4>회사 가이던스</h4>
+        <span>아직 모으지 않습니다</span>
+      </div>
+
+      <section className="fd-sec" aria-label="실적">
+        <div className="fd-sec-head">
+          <h4>실적</h4>
+          <div className="seg fd-seg" role="group" aria-label="실적 단위">
+            {(['quarter', 'year'] as const).map((m) => (
+              <button key={m} type="button" className={mode === m ? 'active' : undefined} aria-pressed={mode === m} onClick={() => setMode(m)}>
+                {m === 'quarter' ? '분기' : '연'}
+              </button>
+            ))}
           </div>
         </div>
-      </section>
-
-      <section className="fd-sec" aria-label="회사 가이던스">
-        <h4>회사 가이던스</h4>
-        <p className="fd-none">회사 가이던스는 아직 모으지 않습니다.</p>
-      </section>
-
-      <section className="fd-sec" aria-label="최근 분기">
-        <h4>최근 분기</h4>
-        {all === null ? (
-          <p className="hint">분기 실적을 받는 중입니다.</p>
-        ) : quarters.length === 0 ? (
-          <p className="hint">분기 실적이 없습니다.</p>
-        ) : (
-          <div className="fd-table-wrap">
-            <table className="fd-quarters">
-              <thead>
-                <tr>
-                  <th>분기</th>
-                  {QUARTER_COLUMNS.map((c) => (
-                    <th key={c.key}>{c.label}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {quarters.map((q, i) => {
-                  const prev = all?.[i + 1]
-                  const year = yearBefore(all ?? [], q)
-                  return (
-                    <tr key={q.period_end}>
-                      <th scope="row">
-                        {quarterName(q.period_end)}
-                        <small>
-                          공시 {dayLabel(q.filed_at)}
-                          {q.estimated ? ' (추정)' : ''}
-                        </small>
-                      </th>
-                      {QUARTER_COLUMNS.map((c) => {
-                        const value = q[c.key] as number | null
-                        const pick = (o: FundamentalQuarter | undefined) => (o ? (o[c.key] as number | null) : null)
-                        return (
-                          <td key={c.key}>
-                            <b>{c.key === 'eps_diluted' ? price(value, row.currency) : bigAmount(value, row.currency)}</b>
-                            <Change label="전년" value={growth(value, pick(year))} />
-                            <Change label="전분기" value={growth(value, pick(prev))} />
-                          </td>
-                        )
-                      })}
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+        {results === null ? <p className="hint">실적을 받는 중입니다.</p> : <ResultsTable row={row} results={results} mode={mode} />}
       </section>
     </article>
   )
 }
 
 /**
- * PC 재무 화면 (디자인 5차 목업 04 나 · 04c) — 왼쪽 종목명 목록, 오른쪽에 고른 종목의 묶음 카드 넷,
- * PER(지금 · 5년 평균 · 차이), 회사 가이던스, 최근 분기(전년비 · 전분기비).
+ * PC 재무 화면 (디자인 5차 목업 04 나 · 04c · 04d 가) — 왼쪽 종목명 목록, 오른쪽에 고른 종목의 카드 다섯
+ * (PER · 가치 · 수익성 · 성장 · 안정), 회사 가이던스 한 줄, 실적(분기 / 연 토글, 전년비 · 전분기비).
  */
 export function DesktopFundamentals({
   rows,

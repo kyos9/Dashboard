@@ -470,6 +470,36 @@ def per_history(facts: list[Fact], prices: list[tuple[dt.date, float]], current:
 TABLE_METRICS = ("revenue", "operating_income", "net_income", "eps_diluted", "operating_cf", "capex")
 
 
+def annual_table(facts: list[Fact], limit: int = 5) -> list[dict]:
+    """최근 회계연도 표 (재무 화면의 "연 실적", 디자인 5차). 연간 보고서에 나온 1년 값만 — 분기를 더해 만들지 않는다.
+
+    행 모양은 분기 표와 같다 — 화면이 같은 표로 그린다.
+    """
+    v = view(facts)
+    series: dict[str, dict[dt.date, Period]] = {}
+    for metric in TABLE_METRICS:
+        series[metric] = {
+            f.end: _period(v, [f], f.value, f.start, f.end)
+            for f in v.of(metric) if f.is_duration and _is_year(f.start, f.end)
+        }
+    ends = sorted(set(series["revenue"]) | set(series["net_income"]) | set(series["eps_diluted"]),
+                  reverse=True)[:limit]
+    rows = []
+    for end in ends:
+        cells = {metric: series[metric].get(end) for metric in TABLE_METRICS}
+        present = [p for p in cells.values() if p is not None]
+        ocf, capex = cells["operating_cf"], cells["capex"]
+        rows.append({
+            "period_end": end,
+            "filed_at": min(p.filed for p in present),
+            "estimated": any(p.estimated for p in present),
+            "revised": any(p.revised for p in present),
+            **{metric: (p.value if p else None) for metric, p in cells.items()},
+            "fcf": (ocf.value - capex.value) if ocf and capex else None,
+        })
+    return rows
+
+
 def quarter_table(facts: list[Fact], limit: int = 8) -> list[dict]:
     """최근 분기 표. 행마다 **처음 공시된 날**과, 뒤에 정정됐는지를 붙인다."""
     v = view(facts)

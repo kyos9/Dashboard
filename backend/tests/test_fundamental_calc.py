@@ -239,3 +239,20 @@ def test_annual_growth_only_when_there_are_no_quarters():
     snap = c.snapshot(facts, None)
     assert snap["revenue_yoy"]["value"] is None and snap["revenue_yoy"]["note"] is None
     assert snap["revenue_yoy"]["period_end"] == dt.date(2026, 3, 31)
+
+
+def test_annual_table_lists_fiscal_years_latest_first():
+    from app.services import fundamental_calc as c
+
+    def y(metric, year, value, filed):
+        return c.Fact(metric, dt.date(year, 1, 1), dt.date(year, 12, 31), value, filed)
+
+    facts = [y("revenue", 2024, 400.0, dt.date(2025, 2, 20)), y("revenue", 2025, 500.0, dt.date(2026, 2, 20)),
+             y("net_income", 2025, 90.0, dt.date(2026, 2, 25)), y("eps_diluted", 2025, 1.8, dt.date(2026, 2, 25)),
+             # 분기 값은 연 표에 들어가지 않는다
+             c.Fact("revenue", dt.date(2025, 10, 1), dt.date(2025, 12, 31), 130.0, dt.date(2026, 2, 20))]
+    rows = c.annual_table(facts)
+    assert [r["period_end"] for r in rows] == [dt.date(2025, 12, 31), dt.date(2024, 12, 31)]
+    assert rows[0]["revenue"] == 500 and rows[0]["net_income"] == 90 and rows[0]["eps_diluted"] == 1.8
+    assert rows[0]["filed_at"] == dt.date(2026, 2, 20)
+    assert rows[1]["net_income"] is None and rows[1]["operating_income"] is None

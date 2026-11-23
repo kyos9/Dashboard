@@ -307,6 +307,8 @@ export interface FundamentalsResponse {
   metrics: FundamentalMetric[]
   per_range: PerRange | null
   quarters: FundamentalQuarter[]
+  /** 최근 회계연도 (연간 보고서의 1년 값) — 목록 응답에는 빈다 */
+  years?: FundamentalQuarter[]
 }
 
 export interface HistoryPoint {

@@ -43,21 +43,22 @@ describe('PC 재무 화면 (디자인 5차)', () => {
     expect(options[0]).toHaveAttribute('aria-selected', 'true')
   })
 
-  it('오른쪽: 묶음 카드 넷, PER 지금 · 5년 평균 · 차이 (5년 중 위치는 없음)', () => {
+  it('오른쪽: 카드 다섯(PER · 가치 · 수익성 · 성장 · 안정) — PER 카드에 지금, 5년 평균, 그 밑 범위, 차이', () => {
     render(<Harness rows={[GOOG, ETF]} />)
     const detail = screen.getByRole('article')
-    for (const t of ['가치', '수익성', '성장', '안정']) expect(within(detail).getByRole('region', { name: t })).toBeInTheDocument()
+    for (const t of ['PER', '가치', '수익성', '성장', '안정']) expect(within(detail).getByRole('region', { name: t })).toBeInTheDocument()
     const per = within(detail).getByRole('region', { name: 'PER' })
-    expect(per).toHaveTextContent('지금 PER28.1배')
-    expect(per).toHaveTextContent('5년 평균 PER22.5배')
-    expect(per).toHaveTextContent('+25%') // 28.14 ÷ 22.5
+    const lines = within(per).getAllByRole('listitem').map((li) => li.textContent)
+    expect(lines).toEqual(['지금28.1배', '5년 평균22.5배', '5년 범위16.2 ~ 34.8배', '평균과 차이+25%'])
     expect(per).not.toHaveTextContent('위치')
-    expect(within(detail).getByText('회사 가이던스는 아직 모으지 않습니다.')).toBeInTheDocument()
+    // PER 은 가치 카드에서 빠진다
+    expect(within(detail).getByRole('region', { name: '가치' })).not.toHaveTextContent('PER')
+    expect(within(detail).getByText('아직 모으지 않습니다')).toBeInTheDocument()
   })
 
-  it('최근 분기에 전년비 · 전분기비 — 1년 전 분기가 없으면 —', () => {
+  it('실적: 분기에 전년비 · 전분기비 — 1년 전 분기가 없으면 —', () => {
     render(<Harness rows={[GOOG, ETF]} />)
-    const table = within(screen.getByRole('region', { name: '최근 분기' })).getByRole('table')
+    const table = within(screen.getByRole('region', { name: '실적' })).getByRole('table')
     const first = within(table).getAllByRole('row')[1]
     expect(within(first).getByRole('rowheader')).toHaveTextContent('2026년 2분기')
     const revenue = within(first).getAllByRole('cell')[0]
@@ -65,10 +66,24 @@ describe('PC 재무 화면 (디자인 5차)', () => {
     expect(revenue).toHaveTextContent('전년 —')
   })
 
+  it('실적: 연으로 바꾸면 회계연도 표, 전년비만 (12월 결산이 아니면 결산 달)', async () => {
+    const year = (end: string, revenue: number) => ({ ...FUNDAMENTALS.quarters[0], period_end: end, filed_at: '2025-11-01', revenue })
+    const withYears = { ...GOOG, years: [year('2025-09-27', 120), year('2024-09-28', 100)] }
+    render(<Harness rows={[withYears]} />)
+    await userEvent.click(screen.getByRole('button', { name: '연' }))
+    expect(screen.getByRole('button', { name: '연' })).toHaveAttribute('aria-pressed', 'true')
+    const table = within(screen.getByRole('region', { name: '실적' })).getByRole('table')
+    const first = within(table).getAllByRole('row')[1]
+    expect(within(first).getByRole('rowheader')).toHaveTextContent('2025년9월 결산, 공시 11월 1일')
+    const revenue = within(first).getAllByRole('cell')[0]
+    expect(revenue).toHaveTextContent('전년 +20.0%')
+    expect(revenue).not.toHaveTextContent('전분기')
+  })
+
   it('목록 응답에 분기가 없으면 그 종목만 따로 받는다', async () => {
     const spy = vi.spyOn(api, 'getFundamentals').mockResolvedValue({ ...GOOG, ticker: 'MSFT2' })
     render(<Harness rows={[{ ...GOOG, ticker: 'MSFT2', name: 'Microsoft', quarters: [] }]} />)
-    expect(screen.getByText('분기 실적을 받는 중입니다.')).toBeInTheDocument()
+    expect(screen.getByText('실적을 받는 중입니다.')).toBeInTheDocument()
     expect(await screen.findByText('2026년 2분기')).toBeInTheDocument()
     expect(spy).toHaveBeenCalledWith('MSFT2')
   })

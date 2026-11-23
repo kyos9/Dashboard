@@ -267,10 +267,10 @@ def fake_fundamentals(db, ticker, market, today):
 
     rows: list[dict] = []
 
-    def add(metric, start, end, value, unit):
+    def add(metric, start, end, value, unit, days=40):
         rows.append({
             "metric": metric, "period_start": start, "period_end": end, "value": float(value), "unit": unit,
-            "filed_at": end + dt.timedelta(days=40), "filed_estimated": market == Market.JP,
+            "filed_at": end + dt.timedelta(days=days), "filed_estimated": market == Market.JP,
             "source": source, "form": "dev", "tag": "dev",
         })
 
@@ -283,6 +283,17 @@ def fake_fundamentals(db, ticker, market, today):
         add("equity", end, end, equity, currency)
         add("liabilities", end, end, equity * 0.7, currency)
         add("shares", end, end, round(shares), "shares")
+    # 연간 보고서 — 네 분기가 다 있는 해만 (재무 화면 "연" 실적, 디자인 5차)
+    for year in sorted({end.year for _s, end in periods}):
+        inside = [f for (s, _e), f in zip(periods, flows) if s.year == year]
+        if len(inside) < 4:
+            continue
+        start, end = dt.date(year, 1, 1), dt.date(year, 12, 31)
+        net = sum(f[2] for f in inside)
+        add("revenue", start, end, sum(f[0] for f in inside), currency, 60)
+        add("operating_income", start, end, sum(f[1] for f in inside), currency, 60)
+        add("net_income", start, end, net, currency, 60)
+        add("eps_diluted", start, end, net / shares, f"{currency}/shares", 60)
     return source, sec.ParsedFacts(rows=rows)
 
 

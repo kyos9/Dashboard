@@ -316,6 +316,7 @@ def detail(db: Session, ticker: str, currency: str, today: dt.date | None = None
         "metrics": [],
         "per_range": None,
         "quarters": [],
+        "years": [],
     }
     if not facts:
         return out
@@ -324,6 +325,7 @@ def detail(db: Session, ticker: str, currency: str, today: dt.date | None = None
     out["per_range"] = calc.per_history(facts, prices, snap["per"]["value"], today)
     if with_quarters:
         out["quarters"] = calc.quarter_table(facts)
+        out["years"] = calc.annual_table(facts)
     return out
 
 
