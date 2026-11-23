@@ -241,18 +241,36 @@ def test_annual_growth_only_when_there_are_no_quarters():
     assert snap["revenue_yoy"]["period_end"] == dt.date(2026, 3, 31)
 
 
-def test_annual_table_lists_fiscal_years_latest_first():
+def test_annual_table_sums_four_quarters_ending_at_latest_quarter():
+    """연 실적은 최신 분기를 끝으로 한 1년 — 맨 윗줄은 최근 네 분기 합, 그 아래는 1년 전 같은 분기까지."""
+    from app.services import fundamental_calc as c
+
+    ends = [dt.date(2024, 9, 30), dt.date(2024, 12, 31), dt.date(2025, 3, 31), dt.date(2025, 6, 30),
+            dt.date(2025, 9, 30), dt.date(2025, 12, 31), dt.date(2026, 3, 31), dt.date(2026, 6, 30)]
+    facts = []
+    for i, end in enumerate(ends):
+        start = (end - dt.timedelta(days=89)).replace(day=1)
+        filed = end + dt.timedelta(days=30)
+        facts.append(c.Fact("revenue", start, end, 100.0 + 10 * i, filed))
+        facts.append(c.Fact("net_income", start, end, 10.0 + i, filed))
+    rows = c.annual_table(facts)
+    assert [r["period_end"] for r in rows] == [dt.date(2026, 6, 30), dt.date(2025, 6, 30)]
+    assert rows[0]["revenue"] == 140 + 150 + 160 + 170
+    assert rows[1]["revenue"] == 100 + 110 + 120 + 130
+    assert rows[0]["filed_at"] == dt.date(2026, 7, 30)  # 마지막 분기가 나온 날
+    assert rows[0]["eps_diluted"] is None
+
+
+def test_annual_table_falls_back_to_annual_report():
+    """분기가 모자라면 그날 끝나는 연간 보고서 값."""
     from app.services import fundamental_calc as c
 
     def y(metric, year, value, filed):
         return c.Fact(metric, dt.date(year, 1, 1), dt.date(year, 12, 31), value, filed)
 
     facts = [y("revenue", 2024, 400.0, dt.date(2025, 2, 20)), y("revenue", 2025, 500.0, dt.date(2026, 2, 20)),
-             y("net_income", 2025, 90.0, dt.date(2026, 2, 25)), y("eps_diluted", 2025, 1.8, dt.date(2026, 2, 25)),
-             # 분기 값은 연 표에 들어가지 않는다
-             c.Fact("revenue", dt.date(2025, 10, 1), dt.date(2025, 12, 31), 130.0, dt.date(2026, 2, 20))]
+             y("net_income", 2025, 90.0, dt.date(2026, 2, 25))]
     rows = c.annual_table(facts)
     assert [r["period_end"] for r in rows] == [dt.date(2025, 12, 31), dt.date(2024, 12, 31)]
-    assert rows[0]["revenue"] == 500 and rows[0]["net_income"] == 90 and rows[0]["eps_diluted"] == 1.8
-    assert rows[0]["filed_at"] == dt.date(2026, 2, 20)
-    assert rows[1]["net_income"] is None and rows[1]["operating_income"] is None
+    assert rows[0]["revenue"] == 500 and rows[0]["net_income"] == 90
+    assert rows[1]["net_income"] is None

@@ -23,15 +23,6 @@ function dayLabel(iso: string | null | undefined): string | null {
   return m && d ? `${m}월 ${d}일` : null
 }
 
-/** 결산일이 1년 전 같은 달인 분기 */
-function yearBefore(quarters: FundamentalQuarter[], q: FundamentalQuarter): FundamentalQuarter | undefined {
-  const [y, m] = q.period_end.split('-').map(Number)
-  return quarters.find((o) => {
-    const [oy, om] = o.period_end.split('-').map(Number)
-    return oy === y - 1 && om === m
-  })
-}
-
 function Change({ label, value }: { label: string; value: number | null }) {
   return (
     <small>
@@ -68,9 +59,13 @@ function useResults(row: FundamentalsResponse): Results | null {
 
 type Mode = 'quarter' | 'year'
 
-/** "2025-09-27" → "2025년" — 12월 결산이 아니면 결산 달은 표에 따로 적는다 */
-function yearName(periodEnd: string): string {
-  return `${periodEnd.slice(0, 4)}년`
+/** 그 분기에서 끝나는 1년 — "2026-06-30" → "25년 3분기 ~ 26년 2분기" */
+function trailingName(periodEnd: string): string {
+  const [y, m] = periodEnd.split('-').map(Number)
+  const q = Math.ceil(m / 3)
+  const startQ = (q % 4) + 1
+  const startY = q === 4 ? y : y - 1
+  return `${String(startY).slice(2)}년 ${startQ}분기 ~ ${String(y).slice(2)}년 ${q}분기`
 }
 
 function ResultsTable({ row, results, mode }: { row: FundamentalsResponse; results: Results; mode: Mode }) {
@@ -92,15 +87,14 @@ function ResultsTable({ row, results, mode }: { row: FundamentalsResponse; resul
         </thead>
         <tbody>
           {shown.map((q, i) => {
+            // 분기는 전분기비만, 연은 1년 전 같은 분기까지의 1년과 비교 (주인 요청)
             const prev = all[i + 1]
-            const year = mode === 'quarter' ? yearBefore(all, q) : prev
-            const month = Number(q.period_end.slice(5, 7))
             return (
               <tr key={q.period_end}>
                 <th scope="row">
-                  {mode === 'quarter' ? quarterName(q.period_end) : yearName(q.period_end)}
+                  {mode === 'quarter' ? quarterName(q.period_end) : trailingName(q.period_end)}
                   <small>
-                    {mode === 'year' && month !== 12 ? `${month}월 결산, ` : ''}공시 {dayLabel(q.filed_at)}
+                    공시 {dayLabel(q.filed_at)}
                     {q.estimated ? ' (추정)' : ''}
                   </small>
                 </th>
@@ -110,8 +104,7 @@ function ResultsTable({ row, results, mode }: { row: FundamentalsResponse; resul
                   return (
                     <td key={c.key}>
                       <b>{c.key === 'eps_diluted' ? price(value, row.currency) : bigAmount(value, row.currency)}</b>
-                      <Change label="전년" value={growth(value, pick(year))} />
-                      {mode === 'quarter' && <Change label="전분기" value={growth(value, pick(prev))} />}
+                      <Change label={mode === 'quarter' ? '전분기' : '전년'} value={growth(value, pick(prev))} />
                     </td>
                   )
                 })}
@@ -197,11 +190,6 @@ function Detail({ row }: { row: FundamentalsResponse }) {
         ))}
       </div>
 
-      <div className="fd-line" aria-label="회사 가이던스">
-        <h4>회사 가이던스</h4>
-        <span>아직 모으지 않습니다</span>
-      </div>
-
       <section className="fd-sec" aria-label="실적">
         <div className="fd-sec-head">
           <h4>실적</h4>
@@ -214,6 +202,13 @@ function Detail({ row }: { row: FundamentalsResponse }) {
           </div>
         </div>
         {results === null ? <p className="hint">실적을 받는 중입니다.</p> : <ResultsTable row={row} results={results} mode={mode} />}
+        {/* 회사 가이던스는 분기마다 나오므로 분기 실적에만 (주인 요청) */}
+        {mode === 'quarter' && (
+          <div className="fd-line" aria-label="회사 가이던스">
+            <h4>회사 가이던스</h4>
+            <span>아직 모으지 않습니다</span>
+          </div>
+        )}
       </section>
     </article>
   )
@@ -221,7 +216,7 @@ function Detail({ row }: { row: FundamentalsResponse }) {
 
 /**
  * PC 재무 화면 (디자인 5차 목업 04 나 · 04c · 04d 가) — 왼쪽 종목명 목록, 오른쪽에 고른 종목의 카드 다섯
- * (PER · 가치 · 수익성 · 성장 · 안정), 회사 가이던스 한 줄, 실적(분기 / 연 토글, 전년비 · 전분기비).
+ * (PER, 가치, 수익성, 성장, 안정), 실적(분기는 전분기비와 회사 가이던스, 연은 최신 분기까지 1년과 전년비).
  */
 export function DesktopFundamentals({
   rows,
