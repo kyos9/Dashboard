@@ -22,3 +22,25 @@
   gap: 8px;
 }
 
+
+/* 확대 · 축소 단추 (PC 매크로) — 차트 왼쪽 위에 겹쳐 */
+.chart-shell:has(.chart-zoom) {
+  position: relative;
+}
+.chart-zoom {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 3;
+  display: flex;
+  gap: 4px;
+}
+.chart-zoom .icon-btn {
+  width: 30px;
+  height: 30px;
+  min-height: 0;
+  padding: 0;
+  background: var(--panel);
+  font-size: 16px;
+  line-height: 1;
+}

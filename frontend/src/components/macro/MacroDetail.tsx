@@ -113,7 +113,7 @@ export function MacroDetail({
       </header>
 
       <ErrorNotice error={error} onDismiss={setError} />
-      <MacroChart history={history?.code === code ? history : null} height={320} />
+      <MacroChart history={history?.code === code ? history : null} height={320} zoomControls />
       {!loading && points.length === 0 && <p className="hint">이 기간에 저장된 값이 없습니다.</p>}
 
       <dl className="macro-facts">

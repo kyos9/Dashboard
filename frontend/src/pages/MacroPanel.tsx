@@ -353,7 +353,7 @@ export function MacroPanel() {
             )}
             {isAdmin && (
               <button type="button" onClick={() => void refresh()} disabled={refreshing}>
-                {refreshing ? '받는 중…' : '받아오기'}
+                {refreshing ? '갱신 중…' : '갱신'}
               </button>
             )}
           </div>
@@ -364,7 +364,7 @@ export function MacroPanel() {
           </Suspense>
         )}
         <ErrorNotice error={error} onDismiss={() => setError(null)} />
-        <RegimeStrip badges={badges} spread={data?.term_spread ?? null} fear={series.find((item) => item.zone) ?? null} />
+        <RegimeStrip badges={badges} spread={data?.term_spread ?? null} />
         <p className="sr-only" role="status">
           {pinNote}
         </p>
@@ -404,7 +404,7 @@ export function MacroPanel() {
           )}
           {isAdmin && (
             <button className="primary" onClick={() => void refresh()} disabled={refreshing}>
-              {refreshing ? '받는 중…' : '지금 받아오기'}
+              {refreshing ? '갱신 중…' : '갱신'}
             </button>
           )}
         </div>

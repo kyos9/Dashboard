@@ -739,3 +739,45 @@ button.sig-item.active {
 .macro-detail .macro-forecast-box {
   margin-top: 14px;
 }
+.macro-regime {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  padding: 14px 20px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.macro-regime > b {
+  font-size: var(--fs-strong);
+}
+.macro-regime-spread {
+  color: var(--text-dim);
+}
+.macro-regime-spread b {
+  color: var(--text);
+  font-size: var(--fs-strong);
+}
+.macro-regime-note {
+  margin: 0 0 0 auto;
+}
+/* 숫자 넷은 칸으로 가르지 않고 한 줄에 (주인: 넷으로 나뉜 게 뜻 없이 갈라 보인다) */
+.macro-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 32px;
+  margin-top: 12px;
+}
+.macro-facts > div {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+}
+.macro-facts dd {
+  margin: 0;
+  font-size: var(--fs-body);
+}

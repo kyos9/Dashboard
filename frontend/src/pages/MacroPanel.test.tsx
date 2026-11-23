@@ -542,7 +542,7 @@ describe('화면 전체', () => {
     renderPanel()
 
     await screen.findByText('미 10년물 금리')
-    await user.click(screen.getByRole('button', { name: '지금 받아오기' }))
+    await user.click(screen.getByRole('button', { name: '갱신' }))
 
     expect(refresh).toHaveBeenCalled()
     expect(api.getMacro).toHaveBeenCalledTimes(2)
@@ -871,9 +871,9 @@ describe('예상치 — 줄에는 한 마디, 입력은 차트 창 안 (목업 1
     // 다른 칸으로 옮긴 뒤 화면을 다시 읽는다(받아오기 — 누름은 포커스를 옮기지 않는 이벤트로)
     screen.getByRole('button', { name: '미 10년물 금리 내 지표로' }).focus()
     const calls = vi.mocked(api.getMacro).mock.calls.length
-    fireEvent.click(screen.getByRole('button', { name: '지금 받아오기' }))
+    fireEvent.click(screen.getByRole('button', { name: '갱신' }))
     await waitFor(() => expect(vi.mocked(api.getMacro).mock.calls.length).toBeGreaterThan(calls))
-    await waitFor(() => expect(screen.getByRole('button', { name: '지금 받아오기' })).not.toBeDisabled())
+    await waitFor(() => expect(screen.getByRole('button', { name: '갱신' })).not.toBeDisabled())
     expect(screen.getByRole('button', { name: '미 10년물 금리 내 지표로' })).toHaveFocus()
   })
 
@@ -1040,7 +1040,7 @@ describe('손님·사용자·관리자', () => {
     )
     expect(await screen.findByText('CPI')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /내 지표로/ })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '지금 받아오기' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '갱신' })).not.toBeInTheDocument()
     expect(screen.queryByRole('list', { name: '내 지표' })).toBeNull()
     expect(screen.getByRole('list', { name: '지표' })).toBeInTheDocument()
     // AI 는 자기 키로 쓰는 사람만 — 손님에게는 버튼이 없다
@@ -1066,7 +1066,7 @@ describe('손님·사용자·관리자', () => {
     renderAs({ authenticated: true, user: { email: 'f@x.y', name: '친구', is_owner: false } })
     expect(await screen.findByText('CPI')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'CPI 내 지표로' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '지금 받아오기' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '갱신' })).not.toBeInTheDocument()
     // 차트 창을 열어도 예상치 입력이 없다
     vi.spyOn(api, 'getMacroHistory').mockResolvedValue({ code: 'CPIAUCSL', name: 'CPI', unit: 'percent', transform: 'none', transform_label: null, points: [] })
     await userEvent.click(screen.getByRole('button', { name: /^CPI, .* — 차트$/ }))
@@ -1077,7 +1077,7 @@ describe('손님·사용자·관리자', () => {
     renderAs({ authenticated: true, user: { email: 'me@x.y', name: '나', is_owner: true } })
     expect(await screen.findByText('CPI')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'CPI 내 지표로' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '지금 받아오기' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '갱신' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '예상치 입력' })).not.toBeInTheDocument()
     vi.spyOn(api, 'getMacroHistory').mockResolvedValue({ code: 'CPIAUCSL', name: 'CPI', unit: 'percent', transform: 'none', transform_label: null, points: [] })
     await userEvent.click(screen.getByRole('button', { name: /^CPI, .* — 차트$/ }))

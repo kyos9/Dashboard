@@ -37,9 +37,11 @@ export function needsZeroLine(points: { value: number }[]): boolean {
 interface Props {
   history: MacroHistory | null
   height?: number
+  /** 확대 · 축소 · 처음대로 단추 (PC 매크로, 주인 요청). 휠 · 끌기는 원래 된다 */
+  zoomControls?: boolean
 }
 
-export function MacroChart({ history, height = 340 }: Props) {
+export function MacroChart({ history, height = 340, zoomControls = false }: Props) {
   const [container, setContainer] = useState<HTMLDivElement | null>(null)
   const [handles, setHandles] = useState<{
     chart: IChartApi
@@ -103,8 +105,31 @@ export function MacroChart({ history, height = 340 }: Props) {
     handles.chart.timeScale().fitContent()
   }, [handles, history])
 
+  /** 보이는 구간을 가운데 기준으로 factor 배 — 1 보다 작으면 확대 */
+  const zoom = (factor: number) => {
+    const ts = handles?.chart.timeScale()
+    const range = ts?.getVisibleLogicalRange()
+    if (!ts || !range) return
+    const center = (range.from + range.to) / 2
+    const half = Math.max(5, ((range.to - range.from) / 2) * factor)
+    ts.setVisibleLogicalRange({ from: center - half, to: center + half })
+  }
+
   return (
     <div className="chart-shell">
+      {zoomControls && (
+        <div className="chart-zoom" role="group" aria-label="차트 확대 축소">
+          <button type="button" className="icon-btn" onClick={() => zoom(0.6)} aria-label="확대" title="확대 (휠로도 됩니다)">
+            +
+          </button>
+          <button type="button" className="icon-btn" onClick={() => zoom(1 / 0.6)} aria-label="축소" title="축소">
+            −
+          </button>
+          <button type="button" className="icon-btn" onClick={() => handles?.chart.timeScale().fitContent()} aria-label="처음대로" title="처음대로">
+            ↺
+          </button>
+        </div>
+      )}
       <div ref={setContainer} style={{ width: '100%' }} />
     </div>
   )

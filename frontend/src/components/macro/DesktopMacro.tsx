@@ -29,56 +29,36 @@ function macroGroups(series: MacroSeriesInfo[]): [string, MacroSeriesInfo[]][] {
   )
 }
 
-/** 국면 띠 — 흩어져 있던 "눈에 띄는 국면 없음" 글 · 파란 금리차 상자 · 시그널 안내를 한 줄로 (목업 06 공통) */
-export function RegimeStrip({ badges, spread, fear }: { badges: MacroBadge[]; spread: TermSpread | null; fear: MacroSeriesInfo | null }) {
+/**
+ * 국면 한 줄 — 흩어져 있던 "눈에 띄는 국면 없음" 글 · 파란 금리차 상자 · 시그널 안내를 한 줄로 (목업 06 공통).
+ * 칸으로 나누지 않는다 — 넷으로 나눈 띠는 뜻 없이 갈라 보였다(주인). 공포·탐욕은 목록에 있어 뺐다.
+ */
+export function RegimeStrip({ badges, spread }: { badges: MacroBadge[]; spread: TermSpread | null }) {
   const inverted = spread != null && spread.value < 0
   return (
-    <section className="rb-strip macro-strip" aria-label="국면">
-      <div className="rb-strip-cell">
-        <span className="rb-strip-k">국면</span>
-        <div className="rb-strip-v">
-          {badges.length === 0 ? (
-            <b>눈에 띄는 국면 없음</b>
-          ) : (
-            <div className="macro-strip-badges">
-              {badges.map((b) => (
-                <span key={b.key} className={`badge badge-${b.tone}`} title={b.detail}>
-                  {b.label}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-      <div className="rb-strip-cell">
-        <span className="rb-strip-k">장단기 금리차 (10년 − 2년)</span>
-        <div className="rb-strip-v">
-          {spread ? (
-            <b className={inverted ? 'tone-warn' : undefined} title={`${spread.long_code} − ${spread.short_code}, ${spread.as_of} 기준`}>
-              <span className="mono">
-                {spread.value > 0 ? '+' : ''}
-                {spread.value.toFixed(2)}%p
-              </span>{' '}
-              <small>{inverted ? '역전' : '정상, 장기가 높음'}</small>
-            </b>
-          ) : (
-            <small className="hint">두 금리가 같은 날 값으로 있어야 계산됩니다</small>
-          )}
-        </div>
-      </div>
-      {fear && fear.value != null && (
-        <div className="rb-strip-cell">
-          <span className="rb-strip-k">{fear.name}</span>
-          <div className="rb-strip-v">
-            <b>
-              <span className="mono">{macroValue(fear.value, fear.unit)}</span> {fear.zone && <small>{fear.zone.label} 구간</small>}
-            </b>
-          </div>
-        </div>
+    <section className="macro-regime" aria-label="국면">
+      {badges.length === 0 ? (
+        <b>눈에 띄는 국면 없음</b>
+      ) : (
+        <span className="macro-strip-badges">
+          {badges.map((b) => (
+            <span key={b.key} className={`badge badge-${b.tone}`} title={b.detail}>
+              {b.label}
+            </span>
+          ))}
+        </span>
       )}
-      <div className="rb-strip-cell macro-strip-note">
-        <span className="hint">여기 숫자는 매수, 매도 시그널에 들어가지 않습니다.</span>
-      </div>
+      {spread && (
+        <span className="macro-regime-spread" title={`${spread.long_code} − ${spread.short_code}, ${spread.as_of} 기준`}>
+          장단기 금리차{' '}
+          <b className={`mono${inverted ? ' tone-warn' : ''}`}>
+            {spread.value > 0 ? '+' : ''}
+            {spread.value.toFixed(2)}%p
+          </b>{' '}
+          {inverted ? '역전' : '정상'}
+        </span>
+      )}
+      <span className="hint macro-regime-note">여기 숫자는 매수, 매도 시그널에 들어가지 않습니다.</span>
     </section>
   )
 }
