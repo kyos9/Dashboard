@@ -58,9 +58,11 @@ export interface MetricDef {
   help: string
 }
 
-export const METRIC_GROUPS: { title: string; items: MetricDef[] }[] = [
+/** title 은 팝업 머리, short 는 PC 재무 카드 머리 — 묶음을 더하면 둘 다 여기 적는다 */
+export const METRIC_GROUPS: { title: string; short: string; items: MetricDef[] }[] = [
   {
     title: '가치',
+    short: '가치',
     items: [
       { key: 'per', label: 'PER', help: '종가 ÷ 최근 4분기 희석 EPS 합' },
       { key: 'pbr', label: 'PBR', help: '종가 ÷ (최근 자본 ÷ 주식 수)' },
@@ -69,6 +71,7 @@ export const METRIC_GROUPS: { title: string; items: MetricDef[] }[] = [
   },
   {
     title: '수익성',
+    short: '수익성',
     items: [
       { key: 'roe', label: 'ROE', help: '최근 4분기 순이익 합 ÷ 최근 자본' },
       { key: 'operating_margin', label: '영업이익률', help: '최근 4분기 영업이익 합 ÷ 매출 합' },
@@ -76,6 +79,7 @@ export const METRIC_GROUPS: { title: string; items: MetricDef[] }[] = [
   },
   {
     title: '성장 (전년 같은 분기 대비)',
+    short: '성장',
     items: [
       { key: 'revenue_yoy', label: '매출', help: '최근 분기 매출 ÷ 1년 전 같은 분기' },
       { key: 'operating_income_yoy', label: '영업이익', help: '최근 분기 영업이익 ÷ 1년 전 같은 분기' },
@@ -84,6 +88,7 @@ export const METRIC_GROUPS: { title: string; items: MetricDef[] }[] = [
   },
   {
     title: '안정성 · 현금',
+    short: '안정',
     items: [
       { key: 'debt_ratio', label: '부채비율', help: '부채 ÷ 자본' },
       { key: 'fcf', label: 'FCF (최근 1년)', help: '최근 4분기 영업현금흐름 − 설비투자' },

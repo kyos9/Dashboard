@@ -6,8 +6,6 @@ import { tone } from '../../lib/portfolio'
 import type { FundamentalQuarter, FundamentalsResponse } from '../../types'
 
 const SOURCE_LABEL: Record<string, string> = { sec: 'SEC', dart: 'DART', yahoo: '야후' }
-/** 카드 머리 — 팝업의 묶음 이름보다 짧게 (디자인 5차 목업 04) */
-const GROUP_TITLES = ['가치', '수익성', '성장', '안정']
 
 const QUARTER_COLUMNS: { key: keyof FundamentalQuarter; label: string }[] = [
   { key: 'revenue', label: '매출' },
@@ -171,10 +169,10 @@ function Detail({ row }: { row: FundamentalsResponse }) {
             { label: '평균과 차이', value: signed(gap, 0, '%') },
           ]}
         />
-        {METRIC_GROUPS.map((group, i) => (
+        {METRIC_GROUPS.map((group) => (
           <Card
             key={group.title}
-            title={GROUP_TITLES[i]}
+            title={group.short}
             lines={group.items
               .filter((item) => item.key !== 'per')
               .map((item) => ({ label: item.label, value: metricValue(byKey[item.key], row.currency), help: item.help }))}
