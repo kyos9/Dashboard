@@ -12,6 +12,7 @@ import { Link } from 'react-router-dom'
 import { Icon } from '../components/icons/Icon'
 import { Sheet } from '../components/ui/Sheet'
 import { OrderGroup, OrderRowButton, OrderSplit, type OrderRowItem } from '../components/rebalance/OrderRows'
+import { RebalanceStrip } from '../components/rebalance/RebalanceStrip'
 import { RebalanceSummary } from '../components/rebalance/RebalanceSummary'
 import { TargetSheet, type TargetLine } from '../components/rebalance/TargetSheet'
 import { usePrefs } from '../lib/prefs'
@@ -1089,6 +1090,34 @@ export function RebalancePanel() {
     </div>
   )
 
+  /** PC 요약 띠의 새로 넣을 돈 칸 (디자인 5차 목업 05 가) — 긴 풀이는 빼고, 넣으면 표 위 한 줄이 무엇을 했는지 말한다 */
+  const newMoneyCell = (
+    <>
+      <label className="rb-strip-k" htmlFor="new-money">
+        이번에 새로 넣을 돈
+      </label>
+      <div className="rb-strip-v rb-money-line">
+        <div className="input-with-button">
+          <span className="unit">{CURRENCY_META[baseCurrency].symbol}</span>
+          <NumberInput
+            id="new-money"
+            value={newMoney}
+            onChange={setNewMoney}
+            placeholder="0"
+            allowDecimal={baseCurrency === 'USD'}
+          />
+        </div>
+        <label
+          className="check-line"
+          title="켜면 팔지 않고, 새로 넣을 돈만 목표에 모자란 만큼에 비례해 나눕니다. 끄면 새로 넣을 돈까지 더한 전체 자금으로 목표 비중을 다시 맞춥니다. 저장되지 않습니다."
+        >
+          <input type="checkbox" checked={buyOnly} onChange={(e) => setBuyOnly(e.target.checked)} />
+          팔지 않고 새 돈만 나누기
+        </label>
+      </div>
+    </>
+  )
+
   /** 사거나 팔 주문 수 — 유지는 빼고 (디자인 2차: 머리말이 "비중조절 신호 3종목"뿐이라 주문 14개와 어긋나 보였다) */
   const orderCount = plan.orders.filter((o) => o.action !== 'hold').length
   // 목표 0% 라서 생긴 팔기 (0.45.4 C) — 하나면 그 줄에 풀이, 둘 이상이면 위에 한 줄로 모으고 줄마다는 짧게
@@ -1242,53 +1271,66 @@ export function RebalancePanel() {
         onError={setError}
       >
         <td>
-          {/* 구분 칩은 이름 옆(대시보드 표와 같게). 이름 = 티커면 아래에 다시 쓰지 않는다 (디자인 2차) */}
-          <div className={`ticker-cell order-stripe is-${order.action}`}>
+          {/* 한 줄 (디자인 5차 목업 05 가) — 수량 · 가격 · 평가는 이름에 마우스를 올리면 */}
+          <div
+            className={`ticker-cell order-stripe is-${order.action}`}
+            title={[
+              labelOf(row) !== row.ticker ? row.ticker : '',
+              `${qty(row.current.quantity)}주`,
+              price(row.current.last_close, native),
+              `평가 ${amount(row.current.current_value_base, baseCurrency)}`,
+              isForeign ? `현지 ${amount(row.current.current_value, native)}` : '',
+            ]
+              .filter(Boolean)
+              .join(', ')}
+          >
             <div className="stock-line">
-              {row.stock?.category && <span className="cat-tag">{row.stock.category}</span>}
               <span className="ticker-name">{labelOf(row)}</span>
+              {row.stock?.category && <span className="rb-kind">{row.stock.category}</span>}
             </div>
-            <span className="ticker-sub">
-              {labelOf(row) !== row.ticker && <>{row.ticker} · </>}
-              <span className="nowrap">{qty(row.current.quantity)}주</span> ·{' '}
-              <span className="nowrap">{price(row.current.last_close, native)}</span> ·{' '}
-              <span className="nowrap">
-                평가 <span>{amount(row.current.current_value_base, baseCurrency)}</span>
-              </span>
-              {isForeign && <span className="nowrap"> · 현지 {amount(row.current.current_value, native)}</span>}
-            </span>
           </div>
         </td>
         <td className="num-cell mono">{num(now, 1)}%</td>
         <td className="num-cell mono">{num(row.current.target_weight_pct, 0)}%</td>
         <td className="num-cell">{driftChip(row)}</td>
-        <td className={`num-cell order-shares tone-${order.action}`} aria-label={orderTitle(shortLabel(row), order)}>
+        <td
+          className={`num-cell order-shares tone-${order.action}`}
+          aria-label={orderTitle(shortLabel(row), order)}
+          title={isZeroTargetSell(order, row.current.target_weight_pct) ? ZERO_TARGET_NOTE : undefined}
+        >
           {rowShares(order)}
-          {zeroNote(order, row.current.target_weight_pct)}
+          {/* 한 줄을 지키려고 목표 0% 풀이는 짧게, 긴 말은 마우스를 올리면 */}
+          {isZeroTargetSell(order, row.current.target_weight_pct) && <small className="zero-target-note rb-zero"> {ZERO_TARGET_SHORT}</small>}
         </td>
-        <td className={`num-cell${order.adjust > 0 ? ' tone-buy' : order.adjust < 0 ? ' tone-sell' : ''}`}>
-          <div className="metric">
-            <span className="metric-value">{order.action === 'hold' ? '—' : signedAmount(order.adjust, baseCurrency)}</span>
-            {isForeign && order.action !== 'hold' && (
-              <span className="metric-note">주문 {signedAmount(order.adjustNative, native)}</span>
-            )}
-            <span className="metric-note">
-              목표 <span>{amount(order.targetValue, baseCurrency)}</span>
+        <td
+          className={`num-cell mono${order.adjust > 0 ? ' tone-buy' : order.adjust < 0 ? ' tone-sell' : ''}`}
+          title={[
+            isForeign && order.action !== 'hold' ? `주문 ${signedAmount(order.adjustNative, native)}` : '',
+            `목표 ${amount(order.targetValue, baseCurrency)}`,
+          ]
+            .filter(Boolean)
+            .join(', ')}
+        >
+          {order.action === 'hold' ? '—' : signedAmount(order.adjust, baseCurrency)}
+        </td>
+        <td className="rb-sig-cell">
+          {/* 신호는 둘만: 밴드 밖은 차이 칸 색, 매도 신호는 이 칸 (목업 05) */}
+          {row.current.shoulder_signal_fired_in_period ? (
+            <span className="rb-sell-mark" title="이번 리뷰 기간에 매도 시그널(참고)이 한 번 이상 떴습니다. 주문 수량에는 영향이 없습니다.">
+              기간 내 매도
             </span>
-          </div>
-        </td>
-        <td>
-          <SignalBadges current={row.current} />
+          ) : (
+            <span className="hint">—</span>
+          )}
         </td>
       </OrderTableRow>
     )
   }
-  const groupRow = (title: string, orders: OrderLine[], total?: string) =>
+  const groupRow = (title: string, orders: OrderLine[]) =>
     orders.length > 0 && (
       <tr className="order-group-row">
         <th colSpan={8} scope="colgroup">
-          {title} {orders.length}
-          {total && <span className="mono"> · {total}</span>}
+          {title} {orders.length}종목
         </th>
       </tr>
     )
@@ -1312,6 +1354,7 @@ export function RebalancePanel() {
 
   return (
     <div className="rebalance">
+      {compact ? (
       <div className="page-head rb-head">
         <div>
           <h2>리밸런싱</h2>
@@ -1331,6 +1374,28 @@ export function RebalancePanel() {
           다음 리뷰 <b className="mono">{reviewCountdown(current.review)}</b>
         </button>
       </div>
+      ) : (
+        // PC 머리 (디자인 5차 목업 05 가) — 제목 옆 다음 리뷰, 도구는 오른쪽 위 글 단추
+        <div className="page-head rb-head rb-head-pc">
+          <h2>
+            리밸런싱
+            <button type="button" className="rb-review-chip" onClick={() => setRecordsOpen(true)}>
+              다음 리뷰 <b className="mono">{reviewCountdown(current.review)}</b>
+            </button>
+          </h2>
+          <div className="rb-tools">
+            <button type="button" onClick={() => setTargetsOpen(true)}>
+              목표 고치기
+            </button>
+            <button type="button" onClick={() => setRecordsOpen(true)}>
+              리뷰 기록
+            </button>
+            <button type="button" onClick={() => setSettingsOpen(true)}>
+              설정
+            </button>
+          </div>
+        </div>
+      )}
 
       <ErrorNotice error={error} onDismiss={() => setError(null)} />
 
@@ -1346,6 +1411,7 @@ export function RebalancePanel() {
         </div>
       )}
 
+      {compact ? (
       <div className="rb-top">
         <RebalanceSummary
           total={amount(current.total_value_base, baseCurrency)}
@@ -1362,6 +1428,19 @@ export function RebalancePanel() {
           </div>
         )}
       </div>
+      ) : (
+        <RebalanceStrip
+          total={amount(current.total_value_base, baseCurrency)}
+          sellCount={sells.length}
+          sellText={signedAmount(-sellTotal, baseCurrency)}
+          buyCount={buys.length}
+          buyText={signedAmount(buyTotal, baseCurrency)}
+          targetSum={`${num(plan.targetSum, 1)}%`}
+          targetGap={targetOk ? null : plan.targetSum < 100 ? `${num(100 - plan.targetSum, 1)}%p 비어 있음` : `${num(plan.targetSum - 100, 1)}%p 넘침`}
+          onTargets={() => setTargetsOpen(true)}
+          money={newMoneyCell}
+        />
+      )}
 
       {/* 저장하지 않고 시트를 닫으면 아무 표시가 없었다(묶음 4 검토 조건 6) */}
       {!targetsOpen && dirtyTickers.length > 0 && (
@@ -1374,7 +1453,8 @@ export function RebalancePanel() {
       )}
 
 
-      <section className="section rb-orders" aria-labelledby="orders-title">
+      <section className="section rb-orders" aria-label="주문 가이드">
+        {compact && (
         <div className="section-head">
           <h3 id="orders-title">주문 가이드</h3>
           <span className="hint">
@@ -1382,6 +1462,8 @@ export function RebalancePanel() {
             {NOISE_THRESHOLD_PCT}% 미만이면 &ldquo;유지&rdquo;
           </span>
         </div>
+        )}
+        {compact && (
         <OrderSplit
           money={
             narrow ? (
@@ -1399,6 +1481,7 @@ export function RebalancePanel() {
           sellText={signedAmount(-sellTotal, baseCurrency)}
           buyText={signedAmount(buyTotal, baseCurrency)}
         />
+        )}
         {newMoneyLine}
         {tradeNote && (
           <p className="new-money-line" role="status">
@@ -1476,66 +1559,62 @@ export function RebalancePanel() {
             <table className="data-table sticky-first order-table">
               <thead>
                 <tr>
-                  <th style={{ minWidth: 220 }}>구분 / 종목</th>
+                  <th style={{ minWidth: 220 }}>종목</th>
                   <th className="num-cell" style={{ minWidth: 64 }}>지금</th>
                   <th className="num-cell" style={{ minWidth: 56 }}>목표</th>
-                  <th className="num-cell" style={{ minWidth: 80 }}>차이</th>
-                  <th style={{ minWidth: 110 }}>주문</th>
-                  <th style={{ minWidth: 150 }}>조정 금액</th>
-                  <th style={{ minWidth: 150 }}>비중조절 신호</th>
+                  <th className="num-cell" style={{ minWidth: 80 }} title="색이 있으면 비중이 밴드 밖">차이</th>
+                  <th className="num-cell" style={{ minWidth: 110 }}>주문</th>
+                  <th className="num-cell" style={{ minWidth: 150 }}>금액</th>
+                  <th style={{ minWidth: 110 }}>매도 신호</th>
                   {/* 열린 "거래 칸 닫기"(한 줄) 폭까지 처음부터 — 열 때 열이 96 → 100px 로 넓어져 다른 칸이 꺾였다(검토 9 조건 1) */}
-                  <th style={{ minWidth: 104 }}>거래</th>
+                  <th style={{ minWidth: 104 }}>
+                    <span className="sr-only">거래</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                {groupRow('줄일 종목', sells, signedAmount(-sellTotal, baseCurrency))}
+                {groupRow('팔 것', sells)}
                 {sells.map(tableRow)}
-                {groupRow('늘릴 종목', buys, signedAmount(buyTotal, baseCurrency))}
+                {groupRow('살 것', buys)}
                 {buys.map(tableRow)}
                 {groupRow('유지', holds)}
                 {holds.map(tableRow)}
                 <tr className="cash-row">
                   <td>
-                    <div className="ticker-cell">
-                      <span className="ticker-name">현금</span>
-                      <span className="ticker-sub">
-                        {plan.newMoney > 0
-                          ? `지금 ${amount(cash?.value_base ?? 0, baseCurrency)} + 새로 넣을 돈`
-                          : '예수금·예금'}
-                      </span>
+                    <div
+                      className="ticker-cell"
+                      title={plan.newMoney > 0 ? `지금 ${amount(cash?.value_base ?? 0, baseCurrency)} + 새로 넣을 돈` : undefined}
+                    >
+                      <div className="stock-line">
+                        <span className="ticker-name">현금</span>
+                        <span className="rb-kind">예수금</span>
+                      </div>
                     </div>
                   </td>
                   <td className="num-cell mono">{num(plan.total > 0 ? (plan.cash.current / plan.total) * 100 : 0, 1)}%</td>
                   <td className="num-cell mono">{num(plan.cash.targetPct, 0)}%</td>
                   <td />
                   <td />
-                  <td className={`num-cell ${plan.cash.adjust > 0 ? 'tone-buy' : plan.cash.adjust < 0 ? 'tone-sell' : ''}`}>
-                    <div className="metric">
-                      <span className="metric-value">{signedAmount(plan.cash.adjust, baseCurrency)}</span>
-                      <span className="metric-note">
-                        <span>{amount(plan.cash.current, baseCurrency)}</span> → <span>{amount(plan.cash.targetValue, baseCurrency)}</span>
-                      </span>
-                    </div>
-                  </td>
-                  <td colSpan={2}>
-                    <span className="hint">
-                      {plan.cash.adjust < 0
-                        ? '목표보다 많은 현금 — 매수 재원입니다.'
+                  <td
+                    className={`num-cell mono ${plan.cash.adjust > 0 ? 'tone-buy' : plan.cash.adjust < 0 ? 'tone-sell' : ''}`}
+                    title={`${amount(plan.cash.current, baseCurrency)} → ${amount(plan.cash.targetValue, baseCurrency)}. ${
+                      plan.cash.adjust < 0
+                        ? '목표보다 많은 현금, 매수 재원입니다.'
                         : plan.cash.adjust > 0
-                          ? '목표보다 적은 현금 — 매도 대금이 여기로 옵니다.'
-                          : '목표와 같습니다.'}
-                    </span>
+                          ? '목표보다 적은 현금, 매도 대금이 여기로 옵니다.'
+                          : '목표와 같습니다.'
+                    }`}
+                  >
+                    {signedAmount(plan.cash.adjust, baseCurrency)}
                   </td>
+                  <td colSpan={2} />
                 </tr>
               </tbody>
               <tfoot>
                 <tr>
-                  <td>합계 ({CURRENCY_META[baseCurrency].symbol})</td>
-                  <td className="num-cell" colSpan={3}>
-                    {amount(plan.total, baseCurrency)}
-                  </td>
-                  <td />
-                  <td className="num-cell">
+                  <td>합계</td>
+                  <td colSpan={4} />
+                  <td className="num-cell mono">
                     {signedAmount(plan.orders.reduce((s, o) => s + o.adjust, 0) + plan.cash.adjust, baseCurrency)}
                   </td>
                   <td colSpan={2} />
@@ -1544,7 +1623,7 @@ export function RebalancePanel() {
             </table>
           </div>
         )}
-        {moreList}
+        {compact && moreList}
         <p className="hint rb-foot">지금 가격으로 목표에 맞추는 참고입니다. 실제로 사고파는 것은 리뷰 때 정합니다.</p>
       </section>
 

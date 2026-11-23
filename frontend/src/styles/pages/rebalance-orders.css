@@ -242,3 +242,142 @@ button.rb-pill {
   color: var(--amber);
   font-size: var(--fs-sub);
 }
+
+/* ---------- PC (디자인 5차 목업 05 가) — 머리 · 요약 띠 · 한 줄 표 ---------- */
+.rb-head-pc {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.rb-head-pc h2 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.rb-review-chip {
+  min-height: 0;
+  padding: 3px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  cursor: pointer;
+}
+.rb-review-chip b {
+  font-weight: 700;
+}
+.rb-tools {
+  display: flex;
+  gap: 8px;
+}
+.rb-tools > button {
+  min-height: 36px;
+  padding: 0 14px;
+  font-size: var(--fs-caption);
+  font-weight: 600;
+}
+
+/* 요약 띠 — 칸 제목은 위, 숫자는 왼쪽에 남은 높이의 가운데 (주인) */
+.rb-strip {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1fr 0.9fr 1.7fr;
+  margin-bottom: 14px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.rb-strip-cell {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 84px;
+  padding: 12px 18px;
+  border: 0;
+  border-left: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+.rb-strip-cell:first-child {
+  border-left: 0;
+}
+button.rb-strip-cell {
+  cursor: pointer;
+}
+button.rb-strip-cell:hover {
+  background: var(--panel-soft);
+}
+.rb-strip-k {
+  font-size: var(--fs-caption);
+  font-weight: 400;
+  color: var(--text-faint);
+}
+.rb-strip-v {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+}
+.rb-strip-v b {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+.rb-strip-target.warn b,
+.rb-strip-target.warn small {
+  color: var(--amber);
+}
+.rb-strip-target small {
+  font-size: var(--fs-caption);
+}
+.rb-strip-v.rb-money-line {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px 10px;
+}
+.rb-money-line .input-with-button {
+  flex-wrap: nowrap;
+}
+.rb-money-line .input-with-button input {
+  width: 140px;
+  flex: 0 0 140px;
+}
+.rb-money-line .check-line {
+  align-items: center;
+}
+.rb-money-line .check-line {
+  font-size: var(--fs-caption);
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+/* 한 줄 표 */
+.rb-kind {
+  margin-left: 6px;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+.rb-sell-mark {
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  color: var(--signal-sell);
+  white-space: nowrap;
+}
+.order-table .rb-sig-cell .hint {
+  color: var(--text-faint);
+}
+.order-table .rb-zero {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-faint);
+}
