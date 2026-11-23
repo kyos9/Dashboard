@@ -38,7 +38,7 @@ export function droppedText(label: string | undefined, kinds: Dropped[], shown: 
 /** 보유 수량 칸들의 한 마디 — 합계를 넣는 칸이다 (0.45.2 A2) */
 export const HOLDING_MINUS_HINT = '보유 수량은 가진 전체 수량입니다(판 수량이 아닙니다)'
 /** 리밸런싱 거래 입력의 수량 — "샀다"인 채 -3 을 치면 3주 산 것으로 저장된다 (0.45.2 A2, 계획 개발자 검토) */
-export const TRADE_MINUS_HINT = '팔았으면 ‘팔았다’를 고르세요'
+export const TRADE_MINUS_HINT = '매도했으면 ‘매도’를 고르세요'
 
 
 /** 세로 구간 — 화면(레이아웃 뷰포트) 좌표 */

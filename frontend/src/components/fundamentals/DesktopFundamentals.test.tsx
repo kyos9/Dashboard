@@ -43,13 +43,13 @@ describe('PC 재무 화면 (디자인 5차)', () => {
     expect(options[0]).toHaveAttribute('aria-selected', 'true')
   })
 
-  it('오른쪽: 카드 다섯(PER · 가치 · 수익성 · 성장 · 안정) — PER 카드에 지금, 5년 평균, 그 밑 범위, 차이', () => {
+  it('오른쪽: 카드 다섯(PER · 가치 · 수익성 · 성장 · 안정) — PER 카드에 현재, 5년 평균, 그 밑 범위, 차이', () => {
     render(<Harness rows={[GOOG, ETF]} />)
     const detail = screen.getByRole('article')
     for (const t of ['PER', '가치', '수익성', '성장', '안정']) expect(within(detail).getByRole('region', { name: t })).toBeInTheDocument()
     const per = within(detail).getByRole('region', { name: 'PER' })
     const lines = within(per).getAllByRole('listitem').map((li) => li.textContent)
-    expect(lines).toEqual(['지금28.1배', '5년 평균22.5배', '5년 범위16.2 ~ 34.8배', '평균과 차이+25%'])
+    expect(lines).toEqual(['현재28.1배', '5년 평균22.5배', '5년 범위16.2 ~ 34.8배', '평균과 차이+25%'])
     expect(per).not.toHaveTextContent('위치')
     // PER 은 가치 카드에서 빠진다
     expect(within(detail).getByRole('region', { name: '가치' })).not.toHaveTextContent('PER')

@@ -39,7 +39,7 @@ export function PerChart({ rows, onOpen }: { rows: FundamentalsResponse[]; onOpe
         </div>
       </div>
       <p className="hint per-key">
-        <span className="per-key-item"><i className="per-key-dot" aria-hidden="true" /> 지금</span>
+        <span className="per-key-item"><i className="per-key-dot" aria-hidden="true" /> 현재</span>
         <span className="per-key-item"><i className="per-key-median" aria-hidden="true" /> 5년 중앙값</span>
         <span className="per-key-item"><i className="per-key-track" aria-hidden="true" /> 지난 5년 범위</span>
         <span className="per-key-item">눈금은 배율(로그) — 두 배 차이는 어디서나 같은 간격</span>

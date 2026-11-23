@@ -159,7 +159,7 @@ function Detail({ row }: { row: FundamentalsResponse }) {
         <Card
           title="PER"
           lines={[
-            { label: '지금', value: perNow == null ? metricValue(byKey.per, row.currency) : `${num(perNow, 1)}배` },
+            { label: '현재', value: perNow == null ? metricValue(byKey.per, row.currency) : `${num(perNow, 1)}배` },
             { label: '5년 평균', value: perMean == null ? '—' : `${num(perMean, 1)}배` },
             {
               label: '5년 범위',

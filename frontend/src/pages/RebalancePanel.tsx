@@ -202,16 +202,16 @@ function TradeForm({
       <span className="trade-title">{label} 거래 반영</span>
       <div className="chip-row" role="group" aria-label="매수 또는 매도">
         <button className={`chip${side === 'buy' ? ' active' : ''}`} onClick={() => setSide('buy')}>
-          샀다
+          매수
         </button>
         <button className={`chip${side === 'sell' ? ' active' : ''}`} onClick={() => setSide('sell')}>
-          팔았다
+          매도
         </button>
       </div>
       <div className="input-with-button tight">
         <NumberInput
           value={tradeQty}
-          // "샀다"인 채 -3 을 치면 3주 산 것으로 저장된다 — 고른 쪽이 "샀다"일 때만 (0.45.2 A2)
+          // "매수"인 채 -3 을 치면 3주 산 것으로 저장된다 — 고른 쪽이 "샀다"일 때만 (0.45.2 A2)
           minusHint={side === 'buy' ? TRADE_MINUS_HINT : undefined}
           onChange={(v) => {
             setTradeQty(v)
@@ -1345,7 +1345,7 @@ export function RebalancePanel() {
     return {
       ticker: row.ticker,
       label: shortLabel(row),
-      sub: `${qty(row.current.quantity)}주 · 지금 ${num(weightNowOf(row), 1)}%`,
+      sub: `${qty(row.current.quantity)}주 · 현재 ${num(weightNowOf(row), 1)}%`,
       target: draft.target,
       band: draft.band,
       dirty: changesOf(row, draft).target,
@@ -1560,7 +1560,7 @@ export function RebalancePanel() {
               <thead>
                 <tr>
                   <th style={{ minWidth: 220 }}>종목</th>
-                  <th className="num-cell" style={{ minWidth: 64 }}>지금</th>
+                  <th className="num-cell" style={{ minWidth: 64 }}>현재</th>
                   <th className="num-cell" style={{ minWidth: 56 }}>목표</th>
                   <th className="num-cell" style={{ minWidth: 80 }} title="색이 있으면 비중이 밴드 밖">차이</th>
                   <th className="num-cell" style={{ minWidth: 110 }}>주문</th>
@@ -1583,7 +1583,7 @@ export function RebalancePanel() {
                   <td>
                     <div
                       className="ticker-cell"
-                      title={plan.newMoney > 0 ? `지금 ${amount(cash?.value_base ?? 0, baseCurrency)} + 새로 넣을 돈` : undefined}
+                      title={plan.newMoney > 0 ? `현재 ${amount(cash?.value_base ?? 0, baseCurrency)} + 새로 넣을 돈` : undefined}
                     >
                       <div className="stock-line">
                         <span className="ticker-name">현금</span>

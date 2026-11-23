@@ -153,7 +153,7 @@ function SignalAndWeightRows({ card, rules, numbers }: { card: DashboardCard; ru
             {numbers && (
               <span className="hint weight-numbers">
                 {/* 조각마다 안 꺾이게, 조각 사이에서는 꺾이게 — 한 덩어리로 묶으면 카드 테두리 밖으로 나갔다(끝 검토) */}
-                <span className="nowrap">지금 {num(numbers.actual_weight_pct, 1)}%</span>{' '}
+                <span className="nowrap">현재 {num(numbers.actual_weight_pct, 1)}%</span>{' '}
                 <span className="nowrap">· 목표 {pctText(numbers.target_weight_pct)}%</span>{' '}
                 {/* 차이를 바로 — 목표에서 빼어 구해야 했다(사용자 확인). 리밸런싱의 "+8.6%p"와 같은 수(`excess_pct`), 허용 폭(밴드)은 괄호에 */}
                 <span className="nowrap">

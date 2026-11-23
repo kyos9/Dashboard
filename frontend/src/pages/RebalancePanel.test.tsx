@@ -371,7 +371,7 @@ describe('리밸런싱 · 평단가와 거래 입력', () => {
     // 거래 열은 열린 단추 폭까지 처음부터 — 열 때 96 → 100px 로 넓어져 다른 칸이 꺾였다 (검토 9 조건 1)
     const head = within((await screen.findAllByRole('table'))[0]).getByRole('columnheader', { name: '거래' })
     expect(head.style.minWidth).toBe('104px')
-    await user.click(screen.getByRole('button', { name: '샀다' }))
+    await user.click(screen.getByRole('button', { name: '매수' }))
     await user.clear(screen.getByLabelText('VOO 거래 수량'))
     await user.type(screen.getByLabelText('VOO 거래 수량'), '2')
     const priceBox = screen.getByLabelText('VOO 거래 가격')
@@ -391,7 +391,7 @@ describe('리밸런싱 · 평단가와 거래 입력', () => {
 
     // 파는 주문에서 열면 "팔았다"로 열린다
     await user.click(within(await orderRow('VOO')).getByRole('button', { name: 'VOO 거래 입력' }))
-    expect(screen.getByRole('button', { name: '팔았다' })).toHaveClass('active')
+    expect(screen.getByRole('button', { name: '매도' })).toHaveClass('active')
     expect(screen.queryByLabelText('VOO 거래 가격')).not.toBeInTheDocument()
 
     await user.clear(screen.getByLabelText('VOO 거래 수량'))
@@ -413,15 +413,15 @@ describe('리밸런싱 · 평단가와 거래 입력', () => {
     const live = () => document.querySelector('[data-num-live]')
 
     await user.click(within(await orderRow('VOO')).getByRole('button', { name: 'VOO 거래 입력' }))
-    await user.click(screen.getByRole('button', { name: '샀다' }))
+    await user.click(screen.getByRole('button', { name: '매수' }))
     await user.clear(screen.getByLabelText('VOO 거래 수량'))
     await user.type(screen.getByLabelText('VOO 거래 수량'), '-3')
-    expect(live()).toHaveTextContent('VOO 거래 수량 — 빼기(−)는 넣을 수 없습니다 · 지금 값 3 · 팔았으면 ‘팔았다’를 고르세요')
-    await user.click(screen.getByRole('button', { name: '팔았다' }))
+    expect(live()).toHaveTextContent('VOO 거래 수량 — 빼기(−)는 넣을 수 없습니다 · 지금 값 3 · 매도했으면 ‘매도’를 고르세요')
+    await user.click(screen.getByRole('button', { name: '매도' }))
     await user.clear(screen.getByLabelText('VOO 거래 수량'))
     await user.type(screen.getByLabelText('VOO 거래 수량'), '-1')
     expect(live()).toHaveTextContent('VOO 거래 수량 — 빼기(−)는 넣을 수 없습니다 · 지금 값 1')
-    expect(live()).not.toHaveTextContent('팔았다’를')
+    expect(live()).not.toHaveTextContent('‘매도’를')
   })
 
   it('리밸런싱에는 보유수량 · 평단가 · 산 환율 칸이 없다 — 종목 탭 "한 번에 수정"으로 안내한다 (주인 답 "목표 · 밴드만")', async () => {
@@ -706,7 +706,7 @@ describe('리밸런싱 · 산 환율과 환율 효과', () => {
     renderPanel()
 
     await user.click(within(await orderRow('VOO')).getByRole('button', { name: 'VOO 거래 입력' }))
-    await user.click(screen.getByRole('button', { name: '샀다' }))
+    await user.click(screen.getByRole('button', { name: '매수' }))
     expect(screen.getByLabelText('VOO 산 날 환율')).toHaveValue('1,300')
     await user.clear(screen.getByLabelText('VOO 거래 수량'))
     await user.type(screen.getByLabelText('VOO 거래 수량'), '2')
@@ -1016,7 +1016,7 @@ describe('리밸런싱 · 주문 옆 거래 입력 (디자인 2차, 주인 결�
     const voo = await orderRow('VOO')
     await user.click(within(voo).getByRole('button', { name: 'VOO 거래 입력' }))
     // VOO 1주 (1.35) 팔기 → 팔았다 · 1
-    expect(screen.getByRole('button', { name: '팔았다' })).toHaveClass('active')
+    expect(screen.getByRole('button', { name: '매도' })).toHaveClass('active')
     expect(screen.getByLabelText('VOO 거래 수량')).toHaveValue('1')
     await user.click(screen.getByRole('button', { name: '반영' }))
     await waitFor(() => expect(save).toHaveBeenCalledWith('VOO', 1, null, null))
@@ -1034,7 +1034,7 @@ describe('리밸런싱 · 주문 옆 거래 입력 (디자인 2차, 주인 결�
       await user.click(await screen.findByRole('button', { name: /^삼성전자 .*사기 · .* — 자세히$/ }))
       const sheet = screen.getByRole('dialog', { name: '삼성전자 주문 자세히' })
       await user.click(within(sheet).getByRole('button', { name: '삼성전자 거래 입력' }))
-      expect(within(sheet).getByRole('button', { name: '샀다' })).toHaveClass('active')
+      expect(within(sheet).getByRole('button', { name: '매수' })).toHaveClass('active')
       // 1주 미만 (0.5주) → 소수 그대로
       expect(within(sheet).getByLabelText('005930.KS 거래 수량')).toHaveValue('0.5')
       await user.click(within(sheet).getByRole('button', { name: '반영' }))
@@ -1052,7 +1052,7 @@ describe('리밸런싱 · 주문 옆 거래 입력 (디자인 2차, 주인 결�
     expect(tables).toHaveLength(1)
     expect(tables[0]).toHaveClass('sticky-first')
     expect(Array.from(tables[0].querySelectorAll('thead th')).map((h) => h.textContent)).toEqual([
-      '종목', '지금', '목표', '차이', '주문', '금액', '매도 신호', '거래',
+      '종목', '현재', '목표', '차이', '주문', '금액', '매도 신호', '거래',
     ])
     expect(within(tables[0]).getAllByRole('columnheader', { name: /^(팔 것|살 것) \d종목$/ })).toHaveLength(2)
     const voo = await orderRow('VOO')
