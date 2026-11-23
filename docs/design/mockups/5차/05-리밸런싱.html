@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="ko" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>5차 리밸런싱</title>
+<!--
+  디자인 5차 목업 05 — PC 리밸런싱. 지금 화면의 문제:
+  줄 하나가 세 줄(금액 · 현지 주문 · 목표 금액) · 신호 칸에 "비중 ◆ 비중 초과 참고 ▼ 기간 내 매도"가 겹침 ·
+  위 머리에 자금 · 현금 · 밴드 · 목표 합계 · 새로 넣을 돈 설명 글이 한꺼번에 · 목표 고치기 · 리뷰 · 설정이 맨 아래 목록 줄 셋.
+  가 표 하나 — 위 요약 띠 한 줄 + 한 줄짜리 표, 도구는 오른쪽 위 글 단추
+  나 목록 + 자세히 — 재무 · 시그널과 같은 틀. 왼쪽 팔 것 / 살 것, 오른쪽에 고른 종목의 비중 막대 · 주문 · 거래 입력
+  다 비중 막대 — 줄마다 지금과 목표를 막대 하나에, 밴드 밖이면 바로 보임. 줄을 누르면 그 밑에 거래 입력
+  PC 1400 · 라이트 · 색과 글꼴은 앱 tokens.css · 숫자는 앱 가짜 서버와 같게.
+-->
+<link rel="stylesheet" href="../../../../frontend/src/styles/tokens.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:#5f646b}
+body{font-family:var(--font-sans);word-break:keep-all;padding:28px 20px 40px;color:#fff;font-size:14px}
+.part{max-width:1400px;margin:0 auto 14px;font-size:22px;font-weight:700}
+.part small{display:block;font-size:14px;font-weight:400;opacity:.9;margin-top:6px;line-height:1.55}
+.cap{max-width:1400px;margin:34px auto 10px;font-size:17px;font-weight:700}
+.cap small{font-size:13px;font-weight:400;opacity:.88;margin-left:8px}
+.frame{width:1400px;margin:0 auto;background:var(--bg);color:var(--text);border-radius:10px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+td,b,.v{font-variant-numeric:tabular-nums}
+.sell{color:var(--signal-sell)}.buy{color:var(--signal-buy)}.faint{color:var(--text-faint)}.dim{color:var(--text-dim)}
+.nav{height:60px;display:flex;align-items:center;gap:6px;padding:0 32px;background:var(--panel);border-bottom:1px solid var(--border)}
+.logo{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:700;margin-right:28px}
+.logo i{width:30px;height:30px;border-radius:8px;background:var(--brand);color:var(--on-brand);display:grid;place-items:center;font-style:normal;font-size:15px;font-weight:800}
+.nav a{height:60px;display:inline-flex;align-items:center;padding:0 14px;font-size:15px;font-weight:600;color:var(--text-dim);border-bottom:3px solid transparent;margin-bottom:-1px}
+.nav a.on{color:var(--accent);border-bottom-color:var(--accent)}
+.page{padding:24px 32px 32px}
+.head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.head h2{font-size:22px;display:flex;align-items:baseline;gap:12px}
+.head h2 small{font-size:13px;font-weight:600;color:var(--accent);background:var(--accent-soft);padding:3px 10px;border-radius:999px}
+.tools{display:flex;gap:8px}
+.btn{height:36px;padding:0 14px;border:1px solid var(--border);border-radius:8px;background:var(--panel);font:inherit;font-size:13px;font-weight:600;color:var(--text);display:inline-flex;align-items:center}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn.sm{height:30px;padding:0 10px;font-size:12px}
+.box{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+/* 요약 띠 */
+.strip{display:grid;grid-template-columns:1.2fr 1fr 1fr .9fr 1.6fr;background:var(--panel);border:1px solid var(--border);border-radius:12px;margin-bottom:14px}
+.strip>div{padding:14px 18px;border-left:1px solid var(--border)}
+.strip>div:first-child{border-left:0}
+.strip span{display:block;font-size:12px;color:var(--text-faint);margin-bottom:4px}
+.strip b{font-size:20px;font-weight:800}
+.strip .warn b{color:#b45309}
+.strip .warn small{display:block;font-size:12px;color:#b45309;margin-top:2px}
+.strip small{font-size:12px;color:var(--text-dim)}
+.money{display:flex;align-items:center;gap:8px}
+.money input{width:150px;height:34px;border:1px solid var(--border);border-radius:8px;padding:0 10px;text-align:right;font:inherit;font-size:14px}
+.money label{font-size:12px;color:var(--text-dim);display:flex;align-items:center;gap:5px}
+/* 표 */
+table{width:100%;border-collapse:collapse}
+th,td{padding:10px 10px;font-size:14px;white-space:nowrap;text-align:right}
+thead th{font-size:12px;font-weight:600;color:var(--text-dim);background:var(--panel-soft);border-bottom:1px solid var(--border)}
+tbody td{border-top:1px solid var(--border)}
+td.nm,th.nm{text-align:left;padding-left:18px}
+td.nm b{font-size:14px}
+.kind{font-size:11px;color:var(--text-faint);margin-left:6px;font-weight:400}
+tr.grp td{background:var(--panel-soft);font-size:12px;font-weight:700;color:var(--text-dim);text-align:left;padding:7px 18px}
+.gap{display:inline-block;min-width:62px;text-align:center;font-size:13px;font-weight:700;padding:2px 8px;border-radius:6px}
+.gap.out{background:var(--signal-weight-soft);color:var(--signal-weight)}
+.gap.in{color:var(--text-dim)}
+.mk{font-size:12px;color:var(--signal-sell);font-weight:600}
+td.c{text-align:center}
+tfoot td{border-top:1px solid var(--border);background:var(--panel-soft);font-weight:700}
+.foot{font-size:12px;color:var(--text-faint);margin-top:10px}
+/* 나 */
+.split{display:grid;grid-template-columns:300px 1fr;gap:16px;align-items:start}
+.li{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-top:1px solid var(--border);font-size:14px;font-weight:600}
+.li small{font-size:13px;font-weight:700}
+.li.on{background:var(--accent-soft);box-shadow:inset 3px 0 0 var(--accent);color:var(--accent)}
+.grp2{padding:8px 16px;font-size:12px;font-weight:700;color:var(--text-dim);background:var(--panel-soft);border-top:1px solid var(--border);display:flex;justify-content:space-between}
+.grp2:first-child{border-top:0}
+.det{padding:20px 22px}
+.det h3{font-size:20px;display:flex;align-items:baseline;gap:10px}
+.det h3 small{font-size:13px;font-weight:400;color:var(--text-faint)}
+.wbar{margin:18px 0 6px;position:relative;height:56px}
+.track{position:absolute;left:0;right:0;top:22px;height:12px;border-radius:6px;background:var(--panel-soft);border:1px solid var(--border)}
+.band{position:absolute;top:22px;height:12px;background:var(--signal-weight-soft);border-left:2px solid var(--signal-weight-line);border-right:2px solid var(--signal-weight-line)}
+.tgt{position:absolute;top:16px;width:2px;height:24px;background:var(--text)}
+.now{position:absolute;top:19px;width:18px;height:18px;border-radius:50%;background:var(--signal-sell);border:3px solid var(--panel);transform:translateX(-50%);box-shadow:0 0 0 1px var(--signal-sell)}
+.lab{position:absolute;font-size:12px;transform:translateX(-50%);white-space:nowrap}
+.scale{display:flex;justify-content:space-between;font-size:11px;color:var(--text-faint)}
+.facts{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:16px}
+.facts div{border:1px solid var(--border);border-radius:10px;padding:10px 14px}
+.facts span{display:block;font-size:12px;color:var(--text-faint)}
+.facts b{font-size:18px}
+.facts small{display:block;font-size:12px;color:var(--text-dim);margin-top:2px}
+.trade{margin-top:18px;border:1px solid var(--border);border-radius:10px;padding:14px 16px}
+.trade h4{font-size:15px;margin-bottom:10px}
+.form{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.form label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--text-dim)}
+.form input,.form select{height:36px;border:1px solid var(--border);border-radius:8px;padding:0 10px;font:inherit;font-size:14px;width:130px;background:var(--panel)}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;height:36px}
+.seg span{padding:0 14px;display:grid;place-items:center;font-size:13px;font-weight:600;color:var(--text-dim)}
+.seg span.on{background:var(--signal-sell);color:#fff}
+.sigline{margin-top:14px;font-size:13px;color:var(--text-dim)}
+/* 다 */
+.bars td{padding:8px 10px}
+.mini{position:relative;height:26px;width:440px}
+.mini .track{top:9px;height:8px}
+.mini .band{top:9px;height:8px}
+.mini .tgt{top:4px;height:18px}
+.mini .now{top:6px;width:14px;height:14px;border-width:2px}
+.mini .now.b{background:var(--signal-buy);box-shadow:0 0 0 1px var(--signal-buy)}
+tr.open td{background:var(--accent-soft)}
+tr.formrow td{text-align:left;background:var(--accent-soft);border-top:0;padding:4px 18px 14px}
+.legend{display:flex;gap:16px;font-size:12px;color:var(--text-dim);margin:0 0 8px;justify-content:flex-end}
+.legend i{display:inline-block;vertical-align:middle;margin-right:5px}
+</style>
+</head>
+<body>
+
+<div class="part">리밸런싱 PC — 배치 셋
+<small>주인 쓰임: 분기마다 리뷰 날 주문 가이드를 보고 거래를 입력한다. 맨 먼저 보여야 할 것: 얼마를 팔고 사는지, 밴드 밖 종목, 종목마다 몇 주.<br>
+공통: 목표 합계 경고와 새로 넣을 돈은 요약 띠로, 목표 고치기 · 리뷰 기록 · 설정은 오른쪽 위 글 단추로(창은 지금 것 그대로), 신호 칸은 "밴드 밖"과 "매도 신호" 둘만.</small></div>
+
+<!-- ───────────── 가 ───────────── -->
+<div class="cap">가 표 하나 <small>요약 띠 + 한 줄짜리 표. 현지 통화 주문과 목표 금액은 줄에서 빼고 마우스를 올리면</small></div>
+<div class="frame">
+  <div class="nav"><div class="logo"><i>₩</i>자산관리</div><a>홈</a><a>재무</a><a class="on">리밸런싱</a><a>매크로</a></div>
+  <div class="page">
+    <div class="head"><h2>리밸런싱 <small>다음 리뷰 D-37</small></h2>
+      <div class="tools"><span class="btn">목표 고치기</span><span class="btn">리뷰 기록</span><span class="btn">설정</span></div></div>
+    <div class="strip" id="stripA"></div>
+    <div class="box"><table id="tableA"></table></div>
+    <p class="foot">지금 가격으로 목표에 맞추는 참고입니다. 실제로 사고파는 것은 리뷰 때 정합니다.</p>
+  </div>
+</div>
+
+<!-- ───────────── 나 ───────────── -->
+<div class="cap">나 목록 + 자세히 <small>재무 · 시그널과 같은 틀. 고른 종목에서 바로 거래 입력</small></div>
+<div class="frame">
+  <div class="nav"><div class="logo"><i>₩</i>자산관리</div><a>홈</a><a>재무</a><a class="on">리밸런싱</a><a>매크로</a></div>
+  <div class="page">
+    <div class="head"><h2>리밸런싱 <small>다음 리뷰 D-37</small></h2>
+      <div class="tools"><span class="btn">목표 고치기</span><span class="btn">리뷰 기록</span><span class="btn">설정</span></div></div>
+    <div class="strip" id="stripB"></div>
+    <div class="split">
+      <div class="box" id="listB"></div>
+      <div class="box det">
+        <h3>TIGER 미국필라델피아반도체나스닥 <small>381180.KS, 지수, 2,000주</small></h3>
+        <div class="wbar">
+          <div class="track"></div>
+          <div class="band" style="left:2.86%;width:14.29%"></div>
+          <div class="tgt" style="left:8.57%"></div>
+          <div class="now" style="left:48.4%"></div>
+          <div class="lab" style="left:8.57%;top:0">목표 6%</div>
+          <div class="lab sell" style="left:48.4%;top:0;font-weight:700">지금 33.9%</div>
+          <div class="lab faint" style="left:10%;top:40px">밴드 1 ~ 11%</div>
+        </div>
+        <div class="scale"><span>0%</span><span>10%</span><span>20%</span><span>30%</span><span>40%</span><span>50%</span><span>60%</span><span>70%</span></div>
+        <div class="facts">
+          <div><span>차이</span><b class="sell">+27.9%p</b><small>밴드 밖</small></div>
+          <div><span>주문</span><b class="sell">−1,646주</b><small>₩88,058에</small></div>
+          <div><span>금액</span><b class="sell">−₩144,984,767</b><small>목표 ₩31,131,233</small></div>
+          <div><span>지금 평가</span><b>₩176,116,000</b><small>평단 ₩61,320</small></div>
+        </div>
+        <div class="trade"><h4>거래 입력</h4>
+          <div class="form">
+            <label>날짜<input value="2026-11-23"></label>
+            <label>구분<span class="seg"><span class="on">매도</span><span>매수</span></span></label>
+            <label>수량<input value="1,646"></label>
+            <label>가격<input value="88,058"></label>
+            <span class="btn pri">저장</span>
+          </div>
+          <p class="sigline">매도 신호 없음. 저장하면 보유 수량과 현금이 바뀝니다.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ───────────── 다 ───────────── -->
+<div class="cap">다 비중 막대 <small>줄마다 지금(점)과 목표(선), 밴드(옅은 칸). 줄을 누르면 그 밑에 거래 입력</small></div>
+<div class="frame">
+  <div class="nav"><div class="logo"><i>₩</i>자산관리</div><a>홈</a><a>재무</a><a class="on">리밸런싱</a><a>매크로</a></div>
+  <div class="page">
+    <div class="head"><h2>리밸런싱 <small>다음 리뷰 D-37</small></h2>
+      <div class="tools"><span class="btn">목표 고치기</span><span class="btn">리뷰 기록</span><span class="btn">설정</span></div></div>
+    <div class="strip" id="stripC"></div>
+    <div class="legend"><span><i style="width:10px;height:10px;border-radius:50%;background:var(--signal-sell)"></i>지금</span><span><i style="width:2px;height:12px;background:var(--text)"></i>목표</span><span><i style="width:18px;height:8px;background:var(--signal-weight-soft);border:1px solid var(--signal-weight-line)"></i>밴드</span><span>막대 끝 35%</span></div>
+    <div class="box"><table class="bars" id="tableC"></table></div>
+  </div>
+</div>
+
+<script>
+const R=[
+ ['TIGER 미국필라델피아반도체나스닥','지수',33.9,6,-1646,-144984767,''],
+ ['삼성전자우','알파',12.7,4,-410,-44890644,'기간 내 매도'],
+ ['AAPL','알파',11.5,5,-17,-33931190,'기간 내 매도'],
+ ['삼성전자','알파',13.2,10,-366,-16750111,'기간 내 매도'],
+ ['NVDA','알파',8.3,6,-12,-12035062,''],
+ ['TSLA','알파',1.7,0,-60,-8593781,''],
+ ['VOO','지수',1.1,18,603,87590266,'기간 내 매도'],
+ ['QQQ','지수',5.1,10,24,25518800,'기간 내 매도'],
+ ['SCHD','지수',1.4,6,396,23893840,'기간 내 매도'],
+ ['MSFT','알파',0.5,5,98,23132512,'기간 내 매도'],
+ ['GOOG','알파',0.8,4,79,16584981,'기간 내 매도'],
+ ['도요타자동차','알파',2.2,4,234,9098967,'기간 내 매도'],
+ ['도쿄해상홀딩스','안전자산',0.3,2,516,8694761,''],
+ ['SK하이닉스','알파',2.3,4,105,8563206,'기간 내 매도'],
+ ['KODEX 200','지수',4.8,6,224,6222833,'기간 내 매도'],
+];
+const f=n=>Math.abs(n).toLocaleString('en-US');
+const won=n=>(n<0?'−₩':'+₩')+f(n);
+const sh=n=>(n<0?'−':'+')+f(n)+'주';
+const sign=n=>(n>0?'+':'−')+Math.abs(n).toFixed(1)+'%p';
+const out=r=>Math.abs(r[2]-r[3])>5;
+const sells=R.filter(r=>r[4]<0), buys=R.filter(r=>r[4]>0);
+const strip=`<div><span>전체 자금 (현금 포함)</span><b>₩518,853,891</b></div>
+<div><span>팔 것 ${sells.length}종목</span><b class="sell">−₩261,185,554</b></div>
+<div><span>살 것 ${buys.length}종목</span><b class="buy">+₩209,300,165</b></div>
+<div class="warn"><span>목표 합계</span><b>90.0%</b><small>10%p 비어 있음</small></div>
+<div><span>이번에 새로 넣을 돈</span><div class="money"><input value="0"><label><input type="checkbox" style="width:14px;height:14px">팔지 않고 나누기</label></div></div>`;
+for(const id of ['stripA','stripB','stripC']) document.getElementById(id).innerHTML=strip;
+
+// 가
+const rowA=r=>`<tr><td class="nm"><b>${r[0]}</b><span class="kind">${r[1]}</span></td><td>${r[2].toFixed(1)}%</td><td>${r[3]}%</td>
+<td class="c"><span class="gap ${out(r)?'out':'in'}">${sign(r[2]-r[3])}</span></td>
+<td class="${r[4]<0?'sell':'buy'}"><b>${sh(r[4])}</b></td><td class="${r[4]<0?'sell':'buy'}">${won(r[5])}</td>
+<td class="c">${r[6]?`<span class="mk">${r[6]}</span>`:'<span class="faint">—</span>'}</td><td class="c"><span class="btn sm">거래 입력</span></td></tr>`;
+document.getElementById('tableA').innerHTML=`<thead><tr><th class="nm">종목</th><th>지금</th><th>목표</th><th style="text-align:center">차이 (색은 밴드 밖)</th><th>주문</th><th>금액</th><th style="text-align:center">매도 신호</th><th></th></tr></thead><tbody>
+<tr class="grp"><td colspan="8">팔 것 ${sells.length}종목</td></tr>${sells.map(rowA).join('')}
+<tr class="grp"><td colspan="8">살 것 ${buys.length}종목</td></tr>${buys.map(rowA).join('')}
+<tr><td class="nm"><b>현금</b><span class="kind">예수금</span></td><td>0.0%</td><td>0%</td><td class="c"><span class="gap in">0.0%p</span></td><td></td><td class="faint">₩0</td><td></td><td></td></tr></tbody>
+<tfoot><tr><td class="nm">합계</td><td colspan="4"></td><td class="sell">−₩51,885,389</td><td colspan="2"></td></tr></tfoot>`;
+
+// 나
+const li=(r,on)=>`<div class="li${on?' on':''}"><span>${out(r)?'<span style="color:var(--signal-weight)">◆</span> ':''}${r[0].length>14?r[0].slice(0,13)+'…':r[0]}</span><small class="${r[4]<0?'sell':'buy'}">${sh(r[4])}</small></div>`;
+document.getElementById('listB').innerHTML=`<div class="grp2"><span>팔 것 ${sells.length}</span><span>◆ 밴드 밖</span></div>${sells.map((r,i)=>li(r,i===0)).join('')}<div class="grp2"><span>살 것 ${buys.length}</span></div>${buys.map(r=>li(r)).join('')}`;
+
+// 다
+const MAX=35;const pc=v=>Math.min(v,MAX)/MAX*100;
+const bar=r=>`<div class="mini"><div class="track"></div><div class="band" style="left:${pc(Math.max(r[3]-5,0))}%;width:${pc(r[3]+5)-pc(Math.max(r[3]-5,0))}%"></div><div class="tgt" style="left:${pc(r[3])}%"></div><div class="now ${r[4]>0?'b':''}" style="left:${pc(r[2])}%"></div></div>`;
+const rowC=(r,open)=>`<tr class="${open?'open':''}"><td class="nm"><b>${r[0]}</b><span class="kind">${r[1]}</span></td><td>${bar(r)}</td><td><b>${r[2].toFixed(1)}%</b> <span class="faint">→ ${r[3]}%</span></td>
+<td class="c"><span class="gap ${out(r)?'out':'in'}">${sign(r[2]-r[3])}</span></td><td class="${r[4]<0?'sell':'buy'}"><b>${sh(r[4])}</b></td><td class="${r[4]<0?'sell':'buy'}">${won(r[5])}</td><td class="c">${r[6]?`<span class="mk">${r[6]}</span>`:''}</td></tr>`+
+(open?`<tr class="formrow"><td colspan="7"><div class="form"><label>날짜<input value="2026-11-23"></label><label>구분<span class="seg"><span class="on">매도</span><span>매수</span></span></label><label>수량<input value="1,646"></label><label>가격<input value="88,058"></label><span class="btn pri">저장</span><span class="btn">닫기</span></div></td></tr>`:'');
+document.getElementById('tableC').innerHTML=`<thead><tr><th class="nm">종목</th><th style="text-align:left">비중</th><th>지금 → 목표</th><th style="text-align:center">차이</th><th>주문</th><th>금액</th><th style="text-align:center">매도 신호</th></tr></thead><tbody>
+<tr class="grp"><td colspan="7">팔 것 ${sells.length}종목</td></tr>${sells.map((r,i)=>rowC(r,i===0)).join('')}
+<tr class="grp"><td colspan="7">살 것 ${buys.length}종목</td></tr>${buys.map(r=>rowC(r)).join('')}</tbody>`;
+</script>
+</body>
+</html>
