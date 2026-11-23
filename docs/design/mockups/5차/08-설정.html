@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="ko" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>5차 설정</title>
+<!--
+  디자인 5차 목업 08 — PC 설정. 지금 화면의 문제:
+  폰 목록 그대로라 화면 왼쪽 절반만 씀 · 줄마다 누르면 창이 하나씩(화면 · 알림 · AI 키 · 서버 상태 · 사용자) ·
+  묶음 이름 "AI · 계정" · 줄 오른쪽 "기기 설정 · 상승 초록" 같은 가운뎃점.
+  가 왼쪽 메뉴 + 오른쪽 내용 — 재무 · 매크로와 같은 틀. 창이 뜨지 않고 오른쪽에 바로
+  나 한 장 두 단 — 짧은 설정(화면 · 알림 · AI 키 · 계정)은 카드 안에서 바로 고치고, 긴 것(서버 상태 · 사용자)만 창
+  PC 1400 · 라이트 · 색과 글꼴은 앱 tokens.css.
+-->
+<link rel="stylesheet" href="../../../../frontend/src/styles/tokens.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:#5f646b}
+body{font-family:var(--font-sans);word-break:keep-all;padding:28px 20px 40px;color:#fff;font-size:14px}
+.part{max-width:1400px;margin:0 auto 14px;font-size:22px;font-weight:700}
+.part small{display:block;font-size:14px;font-weight:400;opacity:.9;margin-top:6px;line-height:1.55}
+.cap{max-width:1400px;margin:34px auto 10px;font-size:17px;font-weight:700}
+.cap small{font-size:13px;font-weight:400;opacity:.88;margin-left:8px}
+.frame{width:1400px;margin:0 auto;background:var(--bg);color:var(--text);border-radius:10px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.dim{color:var(--text-dim)}.faint{color:var(--text-faint)}
+.nav{height:60px;display:flex;align-items:center;gap:6px;padding:0 32px;background:var(--panel);border-bottom:1px solid var(--border)}
+.logo{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:700;margin-right:28px}
+.logo i{width:30px;height:30px;border-radius:8px;background:var(--brand);color:var(--on-brand);display:grid;place-items:center;font-style:normal;font-size:15px;font-weight:800}
+.nav a{height:60px;display:inline-flex;align-items:center;padding:0 14px;font-size:15px;font-weight:600;color:var(--text-dim)}
+.nav .r{margin-left:auto;display:flex;gap:10px;align-items:center;font-size:13px}
+.nav .gear{width:36px;height:36px;border:1px solid var(--accent);border-radius:8px;display:grid;place-items:center;color:var(--accent)}
+.page{padding:24px 32px 32px}
+h2{font-size:22px;margin-bottom:14px}
+.box{background:var(--panel);border:1px solid var(--border);border-radius:12px}
+.btn{height:34px;padding:0 14px;border:1px solid var(--border);border-radius:8px;background:var(--panel);font-size:13px;font-weight:600;color:var(--text);display:inline-flex;align-items:center}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn.warn{color:#b91c1c}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;height:34px}
+.seg span{padding:0 14px;display:grid;place-items:center;font-size:13px;font-weight:600;color:var(--text-dim);border-left:1px solid var(--border)}
+.seg span:first-child{border-left:0}
+.seg span.on{background:var(--accent);color:var(--on-accent)}
+.hint{font-size:12px;color:var(--text-faint);line-height:1.55}
+.chk{display:flex;gap:10px;align-items:flex-start;padding:8px 0;font-size:14px}
+.chk i{width:17px;height:17px;border-radius:4px;border:1.5px solid #9aa4b2;flex:0 0 17px;margin-top:1px;display:grid;place-items:center;font-style:normal;font-size:12px;color:#fff}
+.chk i.on{background:var(--accent);border-color:var(--accent)}
+.chk small{display:block;font-size:12px;color:var(--text-faint);margin-top:1px}
+.field{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--text-dim)}
+.in{height:34px;border:1px solid var(--border);border-radius:8px;padding:0 10px;font-size:14px;color:var(--text);display:flex;align-items:center;background:var(--panel);min-width:220px}
+.badge{font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;background:var(--panel-soft);color:var(--text-dim);border:1px solid var(--border)}
+.badge.amber{background:#fef3c7;border-color:#fcd34d;color:#92400e}
+.k{font-size:12px;color:var(--text-faint);margin-bottom:6px;font-weight:600}
+/* 가 */
+.split{display:grid;grid-template-columns:280px 1fr;gap:16px;align-items:start}
+.me{padding:14px 16px;border-bottom:1px solid var(--border)}
+.me b{font-size:15px}.me div{font-size:12px;color:var(--text-faint);margin-top:2px}
+.grp{padding:8px 16px;font-size:12px;font-weight:700;color:var(--text-faint);background:var(--panel-soft);border-top:1px solid var(--border)}
+.li{display:flex;justify-content:space-between;align-items:center;padding:11px 16px;border-top:1px solid var(--border);font-size:14px;font-weight:600}
+.li.on{background:var(--accent-soft);box-shadow:inset 3px 0 0 var(--accent);color:var(--accent)}
+.li small{font-weight:500;color:var(--text-faint);font-size:12px}
+.det{padding:22px 26px}
+.det h3{font-size:19px}
+.det .sub{font-size:13px;color:var(--text-dim);margin:4px 0 16px}
+.sec{padding:14px 0;border-top:1px solid var(--border)}
+.sec:first-of-type{border-top:0;padding-top:0}
+.row{display:flex;gap:12px;align-items:center}
+.callout{background:#fef3c7;border:1px solid #fcd34d;color:#92400e;border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:14px}
+.foot{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
+/* 나 */
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+.card{padding:18px 20px}
+.card h3{font-size:16px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:baseline}
+.card h3 small{font-size:12px;font-weight:400;color:var(--text-faint)}
+.line{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-top:1px solid var(--border);font-size:14px}
+.line:first-of-type{border-top:0}
+.line b{font-weight:600}
+.ver{font-size:12px;color:var(--text-faint);margin-top:12px}
+</style>
+</head>
+<body>
+
+<div class="part">설정 PC — 배치 둘
+<small>지금: 폰 목록 그대로라 화면 왼쪽 절반만 쓰고, 줄마다 누르면 창이 하나씩 뜬다(화면, 알림, AI 키, 서버 상태, 사용자). 묶음 이름 "AI · 계정", 줄 끝 "기기 설정 · 상승 초록"에 가운뎃점.<br>
+공통: 묶음은 <b>보기</b>(화면, 알림) · <b>AI</b>(AI 키) · <b>관리</b>(서버 상태, 사용자 — 관리자만) · <b>계정</b>(나가기) · <b>정보</b>(약관, 만든 이와 글꼴, 버전).</small></div>
+
+<!-- ───────── 가 ───────── -->
+<div class="cap">가 왼쪽 메뉴 + 오른쪽 내용 <small>재무 · 매크로와 같은 틀. 창이 뜨지 않고 고른 것의 내용이 오른쪽에 바로. 서버 상태처럼 긴 것도 오른쪽에</small></div>
+<div class="frame">
+  <div class="nav"><div class="logo"><i>₩</i>자산관리</div><a>홈</a><a>재무</a><a>리밸런싱</a><a>매크로</a><div class="r"><span class="dim">● 방금 받음</span><span class="gear">⚙</span></div></div>
+  <div class="page">
+    <h2>설정</h2>
+    <div class="split">
+      <div class="box">
+        <div class="me"><b>owner</b> <span class="badge">관리자</span><div>owner@example.com</div></div>
+        <div class="grp">보기</div>
+        <div class="li">화면 <small>기기 설정, 상승 초록</small></div>
+        <div class="li on">알림 <small>4개 켬</small></div>
+        <div class="grp">AI</div>
+        <div class="li">AI 키 <small>Claude</small></div>
+        <div class="grp">관리</div>
+        <div class="li">서버 상태 <span class="badge amber">경고 1</span></div>
+        <div class="li">사용자 <span class="badge amber">대기 1</span></div>
+        <div class="grp">계정</div>
+        <div class="li">나가기</div>
+        <div class="grp">정보</div>
+        <div class="li">개인정보처리방침과 이용약관</div>
+        <div class="li">만든 이와 글꼴 <small>v0.47.0</small></div>
+      </div>
+      <div class="box det">
+        <h3>알림</h3>
+        <p class="sub">이 기기로 받는 알림입니다.</p>
+        <div class="callout">이 사이트의 알림이 막혀 있습니다. 브라우저 사이트 설정에서 알림을 "허용"으로 바꾼 뒤 이 창을 다시 열어 주세요.</div>
+        <div class="sec">
+          <div class="k">받을 알림</div>
+          <div class="chk"><i class="on">✓</i><span>매수 시그널<small>담은 종목에 새로 떴을 때</small></span></div>
+          <div class="chk"><i class="on">✓</i><span>비중조절<small>목표 비중에서 밴드만큼 벗어났을 때</small></span></div>
+          <div class="chk"><i class="on">✓</i><span>포트폴리오 리뷰<small>리뷰할 날이 됐을 때</small></span></div>
+          <div class="chk"><i class="on">✓</i><span>가입 신청<small>누가 가입을 신청했을 때 (관리자)</small></span></div>
+        </div>
+        <div class="sec">
+          <div class="k">받을 때</div>
+          <div class="chk"><i></i><span>아침 7:30<small>밤사이 미국 장 시세를 받은 뒤</small></span></div>
+          <div class="chk"><i class="on">✓</i><span>오후 4시<small>한국 장 시세를 받은 뒤 (하나는 켜 두어야 합니다)</small></span></div>
+        </div>
+        <div class="sec">
+          <div class="k">종목별 알림</div>
+          <div class="row"><span class="dim">1종목 끔</span><span class="btn">고르기</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="cap" style="margin-top:18px"><small style="margin-left:0">가 · 화면을 고른 모습 · AI 키를 고른 모습(오른쪽만)</small></div>
+<div class="frame">
+  <div class="page" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+    <div class="box det">
+      <h3>화면</h3><p class="sub">이 기기에만 적용됩니다.</p>
+      <div class="sec"><div class="k">테마</div><div class="seg"><span class="on">기기 설정</span><span>밝게</span><span>어둡게</span></div>
+        <p class="hint" style="margin-top:6px">기기가 밝은 테마면 밝게, 어두운 테마면 어둡게. 기기 설정을 바꾸면 따라 바뀝니다.</p></div>
+      <div class="sec"><div class="k">상승 색</div><div class="row"><div class="seg"><span class="on">초록</span><span>빨강</span></div>
+        <span style="color:#15803d;font-weight:700">+2.40%</span><span style="color:#b91c1c;font-weight:700">−1.15%</span></div>
+        <p class="hint" style="margin-top:6px">오르면 초록, 내리면 빨강. 가격, 수익률, 평가손익에 씁니다. 시그널은 모양(▲ ▼ ◆)이 같이 붙습니다.</p></div>
+    </div>
+    <div class="box det">
+      <h3>AI 키</h3><p class="sub">시그널 목록 · 종목 화면의 "AI 분석"과 AI 정리 화면에 씁니다.</p>
+      <div class="row" style="align-items:flex-end">
+        <label class="field">AI 회사<span class="in">Claude (Anthropic) ▾</span></label>
+        <label class="field">API 키 <span class="in" style="color:var(--text-faint)">sk-ant-…</span></label>
+      </div>
+      <div class="chk" style="margin-top:8px"><i class="on">✓</i><span>이 기기에 기억<small>끄면 앱을 닫을 때 지워집니다. 같이 쓰는 PC라면 끄세요.</small></span></div>
+      <p class="hint" style="margin-top:6px">키는 이 기기의 브라우저에만 저장됩니다. 요청할 때 서버를 거쳐 AI 회사로 전달되고, 서버는 키를 저장하지 않습니다. 사용료는 이 키의 계정에 청구됩니다.</p>
+      <div class="foot"><span class="btn">키 확인</span><span class="btn pri">저장</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ───────── 나 ───────── -->
+<div class="cap">나 한 장 두 단 <small>짧은 설정(화면, 알림, AI 키, 계정)은 카드 안에서 바로 고친다. 긴 것(서버 상태, 사용자)은 줄을 누르면 지금처럼 창</small></div>
+<div class="frame">
+  <div class="nav"><div class="logo"><i>₩</i>자산관리</div><a>홈</a><a>재무</a><a>리밸런싱</a><a>매크로</a><div class="r"><span class="dim">● 방금 받음</span><span class="gear">⚙</span></div></div>
+  <div class="page">
+    <h2>설정</h2>
+    <div class="cols">
+      <div style="display:grid;gap:16px">
+        <div class="box card"><h3>화면 <small>이 기기에만</small></h3>
+          <div class="line"><b>테마</b><div class="seg"><span class="on">기기 설정</span><span>밝게</span><span>어둡게</span></div></div>
+          <div class="line"><b>상승 색</b><div class="row"><span style="color:#15803d;font-weight:700">+2.40%</span><div class="seg"><span class="on">초록</span><span>빨강</span></div></div></div>
+        </div>
+        <div class="box card"><h3>알림 <small>이 기기로 받는 것</small></h3>
+          <div class="callout" style="margin-bottom:6px">알림이 막혀 있습니다. 브라우저 사이트 설정에서 "허용"으로 바꿔 주세요.</div>
+          <div class="chk"><i class="on">✓</i><span>매수 시그널</span></div>
+          <div class="chk"><i class="on">✓</i><span>비중조절</span></div>
+          <div class="chk"><i class="on">✓</i><span>포트폴리오 리뷰</span></div>
+          <div class="chk"><i class="on">✓</i><span>가입 신청 (관리자)</span></div>
+          <div class="line"><b>받을 때</b><div class="row"><div class="chk"><i></i><span>아침 7:30</span></div><div class="chk"><i class="on">✓</i><span>오후 4시</span></div></div></div>
+          <div class="line"><b>종목별 알림</b><div class="row"><span class="dim">1종목 끔</span><span class="btn">고르기</span></div></div>
+        </div>
+      </div>
+      <div style="display:grid;gap:16px">
+        <div class="box card"><h3>AI 키 <small>Claude</small></h3>
+          <div class="row" style="align-items:flex-end"><label class="field">AI 회사<span class="in" style="min-width:180px">Claude (Anthropic) ▾</span></label><label class="field">API 키<span class="in" style="min-width:180px;color:var(--text-faint)">sk-ant-…</span></label></div>
+          <div class="chk"><i class="on">✓</i><span>이 기기에 기억</span></div>
+          <div class="foot"><span class="btn">키 확인</span><span class="btn pri">저장</span></div>
+        </div>
+        <div class="box card"><h3>관리 <small>관리자만</small></h3>
+          <div class="line"><b>서버 상태</b><div class="row"><span class="badge amber">경고 1</span><span class="dim">›</span></div></div>
+          <div class="line"><b>사용자</b><div class="row"><span class="badge amber">대기 1</span><span class="dim">›</span></div></div>
+        </div>
+        <div class="box card"><h3>계정</h3>
+          <div class="line"><span><b>owner</b> <span class="faint">owner@example.com</span></span><span class="badge">관리자</span></div>
+          <div class="line"><span></span><div class="row"><span class="btn">나가기</span><span class="btn warn">모든 기기에서 나가기</span></div></div>
+        </div>
+        <div class="box card"><h3>정보</h3>
+          <div class="line"><b>개인정보처리방침과 이용약관</b><span class="dim">›</span></div>
+          <div class="line"><b>만든 이와 글꼴</b><span class="dim">›</span></div>
+          <p class="ver">v0.47.0</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
