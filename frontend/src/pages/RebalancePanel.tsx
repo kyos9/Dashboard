@@ -13,6 +13,7 @@ import { Icon } from '../components/icons/Icon'
 import { Sheet } from '../components/ui/Sheet'
 import { OrderGroup, OrderRowButton, OrderSplit, type OrderRowItem } from '../components/rebalance/OrderRows'
 import { RebalanceStrip } from '../components/rebalance/RebalanceStrip'
+import { SettingsForm } from '../components/rebalance/SettingsForm'
 import { RebalanceSummary } from '../components/rebalance/RebalanceSummary'
 import { TargetSheet, type TargetLine } from '../components/rebalance/TargetSheet'
 import { usePrefs } from '../lib/prefs'
@@ -1000,7 +1001,7 @@ export function RebalancePanel() {
     notifyDataChanged()
     if (firstError) setError(firstError.reason)
     const saved = dirtyTickers.length - failed.length
-    setTargetNote(saved > 0 ? `${saved}줄을 저장했습니다 — 주문 가이드를 새 목표로 다시 계산했습니다.` : null)
+    setTargetNote(saved > 0 ? `${saved}줄을 저장했습니다. 주문 가이드를 새 목표로 다시 계산했습니다.` : null)
     setTargetSaves((n) => n + 1)
   }
 
@@ -1349,6 +1350,8 @@ export function RebalancePanel() {
       ticker: row.ticker,
       label: shortLabel(row),
       sub: `${qty(row.current.quantity)}주, 현재 ${num(weightNowOf(row), 1)}%`,
+      qty: `${qty(row.current.quantity)}주`,
+      now: `${num(weightNowOf(row), 1)}%`,
       target: draft.target,
       band: draft.band,
       dirty: changesOf(row, draft).target,
@@ -1746,6 +1749,7 @@ export function RebalancePanel() {
           noteSeq={targetSaves}
           onSave={() => void saveAll()}
           onReset={resetDrafts}
+          center={!compact}
           onClose={() => {
             setTargetsOpen(false)
             setTargetNote(null)
@@ -1759,16 +1763,59 @@ export function RebalancePanel() {
           label="리뷰 기록"
           closeLabel="리뷰 기록 닫기"
           className="records-sheet"
-          sub="남긴 날의 모습 그대로입니다. 종목을 지우거나 목표를 바꿔도 달라지지 않습니다."
+          center={!compact}
+          sub={compact ? '남긴 날의 모습 그대로입니다. 종목을 지우거나 목표를 바꿔도 달라지지 않습니다.' : undefined}
           onClose={() => setRecordsOpen(false)}
         >
-          <RecordPanel review={current.review} onSaved={handleSaved} onError={setError} />
-          <SnapshotList snapshots={snapshots} onDeleted={handleSaved} onError={setError} />
-          <ValueRecordLine record={current.value_record} />
+          <div className="sheet-body">
+            <RecordPanel review={current.review} onSaved={handleSaved} onError={setError} />
+            <SnapshotList snapshots={snapshots} onDeleted={handleSaved} onError={setError} />
+            {!compact && <p className="hint">남긴 날의 모습 그대로입니다. 종목을 지우거나 목표를 바꿔도 달라지지 않습니다.</p>}
+            <ValueRecordLine record={current.value_record} />
+          </div>
         </Sheet>
       )}
 
-      {settingsOpen && (
+      {settingsOpen && !compact && settings && (
+        <Sheet
+          title="리밸런싱 설정"
+          label="리밸런싱 설정"
+          closeLabel="설정 닫기"
+          className="settings-sheet"
+          center
+          onClose={() => setSettingsOpen(false)}
+        >
+          <SettingsForm
+            key={JSON.stringify([settings, cashCurrencies, fxCurrencies])}
+            settings={settings}
+            cash={cash}
+            cashCurrencies={cashCurrencies}
+            fxCurrencies={fxCurrencies}
+            fx={fx}
+            showFxEffect={showFxColumn}
+            isAdmin={isAdmin}
+            busy={settingsBusy || fxBusy}
+            onRefreshFx={() => void refreshFx()}
+            onSave={(payload) =>
+              void (async () => {
+                setFxBusy(true)
+                try {
+                  await api.updateSettings(payload)
+                  setSettingsOpen(false)
+                  handleSaved()
+                } catch (e) {
+                  setError(e)
+                } finally {
+                  setFxBusy(false)
+                }
+              })()
+            }
+            onCancel={() => setSettingsOpen(false)}
+          />
+        </Sheet>
+      )}
+
+      {settingsOpen && compact && (
         <Sheet
           title="리밸런싱 설정"
           label="리밸런싱 설정"

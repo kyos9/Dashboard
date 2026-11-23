@@ -313,3 +313,57 @@ a.stock-tile:hover {
     border-bottom: 0;
   }
 }
+
+/* PC 가운데 창 (디자인 5차 목업 07 가) — 손잡이 없음, 머리 아래 줄, 아래 단추 줄은 오른쪽 */
+.sheet-backdrop-center {
+  align-items: center;
+}
+.sheet.sheet-center {
+  width: min(720px, calc(100vw - 48px));
+  max-height: min(820px, calc(100vh - 48px));
+  padding: 0;
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: var(--shadow-modal);
+}
+.sheet-center > .sheet-head {
+  margin: 0;
+  padding: 18px 20px 14px 24px;
+  border-bottom: 1px solid var(--border);
+  align-items: center;
+}
+.sheet-center > .sheet-head .icon-btn {
+  width: 36px;
+  height: 36px;
+  border-color: transparent;
+}
+.sheet-center > .sheet-head .hint {
+  margin: 4px 0 0;
+}
+.sheet-center .sheet-body {
+  padding: 16px 24px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+.sheet-center > :not(.sheet-head):not(.sheet-body):not(.sheet-foot) {
+  margin-left: 24px;
+  margin-right: 24px;
+}
+.sheet-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 24px;
+  border-top: 1px solid var(--border);
+}
+.sheet-foot .hint {
+  margin: 0 auto 0 0;
+}
+.sheet-foot button {
+  min-height: 38px;
+  padding: 0 18px;
+}

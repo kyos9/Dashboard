@@ -272,3 +272,129 @@ button.order-row:hover {
 .order-trade-toggle {
   white-space: nowrap;
 }
+
+/* ---- PC 가운데 창 셋 (디자인 5차 목업 07 가) ---- */
+.target-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.target-table th,
+.target-table td {
+  padding: 5px 8px;
+  text-align: center;
+  white-space: nowrap;
+  font-size: var(--fs-body);
+}
+.target-table .l {
+  text-align: left;
+}
+.target-table thead th {
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+}
+.target-table thead .hint {
+  font-weight: 400;
+}
+.target-table tbody th {
+  font-weight: 700;
+}
+.target-table tbody tr + tr > * {
+  border-top: 1px solid var(--border);
+}
+.target-table .input-with-button {
+  justify-content: center;
+}
+.target-table input {
+  width: 76px;
+}
+.target-table tr.dirty input:focus,
+.target-table tr.dirty .input-with-button input {
+  border-color: var(--accent);
+}
+
+.records-sheet.sheet-center .review-panel {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.records-sheet.sheet-center .review-head {
+  flex: 1;
+}
+.records-sheet.sheet-center .record-row {
+  flex: 0 1 380px;
+  margin: 0;
+}
+
+.settings-sheet.sheet-center {
+  width: min(820px, calc(100vw - 48px));
+}
+.settings-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 28px;
+}
+.sf-sec {
+  padding: 14px 0;
+  border-top: 1px solid var(--border);
+}
+.sf-sec:nth-child(-n + 2) {
+  border-top: 0;
+  padding-top: 0;
+}
+.sf-sec h4 {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin: 0 0 10px;
+  font-size: var(--fs-body);
+}
+.sf-sec h4 small {
+  font-weight: 400;
+}
+.sf-sec .hint {
+  margin: 6px 0 0;
+}
+.sf-seg {
+  margin-bottom: 8px;
+}
+.sf-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.sf-row input {
+  width: 150px;
+  flex: 0 0 150px;
+}
+.sf-k {
+  flex: 0 0 2.6em;
+  font-size: var(--fs-caption);
+  color: var(--text-dim);
+}
+.sf-tag {
+  margin: 0 !important;
+}
+.target-table .input-with-button {
+  display: inline-flex;
+  flex-wrap: nowrap;
+}
+.target-table .input-with-button input {
+  width: 76px;
+  flex: 0 0 76px;
+  min-height: 34px;
+}
+.sf-seg > button {
+  min-height: 36px;
+  white-space: nowrap;
+}
+/* 고른 것이 흐려 보여 골라진 것인지 몰랐다(주인) — 설정 창에서는 채워서 */
+.settings-form .seg.sf-seg > button.active {
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: none;
+}

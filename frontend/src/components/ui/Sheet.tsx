@@ -14,6 +14,8 @@ interface Props {
   /** 열 때 먼저 갈 칸 — 없으면 시트 안 첫 칸 */
   initialFocus?: () => HTMLElement | null | undefined
   className?: string
+  /** PC 가운데 창 (디자인 5차 목업 07 가) — 끌기 손잡이 없이, 머리 아래 줄 */
+  center?: boolean
   children: ReactNode
 }
 
@@ -22,7 +24,7 @@ interface Props {
  * 새 팝업에는 가두기를 꼭 단다(묶음 3 넘어온 것): Tab 은 안에서만 · Esc · 뒤로가기 · 뒤 화면 스크롤 잠금.
  * 보이기만 한다 — 값과 저장은 부르는 쪽이 들고 있다.
  */
-export function Sheet({ title, label, sub, closeLabel, onClose, initialFocus, className = '', children }: Props) {
+export function Sheet({ title, label, sub, closeLabel, onClose, initialFocus, className = '', center = false, children }: Props) {
   useBackToClose(onClose)
   const ref = useRef<HTMLDivElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
@@ -44,16 +46,16 @@ export function Sheet({ title, label, sub, closeLabel, onClose, initialFocus, cl
   }, [onClose])
 
   return (
-    <div className="modal-backdrop sheet-backdrop" onClick={onClose}>
+    <div className={`modal-backdrop sheet-backdrop${center ? ' sheet-backdrop-center' : ''}`} onClick={onClose}>
       <div
         ref={ref}
-        className={`sheet ${className}`}
+        className={`sheet${center ? ' sheet-center' : ''} ${className}`}
         role="dialog"
         aria-modal="true"
         aria-label={label}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sheet-grab" aria-hidden="true" />
+        {!center && <div className="sheet-grab" aria-hidden="true" />}
         <div className="sheet-head">
           <div>
             <h3>{title}</h3>

@@ -138,7 +138,7 @@ async function openSheet(name: RegExp, dialog: string) {
   await userEvent.setup().click(await screen.findByRole('button', { name }))
   return screen.getByRole('dialog', { name: dialog })
 }
-const openSettings = () => openSheet(/^설정$/, '리밸런싱 설정')
+const openSettings = () => openSheet(/^(리밸런싱 )?설정/, '리밸런싱 설정')
 const openRecords = () => openSheet(/^리뷰 기록$/, '리뷰 기록')
 
 beforeEach(() => {
@@ -185,6 +185,9 @@ describe('리밸런싱 · 통화 표기', () => {
   })
 
   it('적용 중인 환율과 출처를 밝힌다', async () => {
+    // 칸마다 저장하는 예전 설정 창은 폰에 남았다 — PC 는 한 번에 저장(아래 'PC 설정 창')
+    pretendPhone()
+    onTestFinished(forgetPhone)
     mockApi()
     renderPanel()
     await openSettings()
@@ -236,6 +239,9 @@ describe('리밸런싱 · 통화 표기', () => {
   })
 
   it('일본 종목이 있으면 엔 환율 칸이 생긴다', async () => {
+    // 칸마다 저장하는 예전 설정 창은 폰에 남았다 — PC 는 한 번에 저장(아래 'PC 설정 창')
+    pretendPhone()
+    onTestFinished(forgetPhone)
     mockApi({
       ...CURRENT,
       fx: {
@@ -255,6 +261,9 @@ describe('리밸런싱 · 통화 표기', () => {
   })
 
   it('일본 종목이 없으면 엔 칸은 뜨지 않는다 — 쓰지 않는 환율은 안 보여준다', async () => {
+    // 칸마다 저장하는 예전 설정 창은 폰에 남았다 — PC 는 한 번에 저장(아래 'PC 설정 창')
+    pretendPhone()
+    onTestFinished(forgetPhone)
     mockApi()
     renderPanel()
     await openSettings()
@@ -295,6 +304,9 @@ describe('리밸런싱 · 현금', () => {
   })
 
   it('현금을 저장하면 통화별로 보낸다 — 비운 칸은 지운다', async () => {
+    // 칸마다 저장하는 예전 설정 창은 폰에 남았다 — PC 는 한 번에 저장(아래 'PC 설정 창')
+    pretendPhone()
+    onTestFinished(forgetPhone)
     mockApi()
     const update = vi.spyOn(api, 'updateSettings').mockResolvedValue(SETTINGS)
     const user = userEvent.setup()
@@ -486,6 +498,9 @@ describe('리밸런싱 · 리뷰와 기록', () => {
   })
 
   it('리뷰 주기를 바꾸면 바로 저장한다', async () => {
+    // 칸마다 저장하는 예전 설정 창은 폰에 남았다 — PC 는 한 번에 저장(아래 'PC 설정 창')
+    pretendPhone()
+    onTestFinished(forgetPhone)
     mockApi()
     const update = vi.spyOn(api, 'updateSettings').mockResolvedValue(SETTINGS)
     const user = userEvent.setup()
@@ -609,7 +624,7 @@ describe('리밸런싱 · 보유·목표는 한 번에 저장', () => {
     await user.type(within(sheet).getByLabelText('삼성전자 목표 비중'), '45')
 
     expect(within(sheet).getByRole('button', { name: '바뀐 2줄 저장' })).toBeEnabled()
-    expect(within(sheet).getByLabelText('VOO 밴드 임계값').closest('li')).toHaveClass('dirty')
+    expect(within(sheet).getByLabelText('VOO 밴드 임계값').closest('li, tr')).toHaveClass('dirty')
 
     await user.click(within(sheet).getByRole('button', { name: '되돌리기' }))
     expect(within(sheet).getByLabelText('삼성전자 목표 비중')).toHaveValue('40')
@@ -691,6 +706,9 @@ describe('리밸런싱 · 산 환율과 환율 효과', () => {
   })
 
   it('원화 종목만 있으면 산 환율 칸도 환율 효과 설정도 없다', async () => {
+    // 칸마다 저장하는 예전 설정 창은 폰에 남았다 — PC 는 한 번에 저장(아래 'PC 설정 창')
+    pretendPhone()
+    onTestFinished(forgetPhone)
     mockApi({ ...CURRENT, rows: [CURRENT.rows[0]] })
     renderPanel()
     await openSettings()
@@ -724,6 +742,9 @@ describe('리밸런싱 · 산 환율과 환율 효과', () => {
   })
 
   it('환율 효과는 원 기준일 때만 켤 수 있다', async () => {
+    // 칸마다 저장하는 예전 설정 창은 폰에 남았다 — PC 는 한 번에 저장(아래 'PC 설정 창')
+    pretendPhone()
+    onTestFinished(forgetPhone)
     mockApi(JP, { ...SETTINGS, include_fx_effect: false })
     let answer: (value: Settings) => void = () => {}
     const update = vi
@@ -743,6 +764,9 @@ describe('리밸런싱 · 산 환율과 환율 효과', () => {
   })
 
   it('켜기가 실패하면 원래대로 돌아가고 이유를 보인다', async () => {
+    // 칸마다 저장하는 예전 설정 창은 폰에 남았다 — PC 는 한 번에 저장(아래 'PC 설정 창')
+    pretendPhone()
+    onTestFinished(forgetPhone)
     mockApi(JP, { ...SETTINGS, include_fx_effect: false })
     vi.spyOn(api, 'updateSettings').mockRejectedValue(new Error('환율 효과 저장 실패'))
     const user = userEvent.setup()
@@ -754,6 +778,9 @@ describe('리밸런싱 · 산 환율과 환율 효과', () => {
   })
 
   it('달러 기준이면 흐리게 두고 이유를 적는다', async () => {
+    // 칸마다 저장하는 예전 설정 창은 폰에 남았다 — PC 는 한 번에 저장(아래 'PC 설정 창')
+    pretendPhone()
+    onTestFinished(forgetPhone)
     mockApi({ ...JP, base_currency: 'USD' }, { ...SETTINGS, base_currency: 'USD', include_fx_effect: true })
     renderPanel()
     await openSettings()
@@ -1267,9 +1294,9 @@ describe('리밸런싱 · 묶음 4 사용자 확인 보완', () => {
     await user.type(within(sheet).getByLabelText('VOO 밴드 임계값'), '3')
     await user.click(within(sheet).getByRole('button', { name: '바뀐 1줄 저장' }))
     const status = await within(sheet).findByRole('status')
-    expect(status).toHaveTextContent('1줄을 저장했습니다 — 주문 가이드를 새 목표로 다시 계산했습니다.')
+    expect(status).toHaveTextContent('1줄을 저장했습니다. 주문 가이드를 새 목표로 다시 계산했습니다.')
     // 목록보다 위 — 긴 목록 맨 아래에 있어 보이지 않았다 (묶음 4 사용자 확인 2)
-    expect(status.compareDocumentPosition(sheet.querySelector('.target-list')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(status.compareDocumentPosition(sheet.querySelector('.target-list, .target-table')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     // 아래쪽 줄을 고치고 저장해 시트가 내려가 있어도 그 줄을 보이는 곳으로 끌어온다 (검토 7 조건 1)
     expect(scroll.mock.contexts.some((el) => el === status)).toBe(true)
     // 같은 시트에서 같은 줄 수로 한 번 더 저장해도 다시 끌어온다 — 글이 같아 두 번째는 그대로였다 (검토 8 조건 1)
@@ -1484,5 +1511,40 @@ describe('리밸런싱 · 목업 12d (주인: 너무 길다)', () => {
     } finally {
       forgetPhone()
     }
+  })
+})
+
+describe('PC 가운데 창 셋 (디자인 5차 목업 07 가)', () => {
+  it('설정은 칸마다 저장 대신 아래 "저장" 하나 — 바뀐 값만 한 번에 보내고 창을 닫는다', async () => {
+    mockApi()
+    const update = vi.spyOn(api, 'updateSettings').mockResolvedValue(SETTINGS)
+    const user = userEvent.setup()
+    renderPanel()
+    const sheet = await openSettings()
+    expect(sheet.querySelector('.sheet-grab')).toBeNull()
+    expect(within(sheet).queryByRole('button', { name: '적용' })).toBeNull()
+    const save = within(sheet).getByRole('button', { name: '저장' })
+    expect(save).toBeDisabled()
+
+    await user.click(within(sheet).getByRole('button', { name: '반기' }))
+    expect(within(sheet).getByRole('button', { name: '반기' })).toHaveAttribute('aria-pressed', 'true')
+    await user.type(within(sheet).getByLabelText('원 현금'), '3000000')
+    await user.clear(within(sheet).getByLabelText('기본 밴드'))
+    await user.type(within(sheet).getByLabelText('기본 밴드'), '7')
+    await user.click(save)
+
+    await waitFor(() => expect(update).toHaveBeenCalledTimes(1))
+    expect(update).toHaveBeenCalledWith({ review_period: 'semiannual', cash: { KRW: 3_000_000 }, default_rebalance_band_pct: 7 })
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: '리밸런싱 설정' })).not.toBeInTheDocument())
+  })
+
+  it('목표 수정은 한 줄 표 — 종목, 수량, 현재, 목표, 밴드(비우면 기본)', async () => {
+    mockApi()
+    const user = userEvent.setup()
+    renderPanel()
+    const sheet = await openTargets(user)
+    const table = within(sheet).getByRole('table')
+    expect(within(table).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['종목', '수량', '현재', '목표', '밴드 비우면 기본 5%p'])
+    expect(within(sheet).getByLabelText('VOO 밴드 임계값')).toHaveAttribute('placeholder', '기본 5')
   })
 })

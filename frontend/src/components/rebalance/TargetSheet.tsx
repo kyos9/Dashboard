@@ -5,8 +5,12 @@ import { Sheet } from '../ui/Sheet'
 export interface TargetLine {
   ticker: string
   label: string
-  /** "30주 · 지금 11.5%" */
+  /** "30주, 현재 11.5%" */
   sub: string
+  /** PC 표 칸 — "30주" */
+  qty?: string
+  /** PC 표 칸 — "11.5%" */
+  now?: string
   target: string
   band: string
   dirty: boolean
@@ -31,6 +35,7 @@ export function TargetSheet({
   onSave,
   onReset,
   onClose,
+  center = false,
 }: {
   lines: TargetLine[]
   /** "90.0%" */
@@ -49,6 +54,8 @@ export function TargetSheet({
   onSave: () => void
   onReset: () => void
   onClose: () => void
+  /** PC 가운데 창 — 한 줄 표 (디자인 5차 목업 07 가) */
+  center?: boolean
 }) {
   const noteRef = useRef<HTMLParagraphElement>(null)
   // 아래쪽 줄을 고치고 저장하면 시트가 내려간 채라 맨 위 줄이 화면 밖이었다 — 저장 줄을 보이는 곳으로 (묶음 4 검토 7 조건 1)
@@ -61,6 +68,7 @@ export function TargetSheet({
       label="목표 수정"
       closeLabel="목표 수정 닫기"
       className="target-sheet"
+      center={center}
       onClose={onClose}
       initialFocus={() => document.querySelector<HTMLInputElement>('.target-sheet input')}
       sub={
@@ -76,6 +84,68 @@ export function TargetSheet({
           {note}
         </p>
       )}
+      {center ? (
+        <>
+          <div className="sheet-body">
+            <table className="target-table">
+              <thead>
+                <tr>
+                  <th className="l">종목</th>
+                  <th>수량</th>
+                  <th>현재</th>
+                  <th>목표</th>
+                  <th>
+                    밴드 <span className="hint">비우면 기본 {defaultBand}%p</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {lines.map((l) => (
+                  <tr key={l.ticker} className={l.dirty ? 'dirty' : undefined}>
+                    <th scope="row" className="l">
+                      {l.label}
+                      {l.dirty && (
+                        <span className="dirty-mark" title="저장 안 한 변경">
+                          ●
+                        </span>
+                      )}
+                    </th>
+                    <td className="mono hint">{l.qty}</td>
+                    <td className="mono hint">{l.now}</td>
+                    <td>
+                      <span className="input-with-button tight">
+                        <NumberInput value={l.target} onChange={(v) => onChange(l.ticker, { target: v })} aria-label={`${l.label} 목표 비중`} />
+                        <span className="unit">%</span>
+                      </span>
+                    </td>
+                    <td>
+                      <span className="input-with-button tight">
+                        <NumberInput
+                          value={l.band}
+                          placeholder={`기본 ${defaultBand}`}
+                          onChange={(v) => onChange(l.ticker, { band: v })}
+                          aria-label={`${l.label} 밴드 임계값`}
+                        />
+                        <span className="unit">%p</span>
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="sheet-foot">
+            <p className="hint">수량, 평단가, 산 환율은 종목 수정에서 고칩니다.</p>
+            <button type="button" className="ghost" onClick={onReset} disabled={saving || dirtyCount === 0}>
+              되돌리기
+            </button>
+            <button type="button" className="primary" onClick={onSave} disabled={saving || dirtyCount === 0}>
+              {saving ? '저장 중…' : dirtyCount > 0 ? `바뀐 ${dirtyCount}줄 저장` : '저장'}
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
       <div className="target-head" aria-hidden="true">
         <span>종목</span>
         <span>목표</span>
@@ -122,6 +192,8 @@ export function TargetSheet({
           {saving ? '저장 중…' : dirtyCount > 0 ? `바뀐 ${dirtyCount}줄 저장` : '저장'}
         </button>
       </div>
+        </>
+      )}
     </Sheet>
   )
 }
