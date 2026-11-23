@@ -593,3 +593,149 @@ button.sig-item.active {
   overflow: visible;
   padding-bottom: 20px;
 }
+
+/* ---- PC 매크로 (디자인 5차 목업 06 나) — 왼쪽 지표 목록 + 오른쪽 차트 ---- */
+.macro-head-pc {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.macro-head-pc .rb-tools {
+  align-items: center;
+}
+.macro-head-pc .rb-tools > .hint {
+  margin: 0 6px 0 0;
+}
+.rb-strip.macro-strip {
+  grid-template-columns: 1fr 1.3fr 1fr 1.6fr;
+}
+.macro-strip .rb-strip-v small {
+  font-size: var(--fs-caption);
+  font-weight: 500;
+  color: var(--text-dim);
+}
+.macro-strip-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.macro-strip-note {
+  justify-content: center;
+  align-items: flex-end;
+  text-align: right;
+}
+.sig-panel.macro-panel-pc {
+  grid-template-columns: 320px 1fr;
+}
+.macro-list-pc li.macro-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-left: 10px;
+  border-top: 1px solid var(--border);
+}
+.macro-list-pc li.macro-item.active {
+  background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.macro-item-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 48px;
+  padding: 6px 16px 6px 4px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--text);
+  font-weight: 600;
+  text-align: left;
+}
+.macro-item.active .macro-item-open {
+  color: var(--accent);
+}
+.macro-item-value {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.25;
+}
+.macro-item-value small {
+  font-size: var(--fs-caption);
+  font-weight: 500;
+  color: var(--text-dim);
+}
+.macro-zone-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  vertical-align: 2px;
+}
+.macro-detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.macro-detail-head h3 {
+  margin: 0;
+  font-size: var(--fs-strong);
+}
+.macro-detail-head h3 small {
+  margin-left: 6px;
+  font-weight: 400;
+}
+.macro-detail-value {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 6px;
+}
+.macro-detail-value b {
+  font-size: 28px;
+  font-weight: 800;
+}
+.macro-detail-value span {
+  color: var(--text-dim);
+  font-weight: 600;
+}
+.macro-detail-head .seg > button {
+  min-height: 34px;
+}
+.macro-facts {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin: 14px 0 0;
+}
+.macro-facts > div {
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.macro-facts dt {
+  font-size: var(--fs-caption);
+  color: var(--text-faint);
+}
+.macro-facts dd {
+  margin: 2px 0 0;
+  font-size: var(--fs-strong);
+  font-weight: 700;
+}
+.macro-detail-status {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 12px;
+}
+.macro-detail .macro-forecast-box {
+  margin-top: 14px;
+}

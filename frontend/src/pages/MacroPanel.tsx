@@ -10,6 +10,8 @@ import { lazyChunk } from '../lib/lazyChunk'
 import { useCachedLoad } from '../lib/cache'
 import { PageSkeleton } from '../components/Skeleton'
 import { pushAccount } from '../lib/push'
+import { useMedia, useNarrow } from '../lib/narrow'
+import { DesktopMacro, RegimeStrip } from '../components/macro/DesktopMacro'
 import {
   checkedLabel,
   macroChange,
@@ -206,6 +208,10 @@ export function MacroPanel() {
   const [open, setOpen] = useState<MacroSeriesInfo | null>(null)
   const [pinning, setPinning] = useState(false)
   const [pinNote, setPinNote] = useState('')
+  // PC 는 목록 + 차트 (디자인 5차 목업 06 나). 폭 1100 이하 · 폰은 예전 목록 그대로 — ④ 에서
+  const narrow = useNarrow()
+  const compact = useMedia('(max-width: 1100px)') || narrow
+  const [picked, setPicked] = useState<string | null>(null)
   // 포커스 · 화면을 데려갈 별 — 줄이 옮겨 그려진 "다음"에 옮긴다. rAF 로 하면 되돌림이 그려지기 전에 돌아
   // 곧 사라질 옛 별에 포커스가 갔다(묶음 5 네 번째 검토 조건 1)
   const [follow, setFollow] = useState<{ code: string; n: number } | null>(null)
@@ -329,6 +335,57 @@ export function MacroPanel() {
       onTogglePin={guest ? undefined : () => void togglePin(item.code)}
     />
   )
+
+  const selected = series.find((item) => item.code === picked) ?? mine[0] ?? rest[0] ?? null
+  const received = commonChecked ? `${commonChecked}에 받음${commonSource ? ` (출처 ${commonSource})` : ''}` : '아직 받지 않음'
+
+  if (!compact && !loading && selected) {
+    return (
+      <>
+        <div className="page-head macro-head-pc">
+          <h2>매크로 지표</h2>
+          <div className="rb-tools">
+            <span className="hint">{received}</span>
+            {!guest && !pending && (
+              <button type="button" onClick={() => setAiOpen(true)}>
+                AI 정리
+              </button>
+            )}
+            {isAdmin && (
+              <button type="button" onClick={() => void refresh()} disabled={refreshing}>
+                {refreshing ? '받는 중…' : '받아오기'}
+              </button>
+            )}
+          </div>
+        </div>
+        {aiOpen && (
+          <Suspense fallback={null}>
+            <AiSummaryModal kind="macro" account={pushAccount(user)} onClose={closeAi} />
+          </Suspense>
+        )}
+        <ErrorNotice error={error} onDismiss={() => setError(null)} />
+        <RegimeStrip badges={badges} spread={data?.term_spread ?? null} fear={series.find((item) => item.zone) ?? null} />
+        <p className="sr-only" role="status">
+          {pinNote}
+        </p>
+        <DesktopMacro
+          mine={mine}
+          rest={rest}
+          pinned={pinned}
+          selected={selected}
+          onSelect={setPicked}
+          onTogglePin={guest ? undefined : (code) => void togglePin(code)}
+          detailProps={{
+            canEditForecast: isAdmin,
+            onSaveForecast: saveForecast,
+            onClearForecast: clearForecast,
+            forecastError,
+            onForecastErrorDismiss: () => setForecastError(null),
+          }}
+        />
+      </>
+    )
+  }
 
   return (
     <>

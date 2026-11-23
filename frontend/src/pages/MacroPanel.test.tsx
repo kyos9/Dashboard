@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { forgetPhone, pretendPhone } from '../test/phone'
 import { api } from '../api/client'
 import { AppStateProvider } from '../AppState'
 import { AuthGate } from '../components/AuthGate'
@@ -56,9 +57,12 @@ function mockMacro(overview: Partial<MacroOverview> = {}) {
   })
 }
 
+// 아래 시험은 예전 한 목록(폭 1100 이하 · 폰) — PC 목록 + 차트는 맨 아래 'PC 매크로' (디자인 5차 목업 06 나)
 beforeEach(() => {
   vi.restoreAllMocks()
+  pretendPhone()
 })
+afterEach(() => forgetPhone())
 
 describe('지표 카드', () => {
   it('값과 직전 대비 변화를 보여준다', async () => {
@@ -1078,5 +1082,32 @@ describe('손님·사용자·관리자', () => {
     vi.spyOn(api, 'getMacroHistory').mockResolvedValue({ code: 'CPIAUCSL', name: 'CPI', unit: 'percent', transform: 'none', transform_label: null, points: [] })
     await userEvent.click(screen.getByRole('button', { name: /^CPI, .* — 차트$/ }))
     expect(within(await screen.findByRole('dialog')).getByRole('button', { name: '예상치 입력' })).toBeInTheDocument()
+  })
+})
+
+describe('PC 매크로 — 목록 + 차트 (디자인 5차 목업 06 나)', () => {
+  it('왼쪽은 내 지표와 묶음 목록, 오른쪽은 고른 지표의 차트 · 숫자 넷 — 창은 뜨지 않는다', async () => {
+    forgetPhone()
+    mockMacro()
+    vi.spyOn(api, 'getMacroHistory').mockResolvedValue({
+      code: 'DGS10',
+      name: '미 10년물 금리',
+      unit: 'percent',
+      transform: 'none',
+      transform_label: null,
+      points: [
+        { as_of: '2025-11-20', value: 4.0 },
+        { as_of: '2026-11-20', value: 4.2 },
+      ],
+    })
+    const user = userEvent.setup()
+    renderPanel()
+    const list = await screen.findByRole('listbox', { name: '지표' })
+    expect(screen.getByRole('region', { name: '국면' })).toHaveTextContent('여기 숫자는 매수, 매도 시그널에 들어가지 않습니다.')
+    await user.click(within(list).getByRole('button', { name: /^미 10년물 금리(?! 내 지표로)/ }))
+    const detail = await screen.findByRole('article', { name: '미 10년물 금리 차트' })
+    await waitFor(() => expect(detail).toHaveTextContent('1년 전4.00%'))
+    expect(within(detail).getByRole('button', { name: '5년' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 })
