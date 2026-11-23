@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="ko" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>5차 매크로</title>
+<!--
+  디자인 5차 목업 06 — PC 매크로. 지금 화면의 문제:
+  머리 아래 글 두 줄("시그널에 들어가지 않습니다" · "눈에 띄는 국면은 없습니다") + 파란 상자(장단기 금리차)가 따로 놂 ·
+  내 지표 / 모든 지표 두 상자에 줄마다 ★ · 값 · 변화뿐이라 흐름이 안 보임 · 차트는 누르면 뜨는 창에서만 ·
+  "AI 매크로 정리" 와 "지금 받아오기" 가 큰 단추 둘.
+  가 표 하나 — 묶음(주식 · 금리 · 물가 · 고용) 표, 줄마다 1년 흐름 선과 1년 범위 안 위치
+  나 목록 + 차트 — 재무 · 시그널과 같은 틀. 왼쪽 지표 목록, 오른쪽에 고른 지표의 차트와 풀이
+  다 카드 격자 — 지표마다 작은 선 그림 카드, 내 지표가 맨 앞
+  PC 1400 · 라이트 · 색과 글꼴은 앱 tokens.css · 숫자는 앱 가짜 서버와 같게.
+-->
+<link rel="stylesheet" href="../../../../frontend/src/styles/tokens.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:#5f646b}
+body{font-family:var(--font-sans);word-break:keep-all;padding:28px 20px 40px;color:#fff;font-size:14px}
+.part{max-width:1400px;margin:0 auto 14px;font-size:22px;font-weight:700}
+.part small{display:block;font-size:14px;font-weight:400;opacity:.9;margin-top:6px;line-height:1.55}
+.cap{max-width:1400px;margin:34px auto 10px;font-size:17px;font-weight:700}
+.cap small{font-size:13px;font-weight:400;opacity:.88;margin-left:8px}
+.frame{width:1400px;margin:0 auto;background:var(--bg);color:var(--text);border-radius:10px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+td,b,.v{font-variant-numeric:tabular-nums}
+.up{color:var(--up,#d63b3b)}.down{color:var(--down,#2563eb)}.faint{color:var(--text-faint)}.dim{color:var(--text-dim)}
+.nav{height:60px;display:flex;align-items:center;gap:6px;padding:0 32px;background:var(--panel);border-bottom:1px solid var(--border)}
+.logo{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:700;margin-right:28px}
+.logo i{width:30px;height:30px;border-radius:8px;background:var(--brand);color:var(--on-brand);display:grid;place-items:center;font-style:normal;font-size:15px;font-weight:800}
+.nav a{height:60px;display:inline-flex;align-items:center;padding:0 14px;font-size:15px;font-weight:600;color:var(--text-dim);border-bottom:3px solid transparent;margin-bottom:-1px}
+.nav a.on{color:var(--accent);border-bottom-color:var(--accent)}
+.page{padding:24px 32px 32px}
+.head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.head h2{font-size:22px}
+.tools{display:flex;gap:8px;align-items:center}
+.tools .when{font-size:12px;color:var(--text-faint);margin-right:6px}
+.btn{height:36px;padding:0 14px;border:1px solid var(--border);border-radius:8px;background:var(--panel);font:inherit;font-size:13px;font-weight:600;color:var(--text);display:inline-flex;align-items:center}
+.box{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+/* 국면 띠 */
+.regime{display:flex;align-items:center;gap:0;background:var(--panel);border:1px solid var(--border);border-radius:12px;margin-bottom:14px}
+.regime>div{padding:12px 18px;border-left:1px solid var(--border);display:flex;flex-direction:column;gap:3px}
+.regime>div:first-child{border-left:0}
+.regime span{font-size:12px;color:var(--text-faint)}
+.regime b{font-size:15px}
+.regime .grow{flex:1}
+.regime .note{font-size:12px;color:var(--text-faint);padding:12px 18px;align-self:center}
+/* 가 표 */
+table{width:100%;border-collapse:collapse}
+th,td{padding:10px 12px;font-size:14px;white-space:nowrap;text-align:right}
+thead th{font-size:12px;font-weight:600;color:var(--text-dim);background:var(--panel-soft);border-bottom:1px solid var(--border)}
+tbody td{border-top:1px solid var(--border)}
+td.nm,th.nm{text-align:left;padding-left:18px}
+td.nm small{display:block;font-size:12px;color:var(--text-faint);font-weight:400;margin-top:1px}
+td.st,th.st{width:34px;text-align:center;padding:0 0 0 14px;color:var(--text-faint)}
+td.st.on{color:#b45309}
+td.l,th.l{text-align:left}
+tr.grp td{background:var(--panel-soft);font-size:12px;font-weight:700;color:var(--text-dim);text-align:left;padding:7px 18px}
+.rng{position:relative;width:150px;height:14px;display:inline-block;vertical-align:middle}
+.rng i{position:absolute;left:0;right:0;top:6px;height:3px;border-radius:2px;background:var(--border)}
+.rng em{position:absolute;top:2px;width:10px;height:10px;border-radius:50%;background:var(--accent);transform:translateX(-50%)}
+.rngl{display:flex;justify-content:space-between;width:150px;font-size:11px;color:var(--text-faint);margin-left:auto}
+.tag{font-size:11px;font-weight:600;color:var(--text-dim);background:var(--panel-soft);border:1px solid var(--border);border-radius:5px;padding:1px 6px;margin-left:6px;vertical-align:1px}
+/* 나 */
+.split{display:grid;grid-template-columns:330px 1fr;gap:16px;align-items:start}
+.li{display:grid;grid-template-columns:18px 1fr auto;gap:8px;align-items:center;padding:9px 16px;border-top:1px solid var(--border);font-size:14px;font-weight:600}
+.li .s{color:var(--text-faint);font-size:13px}.li .s.on{color:#b45309}
+.li .r{text-align:right}
+.li .r small{display:block;font-size:11px;font-weight:500}
+.li.on{background:var(--accent-soft);box-shadow:inset 3px 0 0 var(--accent);color:var(--accent)}
+.grp2{padding:7px 16px;font-size:12px;font-weight:700;color:var(--text-dim);background:var(--panel-soft);border-top:1px solid var(--border)}
+.grp2:first-child{border-top:0}
+.det{padding:20px 22px}
+.det h3{font-size:20px;display:flex;align-items:baseline;gap:10px}
+.det h3 small{font-size:13px;font-weight:400;color:var(--text-faint)}
+.dtop{display:flex;justify-content:space-between;align-items:flex-start}
+.big{font-size:30px;font-weight:800;margin-top:8px}
+.big small{font-size:15px;font-weight:700;margin-left:8px}
+.segs{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;height:32px}
+.segs span{padding:0 14px;display:grid;place-items:center;font-size:13px;font-weight:600;color:var(--text-dim);border-left:1px solid var(--border)}
+.segs span:first-child{border-left:0}
+.segs span.on{background:var(--accent);color:var(--on-accent)}
+.facts{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px}
+.facts div{border:1px solid var(--border);border-radius:10px;padding:10px 14px}
+.facts span{display:block;font-size:12px;color:var(--text-faint)}
+.facts b{font-size:17px}
+.explain{margin-top:14px;font-size:13px;color:var(--text-dim);line-height:1.6}
+/* 다 */
+.sec{font-size:13px;font-weight:700;color:var(--text-dim);margin:4px 0 8px;display:flex;justify-content:space-between}
+.sec small{font-weight:400;color:var(--text-faint)}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px 16px 10px}
+.card .t{display:flex;justify-content:space-between;align-items:baseline;font-size:14px;font-weight:700}
+.card .t .s{color:var(--text-faint);font-weight:400}.card .t .s.on{color:#b45309}
+.card .sub{font-size:12px;color:var(--text-faint);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card .v{font-size:22px;font-weight:800;margin-top:8px}
+.card .v small{font-size:13px;font-weight:700;margin-left:6px}
+.card svg{display:block;margin-top:6px}
+.foot{font-size:12px;color:var(--text-faint);margin-top:10px}
+</style>
+</head>
+<body>
+
+<div class="part">매크로 PC — 배치 셋
+<small>주인 쓰임: 가끔 들러 시장 분위기를 본다. 맨 먼저 보여야 할 것: 내가 ★ 고른 지표, 눈에 띄는 국면, 지표마다 지금 어디쯤인지.<br>
+공통: 머리 아래 흩어진 글 두 줄과 파란 상자를 <b>국면 띠 한 줄</b>로 합침 · "AI 매크로 정리"와 "받아오기"는 오른쪽 위 글 단추, 받은 시각은 그 옆 · ★ 는 그대로(누르면 내 지표로) · "시그널에 들어가지 않습니다"는 띠 오른쪽 끝 작은 글.</small></div>
+
+<!-- ───────────── 가 ───────────── -->
+<div class="cap">가 표 하나 <small>묶음(내 지표 · 주식 · 금리 · 물가 · 고용) 표, 줄마다 1년 흐름 선과 1년 범위 안 위치. 줄을 누르면 지금처럼 차트 창</small></div>
+<div class="frame">
+  <div class="nav"><div class="logo"><i>₩</i>자산관리</div><a>홈</a><a>재무</a><a>리밸런싱</a><a class="on">매크로</a></div>
+  <div class="page">
+    <div class="head"><h2>매크로 지표</h2><div class="tools"><span class="when">11월 23일 07:02 받음</span><span class="btn">AI 정리</span><span class="btn">받아오기</span></div></div>
+    <div class="regime regimeX"></div>
+    <div class="box"><table id="tableA"></table></div>
+  </div>
+</div>
+
+<!-- ───────────── 나 ───────────── -->
+<div class="cap">나 목록 + 차트 <small>재무 · 시그널과 같은 틀. 왼쪽 지표 목록(값과 변화), 오른쪽에 고른 지표의 차트 · 숫자 넷 · 풀이. 창이 뜨지 않음</small></div>
+<div class="frame">
+  <div class="nav"><div class="logo"><i>₩</i>자산관리</div><a>홈</a><a>재무</a><a>리밸런싱</a><a class="on">매크로</a></div>
+  <div class="page">
+    <div class="head"><h2>매크로 지표</h2><div class="tools"><span class="when">11월 23일 07:02 받음</span><span class="btn">AI 정리</span><span class="btn">받아오기</span></div></div>
+    <div class="regime regimeX"></div>
+    <div class="split">
+      <div class="box" id="listB"></div>
+      <div class="box det" id="detB"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ───────────── 다 ───────────── -->
+<div class="cap">다 카드 격자 <small>지표마다 작은 선 그림 카드(1년). 내 지표가 맨 앞 줄, 카드를 누르면 지금처럼 차트 창</small></div>
+<div class="frame">
+  <div class="nav"><div class="logo"><i>₩</i>자산관리</div><a>홈</a><a>재무</a><a>리밸런싱</a><a class="on">매크로</a></div>
+  <div class="page">
+    <div class="head"><h2>매크로 지표</h2><div class="tools"><span class="when">11월 23일 07:02 받음</span><span class="btn">AI 정리</span><span class="btn">받아오기</span></div></div>
+    <div class="regime regimeX"></div>
+    <div id="gridC"></div>
+  </div>
+</div>
+
+<script>
+// 가짜 서버와 같은 숫자
+const D = [
+  {g:'주식', n:'VIX', d:'변동성 지수, 시장의 공포', v:'22.4', c:'+2.5', s:1, lo:12.1, hi:38.6, x:22.4},
+  {g:'주식', n:'공포·탐욕 지수', d:'0 공포 ~ 100 탐욕', v:'43.2', c:'−2.7', s:1, tag:'공포 구간 25~44', lo:18, hi:78, x:43.2},
+  {g:'주식', n:'S&P 500', d:'미국 대형주 500개', v:'5,745.5', c:'+32.7', lo:4953, hi:5912, x:5745.5},
+  {g:'주식', n:'코스피', d:'한국 대표 지수', v:'3,241.3', c:'+22.1', lo:2480, hi:3320, x:3241.3},
+  {g:'금리', n:'미 기준금리', d:'연준 정책금리(실효)', v:'4.33%', c:'±0.00%p', lo:4.33, hi:5.33, x:4.33},
+  {g:'금리', n:'미 10년물 금리', d:'장기 금리의 기준', v:'4.25%', c:'+0.06%p', lo:3.86, hi:4.45, x:4.25},
+  {g:'금리', n:'미 2년물 금리', d:'정책금리 기대를 비춘다', v:'4.04%', c:'−0.06%p', lo:3.55, hi:4.62, x:4.04},
+  {g:'물가', n:'근원 PCE', d:'연준이 보는 물가, 전년비', v:'3.03%', c:'−0.10%p', m:'10월분', lo:2.6, hi:3.3, x:3.03},
+  {g:'물가', n:'PCE 물가', d:'전년비', v:'2.36%', c:'+0.09%p', m:'10월분', lo:2.1, hi:2.9, x:2.36},
+  {g:'물가', n:'근원 CPI', d:'에너지·식품을 뺀 물가, 전년비', v:'2.80%', c:'−0.20%p', m:'10월분', lo:2.7, hi:3.4, x:2.80},
+  {g:'물가', n:'CPI', d:'뉴스에 나오는 물가, 전년비', v:'2.65%', c:'−0.37%p', m:'10월분', lo:2.3, hi:3.1, x:2.65},
+  {g:'고용', n:'미 실업률', d:'고용이 식고 있나', v:'4.10%', c:'+0.03%p', m:'10월분', lo:3.9, hi:4.3, x:4.10},
+]
+const tone = (c) => c.startsWith('+') ? 'up' : c.startsWith('−') ? 'down' : 'dim'
+const pos = (r) => Math.max(0, Math.min(100, (r.x - r.lo) / (r.hi - r.lo) * 100))
+const fmt = (n) => n >= 1000 ? n.toLocaleString('en-US',{maximumFractionDigits:0}) : (Math.round(n*100)/100).toString()
+// 씨앗 있는 무작위 걸음 — 끝은 지금 값 근처
+function walk(seed, n, r){ let s=seed; const rnd=()=>{s=(s*9301+49297)%233280;return s/233280}
+  const out=[]; let y=r.lo+(r.hi-r.lo)*(0.3+rnd()*0.4)
+  for(let i=0;i<n;i++){ y+= (rnd()-0.5)*(r.hi-r.lo)*0.12; y=Math.max(r.lo,Math.min(r.hi,y)); out.push(y) }
+  const k=(r.x-out[n-1]); for(let i=0;i<n;i++) out[i]+=k*(i/(n-1)); return out }
+function spark(r,i,w,h,color){ const ys=walk(i*97+13,60,r); const mn=Math.min(...ys),mx=Math.max(...ys)
+  const pts=ys.map((y,j)=>`${(j/(ys.length-1)*w).toFixed(1)},${(h-2-(y-mn)/(mx-mn||1)*(h-4)).toFixed(1)}`).join(' ')
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><polyline fill="none" stroke="${color||'var(--accent)'}" stroke-width="1.6" points="${pts}"/></svg>` }
+const star = (r) => r.s ? '★' : '☆'
+
+// 국면 띠 (공통)
+for (const el of document.querySelectorAll('.regimeX')) el.innerHTML = `
+  <div><span>국면</span><b>눈에 띄는 국면 없음</b></div>
+  <div><span>장단기 금리차 (10년 − 2년)</span><b>+0.21%p <small class="dim" style="font-weight:500;font-size:13px">정상, 장기가 높음</small></b></div>
+  <div><span>공포·탐욕</span><b>43.2 <small class="dim" style="font-weight:500;font-size:13px">공포 구간</small></b></div>
+  <div class="grow"></div>
+  <div class="note">여기 숫자는 매수, 매도 시그널에 들어가지 않습니다.</div>`
+
+// 가
+{ const rows = []
+  const groups = [['내 지표', D.filter(r=>r.s)], ...['주식','금리','물가','고용'].map(g=>[g, D.filter(r=>r.g===g && !r.s)])]
+  rows.push(`<thead><tr><th class="st"></th><th class="nm">지표</th><th>값</th><th>변화</th><th class="l" style="width:260px">1년 흐름</th><th style="width:220px">1년 범위 안 위치</th><th>기준</th></tr></thead><tbody>`)
+  let i=0
+  for (const [g, list] of groups) { if(!list.length) continue
+    rows.push(`<tr class="grp"><td colspan="7">${g}</td></tr>`)
+    for (const r of list) { i++
+      rows.push(`<tr><td class="st${r.s?' on':''}">${star(r)}</td>
+        <td class="nm"><b>${r.n}</b>${r.tag?`<span class="tag">${r.tag}</span>`:''}<small>${r.d}</small></td>
+        <td><b>${r.v}</b></td><td class="${tone(r.c)}">${r.c}</td>
+        <td class="l">${spark(r,i,180,30)}</td>
+        <td><span class="rng"><i></i><em style="left:${pos(r)}%"></em></span><div class="rngl"><span>${fmt(r.lo)}</span><span>${fmt(r.hi)}</span></div></td>
+        <td class="dim">${r.m||'11월 22일'}</td></tr>`) } }
+  rows.push('</tbody>')
+  document.getElementById('tableA').innerHTML = rows.join('') }
+
+// 나
+{ const pick = 5 // 미 10년물
+  const html = []
+  const groups = [['내 지표', D.filter(r=>r.s)], ...['주식','금리','물가','고용'].map(g=>[g, D.filter(r=>r.g===g && !r.s)])]
+  for (const [g, list] of groups) { if(!list.length) continue
+    html.push(`<div class="grp2">${g}</div>`)
+    for (const r of list) { const on = D.indexOf(r)===pick
+      html.push(`<div class="li${on?' on':''}"><span class="s${r.s?' on':''}">${star(r)}</span><span>${r.n}</span><span class="r"><b>${r.v}</b><small class="${tone(r.c)}">${r.c}</small></span></div>`) } }
+  document.getElementById('listB').innerHTML = html.join('')
+  const r = D[pick]
+  document.getElementById('detB').innerHTML = `
+    <div class="dtop"><div><h3>${r.n} <small>${r.d}</small></h3><div class="big">${r.v}<small class="${tone(r.c)}">${r.c}</small></div></div>
+      <div class="segs"><span>1년</span><span class="on">5년</span><span>10년</span><span>전체</span></div></div>
+    <div style="margin-top:12px">${spark({...r,lo:3.8,hi:4.45},31,960,300)}</div>
+    <div class="facts"><div><span>5년 평균</span><b>4.16%</b></div><div><span>5년 범위</span><b>3.80 ~ 4.45%</b></div><div><span>1년 전</span><b>4.31%</b></div><div><span>기준</span><b>11월 22일</b></div></div>
+    <p class="explain">장기 금리의 기준입니다. 오르면 대출 · 채권 금리가 같이 오르고, 성장주 값에 부담이 됩니다. 2년물과의 차이(장단기 금리차)가 거꾸로 되면 경기 둔화 신호로 봅니다.</p>`
+}
+
+// 다
+{ const mine = D.filter(r=>r.s), rest = D.filter(r=>!r.s)
+  const card = (r,i) => `<div class="card"><div class="t"><span>${r.n}</span><span class="s${r.s?' on':''}">${star(r)}</span></div>
+    <div class="sub">${r.d}${r.m?`, ${r.m}`:''}</div>
+    <div class="v">${r.v}<small class="${tone(r.c)}">${r.c}</small></div>${spark(r,i+1,290,44)}</div>`
+  document.getElementById('gridC').innerHTML = `
+    <div class="sec">내 지표<small>☆ 를 누르면 여기로</small></div>
+    <div class="grid">${mine.map((r)=>card(r,D.indexOf(r))).join('')}</div>
+    <div class="sec">모든 지표</div>
+    <div class="grid">${rest.map((r)=>card(r,D.indexOf(r))).join('')}</div>`
+}
+</script>
+</body>
+</html>
