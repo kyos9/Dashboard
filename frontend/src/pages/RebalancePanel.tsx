@@ -309,7 +309,7 @@ function CashCard({
   }
 
   return (
-    <div className="kpi">
+    <div className="kpi cash-settings">
       <div className="kpi-head">
         <span className="kpi-title">현금</span>
         <span className="hint">

@@ -391,3 +391,12 @@ button.rb-strip-cell:hover {
 .data-table.order-table td .trade-form {
   text-align: left;
 }
+
+/* 설정 창 현금 칸 — ₩ $ ¥ 목표 기호 폭이 달라 입력칸이 들쭉날쭉했다 (주인 2026-11-23) */
+.cash-settings .input-with-button > .unit:first-child {
+  flex: 0 0 2.4em;
+}
+.cash-settings .input-with-button input {
+  flex: 0 0 140px;
+  width: 140px;
+}
