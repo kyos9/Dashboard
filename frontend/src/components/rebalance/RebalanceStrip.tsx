@@ -52,7 +52,7 @@ export function RebalanceStrip({
         type="button"
         className={`rb-strip-cell rb-strip-target${targetGap ? ' warn' : ''}`}
         onClick={onTargets}
-        aria-label={`목표 합계 ${targetSum}${targetGap ? `, ${targetGap}` : ''}, 목표 고치기`}
+        aria-label={`목표 합계 ${targetSum}${targetGap ? `, ${targetGap}` : ''}, 목표 수정`}
       >
         <span className="rb-strip-k">목표 합계</span>
         <div className="rb-strip-v">

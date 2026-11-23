@@ -127,9 +127,9 @@ function act(tr: HTMLElement) {
   return tr.querySelector('.order-shares')?.getAttribute('aria-label') ?? ''
 }
 
-/** PC 오른쪽 위 글 단추 "목표 고치기"로 시트를 연다 (디자인 5차 목업 05 가) */
+/** PC 오른쪽 위 글 단추 "목표 수정"로 시트를 연다 (디자인 5차 목업 05 가) */
 async function openTargets(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(await screen.findByRole('button', { name: '목표 고치기' }))
+  await user.click(await screen.findByRole('button', { name: '목표 수정' }))
   return screen.getByRole('dialog', { name: '목표 비중 · 밴드 고치기' })
 }
 
@@ -547,7 +547,7 @@ describe('리밸런싱 · 답을 먼저 (ROADMAP 8-3)', () => {
     mockApi()
     renderPanel()
     await screen.findByRole('region', { name: '주문 가이드' })
-    for (const name of ['목표 고치기', '리뷰 기록', '설정']) expect(screen.getByRole('button', { name })).toBeInTheDocument()
+    for (const name of ['목표 수정', '리뷰 기록', '설정']) expect(screen.getByRole('button', { name })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^다음 리뷰 D-/ })).toBeInTheDocument()
     expect(screen.queryByRole('list', { name: '리밸런싱 더 보기' })).toBeNull()
     expect(screen.queryByRole('heading', { name: '주문 가이드' })).toBeNull()
@@ -560,7 +560,7 @@ describe('리밸런싱 · 답을 먼저 (ROADMAP 8-3)', () => {
     expect(strip).toHaveTextContent('전체 자금 (현금 포함)₩2,100,000')
     expect(strip).toHaveTextContent(/팔 것 \d종목/)
     expect(strip).toHaveTextContent(/살 것 \d종목/)
-    expect(within(strip).getByRole('button', { name: '목표 합계 100.0%, 목표 고치기' })).not.toHaveClass('warn')
+    expect(within(strip).getByRole('button', { name: '목표 합계 100.0%, 목표 수정' })).not.toHaveClass('warn')
     expect(within(strip).getByLabelText('이번에 새로 넣을 돈')).toBeInTheDocument()
     expect(strip).not.toHaveTextContent('+₩13,000')
   })
@@ -568,7 +568,7 @@ describe('리밸런싱 · 답을 먼저 (ROADMAP 8-3)', () => {
   it('목표 합계가 100 이 아니면 요약 띠 칸이 호박 — 얼마나 비었는지', async () => {
     mockApi({ ...CURRENT, rows: CURRENT.rows.map((r) => ({ ...r, target_weight_pct: 30 })) })
     renderPanel()
-    const cell = await screen.findByRole('button', { name: '목표 합계 60.0%, 40.0%p 비어 있음, 목표 고치기' })
+    const cell = await screen.findByRole('button', { name: '목표 합계 60.0%, 40.0%p 비어 있음, 목표 수정' })
     expect(cell).toHaveClass('warn')
     expect(cell).toHaveTextContent('40.0%p 비어 있음')
   })
@@ -765,7 +765,7 @@ describe('리밸런싱 · 산 환율과 환율 효과', () => {
     mockApi({ ...JP, rows: JP.rows.map((r) => ({ ...r, target_weight_pct: 30 })) })
     const user = userEvent.setup()
     renderPanel()
-    const pill = await screen.findByRole('button', { name: '목표 합계 90.0%, 10.0%p 비어 있음, 목표 고치기' })
+    const pill = await screen.findByRole('button', { name: '목표 합계 90.0%, 10.0%p 비어 있음, 목표 수정' })
     expect(pill).toHaveClass('warn')
     await user.click(pill)
     expect(screen.getByRole('dialog', { name: '목표 비중 · 밴드 고치기' })).toHaveTextContent('합계 90.0%')

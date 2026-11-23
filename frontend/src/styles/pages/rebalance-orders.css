@@ -381,3 +381,13 @@ button.rb-strip-cell:hover {
   font-weight: 400;
   color: var(--text-faint);
 }
+
+/* PC 주문 표 — 종목 칸 말고는 가운데 (주인 요청 2026-11-23) */
+.data-table.order-table thead th:not(:first-child),
+.data-table.order-table tbody td:not(:first-child),
+.data-table.order-table tfoot td:not(:first-child) {
+  text-align: center;
+}
+.data-table.order-table td .trade-form {
+  text-align: left;
+}

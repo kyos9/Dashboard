@@ -1385,7 +1385,7 @@ export function RebalancePanel() {
           </h2>
           <div className="rb-tools">
             <button type="button" onClick={() => setTargetsOpen(true)}>
-              목표 고치기
+              목표 수정
             </button>
             <button type="button" onClick={() => setRecordsOpen(true)}>
               리뷰 기록
