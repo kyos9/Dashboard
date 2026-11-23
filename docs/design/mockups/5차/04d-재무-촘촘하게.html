@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="ko" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>5차 재무 촘촘하게</title>
+<!--
+  디자인 5차 목업 04d — 앱에 넣은 재무(04c 가)를 보고 주인: 1 5년 범위는 5년 평균 PER 밑에 · 2 여백이 너무 많음 → 다른 배치.
+  여백이 생기는 곳: PER 세 칸(큰 숫자 하나에 칸 높이) · 빈 가이던스 상자(한 줄 글에 상자 하나) · 분기 표(칸마다 세 줄) · 오른쪽이 끝난 뒤 왼쪽 목록만 길게.
+  가 PER 을 카드 줄에 — 다섯 카드(PER · 가치 · 수익성 · 성장 · 안정) 한 줄, 가이던스는 제목 옆 한 줄, 분기 표 그대로
+  나 두 단 — 왼쪽 단 PER + 카드 2x2, 오른쪽 단 가이던스 + 분기 표
+  다 분기 표를 눕혀 — 가 의 카드 줄 + 지표가 줄, 분기가 칸. 전년비 · 전분기비는 값 옆 한 줄
+  PC 1400 · 라이트 · 색과 글꼴은 앱 tokens.css · 숫자는 앱 가짜 서버와 같게.
+-->
+<link rel="stylesheet" href="../../../../frontend/src/styles/tokens.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:#5f646b}
+body{font-family:var(--font-sans);word-break:keep-all;padding:28px 20px 40px;color:#fff;font-size:14px}
+.part{max-width:1400px;margin:0 auto 14px;font-size:22px;font-weight:700}
+.part small{display:block;font-size:14px;font-weight:400;opacity:.9;margin-top:6px;line-height:1.55}
+.cap{max-width:1400px;margin:30px auto 10px;font-size:17px;font-weight:700}
+.cap small{font-size:13px;font-weight:400;opacity:.88;margin-left:8px}
+.frame{width:1400px;margin:0 auto;background:var(--bg);color:var(--text);border-radius:10px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.frame.bare{padding:20px 24px}
+td,b,.v{font-variant-numeric:tabular-nums}
+.up{color:var(--up)}.down{color:var(--down)}.faint{color:var(--text-faint)}.dim{color:var(--text-dim)}
+.nav{height:60px;display:flex;align-items:center;gap:6px;padding:0 32px;background:var(--panel);border-bottom:1px solid var(--border)}
+.logo{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:700;margin-right:28px}
+.logo i{width:30px;height:30px;border-radius:8px;background:var(--brand);color:var(--on-brand);display:grid;place-items:center;font-style:normal;font-size:15px;font-weight:800}
+.nav a{height:60px;display:inline-flex;align-items:center;padding:0 14px;font-size:15px;font-weight:600;color:var(--text-dim);border-bottom:3px solid transparent;margin-bottom:-1px}
+.nav a.on{color:var(--accent);border-bottom-color:var(--accent)}
+.page{padding:26px 32px 34px}
+.head{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:16px}
+.head h2{font-size:22px}
+.box{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.split{display:grid;grid-template-columns:220px 1fr;gap:16px;align-items:start}
+.li{padding:12px 16px;border-top:1px solid var(--border);font-size:14px;font-weight:600}
+.li:first-child{border-top:0}
+.li.on{background:var(--accent-soft);box-shadow:inset 3px 0 0 var(--accent);color:var(--accent)}
+.li.off{color:var(--text-faint);font-weight:400}
+.grp{padding:8px 16px;font-size:12px;color:var(--text-faint);background:var(--panel-soft);border-top:1px solid var(--border)}
+.det{padding:20px 22px}
+.det h3{font-size:20px;display:flex;align-items:baseline;gap:10px}
+.det h3 small{font-size:13px;font-weight:400;color:var(--text-faint)}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:16px}
+.card{border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.ch{padding:9px 14px;font-size:14px;font-weight:700;background:var(--panel-soft)}
+.ln{display:flex;justify-content:space-between;align-items:center;padding:9px 14px;font-size:13px;border-top:1px solid var(--border)}
+.ln span{color:var(--text-dim)}.ln b{font-size:15px}
+.g-val{color:var(--accent)}.g-pro{color:var(--signal-buy)}.g-gro{color:#7a4fa8}.g-sta{color:var(--text-dim)}
+.sec{margin-top:22px}
+.sec h4{font-size:15px;margin-bottom:10px;display:flex;align-items:baseline;gap:10px}
+.sec h4 small{font-size:12px;font-weight:400;color:var(--text-faint)}
+/* PER 가: 큰 숫자 + 다섯 칸 */
+.perA{display:grid;grid-template-columns:200px 1fr;gap:24px;align-items:center;border:1px solid var(--border);border-radius:10px;padding:18px 20px}
+.big{font-size:40px;font-weight:800;line-height:1;color:var(--accent)}
+.big small{font-size:16px;font-weight:600;margin-left:2px}
+.bigsub{font-size:13px;color:var(--text-dim);margin-top:8px}
+.five{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
+.five div{height:34px;border-radius:6px;background:var(--panel-soft);border:1px solid var(--border);display:grid;place-items:center;font-size:12px;color:var(--text-faint)}
+.five div.on{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:700;font-size:13px}
+.fivescale{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-top:6px;font-size:12px;color:var(--text-faint)}
+.fivescale span{text-align:center}
+.pin{position:relative;height:22px;margin-bottom:4px}
+.pin b{position:absolute;transform:translateX(-50%);font-size:12px;color:var(--accent);white-space:nowrap}
+/* PER 나: 반원 */
+.perB{display:grid;grid-template-columns:320px 1fr;gap:28px;align-items:center;border:1px solid var(--border);border-radius:10px;padding:16px 20px}
+.perB svg{width:300px;height:170px}
+.facts{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.facts div{border:1px solid var(--border);border-radius:8px;padding:10px 12px}
+.facts span{display:block;font-size:12px;color:var(--text-faint)}.facts b{font-size:18px}
+/* PER 다: 선 그래프 */
+.perC{border:1px solid var(--border);border-radius:10px;padding:14px 18px}
+.perC .top{display:flex;align-items:baseline;gap:14px;margin-bottom:6px}
+.perC svg{width:100%;height:190px;display:block}
+/* 분기 */
+table{width:100%;border-collapse:collapse}
+th,td{text-align:center;padding:10px 8px;font-size:14px;white-space:nowrap}
+thead th{font-size:13px;font-weight:600;color:var(--text-dim);background:var(--panel-soft);border-bottom:1px solid var(--border)}
+tbody tr+tr td,tbody tr+tr th{border-top:1px solid var(--border)}
+tbody th{text-align:left;font-weight:600;padding-left:16px}
+tbody th small{display:block;font-weight:400;font-size:12px;color:var(--text-faint)}
+.cell b{display:block;font-size:15px}
+.cell small{display:block;font-size:12px;margin-top:2px}
+.cell small em{font-style:normal;color:var(--text-faint);margin-right:3px}
+tr.est{background:var(--accent-soft)}
+tr.est th{color:var(--accent)}
+.tag{font-size:11px;font-weight:700;color:var(--accent);margin-left:6px}
+.guide{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.gc{border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+.gc>span{display:block;font-size:12px;color:var(--text-faint)}
+.gc b{display:block;font-size:20px;margin:4px 0 6px}
+.gc small{display:block;font-size:12px;color:var(--text-dim);line-height:1.6}
+.note{font-size:12px;color:var(--text-faint);margin-top:8px}
+.qopt{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+</style>
+<style>
+.det{padding:18px 20px}
+.cards5{display:grid;grid-template-columns:1.25fr 1fr 1fr 1fr 1fr;gap:10px;margin-top:14px}
+.card.per .ch{color:var(--accent)}
+.perbody{padding:10px 14px}
+.perbody .row{display:flex;justify-content:space-between;align-items:baseline}
+.perbody .row span{font-size:13px;color:var(--text-dim)}
+.perbody .now b{font-size:26px;font-weight:800;color:var(--accent)}
+.perbody .now b small{font-size:13px}
+.perbody .avg{margin-top:6px}.perbody .avg b{font-size:16px}
+.perbody .rng{font-size:12px;color:var(--text-faint);text-align:right;margin-top:1px}
+.perbody .gap{margin-top:6px;border-top:1px solid var(--border);padding-top:6px}
+.perbody .gap b{font-size:15px}
+.gline{display:flex;align-items:baseline;gap:10px;margin-top:16px;font-size:13px;color:var(--text-faint)}
+.gline h4{font-size:15px;color:var(--text);margin:0}
+.sec{margin-top:16px}
+.cell b{font-size:14px}
+.cell small{font-size:11.5px}
+th,td{padding:8px 8px}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.5fr);gap:16px;margin-top:14px;align-items:start}
+.c22{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.wide td{text-align:right;padding:9px 14px}
+.wide thead th{text-align:right;padding:9px 14px}
+.wide thead th:first-child{text-align:left}
+.wide td b{font-size:14px;margin-right:8px}
+.wide td span.c{font-size:12px;white-space:nowrap}
+.wide td span.c em{font-style:normal;color:var(--text-faint);margin:0 2px 0 6px}
+.wide thead th small{display:block;font-weight:400;font-size:11.5px;color:var(--text-faint)}
+</style>
+</head>
+<body>
+<div class="part">5차 목업 04d · 재무 여백 줄이기<small>세 안 모두 5년 범위는 5년 평균 PER 밑에 두었습니다. 회사 가이던스는 모으기 전이라 제목 옆 한 줄 글로 줄였습니다.</small></div>
+<div id="out"></div>
+<script>
+const nav = `<div class="nav"><div class="logo"><i>₩</i>자산관리</div><a>홈</a><a class="on">재무</a><a>리밸런싱</a><a>매크로</a></div>`
+const s = (v, d = 1, u = '%') => v == null ? '<span class="faint">—</span>' : `<span class="${v > 0 ? 'up' : v < 0 ? 'down' : ''}">${v > 0 ? '+' : ''}${v.toFixed(d)}${u}</span>`
+const NAMES = ['AAPL', 'MSFT', 'NVDA', 'GOOG', 'TSLA', '삼성전자', '삼성전자우', 'SK하이닉스', '도요타자동차', '도쿄해상홀딩스']
+const HID = ['VOO', 'QQQ', 'SCHD', 'KODEX 200', 'TIGER 미국필라델피아반도체나스닥']
+const list = `<div class="box">${NAMES.map((n, i) => `<div class="li${i === 0 ? ' on' : ''}">${n}</div>`).join('')}<div class="grp">재무가 없는 종목</div>${HID.map(n => `<div class="li off">${n}</div>`).join('')}</div>`
+const card = (t, cls, lines) => `<div class="card"><div class="ch ${cls}">${t}</div>${lines.map(([k, v]) => `<div class="ln"><span>${k}</span><b>${v}</b></div>`).join('')}</div>`
+const perCard = `<div class="card per"><div class="ch">PER</div><div class="perbody">
+  <div class="row now"><span>지금</span><b>17.5<small>배</small></b></div>
+  <div class="row avg"><span>5년 평균</span><b>10.1배</b></div><div class="rng">5년 범위 8.2 ~ 17.5배</div>
+  <div class="row gap"><span>평균과 차이</span><b>+73%</b></div></div></div>`
+const G = [
+  card('가치', 'g-val', [['PBR', '2.53배'], ['배당수익률', '<span class="faint">—</span>']]),
+  card('수익성', 'g-pro', [['ROE', '14.5%'], ['영업이익률', '25.6%']]),
+  card('성장', 'g-gro', [['매출', s(4.4)], ['영업이익', s(7.8)], ['EPS', s(7.8)]]),
+  card('안정', 'g-sta', [['부채비율', '70.0%'], ['FCF (최근 1년)', '<span class="faint">—</span>']]),
+]
+const gline = `<div class="gline"><h4>회사 가이던스</h4><span>아직 모으지 않습니다</span></div>`
+const Q = [
+  ['2026년 3분기', '11월 9일', '$18.6B', 4.4, 8.2, '$5.3B', 7.8, 28.2, '$4.1B', 7.8, 28.2, '$23.67', 7.8, 28.2],
+  ['2026년 2분기', '8월 9일', '$17.2B', -6.5, 0.4, '$4.1B', -12.6, -8.7, '$3.2B', -12.6, -8.7, '$18.47', -12.6, -8.7],
+  ['2026년 1분기', '5월 10일', '$17.1B', -6.4, -2.1, '$4.5B', -9.8, 8.0, '$3.5B', -9.8, 8.0, '$20.24', -9.8, 8.0],
+  ['2025년 4분기', '2월 9일', '$17.5B', -3.5, -1.9, '$4.2B', -9.9, -14.6, '$3.2B', -9.9, -14.6, '$18.74', -9.9, -14.6],
+]
+const cell = (v, y, q) => `<td class="cell"><b>${v}</b><small><em>전년</em>${s(y)}</small><small><em>전분기</em>${s(q)}</small></td>`
+const qtable = `<div class="box"><table><thead><tr><th style="text-align:left;padding-left:16px">분기</th><th>매출</th><th>영업이익</th><th>순이익</th><th>EPS</th></tr></thead><tbody>
+  ${Q.map(q => `<tr><th>${q[0]}<small>공시 ${q[1]}</small></th>${cell(q[2], q[3], q[4])}${cell(q[5], q[6], q[7])}${cell(q[8], q[9], q[10])}${cell(q[11], q[12], q[13])}</tr>`).join('')}</tbody></table></div>`
+// 다: 눕힌 표
+const M = [['매출', 2], ['영업이익', 5], ['순이익', 8], ['EPS', 11]]
+const wide = `<div class="box"><table class="wide"><thead><tr><th style="padding-left:16px">지표</th>${Q.map(q => `<th>${q[0]}<small>공시 ${q[1]}</small></th>`).join('')}</tr></thead><tbody>
+  ${M.map(([n, i]) => `<tr><th>${n}</th>${Q.map(q => `<td><b>${q[i]}</b><span class="c"><em>전년</em>${s(q[i + 1])}<em>전분기</em>${s(q[i + 2])}</span></td>`).join('')}</tr>`).join('')}</tbody></table></div>`
+const head = `<h3>AAPL<small>2026년 3분기까지 SEC 공시, 종가는 11월 20일</small></h3>`
+const page = (inner) => `${nav}<div class="page"><div class="head"><h2>재무</h2></div><div class="split">${list}<div class="box det">${head}${inner}</div></div></div>`
+
+const A = page(`<div class="cards5">${perCard}${G.join('')}</div>${gline}<div class="sec"><h4>최근 분기</h4>${qtable}</div>`)
+const B = page(`<div class="two"><div>${perCard}<div class="c22">${G.join('')}</div></div><div><div class="gline" style="margin-top:0"><h4>회사 가이던스</h4><span>아직 모으지 않습니다</span></div><div class="sec" style="margin-top:12px"><h4>최근 분기</h4>${qtable}</div></div></div>`)
+const C = page(`<div class="cards5">${perCard}${G.join('')}</div>${gline}<div class="sec"><h4>최근 분기</h4>${wide}</div>`)
+
+const out = [
+  ['가 · PER 을 카드 줄에', 'PER 카드 하나에 지금, 5년 평균(그 밑에 범위), 차이. 나머지 묶음 넷과 한 줄. 가치 카드에서 PER 이 빠짐', A],
+  ['나 · 두 단', '왼쪽 단에 PER 과 묶음 카드 2x2, 오른쪽 단에 가이던스와 분기 표. 위아래 길이가 가장 짧음, 분기 표는 좁아짐', B],
+  ['다 · 가 + 분기 표 눕히기', '지표가 줄, 분기가 칸. 전년비와 전분기비를 값 옆 한 줄로 써서 표 높이가 반쯤', C],
+]
+document.getElementById('out').innerHTML = out.map(([t, d, h]) => `<div class="cap">${t}<small>${d}</small></div><div class="frame">${h}</div>`).join('')
+</script>
+</body>
+</html>
