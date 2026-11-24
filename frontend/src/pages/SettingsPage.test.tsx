@@ -34,19 +34,21 @@ it('만든 것들을 펼치면 글꼴 · 토스페이스의 저작권과 라이�
   expect(document.querySelectorAll('img.settings-face[alt=""]').length).toBeGreaterThan(0)
 })
 
-it('PC 는 왼쪽 메뉴 + 오른쪽 내용 — 창 없이 고른 것이 오른쪽에 (디자인 5차 목업 08 가)', async () => {
+it('PC 는 한 장 + 왼쪽 목차 — 창 없이 모두 펼치고, 목차를 누르면 그 자리로 (디자인 5차 목업 08b 나)', async () => {
   forgetPhone()
   render(
     <MemoryRouter>
       <SettingsPage />
     </MemoryRouter>,
   )
-  const menu = screen.getByRole('listbox', { name: '설정' })
-  expect(await screen.findByRole('region', { name: '화면 설정' })).toHaveTextContent('테마')
-  expect(screen.queryByRole('dialog')).toBeNull()
-  await userEvent.click(within(menu).getByRole('button', { name: /^만든 이와 글꼴/ }))
-  const credits = screen.getByRole('region', { name: '만든 이와 글꼴' })
+  const toc = screen.getByRole('navigation', { name: '설정 목차' })
+  expect(screen.getByRole('region', { name: '화면' })).toHaveTextContent('테마')
+  const credits = screen.getByRole('region', { name: '정보' })
   const links = within(credits).getAllByRole('link', { name: '전문' }).map((a) => a.getAttribute('href'))
   expect(links).toEqual(['/licenses/pretendard.txt', '/licenses/spoqa-han-sans-neo.txt', '/licenses/tossface.txt'])
+  await userEvent.click(within(toc).getByRole('button', { name: '정보' }))
+  expect(within(toc).getByRole('button', { name: '정보' })).toHaveAttribute('aria-current', 'true')
+  await userEvent.click(within(screen.getByRole('region', { name: '화면' })).getByRole('button', { name: '어둡게' }))
+  expect(within(screen.getByRole('region', { name: '화면' })).getByRole('button', { name: '어둡게' })).toHaveAttribute('aria-pressed', 'true')
   expect(screen.queryByRole('dialog')).toBeNull()
 })

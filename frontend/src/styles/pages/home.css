@@ -853,3 +853,198 @@ a.sig-item.settings-item:hover {
 .settings-detail {
   max-width: 880px;
 }
+
+/* ---- PC 설정 (디자인 5차 목업 08b 나) — 한 장 + 왼쪽 목차, 이름과 풀이는 왼쪽 · 고치는 칸은 오른쪽 ---- */
+.set-two {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 36px;
+  align-items: start;
+}
+.set-toc {
+  position: sticky;
+  top: 76px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.set-toc button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-dim);
+  font-weight: 500;
+  text-align: left;
+}
+.set-toc button:hover {
+  background: var(--panel-soft);
+}
+.set-toc button.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 700;
+}
+.set-toc-sep {
+  height: 1px;
+  margin: 8px 0;
+  background: var(--border);
+}
+.set-sec {
+  scroll-margin-top: 76px;
+  margin-bottom: 26px;
+}
+.set-sec > h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 10px;
+  font-size: var(--fs-strong);
+}
+.set-sec > h3 small {
+  font-weight: 400;
+}
+.set-box {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.set-row {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 32px;
+  padding: 18px 24px;
+  align-items: start;
+}
+.set-row + .set-row {
+  border-top: 1px solid var(--border);
+}
+.set-row-l b {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.set-row-l p {
+  margin: 3px 0 0;
+  font-size: var(--fs-caption);
+  color: var(--text-faint);
+  line-height: 1.55;
+}
+.set-inline {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.set-inline button,
+.set-row-c > button {
+  min-height: 34px;
+  padding: 0 14px;
+}
+.set-inline .danger {
+  color: var(--signal-sell);
+}
+.set-seg > button {
+  min-height: 34px;
+  white-space: nowrap;
+}
+.settings-page-pc .seg.set-seg > button.active {
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: none;
+}
+.set-row-c .up {
+  color: var(--up);
+  font-weight: 700;
+}
+.set-row-c .down {
+  color: var(--down);
+  font-weight: 700;
+}
+/* 창에서 가져온 내용 — 제목 줄은 화면 머리가 대신한다 */
+.set-embed .settings-pane-head {
+  display: none;
+}
+.set-embed .settings-pane {
+  margin: 0;
+}
+/* 알림 — 묶음 이름은 왼쪽, 고르는 줄은 오른쪽 · 체크는 켬/끔 스위치로 */
+.set-box.set-embed .push-device,
+.set-box.set-embed .push-kinds,
+.set-box.set-embed .push-foot,
+.set-box.set-embed .push-stocks-empty {
+  margin: 0;
+  padding: 18px 24px;
+}
+.set-embed .push-modal {
+  width: auto;
+}
+.set-box.set-embed .push-kinds {
+  display: grid;
+  row-gap: 0;
+  align-content: start;
+  border-bottom: 0;
+  grid-template-columns: 300px minmax(0, 1fr);
+  column-gap: 32px;
+  border-top: 1px solid var(--border);
+}
+.set-box.set-embed .push-kinds > h4 {
+  grid-column: 1;
+  grid-row: 1 / span 8;
+  margin: 0;
+  font-size: var(--fs-body);
+}
+.set-box.set-embed .push-kinds > :not(h4) {
+  grid-column: 2;
+}
+.set-box.set-embed details.push-kinds {
+  display: block;
+}
+.set-box.set-embed .push-kind {
+  display: flex;
+  flex-direction: row-reverse;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  max-width: 560px;
+  padding: 6px 0;
+}
+.set-box.set-embed .push-kind input[type='checkbox'] {
+  appearance: none;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 20px;
+  margin: 0;
+  border-radius: 999px;
+  background: var(--border-strong);
+  position: relative;
+  cursor: pointer;
+}
+.set-box.set-embed .push-kind input[type='checkbox']::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--panel);
+  transition: left 0.15s;
+}
+.set-box.set-embed .push-kind input[type='checkbox']:checked {
+  background: var(--accent);
+}
+.set-box.set-embed .push-kind input[type='checkbox']:checked::after {
+  left: 18px;
+}
+.set-box.set-embed .push-kind input[type='checkbox']:disabled {
+  opacity: 0.5;
+}
+.set-box.set-embed .push-foot {
+  border-top: 1px solid var(--border);
+}

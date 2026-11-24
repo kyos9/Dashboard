@@ -12,7 +12,7 @@ import { AiKeyModal, DiagnosticsModal, DisplayModal, PushModal, UsersModal } fro
 import { POLICY_PATH } from '../lib/policy'
 import { diagnosticsReason } from '../lib/refreshText'
 import { pushAccount } from '../lib/push'
-import { usePrefs } from '../lib/prefs'
+import { setRise, setThemeChoice, usePrefs, type Rise, type ThemeChoice } from '../lib/prefs'
 import { useMedia, useNarrow } from '../lib/narrow'
 import type { HealthInfo } from '../types'
 import tfScreen from '../assets/tossface/u1F5A5.svg'
@@ -25,7 +25,15 @@ import tfDoc from '../assets/tossface/u1F4C4.svg'
 import tfScroll from '../assets/tossface/u1F4DC.svg'
 import tfInstall from '../assets/tossface/u1F4F2.svg'
 
-type Pane = 'display' | 'push' | 'ai' | 'diag' | 'users' | 'account' | 'credits'
+const THEME_CHOICES: { key: ThemeChoice; label: string }[] = [
+  { key: 'system', label: '기기 설정' },
+  { key: 'light', label: '밝게' },
+  { key: 'dark', label: '어둡게' },
+]
+const RISE_CHOICES: { key: Rise; label: string }[] = [
+  { key: 'green', label: '초록' },
+  { key: 'red', label: '빨강' },
+]
 
 /** 설정의 한 줄 — 토스페이스 그림 · 이름 · 지금 값 · › (디자인 4차 목업 09) */
 function Row({
@@ -111,10 +119,10 @@ export function SettingsPage() {
   const [everywhereError, setEverywhereError] = useState<string | null>(null)
   const [health, setHealth] = useState<HealthInfo | null>(null)
   const prefs = usePrefs()
-  // PC 는 왼쪽 메뉴 + 오른쪽 내용 (디자인 5차 목업 08 가). 폭 1100 이하 · 폰은 목록 + 창 그대로 — ④ 에서
+  // PC 는 한 장 + 왼쪽 목차 (디자인 5차 목업 08b 나). 폭 1100 이하 · 폰은 목록 + 창 그대로 — ④ 에서
   const narrow = useNarrow()
   const compact = useMedia('(max-width: 1100px)') || narrow
-  const [pane, setPane] = useState<Pane>('display')
+  const [pane, setPane] = useState('set-display')
 
   useEffect(() => {
     api
@@ -122,6 +130,20 @@ export function SettingsPage() {
       .then(setHealth)
       .catch(() => setHealth(null))
   }, [])
+
+  // 내려가면 목차의 지금 자리를 칠한다 (목업 08b 나)
+  useEffect(() => {
+    if (compact || typeof IntersectionObserver === 'undefined') return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const top = entries.filter((e) => e.isIntersecting).sort((x, y) => x.boundingClientRect.top - y.boundingClientRect.top)[0]
+        if (top) setPane(top.target.id)
+      },
+      { rootMargin: '-80px 0px -60% 0px' },
+    )
+    document.querySelectorAll('.set-sec').forEach((el) => observer.observe(el))
+    return () => observer.disconnect()
+  }, [compact, member, isAdmin])
 
   async function doLogoutEverywhere() {
     setLeavingEverywhere(true)
@@ -255,173 +277,259 @@ export function SettingsPage() {
 
   if (!compact) {
     const showAccount = canLogout || canLogoutAll || canWithdraw
-    const item = (key: Pane, label: ReactNode, value?: ReactNode) => (
-      <li key={key} role="option" aria-selected={pane === key}>
-        <button type="button" className={`sig-item settings-item${pane === key ? ' active' : ''}`} onClick={() => setPane(key)}>
-          <span>{label}</span>
-          {value != null && <span className="settings-item-value">{value}</span>}
-        </button>
-      </li>
-    )
-    const group = (title: string) => (
-      <li className="fd-group" role="presentation">
-        {title}
-      </li>
-    )
-    // 고를 수 없는 칸을 가리키고 있으면(권한이 바뀌는 등) 화면으로
-    const avail: Pane[] = [
-      'display',
-      ...(member ? (['push', 'ai'] as Pane[]) : []),
-      ...(isAdmin ? (['diag'] as Pane[]) : []),
-      ...(isAdmin && mode === 'google' ? (['users'] as Pane[]) : []),
-      ...(showAccount ? (['account'] as Pane[]) : []),
-      'credits',
+    const sections: { id: string; label: string; badge?: ReactNode; gapBefore?: boolean }[] = [
+      { id: 'set-display', label: '화면' },
+      ...(member ? [{ id: 'set-push', label: '알림' }, { id: 'set-ai', label: 'AI 키' }] : []),
+      ...(isAdmin
+        ? [
+            {
+              id: 'set-diag',
+              label: '서버 상태',
+              gapBefore: true,
+              badge: diagDot && (
+                <span className="badge badge-amber count-badge" aria-label={diagDot}>
+                  !
+                </span>
+              ),
+            },
+          ]
+        : []),
+      ...(isAdmin && mode === 'google'
+        ? [
+            {
+              id: 'set-users',
+              label: '사용자',
+              badge: pendingCount > 0 && (
+                <span className="badge badge-amber count-badge" aria-label={`가입 신청 ${pendingCount}건`}>
+                  {pendingCount}
+                </span>
+              ),
+            },
+          ]
+        : []),
+      ...(showAccount || signedIn ? [{ id: 'set-account', label: '계정', gapBefore: true }] : []),
+      { id: 'set-info', label: '정보', gapBefore: !(showAccount || signedIn) },
     ]
-    const current = avail.includes(pane) ? pane : 'display'
-    const loading = (title: string) => <p className="hint settings-pane">{title} 불러오는 중…</p>
+    const jump = (id: string) => {
+      setPane(id)
+      document.getElementById(id)?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+    }
+    const row = (title: ReactNode, note: ReactNode, control: ReactNode, key?: string) => (
+      <div className="set-row" key={key}>
+        <div className="set-row-l">
+          <b>{title}</b>
+          {note && <p>{note}</p>}
+        </div>
+        <div className="set-row-c">{control}</div>
+      </div>
+    )
     return (
       <div className="settings-page settings-page-pc">
         <div className="page-head">
           <h2>설정</h2>
         </div>
-        <div className="sig-panel settings-panel-pc">
-          <div>
-            <ul className="sig-list settings-list-pc" role="listbox" aria-label="설정">
-              {(signedIn || guest) && (
-                <li className="settings-me" role="presentation">
-                  {signedIn ? (
-                    <>
-                      <b>{user.name || user.email}</b>
-                      {user.is_owner && <span className="badge badge-grey">관리자</span>}
-                      {pending && <span className="badge badge-amber">승인 대기</span>}
-                      {user.name && user.email && <span className="hint">{user.email}</span>}
-                    </>
-                  ) : (
-                    <>
-                      <span className="hint">로그인하면 내 종목과 알림을 쓸 수 있습니다.</span>
-                      {!pending && <LoginButton label="로그인" />}
-                    </>
-                  )}
-                </li>
-              )}
-              {group('보기')}
-              {item('display', '화면', displayValue)}
-              {member && item('push', '알림')}
-              {member && group('AI')}
-              {member && item('ai', 'AI 키')}
-              {isAdmin && group('관리')}
-              {isAdmin &&
-                item(
-                  'diag',
-                  '서버 상태',
-                  diagDot && (
-                    <span className="badge badge-amber count-badge" aria-label={diagDot} title={diagDot}>
-                      확인
-                    </span>
-                  ),
+        <div className="set-two">
+          <nav className="set-toc" aria-label="설정 목차">
+            {sections.map((sec) => (
+              <div key={sec.id}>
+                {sec.gapBefore && <div className="set-toc-sep" />}
+                <button
+                  type="button"
+                  className={pane === sec.id ? 'on' : undefined}
+                  aria-current={pane === sec.id ? 'true' : undefined}
+                  onClick={() => jump(sec.id)}
+                >
+                  {sec.label}
+                  {sec.badge}
+                </button>
+              </div>
+            ))}
+          </nav>
+          <div className="set-body">
+            <section id="set-display" className="set-sec" aria-label="화면">
+              <h3>
+                화면 <small className="hint">이 기기에만</small>
+              </h3>
+              <div className="set-box">
+                {row(
+                  '테마',
+                  prefs.choice === 'system' ? '기기 설정이면 기기를 따라 밝게, 어둡게 바뀝니다.' : '기기 설정과 상관없이 고른 테마로 보입니다.',
+                  <div className="seg set-seg" role="group" aria-label="테마">
+                    {THEME_CHOICES.map((t) => (
+                      <button key={t.key} type="button" className={prefs.choice === t.key ? 'active' : undefined} aria-pressed={prefs.choice === t.key} onClick={() => setThemeChoice(t.key)}>
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>,
                 )}
-              {isAdmin &&
-                mode === 'google' &&
-                item(
-                  'users',
-                  '사용자',
-                  pendingCount > 0 && (
-                    <span className="badge badge-amber count-badge" aria-label={`가입 신청 ${pendingCount}건`}>
-                      대기 {pendingCount}
-                    </span>
-                  ),
+                {row(
+                  '상승 색',
+                  '가격, 수익률, 평가손익에 씁니다. 시그널은 모양(▲ ▼ ◆)이 같이 붙습니다.',
+                  <div className="set-inline">
+                    <div className="seg set-seg" role="group" aria-label="상승 색">
+                      {RISE_CHOICES.map((r) => (
+                        <button key={r.key} type="button" className={prefs.rise === r.key ? 'active' : undefined} aria-pressed={prefs.rise === r.key} onClick={() => setRise(r.key)}>
+                          {r.label}
+                        </button>
+                      ))}
+                    </div>
+                    <span className="up mono">+2.40%</span>
+                    <span className="down mono">−1.15%</span>
+                  </div>,
                 )}
-              {showAccount && group('계정')}
-              {showAccount && item('account', '나가기')}
-              {group('정보')}
-              <li role="presentation">
-                <Link className="sig-item settings-item" to={POLICY_PATH}>
-                  개인정보처리방침과 이용약관
-                </Link>
-              </li>
-              {item('credits', '만든 이와 글꼴', version && <span className="mono">{version}</span>)}
-              {install.available && (
-                <li role="presentation">
-                  <button type="button" className="sig-item settings-item" onClick={install.start}>
-                    앱 설치
-                  </button>
-                </li>
-              )}
-            </ul>
-          </div>
-          <div className="sig-detail settings-detail">
-            {current === 'display' && (
-              <Suspense fallback={loading('화면')}>
-                <DisplayModal inline onClose={noop} />
-              </Suspense>
-            )}
-            {current === 'push' && (
-              <Suspense fallback={loading('알림')}>
-                <PushModal inline account={account} onClose={noop} />
-              </Suspense>
-            )}
-            {current === 'ai' && (
-              <Suspense fallback={loading('AI 키')}>
-                <AiKeyModal inline account={account} onClose={noop} />
-              </Suspense>
-            )}
-            {current === 'diag' && (
-              <Suspense fallback={loading('서버 상태')}>
-                <DiagnosticsModal inline onClose={noop} />
-              </Suspense>
-            )}
-            {current === 'users' && (
-              <Suspense fallback={loading('사용자')}>
-                <UsersModal inline onClose={noop} onChanged={recountPending} />
-              </Suspense>
-            )}
-            {current === 'account' && (
-              <section className="settings-pane" aria-label="나가기">
-                <div className="modal-head settings-pane-head">
-                  <div className="modal-title">
-                    <h3>나가기</h3>
-                    {signedIn && <span className="hint">{user.email}</span>}
-                  </div>
+                {install.available &&
+                  row(
+                    '앱 설치',
+                    '홈 화면이나 작업 표시줄에 앱으로 둡니다.',
+                    <button type="button" onClick={install.start}>
+                      설치
+                    </button>,
+                  )}
+              </div>
+            </section>
+
+            {member && (
+              <section id="set-push" className="set-sec" aria-label="알림">
+                <h3>
+                  알림 <small className="hint">이 기기로 받는 것</small>
+                </h3>
+                <div className="set-box set-embed">
+                  <Suspense fallback={<p className="hint">불러오는 중…</p>}>
+                    <PushModal inline account={account} onClose={noop} />
+                  </Suspense>
                 </div>
-                <div className="settings-actions">
-                  {canLogout && (
-                    <button type="button" onClick={() => setConfirmLogout(true)}>
-                      이 기기에서 나가기
-                    </button>
-                  )}
-                  {canLogoutAll && (
-                    <button type="button" onClick={() => setConfirmEverywhere(true)}>
-                      모든 기기에서 나가기
-                    </button>
-                  )}
-                  {canWithdraw && (
-                    <button type="button" className="danger" onClick={() => setConfirmWithdraw(true)}>
-                      탈퇴
-                    </button>
-                  )}
-                </div>
-                <p className="hint">
-                  나가도 내 종목과 기록은 그대로 있습니다.{canWithdraw && ' 탈퇴는 모두 지우고 되돌릴 수 없습니다.'}
-                </p>
               </section>
             )}
-            {current === 'credits' && (
-              <section className="settings-pane" aria-label="만든 이와 글꼴">
-                <div className="modal-head settings-pane-head">
-                  <div className="modal-title">
-                    <h3>만든 이와 글꼴</h3>
-                    {version && (
-                      <span className="hint mono" title={versionTitle}>
-                        {version}
+
+            {member && (
+              <section id="set-ai" className="set-sec" aria-label="AI 키">
+                <h3>AI 키</h3>
+                <div className="set-box">
+                  {row(
+                    'AI 회사와 키',
+                    '시그널 목록, 종목 화면의 AI 분석과 AI 정리 화면에 씁니다.',
+                    <Suspense fallback={<p className="hint">불러오는 중…</p>}>
+                      <div className="set-embed">
+                        <AiKeyModal inline account={account} onClose={noop} />
+                      </div>
+                    </Suspense>,
+                  )}
+                </div>
+              </section>
+            )}
+
+            {isAdmin && (
+              <section id="set-diag" className="set-sec" aria-label="서버 상태">
+                <h3>
+                  서버 상태 <small className="hint">관리자만</small>
+                </h3>
+                <div className="set-box">
+                  {row(
+                    '요약',
+                    '서버가 남긴 경고, 오류와 시세 받기, 백업 상태',
+                    <div className="set-inline">
+                      <span className={diagReason ? 'tone-warn' : 'hint'}>{diagReason ? `확인할 것: ${diagReason}` : '눈에 띄는 문제가 없습니다.'}</span>
+                      <button type="button" onClick={() => setShowDiagnostics(true)}>
+                        자세히
+                      </button>
+                    </div>,
+                  )}
+                </div>
+              </section>
+            )}
+
+            {isAdmin && mode === 'google' && (
+              <section id="set-users" className="set-sec" aria-label="사용자">
+                <h3>
+                  사용자 <small className="hint">관리자만</small>
+                </h3>
+                <div className="set-box">
+                  {row(
+                    '가입 신청과 사용자',
+                    '승인, 거절, 차단, 지우기와 사용자에게 AI 점검 열기',
+                    <div className="set-inline">
+                      <span className={pendingCount > 0 ? 'tone-warn' : 'hint'}>
+                        {pendingCount > 0 ? `가입 신청 ${pendingCount}건이 기다립니다` : '기다리는 신청 없음'}
                       </span>
-                    )}
-                  </div>
+                      <button type="button" onClick={() => setShowUsers(true)}>
+                        관리
+                      </button>
+                    </div>,
+                  )}
                 </div>
-                {credits}
               </section>
             )}
+
+            {(showAccount || signedIn || guest) && (
+              <section id="set-account" className="set-sec" aria-label="계정">
+                <h3>계정</h3>
+                <div className="set-box">
+                  {row(
+                    signedIn ? (
+                      <>
+                        {user.name || user.email} {user.is_owner && <span className="badge badge-grey">관리자</span>}
+                        {pending && <span className="badge badge-amber">승인 대기</span>}
+                      </>
+                    ) : (
+                      '로그인'
+                    ),
+                    signedIn ? user.email : '로그인하면 내 종목과 알림을 쓸 수 있습니다.',
+                    <div className="set-inline">
+                      {!signedIn && !pending && <LoginButton label="로그인" />}
+                      {canLogout && (
+                        <button type="button" onClick={() => setConfirmLogout(true)}>
+                          나가기
+                        </button>
+                      )}
+                      {canLogoutAll && (
+                        <button type="button" onClick={() => setConfirmEverywhere(true)}>
+                          모든 기기에서 나가기
+                        </button>
+                      )}
+                      {canWithdraw && (
+                        <button type="button" className="danger" onClick={() => setConfirmWithdraw(true)}>
+                          탈퇴
+                        </button>
+                      )}
+                    </div>,
+                  )}
+                </div>
+              </section>
+            )}
+
+            <section id="set-info" className="set-sec" aria-label="정보">
+              <h3>정보</h3>
+              <div className="set-box">
+                {row(
+                  '약관',
+                  '개인정보를 어떻게 다루는지와 이용 조건',
+                  <Link className="button-link" to={POLICY_PATH}>
+                    개인정보처리방침과 이용약관
+                  </Link>,
+                )}
+                {row(
+                  '만든 이와 글꼴',
+                  version ? (
+                    <span className="mono" title={versionTitle}>
+                      {version}
+                    </span>
+                  ) : null,
+                  credits,
+                )}
+              </div>
+            </section>
           </div>
         </div>
+        {showDiagnostics && (
+          <Suspense fallback={<ModalLoading plain title="서버 상태" onClose={() => setShowDiagnostics(false)} />}>
+            <DiagnosticsModal onClose={() => setShowDiagnostics(false)} />
+          </Suspense>
+        )}
+        {showUsers && (
+          <Suspense fallback={<ModalLoading plain title="사용자" onClose={() => setShowUsers(false)} />}>
+            <UsersModal onClose={() => setShowUsers(false)} onChanged={recountPending} />
+          </Suspense>
+        )}
         {install.hint}
         {confirms}
       </div>
