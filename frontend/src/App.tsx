@@ -9,12 +9,19 @@ import { PageBoundary } from './components/PageBoundary'
 import { PageSkeleton } from './components/Skeleton'
 import { Dashboard } from './pages/Dashboard'
 import { GuestHome } from './pages/GuestHome'
+import { DesktopFirstSteps } from './components/home/DesktopFirstSteps'
+import { useNarrow } from './lib/narrow'
 import { AiSummaryPage, FundamentalsPage, MacroPanel, Policy, RebalancePanel, SettingsPage, StockDetailPage, StockManager, preloadPages } from './lib/pageChunks'
 import { POLICY_PATH } from './lib/policy'
 
-/** 첫 화면. 손님은 매크로 한 줄 + 로그인 안내, 들어온 사람은 내 대시보드. */
+/**
+ * 첫 화면. 들어온 사람은 내 대시보드.
+ * 손님은 PC 면 종목 0개인 사람과 같은 빈 홈(종목 추가에서 로그인 창, 디자인 5차 목업 09e), 폰과 승인 대기는 매크로 줄 + 로그인 안내.
+ */
 function Home() {
-  const { guest } = useAuth()
+  const { guest, pending } = useAuth()
+  const narrow = useNarrow()
+  if (guest && !pending && !narrow) return <DesktopFirstSteps guest />
   return guest ? <GuestHome /> : <Dashboard />
 }
 
@@ -80,7 +87,7 @@ function App() {
               <Route
                 path="/fundamentals"
                 element={
-                  <RequireLogin title="로그인하면 담은 종목의 재무를 볼 수 있습니다">
+                  <RequireLogin title="로그인하면 담은 종목의 재무를 볼 수 있습니다" emptyTitle="종목을 담으면 재무를 봅니다">
                     <Tab>
                       <FundamentalsPage />
                     </Tab>
@@ -107,7 +114,7 @@ function App() {
               <Route
                 path="/rebalance"
                 element={
-                  <RequireLogin title="로그인하면 내 포트폴리오의 비중을 볼 수 있습니다">
+                  <RequireLogin title="로그인하면 내 포트폴리오의 비중을 볼 수 있습니다" emptyTitle="종목을 담으면 비중을 봅니다">
                     <Tab>
                       <RebalancePanel />
                     </Tab>

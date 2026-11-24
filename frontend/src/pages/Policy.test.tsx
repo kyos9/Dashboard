@@ -4,7 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../App'
 import { api } from '../api/client'
 import { AuthGate, browser } from '../components/AuthGate'
-import { GuestNotice, LoginPrompt, PendingPrompt } from '../components/LoginPrompt'
+import { GuestNotice, LoginPrompt, PendingPrompt, RequireLogin } from '../components/LoginPrompt'
+import userEvent from '@testing-library/user-event'
 import type { AuthStatus } from '../types'
 
 /** 개인정보처리방침과 이용약관과 문의처 (ROADMAP 4-4b). */
@@ -146,5 +147,35 @@ describe('문의처와 동의 안내', () => {
     inGate(<PendingPrompt />)
     await screen.findByRole('heading', { name: '가입 신청을 받았습니다' })
     expect(screen.queryByText(/문의:/)).toBeNull()
+  })
+})
+
+describe('PC 손님의 빈 화면 (디자인 5차 목업 09e)', () => {
+  it('내 종목 화면은 종목 0개인 사람과 같은 빈 상자 — 종목 추가를 누르면 로그인 창', async () => {
+    mock(guest())
+    const user = userEvent.setup()
+    inGate(
+      <RequireLogin title="로그인하면 내 포트폴리오의 비중을 볼 수 있습니다" emptyTitle="종목을 담으면 비중을 봅니다">
+        <p>내 리밸런싱</p>
+      </RequireLogin>,
+    )
+    expect(await screen.findByRole('heading', { name: '종목을 담으면 비중을 봅니다' })).toBeInTheDocument()
+    expect(screen.queryByText('내 리밸런싱')).toBeNull()
+    await user.click(screen.getByRole('button', { name: '종목 추가' }))
+    const dialog = screen.getByRole('dialog', { name: '로그인' })
+    expect(within(dialog).getByRole('button', { name: '구글 계정으로 로그인' })).toBeInTheDocument()
+    expect(dialog).toHaveTextContent('로그인하면 개인정보처리방침과 이용약관에 동의하는 것으로 봅니다.')
+    await user.click(within(dialog).getByRole('button', { name: '닫기' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('승인 대기인 사람은 빈 상자 대신 기다리는 안내', async () => {
+    mock(guest({ authenticated: true, user: { email: 'wait@example.com', is_owner: false, status: 'pending' } as AuthStatus['user'] }))
+    inGate(
+      <RequireLogin title="로그인하면 내 포트폴리오의 비중을 볼 수 있습니다" emptyTitle="종목을 담으면 비중을 봅니다">
+        <p>내 리밸런싱</p>
+      </RequireLogin>,
+    )
+    expect(await screen.findByRole('heading', { name: '가입 신청을 받았습니다' })).toBeInTheDocument()
   })
 })

@@ -1114,3 +1114,26 @@ a.sig-item.settings-item:hover {
 .first-steps-pc .hint {
   margin-top: 12px;
 }
+
+/* 손님 로그인 창 — 목업 09e ② */
+.modal.login-dialog {
+  max-width: 440px;
+  padding: 20px 24px 24px;
+  text-align: left;
+}
+.login-dialog-lead {
+  margin: 4px 0 18px;
+  font-size: var(--fs-sub);
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+.login-dialog .login-dialog-go {
+  width: 100%;
+  min-height: 44px;
+}
+.login-dialog .consent-line {
+  margin-top: 12px;
+}
+.login-dialog .consent-line a {
+  color: var(--accent);
+}

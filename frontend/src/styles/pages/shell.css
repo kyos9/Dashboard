@@ -745,3 +745,15 @@ button.signal-card-toggle[aria-expanded='true'] .signal-card-chev {
   top: auto;
   bottom: 4px;
 }
+
+/* PC 위 메뉴는 흰 바탕 — 머리줄 단추의 "청람 바탕 위 흰 글자"(app-header.css)를 받으면 손님 "로그인" 단추가 흰 바탕에 흰 글자로 사라졌다 */
+.app-header.top-nav > .header-right > button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+.app-header.top-nav > .header-right > button.primary:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--on-accent);
+  filter: brightness(1.08);
+}

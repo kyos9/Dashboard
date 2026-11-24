@@ -1,4 +1,6 @@
 import { useState, type ReactNode } from 'react'
+import { useNarrow } from '../lib/narrow'
+import { DesktopFirstSteps } from './home/DesktopFirstSteps'
 import { POLICY_PATH } from '../lib/policy'
 import { LOGIN_ERRORS, browser, useAuth } from './AuthGate'
 
@@ -149,9 +151,14 @@ export function LoginPrompt({
   )
 }
 
-/** 손님이면 안내를, 들어와 있으면 화면을 보여준다. */
-export function RequireLogin({ title, children }: { title: string; children: ReactNode }) {
-  const { guest } = useAuth()
+/**
+ * 손님이면 안내를, 들어와 있으면 화면을 보여준다.
+ * PC 손님(승인 대기 아님)은 빈 화면(`emptyTitle`) — 종목 0개인 사람과 같은 상자, 종목 추가에서 로그인 창 (디자인 5차 목업 09e).
+ */
+export function RequireLogin({ title, emptyTitle, children }: { title: string; emptyTitle?: string; children: ReactNode }) {
+  const { guest, pending } = useAuth()
+  const narrow = useNarrow()
+  if (guest && emptyTitle && !pending && !narrow) return <DesktopFirstSteps guest title={emptyTitle} />
   if (guest) return <LoginPrompt title={title} />
   return <>{children}</>
 }
