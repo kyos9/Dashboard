@@ -1,6 +1,7 @@
 import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { DesktopHome } from '../components/home/DesktopHome'
+import { DesktopFirstSteps } from '../components/home/DesktopFirstSteps'
 import { PortfolioView, type SignalFilter } from '../components/PortfolioView'
 import { ReasonTag, SellTooTag, SignalShape } from '../components/SignalShape'
 import { BuyConditions } from '../components/BuyConditions'
@@ -739,6 +740,8 @@ export function Dashboard() {
   if (error && cards.length === 0) return <ErrorNotice error={error} />
 
   if (cards.length === 0) {
+    // PC 는 넓은 상자 하나에 종목 추가 단추 하나 (디자인 5차 목업 09e)
+    if (!narrow) return <DesktopFirstSteps onAdded={notifyDataChanged} onError={setError} />
     return (
       // 처음 들어온 사람의 첫 화면이다. 빈 표만 두면 무엇을 해야 하는지 모른다 (ROADMAP 4단계 8-2)
       // 디자인 4차 목업 15 ② 나 — 새싹 그림 하나 · 한 줄 소개 · 이름과 한 줄 풀이로 된 세 단계 · 단추 하나.

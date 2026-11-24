@@ -1025,3 +1025,20 @@ describe('대시보드 · 정기 리뷰 날의 비중조절 수 (디자인 2차,
     expect(await nameOrder()).toEqual(['SCHD'])
   })
 })
+
+describe('대시보드 · PC 빈 홈 (디자인 5차 목업 09e)', () => {
+  it('넓은 상자 하나에 종목 추가 단추 하나 — 누르면 종목 추가 창이 뜬다', async () => {
+    forgetPhone()
+    mockApi([])
+    const user = userEvent.setup()
+    renderDashboard()
+    const heading = await screen.findByRole('heading', { name: '종목을 담으면 시작합니다' })
+    const box = heading.closest('.first-steps-pc') as HTMLElement
+    expect(box).not.toBeNull()
+    expect(within(box).getAllByRole('listitem')).toHaveLength(3)
+    expect(screen.getAllByRole('button', { name: '종목 추가' })).toHaveLength(1)
+    expect(screen.queryByRole('link', { name: '종목 담으러 가기' })).toBeNull()
+    await user.click(screen.getByRole('button', { name: '종목 추가' }))
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+  })
+})

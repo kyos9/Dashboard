@@ -338,15 +338,16 @@ export function DesktopHome({ current, cards, stocks, canAdvise, canEditThreshol
       items={keys.map((key) => ({ key, label: SORT_LABEL[key], on: sort === key, onClick: () => changeSort(key) }))}
     />
   )
-  const moreMenu = (
-    <PopMenu
-      label="종목 메뉴"
-      icon="more"
-      items={[
-        { key: 'add', label: '종목 추가', onClick: () => setAdding(true) },
-        { key: 'edit', label: '종목 수정', onClick: startEdit },
-      ]}
-    />
+  // 종목 추가 · 종목 수정은 글자 단추 둘 (주인: ⋯ 안에 있어 "종목 추가가 어딨는지 모르겠어" → 둘 다 꺼냄)
+  const stockButtons = (
+    <>
+      <button type="button" className="home-tool" onClick={() => setAdding(true)} aria-haspopup="dialog">
+        종목 추가
+      </button>
+      <button type="button" className="home-tool" onClick={startEdit}>
+        종목 수정
+      </button>
+    </>
   )
   const pnlToggle = canToggle && (
     <div className="seg money-seg" role="group" aria-label="평가손익 통화">
@@ -383,14 +384,14 @@ export function DesktopHome({ current, cards, stocks, canAdvise, canEditThreshol
       <div className="home-tools">
         {held.length > 1 && sortMenu(['value', 'return', 'change', 'drift', 'mine'])}
         {pnlToggle}
-        {moreMenu}
+        {stockButtons}
       </div>
     )
   else if (tab === 'watch')
     tools = (
       <div className="home-tools">
         {watching.length > 1 && sortMenu(['mine', 'change'])}
-        {moreMenu}
+        {stockButtons}
       </div>
     )
   else if (canEditThresholds)
@@ -624,7 +625,7 @@ export function DesktopHome({ current, cards, stocks, canAdvise, canEditThreshol
         {tab === 'held' &&
           (held.length === 0 ? (
             <div className="empty-state compact">
-              <p>아직 보유수량을 적은 종목이 없습니다. ⋯ 의 종목 수정에서 수량과 평단가를 적으면 여기에 평가금액과 수익률이 나옵니다.</p>
+              <p>아직 보유수량을 적은 종목이 없습니다. 종목 수정에서 수량과 평단가를 적으면 여기에 평가금액과 수익률이 나옵니다.</p>
             </div>
           ) : (
             heldTable

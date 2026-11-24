@@ -1048,3 +1048,69 @@ a.sig-item.settings-item:hover {
 .set-box.set-embed .push-foot {
   border-top: 1px solid var(--border);
 }
+
+/* PC 빈 홈 (종목 0개) — 디자인 5차 목업 09e. 넓은 상자 하나, 세 단계는 가로 셋, 단추 하나 */
+.first-steps-pc {
+  max-width: 1240px;
+  margin: 0 auto;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 56px 24px 52px;
+  text-align: center;
+  color: var(--text-dim);
+}
+.first-steps-pc .first-steps-face {
+  display: block;
+  margin: 0 auto 14px;
+}
+.first-steps-pc h3 {
+  margin: 0 0 6px;
+  font-size: var(--fs-title);
+  color: var(--text);
+}
+.first-steps-pc p {
+  margin: 0;
+  font-size: var(--fs-sub);
+}
+.first-steps-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 240px));
+  justify-content: center;
+  gap: 16px;
+  margin: 26px 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+  text-align: left;
+}
+.first-steps-row li {
+  counter-increment: step;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+.first-steps-row b {
+  display: block;
+  font-size: var(--fs-body);
+  color: var(--text);
+}
+.first-steps-row b::before {
+  content: counter(step);
+  margin-right: 6px;
+  color: var(--accent);
+}
+.first-steps-row span {
+  display: block;
+  margin-top: 4px;
+  font-size: var(--fs-caption);
+  color: var(--text-dim);
+  line-height: 1.55;
+}
+.first-steps-pc .first-steps-go {
+  min-height: 44px;
+  padding: 0 28px;
+}
+.first-steps-pc .hint {
+  margin-top: 12px;
+}

@@ -21,7 +21,7 @@ interface Props {
 }
 
 /**
- * PC 홈 ⋯ → 종목 추가 (디자인 5차 목업 01d · 01f). 종목 메뉴를 없앴으므로 찾기 칸을 창으로 띄운다.
+ * PC 홈 "종목 추가" 단추 (디자인 5차 목업 01d · 01f, 09e 빈 홈도). 종목 메뉴를 없앴으므로 찾기 칸을 창으로 띄운다.
  * 찾아서 고르면 종목 탭과 같은 추가 시트(AddStockSheet)가 뜬다 — 넣는 값과 보내는 곳은 종목 탭과 같다.
  */
 export function AddStockDialog({ owned, onClose, onAdded, onError }: Props) {

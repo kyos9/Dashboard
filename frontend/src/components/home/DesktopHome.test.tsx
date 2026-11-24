@@ -264,20 +264,18 @@ describe('보유 종목 탭', () => {
   })
 })
 
-describe('⋯ 메뉴', () => {
-  it('종목 추가 · 종목 수정 둘 — 거래소 목록 갱신 · 재무 한눈에 · 순서 바꾸기는 없다', async () => {
-    const user = userEvent.setup()
+describe('종목 추가 · 종목 수정 단추', () => {
+  it('도구 줄에 글자 단추 둘이 보인다 — ⋯ 메뉴는 없다', () => {
     renderHome()
-    await user.click(screen.getByRole('button', { name: '종목 메뉴' }))
-    const menu = screen.getByRole('menu', { name: '종목 메뉴' })
-    expect(within(menu).getAllByRole('menuitem').map((b) => b.textContent)).toEqual(['종목 추가', '종목 수정'])
+    expect(screen.getByRole('button', { name: '종목 추가' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '종목 수정' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '종목 메뉴' })).not.toBeInTheDocument()
   })
 
   it('종목 수정 — 고른 종목만 "수정" 창에 나온다', async () => {
     const user = userEvent.setup()
     renderHome()
-    await user.click(screen.getByRole('button', { name: '종목 메뉴' }))
-    await user.click(screen.getByRole('menuitem', { name: '종목 수정' }))
+    await user.click(screen.getByRole('button', { name: '종목 수정' }))
     await user.click(screen.getByRole('checkbox', { name: '삼성전자 고르기' }))
     await user.click(screen.getByRole('button', { name: '수정 (1)' }))
     const dialog = screen.getByRole('dialog', { name: '수정' })
@@ -289,8 +287,7 @@ describe('⋯ 메뉴', () => {
     const purge = vi.spyOn(api, 'purgeStock').mockResolvedValue(undefined)
     const user = userEvent.setup()
     const { onSaved } = renderHome()
-    await user.click(screen.getByRole('button', { name: '종목 메뉴' }))
-    await user.click(screen.getByRole('menuitem', { name: '종목 수정' }))
+    await user.click(screen.getByRole('button', { name: '종목 수정' }))
     await user.click(screen.getByRole('checkbox', { name: 'SCHD 고르기' }))
     await user.click(screen.getByRole('button', { name: '삭제' }))
     expect(purge).not.toHaveBeenCalled()
