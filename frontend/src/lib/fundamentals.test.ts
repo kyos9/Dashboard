@@ -39,8 +39,8 @@ describe('재무 숫자', () => {
   })
 
   it('근거 — 어느 분기까지, 언제 공시', () => {
-    expect(metricBasis(metric('per'))).toBe('2026.06까지 · 공시 2026-07-23')
-    expect(metricBasis({ ...metric('per'), estimated: true })).toBe('2026.06까지 · 공시 2026-07-23 (추정)')
+    expect(metricBasis(metric('per'))).toBe('2026.06까지, 공시 2026-07-23')
+    expect(metricBasis({ ...metric('per'), estimated: true })).toBe('2026.06까지, 공시 2026-07-23 (추정)')
     expect(metricBasis({ ...metric('per'), period_end: null })).toBe('공시에 없음')
     expect(quarterLabel('2026-07-26')).toBe('2026.07')
   })
@@ -115,7 +115,7 @@ describe('PER 한눈에', () => {
   it('설명은 숫자만 — 판단하는 말이 없다', () => {
     const text = perTooltip(GOOG)
     expect(text).toContain('지금 28.1배')
-    expect(text).toContain('최저 16.2 · 중앙값 24.1 · 최고 34.8')
+    expect(text).toContain('최저 16.2, 중앙값 24.1, 최고 34.8')
     expect(text).toContain('지금 이하였던 날 71%')
     expect(perTooltip(LOSS)).toContain('지금 PER 없음')
     expect(perTooltip(NEW)).toContain('기록이 없습니다')

@@ -83,7 +83,7 @@ describe('시그널 기준 팝업', () => {
     const { dialog, onSaved } = open()
     await setField(dialog, '비교 기간', '3')
     await userEvent.click(within(dialog).getByRole('button', { name: '저장' }))
-    expect(onSaved).toHaveBeenCalledWith('시그널 기준을 저장했습니다 — 내 기준으로 다시 그립니다')
+    expect(onSaved).toHaveBeenCalledWith('시그널 기준을 저장했습니다. 내 기준으로 다시 그립니다')
   })
 
   it('이격도는 음수를 받는다', async () => {

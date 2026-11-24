@@ -11,7 +11,7 @@ describe('재무 탭', () => {
     }
     expect(screen.getByText('28.1배')).toBeInTheDocument()
     const perBox = screen.getByText('28.1배').closest('.stat-box')!
-    expect(perBox).toHaveTextContent('2026.06까지 · 공시 2026-07-23')
+    expect(perBox).toHaveTextContent('2026.06까지, 공시 2026-07-23')
     // 날짜 한 덩어리는 가운데서 끊기지 않게 조각으로 나뉘어 있다
     expect(within(perBox as HTMLElement).getByText(/공시 2026-07-23/)).toHaveClass('nobr')
     expect(screen.getByText(/2026-09-25 종가 \$245\.50로 계산/)).toBeInTheDocument()

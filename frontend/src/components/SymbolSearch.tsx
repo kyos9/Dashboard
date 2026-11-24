@@ -151,8 +151,8 @@ export function SymbolSearch({ selected, onSelect, onSubmitRaw, onTypedChange, d
         <div className="symbol-picked-text">
           <span className="symbol-picked-name">{selected.name}</span>
           <span className="symbol-picked-meta mono">
-            {selected.ticker} · {describeMatch(selected)}
-            {selected.instrument === 'ETF' && ' · ETF'}
+            {selected.ticker}, {describeMatch(selected)}
+            {selected.instrument === 'ETF' && ', ETF'}
           </span>
         </div>
         <button type="button" className="ghost sm" onClick={clear} disabled={disabled}>
@@ -193,9 +193,9 @@ export function SymbolSearch({ selected, onSelect, onSubmitRaw, onTypedChange, d
               >
                 <span className="symbol-option-name">{match.name}</span>
                 <span className="symbol-option-meta mono">
-                  {match.ticker} · {describeMatch(match)}
-                  {match.instrument === 'ETF' && ' · ETF'}
-                  {SOURCE_LABEL[match.source] && ` · ${SOURCE_LABEL[match.source]}`}
+                  {match.ticker}, {describeMatch(match)}
+                  {match.instrument === 'ETF' && ', ETF'}
+                  {SOURCE_LABEL[match.source] && `, ${SOURCE_LABEL[match.source]}`}
                 </span>
                 {!match.confident && (
                   <span className="badge badge-amber">시장 확인 필요</span>

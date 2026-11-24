@@ -143,7 +143,7 @@ function validationHint(items: ValidationItem[]): string {
     const label = (typeof field === 'string' && FIELD_LABEL[field]) || '입력값'
     return `${label}${topicParticle(label)} ${rangeText(item)}`
   })
-  return `입력값을 확인해 주세요 — ${[...new Set(parts)].join(' · ')}`
+  return `입력값을 확인해 주세요. ${[...new Set(parts)].join(', ')}`
 }
 
 function parseError(status: number, statusText: string, body: string): ApiError {

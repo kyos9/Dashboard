@@ -39,7 +39,7 @@ export function FundamentalsPanel({ data }: { data: FundamentalsResponse }) {
   return (
     <div className="fund-panel">
       <p className="hint">
-        {SOURCE_LABEL[data.source ?? ''] ?? data.source ?? '공시'} 기준 · PER·PBR·배당수익률은{' '}
+        {SOURCE_LABEL[data.source ?? ''] ?? data.source ?? '공시'} 기준, PER·PBR·배당수익률은{' '}
         {data.price_date ?? '—'} 종가 {price(data.price, data.currency)}로 계산
       </p>
 
@@ -56,7 +56,7 @@ export function FundamentalsPanel({ data }: { data: FundamentalsResponse }) {
                     {/* 조각 사이(" · ")에서만 줄을 바꾼다 — 구분자까지 묶으면 칸보다 길어져 옆 칸 위로 넘쳤다 (4차, 글자 겹침 검사) */}
                     {metricBasisParts(byKey[item.key]).map((part, i) => (
                       <span key={part}>
-                        {i > 0 && ' · '}
+                        {i > 0 && ', '}
                         <span className="nobr">{part}</span>
                       </span>
                     ))}
@@ -70,7 +70,7 @@ export function FundamentalsPanel({ data }: { data: FundamentalsResponse }) {
 
       {range && (
         <section className="fund-group">
-          <h4>PER — 지난 5년 중 어디쯤</h4>
+          <h4>PER, 지난 5년 중 어디쯤</h4>
           <div className="per-range" aria-hidden="true">
             <div className="per-track" />
             <span className="per-median" style={{ left: `${perMarker(range, range.median)}%` }} />
@@ -95,7 +95,7 @@ export function FundamentalsPanel({ data }: { data: FundamentalsResponse }) {
         <table className="fund-table">
           <thead>
             <tr>
-              <th>결산 · 공시</th>
+              <th>결산, 공시</th>
               {COLUMNS.map((c) => (
                 <th key={c.key}>{c.label}</th>
               ))}
@@ -109,7 +109,7 @@ export function FundamentalsPanel({ data }: { data: FundamentalsResponse }) {
                   <span className="hint nobr">
                     공시 {q.filed_at}
                     {q.estimated && ' (추정)'}
-                    {q.revised && ' · 정정됨'}
+                    {q.revised && ', 정정됨'}
                   </span>
                 </th>
                 {COLUMNS.map((c) => {

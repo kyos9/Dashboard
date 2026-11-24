@@ -35,7 +35,7 @@ describe('오류 응답 해석', () => {
       text: JSON.stringify({
         detail: {
           hint: '네트워크에서 시세 서버로 나가지 못하고 있습니다.',
-          message: 'VOO 시세를 받지 못했습니다 — yahoo: 403',
+          message: 'VOO 시세를 받지 못했습니다. yahoo: 403',
         },
       }),
     })
@@ -79,7 +79,7 @@ describe('오류 응답 해석', () => {
     expect(error).toBeInstanceOf(ApiError)
     expect(error.status).toBe(422)
     // 같은 칸의 같은 말은 한 번만
-    expect(error.message).toBe('입력값을 확인해 주세요 — 밴드는 100 이하여야 합니다 · 수량은 0 이상이어야 합니다')
+    expect(error.message).toBe('입력값을 확인해 주세요. 밴드는 100 이하여야 합니다, 수량은 0 이상이어야 합니다')
     expect(error.message).not.toMatch(/Input should|\{/)
     // 기술적 원인은 영어 msg 만 이어 붙인 것 — JSON 원문(본문 전체)이 아니다
     expect(error.detail).toBe(
@@ -104,7 +104,7 @@ describe('오류 응답 해석', () => {
     for (const [item, line] of cases) {
       mockFetch({ status: 422, text: JSON.stringify({ detail: [item] }) })
       const error = await api.getDashboard().catch((e) => e)
-      expect(error.message).toBe(`입력값을 확인해 주세요 — ${line}`)
+      expect(error.message).toBe(`입력값을 확인해 주세요. ${line}`)
     }
   })
 

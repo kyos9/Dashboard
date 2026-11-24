@@ -44,7 +44,7 @@ function Row({ series }: { series: MacroSeriesInfo }) {
       <Link
         to="/macro"
         className="macro-row-open"
-        aria-label={[series.name, zone && `${zone} ${series.zone?.range}`, sub, `${value}${change ? ` ${change}` : ''} — 매크로 탭에서 보기`]
+        aria-label={[series.name, zone && `${zone} ${series.zone?.range}`, sub, `${value}${change ? ` ${change}` : ''}. 매크로 탭에서 보기`]
           .filter(Boolean)
           .join(', ')}
       >

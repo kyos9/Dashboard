@@ -108,13 +108,13 @@ describe('진단', () => {
 
 describe('요약 문구', () => {
   it('건수를 세어 한 줄로 알려준다', () => {
-    expect(summarize(logs())).toBe('서버 로그: 오류 1건 · 경고 1건')
+    expect(summarize(logs())).toBe('서버 로그: 오류 1건, 경고 1건')
   })
 
   it('세는 것은 화면에 보이는 목록이 아니라 읽어들인 구간 전체다', () => {
     // entries는 limit에 걸려 잘릴 수 있다. counts가 실제 건수다.
     expect(summarize(logs({ entries: [], counts: { WARNING: 5, ERROR: 2 } }))).toBe(
-      '서버 로그: 오류 2건 · 경고 5건',
+      '서버 로그: 오류 2건, 경고 5건',
     )
   })
 
@@ -123,8 +123,8 @@ describe('요약 문구', () => {
   })
 
   it('백업 칸에 경고가 있으면 끝에 붙인다 — 로그가 깨끗해도 (0.45.1 C1)', () => {
-    expect(summarize(logs({ counts: { INFO: 9 } }), true)).toBe('서버 로그: 최근 경고·오류 없음 · 백업 확인 필요 — 아래 백업 칸')
-    expect(summarize(null, true)).toBe('백업 확인 필요 — 아래 백업 칸')
+    expect(summarize(logs({ counts: { INFO: 9 } }), true)).toBe('서버 로그: 최근 경고·오류 없음, 백업 확인 필요. 아래 백업 칸')
+    expect(summarize(null, true)).toBe('백업 확인 필요. 아래 백업 칸')
     expect(summarize(null)).toBe('')
   })
 })
@@ -147,10 +147,10 @@ describe('느린 요청 (ROADMAP 8-5)', () => {
     render(<DiagnosticsModal onClose={() => {}} />)
 
     const section = await screen.findByRole('region', { name: /느린 요청/ })
-    expect(section).toHaveTextContent('1.0초 넘게 · 서버를 켠 09-28 09:00 뒤로')
+    expect(section).toHaveTextContent('1.0초 넘게, 서버를 켠 09-28 09:00 뒤로')
     const rows = within(section).getAllByRole('listitem')
     expect(rows[0]).toHaveTextContent('POST /api/stocks/refresh-all')
-    expect(rows[0]).toHaveTextContent('4번 · 가장 길게 8.2초 · 최근 3.1초 (09-28 10:12)')
+    expect(rows[0]).toHaveTextContent('4번, 가장 길게 8.2초, 최근 3.1초 (09-28 10:12)')
     expect(rows[1]).toHaveTextContent('GET /api/dashboard')
   })
 
@@ -222,7 +222,7 @@ describe('진단 · 시그널 기준 (0.41.0)', () => {
     render(<DiagnosticsModal onClose={() => {}} />)
     const section = (await screen.findByRole('heading', { name: /시그널 기준/ })).closest('section')!
     expect(section).toHaveTextContent('2026-10-14에 바뀜')
-    expect(section).toHaveTextContent('(정의가 바뀌어서) — 12종목 중 3종목, 판정이 바뀐 날 41개 · 1.4초')
+    expect(section).toHaveTextContent('(정의가 바뀌어서). 12종목 중 3종목, 판정이 바뀐 날 41개, 1.4초')
     // 다시 계산 시각은 시간대 없는 UTC — 보는 사람의 시간대로 (0.45.2 B5, 전에는 UTC 숫자를 그대로 보여 9시간 어긋났다)
     expect(section).toHaveTextContent(`마지막 다시 계산 ${whenText(Date.UTC(2026, 9, 14, 3, 0))} (`)
   })
@@ -255,12 +255,12 @@ describe('진단 — 기록 (0.44.0)', () => {
 
   it('마지막 날짜·그날 사람 수·모든 줄 수만 보인다', () => {
     render(<RecordsLine status={status({ last_date: '2026-10-16', users: 3, rows: 41 })} now={0} />)
-    expect(screen.getByText('평가금액 기록: 마지막 2026-10-16 · 그날 3명(보유·현금이 있는 사람만) · 지금까지 41줄(사람마다 하루 한 줄)')).toBeTruthy()
+    expect(screen.getByText('평가금액 기록: 마지막 2026-10-16, 그날 3명(보유·현금이 있는 사람만), 지금까지 41줄(사람마다 하루 한 줄)')).toBeTruthy()
   })
 
   it('아직 없으면 언제 쌓이는지, 꺼 두었으면 꺼졌다고', () => {
     const { unmount } = render(<RecordsLine status={status({})} now={0} />)
-    expect(screen.getByText(/아직 없습니다 — 매일 아침 미국 시세를 받은 뒤 남깁니다/)).toBeTruthy()
+    expect(screen.getByText(/아직 없습니다. 매일 아침 미국 시세를 받은 뒤 남깁니다/)).toBeTruthy()
     unmount()
     render(<RecordsLine status={status({ enabled: false, last_date: '2026-10-16', rows: 5 })} now={0} />)
     expect(screen.getByText(/꺼져 있습니다/)).toBeTruthy()
@@ -271,14 +271,14 @@ describe('진단 — 기록 (0.44.0)', () => {
     vi.spyOn(api, 'getLogs').mockResolvedValue(logs())
     const spy = vi.spyOn(api, 'getRecordsStatus').mockResolvedValue(status({ last_date: '2026-10-16', users: 1, rows: 2 }))
     const { unmount } = render(<DiagnosticsModal onClose={() => {}} />)
-    expect(await screen.findByRole('heading', { name: '평가금액 기록 · 백업' })).toBeTruthy()
+    expect(await screen.findByRole('heading', { name: '평가금액 기록, 백업' })).toBeTruthy()
     expect(spy).toHaveBeenCalled()
     unmount()
 
     spy.mockRejectedValue(new Error('404'))
     render(<DiagnosticsModal onClose={() => {}} />)
     await screen.findByText(/005930.KS 갱신 실패/)
-    expect(screen.queryByRole('heading', { name: '평가금액 기록 · 백업' })).toBeNull()
+    expect(screen.queryByRole('heading', { name: '평가금액 기록, 백업' })).toBeNull()
   })
 })
 
@@ -296,9 +296,9 @@ describe('맨 위 요약과 백업 경고 (0.45.1 C1)', () => {
     render(<DiagnosticsModal onClose={() => {}} />)
 
     // 꼬리만 경고 모양 — 같은 작은 회색 글이라 눈에 띄지 않았다 (0.45.2 B1)
-    const tail = await screen.findByText('백업 확인 필요 — 아래 백업 칸')
+    const tail = await screen.findByText('백업 확인 필요. 아래 백업 칸')
     expect(tail).toHaveClass('diag-warn')
-    expect(tail.closest('.diag-summary')?.textContent).toBe('서버 로그: 최근 경고·오류 없음 · 백업 확인 필요 — 아래 백업 칸')
+    expect(tail.closest('.diag-summary')?.textContent).toBe('서버 로그: 최근 경고·오류 없음, 백업 확인 필요. 아래 백업 칸')
   })
 
   it('밖에 꺼낸 지 10일이 지나도 — 경고 줄과 같은 판정', async () => {
@@ -308,9 +308,9 @@ describe('맨 위 요약과 백업 경고 (0.45.1 C1)', () => {
     render(<DiagnosticsModal onClose={() => {}} />)
 
     // 꼬리만 경고 모양 — 같은 작은 회색 글이라 눈에 띄지 않았다 (0.45.2 B1)
-    const tail = await screen.findByText('백업 확인 필요 — 아래 백업 칸')
+    const tail = await screen.findByText('백업 확인 필요. 아래 백업 칸')
     expect(tail).toHaveClass('diag-warn')
-    expect(tail.closest('.diag-summary')?.textContent).toBe('서버 로그: 최근 경고·오류 없음 · 백업 확인 필요 — 아래 백업 칸')
+    expect(tail.closest('.diag-summary')?.textContent).toBe('서버 로그: 최근 경고·오류 없음, 백업 확인 필요. 아래 백업 칸')
     expect(screen.getByText(/11일 동안 밖에 꺼내지 않았습니다/)).toBeInTheDocument()
   })
 
@@ -318,13 +318,13 @@ describe('맨 위 요약과 백업 경고 (0.45.1 C1)', () => {
     vi.spyOn(api, 'getLogs').mockResolvedValue(clean())
     const spy = vi.spyOn(api, 'getRecordsStatus').mockResolvedValue(records({ ...ok, offsite: { last_at: null } }))
     const { unmount } = render(<DiagnosticsModal onClose={() => {}} />)
-    await screen.findByRole('heading', { name: '평가금액 기록 · 백업' })
+    await screen.findByRole('heading', { name: '평가금액 기록, 백업' })
     expect(screen.getByText('서버 로그: 최근 경고·오류 없음')).toBeInTheDocument()
     unmount()
 
     spy.mockResolvedValue({ value_record: { enabled: true, last_date: null, users: 0, rows: 0 } })
     render(<DiagnosticsModal onClose={() => {}} />)
-    await screen.findByRole('heading', { name: '평가금액 기록 · 백업' })
+    await screen.findByRole('heading', { name: '평가금액 기록, 백업' })
     expect(screen.getByText('서버 로그: 최근 경고·오류 없음')).toBeInTheDocument()
   })
 })
@@ -337,13 +337,13 @@ describe('진단의 시세 받기 (0.46.0 C)', () => {
   const at = new Date('2026-10-30T07:31:00Z').toLocaleString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })
 
   it('받은 날 — 받은 때·종목 수·실패 수(이름까지)', () => {
-    expect(refreshLine({ ...base })).toBe(`미국: ${at} 받음 · 20종목 중 실패 0`)
-    expect(refreshLine({ ...base, failed: 1, failed_tickers: ['ZZZZ'] })).toBe(`미국: ${at} 받음 · 20종목 중 실패 1 (ZZZZ)`)
+    expect(refreshLine({ ...base })).toBe(`미국: ${at} 받음, 20종목 중 실패 0`)
+    expect(refreshLine({ ...base, failed: 1, failed_tickers: ['ZZZZ'] })).toBe(`미국: ${at} 받음, 20종목 중 실패 1 (ZZZZ)`)
   })
 
   it('실패가 많아 막힘 — 출처 이름과 마지막으로 받은 때', () => {
     const line = refreshLine({ ...base, blocked: true, reason: 'failed', failed: 18, providers: ['yahoo', 'stooq'], last_ok_at: '2026-10-28T07:31:00+00:00' })
-    expect(line).toMatch(/^미국: 막힘 — 마지막으로 받은 때 .* · .*에 받으려 했으나 20종목 중 18개 실패 \(시세 출처 Yahoo·Stooq\)$/)
+    expect(line).toMatch(/^미국: 막힘. 마지막으로 받은 때 .*, .*에 받으려 했으나 20종목 중 18개 실패 \(시세 출처 Yahoo·Stooq\)$/)
   })
 
   it('실패는 없는데 묵음 — "실패 0" 과 막힘이 한 줄에 서지 않는다 (계획 다시 보기)', () => {
@@ -356,8 +356,8 @@ describe('진단의 시세 받기 (0.46.0 C)', () => {
     render(<RefreshLines states={[{ ...base }, { ...base, market: 'KR', blocked: true, reason: 'failed', failed: 3, total: 3 }]} />)
     expect(screen.getByRole('heading', { name: '시세 받기' })).toBeInTheDocument()
     expect(screen.getAllByRole('note').map((n) => n.textContent)).toEqual([expect.stringMatching(/^한국: /)])
-    expect(summarize(null, false, true)).toBe('시세 받기 막힘 — 아래 시세 받기 칸')
-    expect(summarize(null, true, true)).toBe('백업 확인 필요 — 아래 백업 칸 · 시세 받기 막힘 — 아래 시세 받기 칸')
+    expect(summarize(null, false, true)).toBe('시세 받기 막힘. 아래 시세 받기 칸')
+    expect(summarize(null, true, true)).toBe('백업 확인 필요. 아래 백업 칸, 시세 받기 막힘. 아래 시세 받기 칸')
   })
 })
 
@@ -371,8 +371,8 @@ describe('진단의 백업 줄 — 꼬리표마다 따로 센다 (0.46.0 A3·A4)
 
   it('새 서버: 매일 백업 개수와 업데이트 직전 개수를 따로', () => {
     render(<BackupLines backup={base} now={NOW} />)
-    expect(screen.getByText(/^백업: 마지막/).textContent).toMatch(/· 매일 백업 지금 7개 · 최근 7개까지 남김$/)
-    expect(screen.getByText(/^업데이트 직전 백업/).textContent).toMatch(/^업데이트 직전 백업 2개\(최대 3개, 7일 안\) · 마지막 /)
+    expect(screen.getByText(/^백업: 마지막/).textContent).toMatch(/, 매일 백업 지금 7개, 최근 7개까지 남김$/)
+    expect(screen.getByText(/^업데이트 직전 백업/).textContent).toMatch(/^업데이트 직전 백업 2개\(최대 3개, 7일 안\), 마지막 /)
     expect(screen.queryByText(/위 개수에 들어 있습니다/)).toBeNull()
     expect(screen.queryByRole('note')).toBeNull()
   })
@@ -388,7 +388,7 @@ describe('진단의 백업 줄 — 꼬리표마다 따로 센다 (0.46.0 A3·A4)
 
   it('옛 서버(daily·warnings 없음): 지금 문구 그대로', () => {
     render(<BackupLines backup={{ ...base, daily: undefined, keep: 7, premigrate: { count: 2, last_at: base.premigrate!.last_at }, offsite: { last_at: base.offsite!.last_at } }} now={NOW} />)
-    expect(screen.getByText(/^백업: 마지막/).textContent).toMatch(/· 9개 보관\(최대 7개\)$/)
+    expect(screen.getByText(/^백업: 마지막/).textContent).toMatch(/, 9개 보관\(최대 7개\)$/)
     expect(screen.getByText(/^업그레이드 직전 백업 2개/).textContent).toMatch(/\(위 개수에 들어 있습니다\)$/)
     expect(screen.queryByRole('note')).toBeNull()
   })
@@ -404,17 +404,17 @@ describe('진단의 백업 줄 (0.44.0 D0)', () => {
     render(<BackupLines backup={backup()} now={NOW} />)
     const line = screen.getByText(/^백업: 마지막/)
     const local = new Date('2026-10-15T23:30:00Z').toLocaleString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })
-    expect(line.textContent).toBe(`백업: 마지막 ${local} · 2.5MB · 3개 보관(최대 7개)`)
+    expect(line.textContent).toBe(`백업: 마지막 ${local}, 2.5MB, 3개 보관(최대 7개)`)
     expect(screen.queryByRole('note')).toBeNull()
   })
 
   it('하나도 없으면 그렇다고, 하루 넘게 새 것이 없으면 경고, 실패했으면 그 갈래', () => {
     const { unmount } = render(<BackupLines backup={backup({ count: 0, last_at: null, last_size: null })} now={NOW} />)
-    expect(screen.getByText('백업: 아직 없습니다 — 매일 하나씩 서버 안에 뜹니다.')).toBeTruthy()
+    expect(screen.getByText('백업: 아직 없습니다. 매일 하나씩 서버 안에 뜹니다.')).toBeTruthy()
     unmount()
 
     const { unmount: u2 } = render(<BackupLines backup={backup({ last_at: '2026-10-14T23:00:00+00:00' })} now={NOW} />)
-    expect(screen.getByRole('note').textContent).toBe('하루 넘게 새 백업이 없습니다 — 서버 로그를 보세요.')
+    expect(screen.getByRole('note').textContent).toBe('하루 넘게 새 백업이 없습니다. 서버 로그를 보세요.')
     u2()
     // 36시간 안이면 경고하지 않는다
     const { unmount: u3 } = render(<BackupLines backup={backup({ last_at: '2026-10-15T00:30:00+00:00' })} now={NOW} />)
@@ -422,15 +422,15 @@ describe('진단의 백업 줄 (0.44.0 D0)', () => {
     u3()
 
     render(<BackupLines backup={backup({ last_failure: { at: '2026-10-16T08:30:00+00:00', reason: '디스크가 찼습니다' } })} now={NOW} />)
-    expect(screen.getByRole('note').textContent).toMatch(/^마지막 실패: .+ — 디스크가 찼습니다$/)
+    expect(screen.getByRole('note').textContent).toMatch(/^마지막 실패: .+. 디스크가 찼습니다$/)
   })
 
   it('작은 크기는 KB·B 로', () => {
     const { unmount } = render(<BackupLines backup={backup({ last_size: 52_000 })} now={NOW} />)
-    expect(screen.getByText(/· 51KB ·/)).toBeTruthy()
+    expect(screen.getByText(/, 51KB,/)).toBeTruthy()
     unmount()
     render(<BackupLines backup={backup({ last_size: 900 })} now={NOW} />)
-    expect(screen.getByText(/· 900B ·/)).toBeTruthy()
+    expect(screen.getByText(/, 900B,/)).toBeTruthy()
   })
 
   it('옛 서버(백업 칸 없음)면 평가금액 줄만', () => {
@@ -447,10 +447,10 @@ describe('진단의 백업 줄 (0.44.0 D0)', () => {
         now={NOW}
       />,
     )
-    expect(screen.getByRole('note').textContent).toBe('하루 넘게 새 백업이 없습니다 — 서버 로그를 보세요.')
+    expect(screen.getByRole('note').textContent).toBe('하루 넘게 새 백업이 없습니다. 서버 로그를 보세요.')
     // 그 시각은 업그레이드 백업의 것 — 매일 백업 시각이 들어가면 틀린다 (D0 두 번째 검토 F1)
     const upgradeAt = new Date('2026-10-16T00:30:00Z').toLocaleString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })
-    expect(screen.getByText(/^업그레이드 직전 백업/).textContent).toBe(`업그레이드 직전 백업 1개 · 마지막 ${upgradeAt} (위 개수에 들어 있습니다)`)
+    expect(screen.getByText(/^업그레이드 직전 백업/).textContent).toBe(`업그레이드 직전 백업 1개, 마지막 ${upgradeAt} (위 개수에 들어 있습니다)`)
   })
 
   it('멈춤과 실패가 같이면 두 줄 다', () => {
@@ -462,15 +462,15 @@ describe('진단의 백업 줄 (0.44.0 D0)', () => {
     )
     const notes = screen.getAllByRole('note').map((n) => n.textContent)
     expect(notes).toHaveLength(2)
-    expect(notes[0]).toBe('하루 넘게 새 백업이 없습니다 — 서버 로그를 보세요.')
-    expect(notes[1]).toMatch(/— 디스크가 찼습니다$/)
+    expect(notes[0]).toBe('하루 넘게 새 백업이 없습니다. 서버 로그를 보세요.')
+    expect(notes[1]).toMatch(/\. 디스크가 찼습니다$/)
   })
 
   it('시각은 보는 사람의 시간대로 — 한국이면 UTC 23:30 이 다음 날 08:30 (D0 검토: 테스트가 UTC 라 못 잡았다)', () => {
     vi.stubEnv('TZ', 'Asia/Seoul')
     try {
       render(<BackupLines backup={backup({ last_at: '2026-10-15T23:30:00+00:00' })} now={NOW} />)
-      expect(screen.getByText(/^백업: 마지막/).textContent).toMatch(/^백업: 마지막 10월 16일 08:30 ·/)
+      expect(screen.getByText(/^백업: 마지막/).textContent).toMatch(/^백업: 마지막 10월 16일 08:30,/)
     } finally {
       vi.unstubAllEnvs()
     }
@@ -488,14 +488,14 @@ describe('진단의 백업 줄 — 밖에 꺼낸 것 (0.45.0 A)', () => {
   it('꺼낸 적이 없으면 그렇다고 — 경고는 아니다', () => {
     render(<BackupLines backup={backup({ last_at: null })} now={NOW} />)
     expect(screen.getByText(/^밖에 꺼낸 기록이 없습니다/).textContent).toBe(
-      '밖에 꺼낸 기록이 없습니다 — 서버가 사라지면 이 백업도 같이 사라집니다. 내 PC 로 가져오는 법은 PC 의 Dashboard 폴더 DEPLOY.md 10-0.',
+      '밖에 꺼낸 기록이 없습니다. 서버가 사라지면 이 백업도 같이 사라집니다. 내 PC 로 가져오는 법은 PC 의 Dashboard 폴더 DEPLOY.md 10-0.',
     )
     expect(screen.queryByRole('note')).toBeNull()
   })
 
   it('꺼냈으면 그 시각(관리자 PC), 10일 넘으면 경고', () => {
     const { unmount } = render(<BackupLines backup={backup({ last_at: '2026-10-13T09:00:00+00:00' })} now={NOW} />)
-    expect(screen.getByText(/^밖에 꺼낸 것/).textContent).toBe(`밖에 꺼낸 것: 마지막 ${local('2026-10-13T09:00:00+00:00')} (관리자 PC — 최근 4개까지 남김)`)
+    expect(screen.getByText(/^밖에 꺼낸 것/).textContent).toBe(`밖에 꺼낸 것: 마지막 ${local('2026-10-13T09:00:00+00:00')} (관리자 PC, 최근 4개까지 남김)`)
     expect(screen.queryByRole('note')).toBeNull()
     unmount()
 
@@ -504,10 +504,10 @@ describe('진단의 백업 줄 — 밖에 꺼낸 것 (0.45.0 A)', () => {
     expect(screen.queryByRole('note')).toBeNull()
     u2()
     const { unmount: u3 } = render(<BackupLines backup={backup({ last_at: '2026-10-10T00:00:00+00:00' })} now={NOW} />)
-    expect(screen.getByRole('note').textContent).toBe('10일 동안 밖에 꺼내지 않았습니다 — PC 의 Dashboard 폴더에서 server-backup-pull.bat 을 실행하세요.')
+    expect(screen.getByRole('note').textContent).toBe('10일 동안 밖에 꺼내지 않았습니다. PC 의 Dashboard 폴더에서 server-backup-pull.bat 을 실행하세요.')
     u3()
     render(<BackupLines backup={backup({ last_at: '2026-10-09T11:00:00+00:00' })} now={NOW} />)
-    expect(screen.getByRole('note').textContent).toBe('11일 동안 밖에 꺼내지 않았습니다 — PC 의 Dashboard 폴더에서 server-backup-pull.bat 을 실행하세요.')
+    expect(screen.getByRole('note').textContent).toBe('11일 동안 밖에 꺼내지 않았습니다. PC 의 Dashboard 폴더에서 server-backup-pull.bat 을 실행하세요.')
   })
 
   it('옛 서버(칸 없음)면 그 줄이 없다', () => {

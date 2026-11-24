@@ -128,5 +128,5 @@ export function buyRuleSentence(rules: SignalRules): string {
   }
   // 정의(서버)의 조건 순서는 AI 지시문과 지문이 쓴다 — 바꾸지 않고 화면에서만 칸 순서로 늘어놓는다
   const ordered = [...rule.conditions].sort((a, b) => rank(a.metric) - rank(b.metric))
-  return `${rule.name} = ${ordered.map((c) => c.formula).join(' · ')}: ${countWord(n)} 조건을 모두 만족할 때.`
+  return `${rule.name} = ${ordered.map((c) => c.formula).join(', ')}: ${countWord(n)} 조건을 모두 만족할 때.`
 }

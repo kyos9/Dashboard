@@ -205,7 +205,7 @@ export function savePnlCurrency(choice: PnlCurrency) {
 /** "주가 +12.0% · 환율 +3.1% → 합계 +15.5%". 합계는 둘의 합이 아니라 곱이다 */
 export function fxSplitText(split: { price_pct: number; fx_pct: number }): string {
   const total = ((1 + split.price_pct / 100) * (1 + split.fx_pct / 100) - 1) * 100
-  return `주가 ${signed(split.price_pct, 1, '%')} · 환율 ${signed(split.fx_pct, 1, '%')} → 합계 ${signed(total, 1, '%')}`
+  return `주가 ${signed(split.price_pct, 1, '%')}, 환율 ${signed(split.fx_pct, 1, '%')} → 합계 ${signed(total, 1, '%')}`
 }
 
 /** 오르면 up, 내리면 down — 색은 CSS 가 정한다 */

@@ -34,7 +34,7 @@ const COPY: Record<AiScope, { intro: string; examples: string[]; help: string; p
   },
   watchlist: {
     intro:
-      '담은 종목 전체(활성 종목, 30개까지)의 공용 숫자를 AI 가 한 장으로 정리합니다. 보유수량·비중·평단가는 보내지 않습니다 — 담아 둔 목록의 숫자만 봅니다. 어느 종목을 고르라는 말은 하지 않도록 요청합니다.',
+      '담은 종목 전체(활성 종목, 30개까지)의 공용 숫자를 AI 가 한 장으로 정리합니다. 보유수량·비중·평단가는 보내지 않습니다. 담아 둔 목록의 숫자만 봅니다. 어느 종목을 고르라는 말은 하지 않도록 요청합니다.',
     examples: ['종목별로 한 줄씩만', '오늘 매수 시그널이 뜬 종목 위주로', '재무 숫자를 나란히 비교해 줘', '초보자도 알 수 있게 쉽게'],
     help: '무엇을 물어도 담은 종목의 숫자를 보고 답하고, 사라·팔라는 판단이나 순위 매기기, 가격 예측은 하지 않습니다.',
     placeholder: '예: 요즘 흐름이 비슷한 종목끼리 묶어서 정리해 줘',
@@ -48,7 +48,7 @@ const COPY: Record<AiScope, { intro: string; examples: string[]; help: string; p
   },
   research: {
     intro:
-      '이 종목의 재무(PER·PBR·ROE·FCF 수익률·3·5년 성장률 등)와 내 포트폴리오 비중(%)을 AI 에게 보내, 알파 버킷 편입 판단을 돕는 리포트를 받습니다. 앱에 없는 값(동종 업계 비교·선행 PER·최근 실적)은 AI 가 웹에서 찾아 출처와 함께 적습니다 — 검색 요금이 조금 더 나갑니다. 금액·수량은 보내지 않고, 검색어에 내 비중을 넣지 않게 합니다.',
+      '이 종목의 재무(PER·PBR·ROE·FCF 수익률·3·5년 성장률 등)와 내 포트폴리오 비중(%)을 AI 에게 보내, 알파 버킷 편입 판단을 돕는 리포트를 받습니다. 앱에 없는 값(동종 업계 비교·선행 PER·최근 실적)은 AI 가 웹에서 찾아 출처와 함께 적습니다. 검색 요금이 조금 더 나갑니다. 금액·수량은 보내지 않고, 검색어에 내 비중을 넣지 않게 합니다.',
     examples: ['리스크 위주로 자세히', '경쟁사와 비교를 자세히', '비슷한 익스포저가 있는지 먼저', '표 없이 짧게'],
     help: '숫자는 앱이 모은 것을 먼저 쓰고, 없는 값은 웹에서 찾아 출처를 붙이게 합니다. 찾지 못한 것만 "확인 필요"로 남습니다. 매수·매도를 단정하거나 목표주가를 내지는 않습니다.',
     placeholder: '예: 보유 중인 반도체 종목과 겹치는 부분을 자세히',
@@ -68,7 +68,7 @@ const COPY: Record<AiScope, { intro: string; examples: string[]; help: string; p
  */
 const USER_RESEARCH_COPY: (typeof COPY)[AiScope] = {
   intro:
-    '이 종목의 재무(PER·PBR·ROE·FCF 수익률·3·5년 성장률 등)와 내 포트폴리오 비중(%)을 AI 에게 보내, 회사 자료를 한 장으로 정리받습니다. 앱에 없는 값(동종 업계 비교·선행 PER·최근 실적)은 AI 가 웹에서 찾아 출처와 함께 적습니다 — 검색 요금이 조금 더 나갑니다. 금액·수량은 보내지 않고, 검색어에 내 비중을 넣지 않게 합니다.',
+    '이 종목의 재무(PER·PBR·ROE·FCF 수익률·3·5년 성장률 등)와 내 포트폴리오 비중(%)을 AI 에게 보내, 회사 자료를 한 장으로 정리받습니다. 앱에 없는 값(동종 업계 비교·선행 PER·최근 실적)은 AI 가 웹에서 찾아 출처와 함께 적습니다. 검색 요금이 조금 더 나갑니다. 금액·수량은 보내지 않고, 검색어에 내 비중을 넣지 않게 합니다.',
   examples: ['위험 요인 위주로 자세히', '경쟁사와 비교를 자세히', '이미 담은 종목 중 같은 업종부터', '표 없이 짧게'],
   help: '숫자는 앱이 모은 것을 먼저 쓰고, 없는 값은 웹에서 찾아 출처를 붙이게 합니다. 찾지 못한 것만 "확인 필요"로 남습니다. 사라·팔라, 얼마나 담으라는 말이나 싸다·비싸다 판단, 목표 가격은 내지 않습니다.',
   placeholder: '예: 이 회사의 매출이 어디서 나오는지 쉽게 설명해 줘',
@@ -94,7 +94,7 @@ function when(iso: string): string {
 /** 어느 시점의 숫자로 쓴 글인가 — 종목·진단·분석은 종가, 매크로는 발표된 지표 */
 function basis(scope: AiScope, asOf: string | null): string {
   if (!asOf) return ''
-  return scope === 'macro' ? `${asOf}까지 발표된 지표 · ` : `${asOf} 종가까지 · `
+  return scope === 'macro' ? `${asOf}까지 발표된 지표, ` : `${asOf} 종가까지, `
 }
 
 function isAbort(e: unknown): boolean {
@@ -123,7 +123,7 @@ function Sources({ result }: { result: AiAnalysis }) {
         AI 가 찾아본 자료 <span className="hint">웹 검색 {result.web_searches}번</span>
       </h5>
       {sources.length === 0 ? (
-        <p className="hint">출처가 없습니다 — 글의 값 가운데 출처가 적히지 않은 것은 AI 가 확인하지 못한 것으로 보세요.</p>
+        <p className="hint">출처가 없습니다. 글의 값 가운데 출처가 적히지 않은 것은 AI 가 확인하지 못한 것으로 보세요.</p>
       ) : (
         <ol>
           {sources.map((s) => (
@@ -278,7 +278,7 @@ export function AiPanel({ target, account }: { target: AiTarget; account: string
             </button>
           )}
           <span className="hint ai-using">
-            {providerLabel(settings.provider)} · <span className="mono">{settings.model}</span>{' '}
+            {providerLabel(settings.provider)}, <span className="mono">{settings.model}</span>{' '}
             {!busy && (
               <button className="link-btn" onClick={() => setEditing(true)}>
                 키·모델 바꾸기
@@ -290,7 +290,7 @@ export function AiPanel({ target, account }: { target: AiTarget; account: string
 
       <section className="ai-question">
         <label htmlFor={`ai-question-${domId}`}>
-          내 요청 <span className="hint">(선택 — 비우면 정해진 형식으로 정리합니다)</span>
+          내 요청 <span className="hint">(선택. 비우면 정해진 형식으로 정리합니다)</span>
         </label>
         <textarea
           id={`ai-question-${domId}`}
@@ -335,7 +335,7 @@ export function AiPanel({ target, account }: { target: AiTarget; account: string
               </span>
             ) : (
               <>
-                <span className="error-inline">끝까지 쓰지 않은 글입니다 — 저장하지 않았습니다</span>
+                <span className="error-inline">끝까지 쓰지 않은 글입니다. 저장하지 않았습니다</span>
                 {result && (
                   <>
                     {' '}
@@ -367,10 +367,10 @@ export function AiPanel({ target, account }: { target: AiTarget; account: string
           <article className="ai-result" aria-label="AI 분석">
             <p className="hint ai-meta">
               {basis(scope, result.as_of)}
-              {providerLabel(result.provider)} <span className="mono">{result.model}</span> · {when(result.generated_at)}
+              {providerLabel(result.provider)} <span className="mono">{result.model}</span>, {when(result.generated_at)}
               {result.input_tokens != null &&
                 result.output_tokens != null &&
-                ` · 토큰 ${result.input_tokens.toLocaleString('ko-KR')} + ${result.output_tokens.toLocaleString('ko-KR')}`}
+                `, 토큰 ${result.input_tokens.toLocaleString('ko-KR')} + ${result.output_tokens.toLocaleString('ko-KR')}`}
             </p>
             {result.question && (
               <p className="ai-asked">
@@ -406,7 +406,7 @@ export function AiPanel({ target, account }: { target: AiTarget; account: string
           <>
             {context.search && (
               <p className="hint">
-                웹 검색을 켜고 보냅니다 — AI 가 회사·업종 이름으로 찾아봅니다. 검색어에 내 비중을 넣지 않도록 지시문에
+                웹 검색을 켜고 보냅니다. AI 가 회사·업종 이름으로 찾아봅니다. 검색어에 내 비중을 넣지 않도록 지시문에
                 적어 두었습니다.
               </p>
             )}

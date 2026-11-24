@@ -214,8 +214,8 @@ describe('버린 것을 말하기 (0.45.1 A)', () => {
   })
 
   it('줄에는 칸 이름·버린 것·지금 값이 있다', () => {
-    expect(droppedText('VOO 밴드 임계값', ['minus'], '3')).toBe('VOO 밴드 임계값 — 빼기(−)는 넣을 수 없습니다 · 지금 값 3')
-    expect(droppedText(undefined, ['decimal'], '75')).toBe('소수점은 넣을 수 없어 숫자만 이어 붙였습니다 · 지금 값 75')
+    expect(droppedText('VOO 밴드 임계값', ['minus'], '3')).toBe('VOO 밴드 임계값. 빼기(−)는 넣을 수 없습니다, 지금 값 3')
+    expect(droppedText(undefined, ['decimal'], '75')).toBe('소수점은 넣을 수 없어 숫자만 이어 붙였습니다, 지금 값 75')
     expect(droppedText('금액', ['unit'], '1,000,000')).toContain('지금 값 1,000,000')
     expect(droppedText('금액', ['minus'], '')).toContain('지금 값 없음')
   })
@@ -249,7 +249,7 @@ describe('버린 것을 말하기 (0.45.1 A)', () => {
 
     // 값은 지금과 같다 — 막지 않고 알린다
     expect(onChange).toHaveBeenLastCalledWith('75')
-    expect(live()).toHaveTextContent('기간 — 소수점은 넣을 수 없어 숫자만 이어 붙였습니다 · 지금 값 75')
+    expect(live()).toHaveTextContent('기간. 소수점은 넣을 수 없어 숫자만 이어 붙였습니다, 지금 값 75')
   })
 
   it('칸을 떠나면 줄이 사라진다', async () => {
@@ -257,7 +257,7 @@ describe('버린 것을 말하기 (0.45.1 A)', () => {
     render(<Controlled label="밴드" />)
 
     await user.type(screen.getByLabelText('밴드'), '-3')
-    expect(live()).toHaveTextContent('밴드 — 빼기(−)는 넣을 수 없습니다 · 지금 값 3')
+    expect(live()).toHaveTextContent('밴드. 빼기(−)는 넣을 수 없습니다, 지금 값 3')
 
     await user.click(screen.getByRole('button', { name: '다른 곳' }))
     expect(line()).toBeNull()
@@ -275,7 +275,7 @@ describe('버린 것을 말하기 (0.45.1 A)', () => {
     expect(live()?.textContent ?? '').toBe('')
 
     await user.type(input, '100만')
-    expect(live()).toHaveTextContent('금액 — ‘만·억·천’ 은 읽지 않습니다. 0 을 모두 쳐 주세요 · 지금 값 100')
+    expect(live()).toHaveTextContent('금액. ‘만·억·천’ 은 읽지 않습니다. 0 을 모두 쳐 주세요, 지금 값 100')
     expect(live()).not.toHaveTextContent('소수점')
   })
 
@@ -285,16 +285,16 @@ describe('버린 것을 말하기 (0.45.1 A)', () => {
     const input = screen.getByLabelText('금액')
 
     await user.type(input, '-3')
-    expect(live()).toHaveTextContent('빼기(−)는 넣을 수 없습니다 · 지금 값 3')
+    expect(live()).toHaveTextContent('빼기(−)는 넣을 수 없습니다, 지금 값 3')
     await user.type(input, '5')
-    expect(live()).toHaveTextContent('빼기(−)는 넣을 수 없습니다 · 지금 값 35')
+    expect(live()).toHaveTextContent('빼기(−)는 넣을 수 없습니다, 지금 값 35')
     await user.type(input, '.')
-    expect(live()).toHaveTextContent('소수점은 넣을 수 없어 숫자만 이어 붙였습니다 · 지금 값 35')
+    expect(live()).toHaveTextContent('소수점은 넣을 수 없어 숫자만 이어 붙였습니다, 지금 값 35')
   })
 
   it('빼기가 뜻을 가진 칸은 빼기를 버렸을 때만 한 마디를 더한다 (0.45.2 A2)', async () => {
     expect(droppedText('SCHD 보유수량', ['minus'], '3', HOLDING_MINUS_HINT)).toBe(
-      'SCHD 보유수량 — 빼기(−)는 넣을 수 없습니다 · 지금 값 3 · 보유 수량은 가진 전체 수량입니다(판 수량이 아닙니다)',
+      'SCHD 보유수량. 빼기(−)는 넣을 수 없습니다, 지금 값 3, 보유 수량은 가진 전체 수량입니다(판 수량이 아닙니다)',
     )
     // 빼기가 아닌 것을 버렸으면 붙이지 않는다
     expect(droppedText('SCHD 보유수량', ['unit'], '100', HOLDING_MINUS_HINT)).not.toContain('판 수량')
@@ -303,14 +303,14 @@ describe('버린 것을 말하기 (0.45.1 A)', () => {
     const user = userEvent.setup()
     const { unmount } = render(<Controlled label="SCHD 보유수량" minusHint={HOLDING_MINUS_HINT} />)
     await user.type(screen.getByLabelText('SCHD 보유수량'), '-3')
-    expect(live()).toHaveTextContent('지금 값 3 · 보유 수량은 가진 전체 수량입니다(판 수량이 아닙니다)')
+    expect(live()).toHaveTextContent('지금 값 3, 보유 수량은 가진 전체 수량입니다(판 수량이 아닙니다)')
     expect(line()).toHaveTextContent('판 수량이 아닙니다')
     unmount()
 
     // 한 마디가 없는 칸(평단가 등)은 지금 그대로
     render(<Controlled label="SCHD 평단가" />)
     await user.type(screen.getByLabelText('SCHD 평단가'), '-3')
-    expect(live()).toHaveTextContent('SCHD 평단가 — 빼기(−)는 넣을 수 없습니다 · 지금 값 3')
+    expect(live()).toHaveTextContent('SCHD 평단가. 빼기(−)는 넣을 수 없습니다, 지금 값 3')
     expect(live()).not.toHaveTextContent('판 수량')
   })
 
@@ -319,7 +319,7 @@ describe('버린 것을 말하기 (0.45.1 A)', () => {
     render(<Controlled allowNegative label="예상치" />)
     await user.click(screen.getByLabelText('예상치'))
     await user.paste('0.2−')
-    expect(live()).toHaveTextContent('예상치 — 빼기(−)는 맨 앞에만 쓸 수 있습니다 · 지금 값 0.2')
+    expect(live()).toHaveTextContent('예상치. 빼기(−)는 맨 앞에만 쓸 수 있습니다, 지금 값 0.2')
   })
 
   it('화면 읽기 자리는 칸이 생길 때부터 비어 있고, 보이는 줄은 두 번 읽히지 않게 숨긴다', async () => {
@@ -353,7 +353,7 @@ describe('버린 것을 말하기 (0.45.1 A)', () => {
       </>,
     )
     await user.type(screen.getByLabelText('N거래일'), '.')
-    expect(live()).toHaveTextContent(/^N거래일 — 소수점/)
+    expect(live()).toHaveTextContent(/^N거래일. 소수점/)
   })
 
   it('부모가 준 onBlur 도 그대로 불린다', async () => {

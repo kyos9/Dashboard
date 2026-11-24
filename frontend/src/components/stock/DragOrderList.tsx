@@ -100,7 +100,7 @@ export function DragOrderList({ items, busy, moved, onDrop, onStep }: Props) {
               className="drag-grip"
               role="button"
               tabIndex={0}
-              aria-label={`${item.label} 순서 — 끌거나 위·아래 화살표`}
+              aria-label={`${item.label} 순서. 끌거나 위·아래 화살표`}
               aria-disabled={busy || undefined}
               title="잡고 끌어 옮깁니다 (위·아래 화살표도 됩니다)"
               ref={(el) => {

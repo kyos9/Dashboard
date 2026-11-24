@@ -42,7 +42,7 @@ export function PerChart({ rows, onOpen }: { rows: FundamentalsResponse[]; onOpe
         <span className="per-key-item"><i className="per-key-dot" aria-hidden="true" /> 현재</span>
         <span className="per-key-item"><i className="per-key-median" aria-hidden="true" /> 5년 중앙값</span>
         <span className="per-key-item"><i className="per-key-track" aria-hidden="true" /> 지난 5년 범위</span>
-        <span className="per-key-item">눈금은 배율(로그) — 두 배 차이는 어디서나 같은 간격</span>
+        <span className="per-key-item">눈금은 배율(로그). 두 배 차이는 어디서나 같은 간격</span>
       </p>
 
       <ul className="per-rows">
@@ -70,7 +70,7 @@ export function PerChart({ rows, onOpen }: { rows: FundamentalsResponse[]; onOpe
                 <span className="per-row-value mono">
                   {now === null ? '적자' : `${num(now, 1)}배`}
                   <span className="hint">
-                    {r?.position_pct != null ? ` · 5년 위치 ${num(r.position_pct, 0)}%` : r ? '' : ' · 5년 기록 없음'}
+                    {r?.position_pct != null ? `, 5년 위치 ${num(r.position_pct, 0)}%` : r ? '' : ', 5년 기록 없음'}
                   </span>
                 </span>
               </button>

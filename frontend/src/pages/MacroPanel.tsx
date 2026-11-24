@@ -140,7 +140,7 @@ function MacroRow({
             data-pin={series.code}
             onClick={onTogglePin}
             aria-pressed={pinned}
-            title={pinned ? '내 지표에서 빼기' : '내 지표로 — 목록 맨 위에 모입니다'}
+            title={pinned ? '내 지표에서 빼기' : '내 지표로. 목록 맨 위에 모입니다'}
             aria-label={`${series.name} 내 지표로`}
           >
             {pinned ? '★' : '☆'}

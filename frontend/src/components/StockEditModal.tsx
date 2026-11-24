@@ -256,14 +256,14 @@ export function StockEditModal({ stocks, holdings, cashTargetPct = 0, focus, onl
           <div className="stock-edit-foot">
             {failedLabels.length > 0 && (
               <p className="error-text" role="alert">
-                저장하지 못한 종목: {failedLabels.join(', ')} — 나머지는 저장했습니다.
+                저장하지 못한 종목: {failedLabels.join(', ')}. 나머지는 저장했습니다.
               </p>
             )}
             <ErrorNotice error={error} />
             {/* 오류가 있을 때는 늘 보이는 안내를 접는다 — 폰에서 아래 칸이 화면 절반을 덮었다 */}
             {failedLabels.length === 0 && !error && (
               <p className="hint">
-                수량을 비우면 0 — 관심 종목으로 내려갑니다. 평단가를 비우면 손익만 비고 비중은 그대로입니다. 밴드를
+                수량을 비우면 0. 관심 종목으로 내려갑니다. 평단가를 비우면 손익만 비고 비중은 그대로입니다. 밴드를
                 비우면 기본값을 씁니다.
               </p>
             )}
@@ -331,8 +331,8 @@ function StockFields({
           </span>
         )}
         <span className="hint">
-          {stock.ticker} · {MARKET_LABEL[stock.market]} · {stock.currency}
-          {!stock.active && ' · 비활성'}
+          {stock.ticker}, {MARKET_LABEL[stock.market]}, {stock.currency}
+          {!stock.active && ', 비활성'}
         </span>
       </legend>
       <div className="stock-edit-fields">

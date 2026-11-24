@@ -56,7 +56,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         // 사유가 같으면 한 번만 보여준다 (네트워크가 막히면 전 종목이 같은 이유로 실패한다)
         const hints = [...new Set(failed.map((f) => f.hint).filter(Boolean))]
         setRefreshError(
-          `${failed.length}개 종목 갱신 실패 (${failed.map((f) => f.ticker).join(', ')}) — ` +
+          `${failed.length}개 종목 갱신 실패 (${failed.map((f) => f.ticker).join(', ')}). ` +
             (hints.join(' ') || failed[0].error || '원인 불명'),
         )
       }

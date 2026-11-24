@@ -130,7 +130,7 @@ export function MacroChartModal({
               ? '불러오는 중…'
               : points.length === 0
                 ? '이 기간에 저장된 값이 없습니다'
-                : `${points.length.toLocaleString('ko-KR')}개 · ${points[0].as_of} ~ ${last.as_of}`}
+                : `${points.length.toLocaleString('ko-KR')}개, ${points[0].as_of} ~ ${last.as_of}`}
           </span>
           {!loading && last && history && (
             <span className="mono">최근 {macroValue(last.value, history.unit)}</span>

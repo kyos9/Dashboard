@@ -461,7 +461,7 @@ function RecordPanel({
           </div>
           <p className="kpi-foot">
             {review.override ? '직접 정한 날' : `${REVIEW_PERIOD_LABEL[review.period]} 마지막 거래일`}
-            {review.last_snapshot_at && ` · 마지막 기록 ${review.last_snapshot_at.slice(0, 10)}`}
+            {review.last_snapshot_at && `, 마지막 기록 ${review.last_snapshot_at.slice(0, 10)}`}
           </p>
         </div>
       </div>
@@ -612,8 +612,8 @@ function SnapshotList({
             </div>
             <div className="snapshot-foot">
               <span className="hint">
-                {snapshot.review_date && `리뷰 마감 ${snapshot.review_date} 기준 · `}
-                {pnl !== null && `평가손익 ${signedAmount(pnl, base)} · `}
+                {snapshot.review_date && `리뷰 마감 ${snapshot.review_date} 기준, `}
+                {pnl !== null && `평가손익 ${signedAmount(pnl, base)}, `}
                 {CURRENCY_META[base].label} 환산
               </span>
               <button className="sm danger" onClick={() => setDeleting(snapshot)}>
@@ -920,7 +920,7 @@ export function RebalancePanel() {
   const orderSaved = (row: Row) => (done?: { side: TradeSide; qty: number }) => {
     if (done)
       setTradeNote(
-        `${shortLabel(row)} ${done.qty.toLocaleString('ko-KR')}주 ${done.side === 'buy' ? '산' : '판'} 것을 반영했습니다 — 주문 가이드를 바뀐 보유로 다시 계산했습니다. 남은 주문이 줄거나 다른 종목의 사기·팔기가 바뀔 수 있습니다.${done.side === 'sell' ? ' 판 돈은 현금에 저절로 더해지지 않습니다 — "리밸런싱 설정"의 "현금"에 적으면 전체 자금에 들어갑니다.' : ''}`,
+        `${shortLabel(row)} ${done.qty.toLocaleString('ko-KR')}주 ${done.side === 'buy' ? '산' : '판'} 것을 반영했습니다. 주문 가이드를 바뀐 보유로 다시 계산했습니다. 남은 주문이 줄거나 다른 종목의 사기·팔기가 바뀔 수 있습니다.${done.side === 'sell' ? ' 판 돈은 현금에 저절로 더해지지 않습니다. "리밸런싱 설정"의 "현금"에 적으면 전체 자금에 들어갑니다.' : ''}`,
       )
     handleSaved()
   }
@@ -1080,7 +1080,7 @@ export function RebalancePanel() {
         {/* 계산에 쓴 금액을 칸 바로 아래에도 — 폰에서는 위의 반영 줄이 치는 동안 화면 밖이었다(0.45.2 A4). 읽기는 위 줄(status)만 */}
         {plan.newMoney > 0 && (
           <>
-            새로 넣을 돈 <b>{amount(plan.newMoney, baseCurrency)}</b> 반영 —{' '}
+            새로 넣을 돈 <b>{amount(plan.newMoney, baseCurrency)}</b> 반영.{' '}
           </>
         )}
         {buyOnly
@@ -1147,9 +1147,9 @@ export function RebalancePanel() {
         새로 넣을 돈 <b>{amount(plan.newMoney, baseCurrency)}</b>{' '}
         {plan.buyOnly
           ? `— 목표에 모자란 만큼에 비례해 나눴습니다${plan.leftover > 0.5 ? ` (남는 ${amount(plan.leftover, baseCurrency)}은 현금)` : ''}${
-              underOne > 0 ? ` · ${underOne}종목은 1주 미만이라 소수 주를 못 사면 그 몫이 현금에 남습니다` : ''
+              underOne > 0 ? `, ${underOne}종목은 1주 미만이라 소수 주를 못 사면 그 몫이 현금에 남습니다` : ''
             }`
-          : '반영 — 전체 자금으로 목표 비중을 다시 맞춘 주문입니다'}
+          : '반영. 전체 자금으로 목표 비중을 다시 맞춘 주문입니다'}
       </p>
     ) : null
 
@@ -1183,7 +1183,7 @@ export function RebalancePanel() {
         order.action === 'hold' ? '' : signedAmount(order.adjust, baseCurrency),
       ]
         .filter(Boolean)
-        .join(' · '),
+        .join(', '),
     }
   }
   // 큰 것부터 — 무엇을 먼저 할지 (목업 12c). 계산은 그대로, 보이는 순서만
@@ -1464,7 +1464,7 @@ export function RebalancePanel() {
         <div className="section-head">
           <h3 id="orders-title">주문 가이드</h3>
           <span className="hint">
-            주문 {orderCount} · 비중조절 신호 {signalled.length}종목 · {plan.buyOnly ? '나눈 몫이 새로 넣을 돈의' : '조정 금액이 전체의'}{' '}
+            주문 {orderCount}, 비중조절 신호 {signalled.length}종목, {plan.buyOnly ? '나눈 몫이 새로 넣을 돈의' : '조정 금액이 전체의'}{' '}
             {NOISE_THRESHOLD_PCT}% 미만이면 &ldquo;유지&rdquo;
           </span>
         </div>
@@ -1527,7 +1527,7 @@ export function RebalancePanel() {
                 >
                   <span>
                     유지 {holds.length}
-                    {plan.buyOnly && ' (팔지 않고 나누기라 줄일 종목도 여기)'} · {holds.map((o) => (rowByTicker.get(o.ticker) ? shortLabel(rowByTicker.get(o.ticker)!) : o.ticker)).join(' · ')}
+                    {plan.buyOnly && ' (팔지 않고 나누기라 줄일 종목도 여기)'}, {holds.map((o) => (rowByTicker.get(o.ticker) ? shortLabel(rowByTicker.get(o.ticker)!) : o.ticker)).join(', ')}
                   </span>
                   <Icon name="forward" size={18} className={`rb-line-go${holdOpen ? ' open' : ''}`} />
                 </button>
@@ -1644,8 +1644,8 @@ export function RebalancePanel() {
           onClose={() => setOpenTicker(null)}
           sub={
             <>
-              {openRow.stock?.category && <>구분 {openRow.stock.category} · </>}
-              {qty(openRow.current.quantity)}주 · {price(openRow.current.last_close, openRow.current.currency)}
+              {openRow.stock?.category && <>구분 {openRow.stock.category}, </>}
+              {qty(openRow.current.quantity)}주, {price(openRow.current.last_close, openRow.current.currency)}
             </>
           }
         >
@@ -1657,7 +1657,7 @@ export function RebalancePanel() {
                 openOrder.shares !== null &&
                 Math.abs(openOrder.shares) >= 1 &&
                 !Number.isInteger(Number(Math.abs(openOrder.shares).toFixed(2))) && (
-                  <small className="hint">계산으로는 {num(Math.abs(openOrder.shares), 2)}주 · 1주 단위로 내림</small>
+                  <small className="hint">계산으로는 {num(Math.abs(openOrder.shares), 2)}주, 1주 단위로 내림</small>
                 )}
             </b>
             <span>
@@ -1669,8 +1669,8 @@ export function RebalancePanel() {
           </div>
           <p className="order-sheet-say">
             {openOrder.action === 'hold'
-              ? `${shortLabel(openRow)} 유지 — 조정이 전체의 ${NOISE_THRESHOLD_PCT}% 미만입니다`
-              : `${orderTitle(shortLabel(openRow), openOrder)} — 지금 가격으로 목표에 맞추는 참고입니다`}
+              ? `${shortLabel(openRow)} 유지. 조정이 전체의 ${NOISE_THRESHOLD_PCT}% 미만입니다`
+              : `${orderTitle(shortLabel(openRow), openOrder)}. 지금 가격으로 목표에 맞추는 참고입니다`}
           </p>
           <dl className="order-sheet-kv">
             <div>
@@ -1679,7 +1679,7 @@ export function RebalancePanel() {
                 {num(weightNowOf(openRow), 1)}% → 목표 {num(openRow.current.target_weight_pct, 0)}%
                 <small>
                   밴드 ±{num(openRow.current.band_pct, 1)}%p{' '}
-                  {openRow.current.rebalance_signal.active ? '밖 — 리뷰 때 맞출 종목' : '안'}
+                  {openRow.current.rebalance_signal.active ? '밖. 리뷰 때 맞출 종목' : '안'}
                 </small>
               </dd>
             </div>
@@ -1695,7 +1695,7 @@ export function RebalancePanel() {
               <dd>
                 <SignalBadges current={openRow.current} />
                 {openRow.current.shoulder_signal_fired_in_period && (
-                  <small>참고 = 이번 리뷰 기간에 매도 시그널이 뜬 적 있음 · 주문 수량에는 영향이 없습니다</small>
+                  <small>참고 = 이번 리뷰 기간에 매도 시그널이 뜬 적 있음, 주문 수량에는 영향이 없습니다</small>
                 )}
               </dd>
             </div>
@@ -1725,7 +1725,7 @@ export function RebalancePanel() {
               onError={setError}
             />
           </div>
-          <p className="hint">수량 · 평단가는 종목 화면의 &ldquo;보유&rdquo; 탭에서 고칩니다.</p>
+          <p className="hint">수량, 평단가는 종목 화면의 &ldquo;보유&rdquo; 탭에서 고칩니다.</p>
         </Sheet>
       )}
 
@@ -1924,7 +1924,7 @@ export function RebalancePanel() {
                 </label>
                 <p className="kpi-foot">
                   {baseCurrency !== 'KRW'
-                    ? '기준통화가 원일 때만 켤 수 있습니다 — 달러·엔 기준이면 "산 환율"의 뜻이 종목마다 달라집니다.'
+                    ? '기준통화가 원일 때만 켤 수 있습니다. 달러·엔 기준이면 "산 환율"의 뜻이 종목마다 달라집니다.'
                     : '켜면 산 환율을 적은 외화 종목의 수익률·평가손익을 원화로 따집니다. 비중에는 영향이 없습니다.'}
                 </p>
               </>

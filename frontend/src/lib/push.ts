@@ -127,7 +127,7 @@ async function subscribeOrExplain(reg: ServiceWorkerRegistration, key: Uint8Arra
     const reason = typeof raw === 'string' && raw ? raw : String(err)
     throw new Error(
       '이 브라우저가 알림 등록을 거절했습니다. 시크릿 창이거나 브라우저 설정에서 푸시 알림이 꺼져 있을 수 ' +
-        `있습니다 — 일반 창의 크롬·사파리·엣지에서 다시 해 보세요. (${reason})`,
+        `있습니다. 일반 창의 크롬·사파리·엣지에서 다시 해 보세요. (${reason})`,
     )
   }
 }

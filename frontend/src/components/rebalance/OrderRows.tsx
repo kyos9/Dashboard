@@ -119,7 +119,7 @@ export function OrderSplit({
 }) {
   const both = sellTotal + buyTotal
   return (
-    <div className="order-split" role="group" aria-label="줄일 · 늘릴 합계">
+    <div className="order-split" role="group" aria-label="줄일, 늘릴 합계">
       <div className="order-split-k">
         <span>
           줄일 {sellCount}종목

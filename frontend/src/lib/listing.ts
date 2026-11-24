@@ -14,7 +14,7 @@ export function listingHint(listing: ListingStatus | null, canRefresh = true): s
   const kr =
     listing.cached_count > 0
       ? `국내는 거래소 목록 ${n(listing.cached_count)}종목(${day(listing.updated_at)} 받음)으로 찾습니다.`
-      : `국내는 아직 거래소 목록을 받지 못해 내장 목록 ${n(listing.seed_count)}종목(${listing.seed_as_of} 기준)으로만 찾습니다 — 중소형주는 목록이 있어야 나옵니다.`
+      : `국내는 아직 거래소 목록을 받지 못해 내장 목록 ${n(listing.seed_count)}종목(${listing.seed_as_of} 기준)으로만 찾습니다. 중소형주는 목록이 있어야 나옵니다.`
 
   const usCount = listing.us_count ?? 0
   let us = ''
@@ -39,7 +39,7 @@ export function listingRefreshNotice(result: ListingRefreshResult): {
   const n = (v: number) => v.toLocaleString('ko-KR')
   const us = result.us
   if (result.ok && (!us || us.ok)) {
-    const got = us ? `국내 ${n(result.count)}종목 · 미국 ${n(us.count)}종목을` : `국내 상장목록 ${n(result.count)}종목을`
+    const got = us ? `국내 ${n(result.count)}종목, 미국 ${n(us.count)}종목을` : `국내 상장목록 ${n(result.count)}종목을`
     return { tone: 'green', text: `${got} 받았습니다. 신규 상장·사명 변경이 검색에 반영됩니다.` }
   }
   const parts: string[] = []
@@ -53,7 +53,7 @@ export function listingRefreshNotice(result: ListingRefreshResult): {
   if (us?.ok) {
     parts.push(`미국 상장목록 ${n(us.count)}종목은 받았습니다.`)
   } else if (us) {
-    parts.push('미국 상장목록은 받지 못했습니다 — 미국 종목은 주요 종목과 티커로 찾습니다.')
+    parts.push('미국 상장목록은 받지 못했습니다. 미국 종목은 주요 종목과 티커로 찾습니다.')
     if (us.error) details.push(`미국: ${us.error}`)
   }
   return { tone: 'amber', text: parts.join(' '), detail: details.join('\n') || undefined }

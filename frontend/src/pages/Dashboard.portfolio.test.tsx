@@ -414,7 +414,7 @@ describe('보유 종목 표', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: '2종목 저장' }))
 
     expect(await within(dialog).findByText('평단가를 확인해 주세요.')).toBeInTheDocument()
-    expect(within(dialog).getByRole('alert')).toHaveTextContent('저장하지 못한 종목: SCHD — 나머지는 저장했습니다.')
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('저장하지 못한 종목: SCHD. 나머지는 저장했습니다.')
     expect(dialog.querySelector('fieldset[data-ticker="SCHD"]')).toHaveClass('failed')
     // NVDA 는 저장됐으니 더는 "고친 것"이 아니다 — 다시 누르면 SCHD 만 간다
     expect(within(dialog).getByRole('button', { name: '1종목 저장' })).toBeEnabled()

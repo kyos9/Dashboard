@@ -26,7 +26,7 @@ export function emptyReason(data: Pick<FundamentalsResponse, 'state' | 'message'
   if (data.state === null) return '아직 재무를 받지 않았습니다. 새벽 작업이 받아오면 여기에 보입니다.'
   if (data.state === 'none') return data.message ?? '재무제표가 없는 종목입니다.'
   if (data.state === 'unsupported') return data.message ?? '아직 이 종목의 재무를 읽지 못합니다.'
-  return `재무를 받지 못했습니다${data.message ? ` — ${data.message}` : ''}. 다음 날 다시 시도합니다.`
+  return `재무를 받지 못했습니다${data.message ? `. ${data.message}` : ''}. 다음 날 다시 시도합니다.`
 }
 
 /** 큰 금액 — 달러는 B·M, 원·엔은 조·억. 분기 매출 같은 숫자를 자릿수 세지 않고 읽게. */
@@ -87,7 +87,7 @@ export const METRIC_GROUPS: { title: string; short: string; items: MetricDef[] }
     ],
   },
   {
-    title: '안정성 · 현금',
+    title: '안정성, 현금',
     short: '안정',
     items: [
       { key: 'debt_ratio', label: '부채비율', help: '부채 ÷ 자본' },
@@ -133,7 +133,7 @@ export function metricBasisParts(metric: FundamentalMetric | undefined): string[
 }
 
 export function metricBasis(metric: FundamentalMetric | undefined): string {
-  return metricBasisParts(metric).join(' · ')
+  return metricBasisParts(metric).join(', ')
 }
 
 /**
@@ -223,12 +223,12 @@ export function perTooltip(row: FundamentalsResponse): string {
   const r = row.per_range
   const parts = [now === null ? '지금 PER 없음 (최근 1년 이익이 0 이하)' : `지금 ${num(now, 1)}배`]
   if (r) {
-    parts.push(`${quarterLabel(r.since)}부터 최저 ${num(r.min, 1)} · 중앙값 ${num(r.median, 1)} · 최고 ${num(r.max, 1)}`)
+    parts.push(`${quarterLabel(r.since)}부터 최저 ${num(r.min, 1)}, 중앙값 ${num(r.median, 1)}, 최고 ${num(r.max, 1)}`)
     if (r.position_pct !== null) parts.push(`지금 이하였던 날 ${num(r.position_pct, 0)}%`)
   } else {
     parts.push('5년 범위를 그릴 만큼 기록이 없습니다')
   }
-  return parts.join(' · ')
+  return parts.join(', ')
 }
 
 /** "2026-09-30" → "2026년 3분기" (결산 달이 든 달력 분기) */

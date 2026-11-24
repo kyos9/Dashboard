@@ -28,7 +28,7 @@ const FIELDS: { key: SignalThresholdKey; label: string; unit: string; help: stri
     label: '거래량비 기준',
     unit: '배',
     decimal: true,
-    help: "거래량비 = 최근 5일 평균 거래량 ÷ 20일 평균(5일·20일은 정해진 값으로, 아래 '비교 기간'과 다릅니다). 이 값보다 크면 '거래가 붙는다'로 봅니다. 매수 조건 '변동성·거래량'에 쓰입니다 — 변동성이 줄었으면 거래량비와 상관없이 ✓ 입니다.",
+    help: "거래량비 = 최근 5일 평균 거래량 ÷ 20일 평균(5일·20일은 정해진 값으로, 아래 '비교 기간'과 다릅니다). 이 값보다 크면 '거래가 붙는다'로 봅니다. 매수 조건 '변동성·거래량'에 쓰입니다. 변동성이 줄었으면 거래량비와 상관없이 ✓ 입니다.",
   },
   {
     key: 'disparity_below',
@@ -107,7 +107,7 @@ export function SignalThresholdsModal({
 
   const finish = (next: SignalRules) => {
     setSignalRules(next)
-    onSaved(next.custom ? '시그널 기준을 저장했습니다 — 내 기준으로 다시 그립니다' : '기본 기준으로 되돌렸습니다')
+    onSaved(next.custom ? '시그널 기준을 저장했습니다. 내 기준으로 다시 그립니다' : '기본 기준으로 되돌렸습니다')
     onClose()
   }
 

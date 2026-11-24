@@ -80,7 +80,7 @@ export function UsersModal({ onClose, onChanged, inline = false }: { onClose: ()
     } catch (e) {
       // 화면이 서버보다 새로우면(업데이트 중) 서버가 이 주소를 모른다 — 까닭(hint)이 없는 404/405 를 영어로 보이지 않는다
       const unknown = e instanceof ApiError && (e.status === 404 || e.status === 405) && !e.hint
-      setError(unknown ? new Error('서버가 아직 이 기능을 모릅니다 — 서버 업데이트가 끝난 뒤 다시 눌러 주세요.') : e)
+      setError(unknown ? new Error('서버가 아직 이 기능을 모릅니다. 서버 업데이트가 끝난 뒤 다시 눌러 주세요.') : e)
     } finally {
       setBusyId(null)
       setConfirmDelete(null)
@@ -120,7 +120,7 @@ export function UsersModal({ onClose, onChanged, inline = false }: { onClose: ()
                   <b>사용자에게 AI 포트폴리오 점검·종목 분석 열기</b>
                   <span className="hint">
                     {' '}
-                    — 각자 자기 키로, 자기 비중(%)만 AI 에게 갑니다. 끄면 사용자의 다음 요청부터 막히고, 종목 팝업의
+                   . 각자 자기 키로, 자기 비중(%)만 AI 에게 갑니다. 끄면 사용자의 다음 요청부터 막히고, 종목 팝업의
                     AI 분석은 공용 숫자만 보내는 정리로 돌아갑니다. 관리자는 늘 씁니다.
                   </span>
                 </span>
@@ -130,7 +130,7 @@ export function UsersModal({ onClose, onChanged, inline = false }: { onClose: ()
 
           <p className="hint users-intro">
             구글로 처음 들어온 사람은 승인 대기로 시작합니다. 승인하면 바로(다시 로그인하지 않아도) 자기 종목과
-            포트폴리오를 만들 수 있습니다. 거절·차단해도 기록은 남습니다. 계정과 기록을 없애려면 ‘지우기’를 누르세요 — 승인 대기·거절·차단된 계정에만 있고, 쓰는 중인 계정은 먼저 차단해야 지울 수 있습니다. 반년 넘게 안 들어온 사람(알림
+            포트폴리오를 만들 수 있습니다. 거절·차단해도 기록은 남습니다. 계정과 기록을 없애려면 ‘지우기’를 누르세요. 승인 대기·거절·차단된 계정에만 있고, 쓰는 중인 계정은 먼저 차단해야 지울 수 있습니다. 반년 넘게 안 들어온 사람(알림
             받는 기기도 없는)이 혼자 담은 종목은 매일 받지 않고, 다시 들어오면 밀린 시세를 받습니다.
           </p>
 
@@ -151,13 +151,13 @@ export function UsersModal({ onClose, onChanged, inline = false }: { onClose: ()
                           className="badge badge-grey"
                           title="반년 넘게 안 들어와서 이 사람만 담은 종목은 매일 받지 않습니다. 기록은 그대로이고, 다시 들어오면 밀린 시세를 받습니다."
                         >
-                          반년 미접속 · 수집 쉼
+                          반년 미접속, 수집 쉼
                         </span>
                       )}
                     </div>
                     {user.email && <span className="hint user-email">{user.email}</span>}
                     <span className="hint user-meta">
-                      가입 {whenLabel(user.created_at)} · 마지막 접속 {whenLabel(user.last_login_at)} · 종목{' '}
+                      가입 {whenLabel(user.created_at)}, 마지막 접속 {whenLabel(user.last_login_at)}, 종목{' '}
                       {user.stock_count}개
                     </span>
                   </div>

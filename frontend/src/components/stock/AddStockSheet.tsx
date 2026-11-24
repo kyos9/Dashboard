@@ -99,7 +99,7 @@ export function AddStockSheet({ title, sub, form, onChange, currency, currencySy
             <NumberInput id="new-weight" placeholder="0" value={form.targetWeight} onChange={(v) => onChange({ ...form, targetWeight: v })} />
             {/* 담자마자 "전부 파는 계산" 경고가 떠 놀랐다 — 넣기 전에 같은 말을 한 줄 (사용자 확인 헷갈린 말 4) */}
             {form.targetWeight === '' && form.quantity !== '' && Number(form.quantity) > 0 && (
-              <p className="hint add-sheet-warn">비워 두면 0% — 리밸런싱에서 이 종목을 전부 파는 계산이 됩니다.</p>
+              <p className="hint add-sheet-warn">비워 두면 0%. 리밸런싱에서 이 종목을 전부 파는 계산이 됩니다.</p>
             )}
           </div>
           <div className="add-sheet-two">
@@ -130,7 +130,7 @@ export function AddStockSheet({ title, sub, form, onChange, currency, currencySy
           </button>
         </form>
         <p className="hint add-sheet-hint">
-          목표 비중은 <b>현금을 포함한 전체 자금</b> 중 이 종목의 비중입니다. 이미 들고 있으면 수량·평단가도 적으세요 — 평단가(
+          목표 비중은 <b>현금을 포함한 전체 자금</b> 중 이 종목의 비중입니다. 이미 들고 있으면 수량·평단가도 적으세요. 평단가(
           {currencyLabel ? `${currencyLabel} 기준` : '그 종목을 거래하는 통화 기준'})는 손익에만 쓰이고 비중에는 영향이 없습니다. 둘 다
           나중에 종목 안의 "보유"에서 고칠 수 있습니다. 시세를 못 받아도 종목은 남고 나중에 다시 받습니다.
         </p>

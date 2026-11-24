@@ -36,15 +36,15 @@ function sizeText(bytes: number): string {
  */
 export function summarize(logs: LogsResponse | null, backupWarn = false, refreshWarn = false): string {
   const { head, tail } = summaryParts(logs, backupWarn, refreshWarn)
-  return [head, tail].filter(Boolean).join(' · ')
+  return [head, tail].filter(Boolean).join(', ')
 }
 
 /** 꼬리(백업)만 경고 모양으로 그리려고 둘로 나눈다 — 같은 작은 회색 글이라 눈에 띄지 않았다(0.45.2 B1) */
-const BACKUP_TAIL = '백업 확인 필요 — 아래 백업 칸'
-const REFRESH_TAIL = '시세 받기 막힘 — 아래 시세 받기 칸'
+const BACKUP_TAIL = '백업 확인 필요. 아래 백업 칸'
+const REFRESH_TAIL = '시세 받기 막힘. 아래 시세 받기 칸'
 
 function summaryParts(logs: LogsResponse | null, backupWarn: boolean, refreshWarn = false): { head: string; tail: string } {
-  const tail = [backupWarn ? BACKUP_TAIL : '', refreshWarn ? REFRESH_TAIL : ''].filter(Boolean).join(' · ')
+  const tail = [backupWarn ? BACKUP_TAIL : '', refreshWarn ? REFRESH_TAIL : ''].filter(Boolean).join(', ')
   if (!logs) return { head: '', tail }
   const bad = (logs.counts.ERROR ?? 0) + (logs.counts.CRITICAL ?? 0)
   const warn = logs.counts.WARNING ?? 0
@@ -52,7 +52,7 @@ function summaryParts(logs: LogsResponse | null, backupWarn: boolean, refreshWar
     ? '서버 로그: 아직 없음'
     : bad === 0 && warn === 0
       ? '서버 로그: 최근 경고·오류 없음'
-      : `서버 로그: 오류 ${bad}건 · 경고 ${warn}건`
+      : `서버 로그: 오류 ${bad}건, 경고 ${warn}건`
   return { head, tail }
 }
 
@@ -61,7 +61,7 @@ function SummaryLine({ logs, backupWarn, refreshWarn }: { logs: LogsResponse | n
   return (
     <span className="hint diag-summary">
       {head}
-      {head && tail && ' · '}
+      {head && tail && ', '}
       {tail && <b className="diag-warn">{tail}</b>}
     </span>
   )
@@ -99,7 +99,7 @@ function SlowRequests({ slow }: { slow: SlowRequestsResponse }) {
       <h4 id="diag-slow-title">
         느린 요청{' '}
         <span className="hint">
-          {secondsText(slow.threshold_ms)} 넘게 · 서버를 켠 {shortTime(slow.since)} 뒤로
+          {secondsText(slow.threshold_ms)} 넘게, 서버를 켠 {shortTime(slow.since)} 뒤로
         </span>
       </h4>
       {shown.length === 0 ? (
@@ -112,7 +112,7 @@ function SlowRequests({ slow }: { slow: SlowRequestsResponse }) {
                 {item.method} {item.route}
               </span>
               <span className="hint">
-                {item.count}번 · 가장 길게 {secondsText(item.max_ms)} · 최근 {secondsText(item.last_ms)}
+                {item.count}번, 가장 길게 {secondsText(item.max_ms)}, 최근 {secondsText(item.last_ms)}
                 {item.last_at ? ` (${shortTime(item.last_at)})` : ''}
               </span>
             </li>
@@ -140,15 +140,15 @@ function SignalRulesLine({ status }: { status: SignalRulesStatus }) {
       <h4 id="diag-rules-title">
         시그널 기준{' '}
         <span className="hint">
-          {status.changed_on ? `${status.changed_on}에 바뀜 · ` : ''}정의 지문 <span className="mono">{status.version}</span>
+          {status.changed_on ? `${status.changed_on}에 바뀜, ` : ''}정의 지문 <span className="mono">{status.version}</span>
         </span>
       </h4>
-      {!status.up_to_date && <p className="hint">지난 판정을 아직 새 기준으로 다시 계산하지 않았습니다 — 다음에 켤 때 합니다.</p>}
+      {!status.up_to_date && <p className="hint">지난 판정을 아직 새 기준으로 다시 계산하지 않았습니다. 다음에 켤 때 합니다.</p>}
       {last ? (
         <p className="hint">
-          마지막 다시 계산 {shortTime(last.at, 'utc')} ({RECOMPUTE_REASON[last.reason] ?? last.reason}) — {last.tickers}종목 중{' '}
-          {last.changed_tickers}종목, 판정이 바뀐 날 {last.changed_rows}개 · {last.seconds}초
-          {last.failed.length > 0 && ` · 실패: ${last.failed.join(', ')}`}
+          마지막 다시 계산 {shortTime(last.at, 'utc')} ({RECOMPUTE_REASON[last.reason] ?? last.reason}). {last.tickers}종목 중{' '}
+          {last.changed_tickers}종목, 판정이 바뀐 날 {last.changed_rows}개, {last.seconds}초
+          {last.failed.length > 0 && `, 실패: ${last.failed.join(', ')}`}
         </p>
       ) : (
         <p className="hint">아직 다시 계산한 적이 없습니다.</p>
@@ -183,24 +183,24 @@ export function BackupLines({ backup, now }: { backup: BackupStatus; now: number
     <>
       <p className="hint">
         {backup.last_at
-          ? `백업: 마지막 ${when(backup.last_at)}${backup.last_size !== null ? ` · ${bytes(backup.last_size)}` : ''} · ${keptText(backup)}`
-          : '백업: 아직 없습니다 — 매일 하나씩 서버 안에 뜹니다.'}
+          ? `백업: 마지막 ${when(backup.last_at)}${backup.last_size !== null ? `, ${bytes(backup.last_size)}` : ''}, ${keptText(backup)}`
+          : '백업: 아직 없습니다. 매일 하나씩 서버 안에 뜹니다.'}
       </p>
       {backup.premigrate && backup.premigrate.count > 0 && backup.premigrate.last_at && (
         <p className="hint">
           {backup.premigrate.keep !== undefined
-            ? `업데이트 직전 백업 ${backup.premigrate.count}개(최대 ${backup.premigrate.keep}개, 7일 안) · 마지막 ${when(backup.premigrate.last_at)}`
-            : `업그레이드 직전 백업 ${backup.premigrate.count}개 · 마지막 ${when(backup.premigrate.last_at)} (위 개수에 들어 있습니다)`}
+            ? `업데이트 직전 백업 ${backup.premigrate.count}개(최대 ${backup.premigrate.keep}개, 7일 안), 마지막 ${when(backup.premigrate.last_at)}`
+            : `업그레이드 직전 백업 ${backup.premigrate.count}개, 마지막 ${when(backup.premigrate.last_at)} (위 개수에 들어 있습니다)`}
         </p>
       )}
       {stale && (
         <p className="hint diag-warn" role="note">
-          하루 넘게 새 백업이 없습니다 — 서버 로그를 보세요.
+          하루 넘게 새 백업이 없습니다. 서버 로그를 보세요.
         </p>
       )}
       {backup.last_failure && (
         <p className="hint diag-warn" role="note">
-          마지막 실패: {when(backup.last_failure.at)} — {backup.last_failure.reason}
+          마지막 실패: {when(backup.last_failure.at)}. {backup.last_failure.reason}
         </p>
       )}
       {backup.offsite && (
@@ -214,23 +214,23 @@ export function BackupLines({ backup, now }: { backup: BackupStatus; now: number
  * 몇 개 남겨 두나 — 0.46.0 부터 서버가 매일 백업과 업데이트 직전 백업을 따로 센다(`daily`). 옛 서버는 둘을 합친 수만 보낸다.
  */
 function keptText(backup: BackupStatus): string {
-  if (backup.daily) return `매일 백업 지금 ${backup.daily.count}개 · 최근 ${backup.daily.keep}개까지 남김`
+  if (backup.daily) return `매일 백업 지금 ${backup.daily.count}개, 최근 ${backup.daily.keep}개까지 남김`
   return `${backup.count}개 보관(최대 ${backup.keep}개)`
 }
 
 /** PC 사본 폴더에 대한 경고 (0.46.0 A4) — bat 이 꺼낼 때 알려 준다. 작업 스케줄러로 돌면 창이 안 보여서 여기 남긴다 */
 const OFFSITE_WARNING_TEXT: Record<string, string> = {
-  onedrive: 'PC 사본 폴더가 OneDrive 아래에 있습니다 — 사본이 클라우드로 올라갈 수 있습니다. PC 의 Dashboard 폴더에 있는 backup-pull.local.txt 에서 받는 폴더(DEST)를 OneDrive 밖으로 옮기세요.',
-  noacl: 'PC 사본 폴더를 나만 열게 하지 못했습니다 — USB·네트워크 드라이브일 수 있습니다. 받기는 그대로 됩니다.',
+  onedrive: 'PC 사본 폴더가 OneDrive 아래에 있습니다. 사본이 클라우드로 올라갈 수 있습니다. PC 의 Dashboard 폴더에 있는 backup-pull.local.txt 에서 받는 폴더(DEST)를 OneDrive 밖으로 옮기세요.',
+  noacl: 'PC 사본 폴더를 나만 열게 하지 못했습니다. USB·네트워크 드라이브일 수 있습니다. 받기는 그대로 됩니다.',
 }
 
 function OffsiteLine({ lastAt, staleDays, warnings }: { lastAt: string | null; staleDays: number | null; warnings: string[] }) {
   if (!lastAt) {
-    return <p className="hint">밖에 꺼낸 기록이 없습니다 — 서버가 사라지면 이 백업도 같이 사라집니다. 내 PC 로 가져오는 법은 PC 의 Dashboard 폴더 DEPLOY.md 10-0.</p>
+    return <p className="hint">밖에 꺼낸 기록이 없습니다. 서버가 사라지면 이 백업도 같이 사라집니다. 내 PC 로 가져오는 법은 PC 의 Dashboard 폴더 DEPLOY.md 10-0.</p>
   }
   return (
     <>
-      <p className="hint">밖에 꺼낸 것: 마지막 {when(lastAt)} (관리자 PC — 최근 4개까지 남김)</p>
+      <p className="hint">밖에 꺼낸 것: 마지막 {when(lastAt)} (관리자 PC, 최근 4개까지 남김)</p>
       {warnings
         .filter((w) => OFFSITE_WARNING_TEXT[w])
         .map((w) => (
@@ -240,7 +240,7 @@ function OffsiteLine({ lastAt, staleDays, warnings }: { lastAt: string | null; s
         ))}
       {staleDays !== null && (
         <p className="hint diag-warn" role="note">
-          {staleDays}일 동안 밖에 꺼내지 않았습니다 — PC 의 Dashboard 폴더에서 server-backup-pull.bat 을 실행하세요.
+          {staleDays}일 동안 밖에 꺼내지 않았습니다. PC 의 Dashboard 폴더에서 server-backup-pull.bat 을 실행하세요.
         </p>
       )}
     </>
@@ -268,14 +268,14 @@ export function RecordsLine({ status, now }: { status: RecordsStatus; now: numbe
   return (
     <section className="diag-slow" aria-labelledby="diag-records-title">
       {/* "기록"만으로는 아래 서버 로그와 헷갈렸다(A 사용자 확인) */}
-      <h4 id="diag-records-title">평가금액 기록 · 백업</h4>
+      <h4 id="diag-records-title">평가금액 기록, 백업</h4>
       <p className="hint">
         {!value.enabled
           ? '평가금액 기록: 꺼져 있습니다(SIGNAL_DASHBOARD_VALUE_RECORD).'
           : value.last_date
             ? // 사람 수·줄 수의 뜻을 같이 — "그날 2명"이 승인된 사람 수와 왜 다른지, "줄"이 무엇인지 (0.44.0 A 사용자 확인)
-              `평가금액 기록: 마지막 ${value.last_date} · 그날 ${value.users}명(보유·현금이 있는 사람만) · 지금까지 ${value.rows}줄(사람마다 하루 한 줄)`
-            : '평가금액 기록: 아직 없습니다 — 매일 아침 미국 시세를 받은 뒤 남깁니다.'}
+              `평가금액 기록: 마지막 ${value.last_date}, 그날 ${value.users}명(보유·현금이 있는 사람만), 지금까지 ${value.rows}줄(사람마다 하루 한 줄)`
+            : '평가금액 기록: 아직 없습니다. 매일 아침 미국 시세를 받은 뒤 남깁니다.'}
       </p>
       {status.backup && <BackupLines backup={status.backup} now={now} />}
     </section>
@@ -362,7 +362,7 @@ export function DiagnosticsModal({ onClose, inline = false }: { onClose: () => v
           {!loading && logs?.available && logs.entries.length === 0 && (
             <p className="hint">
               {level === 'warning'
-                ? '걸러낼 것이 없습니다 — 전체를 누르면 정상 기록까지 볼 수 있습니다.'
+                ? '걸러낼 것이 없습니다. 전체를 누르면 정상 기록까지 볼 수 있습니다.'
                 : '보여줄 기록이 없습니다.'}
             </p>
           )}
@@ -386,7 +386,7 @@ export function DiagnosticsModal({ onClose, inline = false }: { onClose: () => v
         <div className="diag-foot">
           <span className="hint mono">
             {logs?.available
-              ? `${logs.path} · ${sizeText(logs.size_bytes)}`
+              ? `${logs.path}, ${sizeText(logs.size_bytes)}`
               : ''}
           </span>
           {/* fetch로 받아 Blob을 만들 이유가 없다 — 브라우저가 직접 내려받게 둔다 */}

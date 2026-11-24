@@ -50,7 +50,7 @@ describe('종목 검색', () => {
     await user.type(screen.getByRole('combobox'), '삼성')
 
     expect(await screen.findByText('삼성전자')).toBeInTheDocument()
-    expect(screen.getByText(/005930\.KS · 코스피/)).toBeInTheDocument()
+    expect(screen.getByText(/005930\.KS, 코스피/)).toBeInTheDocument()
   })
 
   it('후보마다 출처를 밝힌다 — 내장 목록은 최신이 아닐 수 있으므로', async () => {
@@ -151,7 +151,7 @@ describe('고른 뒤', () => {
     setup([], SAMSUNG)
 
     expect(screen.getByText('삼성전자')).toBeInTheDocument()
-    expect(screen.getByText(/005930\.KS · 코스피/)).toBeInTheDocument()
+    expect(screen.getByText(/005930\.KS, 코스피/)).toBeInTheDocument()
     // 검색창 대신 확인용 표시로 바뀐다
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
   })

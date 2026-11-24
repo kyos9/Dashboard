@@ -243,7 +243,7 @@ describe('종목 등록', () => {
     await user.click(await screen.findByText('삼성전자'))
     await user.type(screen.getByLabelText('보유 수량'), '-3')
     expect(document.querySelector('[data-num-live]')).toHaveTextContent(
-      '보유 수량 — 빼기(−)는 넣을 수 없습니다 · 지금 값 3 · 보유 수량은 가진 전체 수량입니다(판 수량이 아닙니다)',
+      '보유 수량. 빼기(−)는 넣을 수 없습니다, 지금 값 3, 보유 수량은 가진 전체 수량입니다(판 수량이 아닙니다)',
     )
   })
 
@@ -616,7 +616,7 @@ describe('미국 상장목록 안내', () => {
   it('둘 다 받으면 초록, 한쪽만 실패하면 무엇이 됐고 무엇이 안 됐는지 따로', () => {
     expect(listingRefreshNotice({ ok: true, count: 2841, us: { ok: true, count: 9876 } })).toEqual({
       tone: 'green',
-      text: '국내 2,841종목 · 미국 9,876종목을 받았습니다. 신규 상장·사명 변경이 검색에 반영됩니다.',
+      text: '국내 2,841종목, 미국 9,876종목을 받았습니다. 신규 상장·사명 변경이 검색에 반영됩니다.',
     })
 
     const usFailed = listingRefreshNotice({ ok: true, count: 2841, us: { ok: false, count: 0, error: 'HTTP 403' } })
@@ -1048,7 +1048,7 @@ describe('종목 탭 · 줄 / 카드 (묶음 3 — 주인: 사용자가 골라 �
     await screen.findByRole('dialog', { name: 'VOO 추가' })
     expect(screen.queryByText(/비워 두면 0%/)).toBeNull()
     await user.type(screen.getByLabelText('보유 수량'), '3')
-    expect(screen.getByText(/비워 두면 0% — 리밸런싱에서 이 종목을 전부 파는 계산/)).toBeInTheDocument()
+    expect(screen.getByText(/비워 두면 0%. 리밸런싱에서 이 종목을 전부 파는 계산/)).toBeInTheDocument()
     await user.type(screen.getByLabelText('목표 비중 (%)'), '5')
     expect(screen.queryByText(/비워 두면 0%/)).toBeNull()
   })
