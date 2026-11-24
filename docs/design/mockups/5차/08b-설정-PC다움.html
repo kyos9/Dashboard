@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="ko" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>5차 설정 다시</title>
+<!--
+  디자인 5차 목업 08b — 설정이 "너무 모바일용 같다"(주인). 모바일 티: 회색 묶음 머리가 낀 세로 목록, 줄마다 ›,
+  좁은 한 줄 칸, 상자 안 상자. 셋 다 PC 설정 화면에서 흔한 꼴로:
+  가 위 탭 + 두 단 줄 — 탭(일반 · 알림 · AI · 관리 · 계정), 줄마다 왼쪽에 이름과 풀이, 오른쪽에 고치는 칸
+  나 한 장 + 왼쪽 목차 — 상자 없이 한 장에 다 펼치고, 왼쪽 얇은 글자 목차로 건너뛴다(누르면 그 자리로)
+  다 요약 타일 — 위는 지금 상태 타일 여섯(누르면 가운데 창), 아래는 자주 바꾸는 것만 바로
+  PC 1400 · 라이트 · 색과 글꼴은 앱 tokens.css.
+-->
+<link rel="stylesheet" href="../../../../frontend/src/styles/tokens.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:#5f646b}
+body{font-family:var(--font-sans);word-break:keep-all;padding:28px 20px 40px;color:#fff;font-size:14px}
+.part{max-width:1400px;margin:0 auto 14px;font-size:22px;font-weight:700}
+.part small{display:block;font-size:14px;font-weight:400;opacity:.9;margin-top:6px;line-height:1.55}
+.cap{max-width:1400px;margin:34px auto 10px;font-size:17px;font-weight:700}
+.cap small{font-size:13px;font-weight:400;opacity:.88;margin-left:8px}
+.frame{width:1400px;margin:0 auto;background:var(--bg);color:var(--text);border-radius:10px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.dim{color:var(--text-dim)}.faint{color:var(--text-faint)}
+.nav{height:60px;display:flex;align-items:center;gap:6px;padding:0 32px;background:var(--panel);border-bottom:1px solid var(--border)}
+.logo{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:700;margin-right:28px}
+.logo i{width:30px;height:30px;border-radius:8px;background:var(--brand);color:var(--on-brand);display:grid;place-items:center;font-style:normal;font-size:15px;font-weight:800}
+.nav a{height:60px;display:inline-flex;align-items:center;padding:0 14px;font-size:15px;font-weight:600;color:var(--text-dim)}
+.nav .r{margin-left:auto;display:flex;gap:10px;align-items:center;font-size:13px}
+.nav .gear{width:36px;height:36px;border:1px solid var(--accent);border-radius:8px;display:grid;place-items:center;color:var(--accent)}
+.page{padding:24px 32px 36px}
+h2{font-size:22px}
+.btn{height:34px;padding:0 14px;border:1px solid var(--border);border-radius:8px;background:var(--panel);font-size:13px;font-weight:600;color:var(--text);display:inline-flex;align-items:center;white-space:nowrap}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn.red{color:#b91c1c;border-color:#fca5a5}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;height:34px;background:var(--panel)}
+.seg span{padding:0 14px;display:grid;place-items:center;font-size:13px;font-weight:600;color:var(--text-dim);border-left:1px solid var(--border)}
+.seg span:first-child{border-left:0}
+.seg span.on{background:var(--accent);color:var(--on-accent)}
+.in{height:34px;border:1px solid var(--border);border-radius:8px;padding:0 10px;font-size:14px;color:var(--text);display:inline-flex;align-items:center;background:var(--panel);min-width:240px}
+.in.ph{color:var(--text-faint)}
+.tog{width:36px;height:20px;border-radius:999px;background:#cbd5e1;position:relative;flex:0 0 36px}
+.tog::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff}
+.tog.on{background:var(--accent)}.tog.on::after{left:18px}
+.badge{font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;background:var(--panel-soft);color:var(--text-dim);border:1px solid var(--border)}
+.badge.amber{background:#fef3c7;border-color:#fcd34d;color:#92400e}
+.badge.green{background:#dcfce7;border-color:#86efac;color:#166534}
+.warn{background:#fef3c7;border:1px solid #fcd34d;color:#92400e;border-radius:8px;padding:9px 12px;font-size:13px}
+.up{color:#15803d;font-weight:700}.down{color:#b91c1c;font-weight:700}
+/* 두 단 줄 (가 · 나 공통) */
+.form{background:var(--panel);border:1px solid var(--border);border-radius:12px}
+.fr{display:grid;grid-template-columns:320px 1fr;gap:32px;padding:18px 24px;border-top:1px solid var(--border);align-items:start}
+.fr:first-child{border-top:0}
+.fr .l b{font-size:14px;display:block}
+.fr .l p{font-size:12.5px;color:var(--text-faint);margin-top:3px;line-height:1.55}
+.fr .c{display:flex;flex-direction:column;gap:10px;align-items:flex-start}
+.fr .c .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.trow{display:flex;justify-content:space-between;align-items:center;gap:16px;width:100%;max-width:520px;padding:4px 0}
+.trow small{display:block;font-size:12px;color:var(--text-faint)}
+/* 가 */
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin:16px 0 18px}
+.tabs > span{padding:10px 16px;font-size:14px;font-weight:600;color:var(--text-dim);border-bottom:2px solid transparent;margin-bottom:-1px;display:flex;gap:6px;align-items:center}
+.tabs > span.on{color:var(--accent);border-bottom-color:var(--accent)}
+.headrow{display:flex;justify-content:space-between;align-items:center}
+.who{display:flex;gap:10px;align-items:center;font-size:13px}
+.who .av{width:30px;height:30px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-weight:800}
+/* 나 */
+.two{display:grid;grid-template-columns:200px 1fr;gap:36px;align-items:start}
+.toc{position:sticky;top:0;display:flex;flex-direction:column;gap:2px;padding-top:4px}
+.toc a{font-size:14px;color:var(--text-dim);padding:6px 10px;border-radius:6px}
+.toc a.on{color:var(--accent);background:var(--accent-soft);font-weight:700}
+.toc .sep{height:1px;background:var(--border);margin:8px 0}
+.sh{font-size:17px;font-weight:700;margin:26px 0 10px;display:flex;align-items:baseline;gap:10px}
+.sh:first-child{margin-top:0}
+.sh small{font-size:12px;font-weight:400;color:var(--text-faint)}
+/* 다 */
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:16px 0 22px}
+.tile{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:6px;min-height:118px}
+.tile .t{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--text-dim);font-weight:600}
+.tile .v{font-size:19px;font-weight:800}
+.tile .s{font-size:12px;color:var(--text-faint);margin-top:auto}
+.tile.att{border-color:#fcd34d;box-shadow:inset 0 3px 0 #f59e0b}
+.mini{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.mini .form .fr{grid-template-columns:150px 1fr;gap:18px}
+</style>
+</head>
+<body>
+
+<div class="part">설정 PC — 다시 셋 (08 은 "너무 모바일용 같다")
+<small>모바일 티였던 것: 회색 묶음 머리가 낀 세로 목록, 줄마다 ›, 좁은 칸, 고르면 그 내용만 하나씩.<br>
+셋 다 PC 설정에서 흔한 꼴로 — <b>이름과 풀이는 왼쪽, 고치는 칸은 오른쪽</b>인 두 단 줄, 체크 대신 켬/끔 스위치, 화살표 없음.</small></div>
+
+<!-- ───────── 가 ───────── -->
+<div class="cap">가 위 탭 + 두 단 줄 <small>탭 다섯(일반 · 알림 · AI · 관리 · 계정). 탭마다 넓은 두 단 줄. 서버 상태 · 사용자는 관리 탭 안에 그대로 넓게</small></div>
+<div class="frame">
+  <div class="nav"><div class="logo"><i>₩</i>자산관리</div><a>홈</a><a>재무</a><a>리밸런싱</a><a>매크로</a><div class="r"><span class="dim">● 방금 받음</span><span class="gear">⚙</span></div></div>
+  <div class="page">
+    <div class="headrow"><h2>설정</h2><div class="who"><span class="av">o</span><span><b>owner</b> <span class="faint">owner@example.com</span></span><span class="badge">관리자</span></div></div>
+    <div class="tabs"><span class="on">일반</span><span>알림</span><span>AI</span><span>관리 <span class="badge amber">대기 1</span></span><span>계정</span></div>
+    <div class="form">
+      <div class="fr"><div class="l"><b>테마</b><p>이 기기에만 적용됩니다. 기기 설정이면 기기를 따라 밝게, 어둡게 바뀝니다.</p></div>
+        <div class="c"><span class="seg"><span class="on">기기 설정</span><span>밝게</span><span>어둡게</span></span></div></div>
+      <div class="fr"><div class="l"><b>상승 색</b><p>가격, 수익률, 평가손익에 씁니다. 시그널은 모양(▲ ▼ ◆)이 같이 붙습니다.</p></div>
+        <div class="c"><div class="row"><span class="seg"><span class="on">초록</span><span>빨강</span></span><span class="up">+2.40%</span><span class="down">−1.15%</span></div></div></div>
+      <div class="fr"><div class="l"><b>앱 설치</b><p>홈 화면이나 작업 표시줄에 앱으로 둡니다.</p></div>
+        <div class="c"><span class="btn">설치</span></div></div>
+      <div class="fr"><div class="l"><b>정보</b><p>v0.47.0 (11월 24일 빌드)</p></div>
+        <div class="c"><div class="row"><span class="btn">개인정보처리방침과 이용약관</span><span class="btn">만든 이와 글꼴</span></div></div></div>
+    </div>
+  </div>
+</div>
+<div class="cap" style="margin-top:18px"><small style="margin-left:0">가 · 알림 탭</small></div>
+<div class="frame">
+  <div class="page">
+    <div class="tabs" style="margin-top:0"><span>일반</span><span class="on">알림</span><span>AI</span><span>관리 <span class="badge amber">대기 1</span></span><span>계정</span></div>
+    <div class="warn" style="margin-bottom:14px">이 사이트의 알림이 막혀 있습니다. 브라우저 사이트 설정에서 알림을 "허용"으로 바꿔 주세요.</div>
+    <div class="form">
+      <div class="fr"><div class="l"><b>받을 알림</b><p>이 기기로 받습니다. 알림을 켜 둔 기기 1대.</p></div>
+        <div class="c">
+          <div class="trow"><span>매수 시그널<small>담은 종목에 새로 떴을 때</small></span><span class="tog on"></span></div>
+          <div class="trow"><span>비중조절<small>목표 비중에서 밴드만큼 벗어났을 때</small></span><span class="tog on"></span></div>
+          <div class="trow"><span>포트폴리오 리뷰<small>리뷰할 날이 됐을 때</small></span><span class="tog on"></span></div>
+          <div class="trow"><span>가입 신청<small>누가 가입을 신청했을 때 (관리자)</small></span><span class="tog on"></span></div>
+        </div></div>
+      <div class="fr"><div class="l"><b>받을 때</b><p>장 마감 뒤 시세를 받은 다음. 하나는 켜 두어야 합니다.</p></div>
+        <div class="c">
+          <div class="trow"><span>아침 7:30<small>밤사이 미국 장을 받은 뒤</small></span><span class="tog"></span></div>
+          <div class="trow"><span>오후 4시<small>한국, 일본 장을 받은 뒤</small></span><span class="tog on"></span></div>
+        </div></div>
+      <div class="fr"><div class="l"><b>종목별 알림</b><p>고른 종목은 알림을 보내지 않습니다.</p></div>
+        <div class="c"><div class="row"><span class="dim">1종목 끔</span><span class="btn">종목 고르기</span></div></div></div>
+      <div class="fr"><div class="l"><b>시험 알림</b><p>이 기기로 하나 보내 봅니다.</p></div>
+        <div class="c"><span class="btn">보내기</span></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ───────── 나 ───────── -->
+<div class="cap">나 한 장 + 왼쪽 목차 <small>상자 하나 없이 다 펼친다. 왼쪽 글자 목차는 누르면 그 자리로 내려가고, 내려가면 지금 자리가 칠해진다</small></div>
+<div class="frame">
+  <div class="nav"><div class="logo"><i>₩</i>자산관리</div><a>홈</a><a>재무</a><a>리밸런싱</a><a>매크로</a><div class="r"><span class="dim">● 방금 받음</span><span class="gear">⚙</span></div></div>
+  <div class="page">
+    <h2 style="margin-bottom:18px">설정</h2>
+    <div class="two">
+      <nav class="toc"><a class="on">화면</a><a>알림</a><a>AI 키</a><div class="sep"></div><a>서버 상태 <span class="badge amber">!</span></a><a>사용자 <span class="badge amber">1</span></a><div class="sep"></div><a>계정</a><a>정보</a></nav>
+      <div>
+        <div class="sh">화면 <small>이 기기에만</small></div>
+        <div class="form">
+          <div class="fr"><div class="l"><b>테마</b><p>기기 설정이면 기기를 따라 바뀝니다.</p></div><div class="c"><span class="seg"><span class="on">기기 설정</span><span>밝게</span><span>어둡게</span></span></div></div>
+          <div class="fr"><div class="l"><b>상승 색</b><p>시그널은 모양(▲ ▼ ◆)이 같이 붙습니다.</p></div><div class="c"><div class="row"><span class="seg"><span class="on">초록</span><span>빨강</span></span><span class="up">+2.40%</span><span class="down">−1.15%</span></div></div></div>
+        </div>
+        <div class="sh">알림 <small>이 기기로 받는 것</small></div>
+        <div class="form">
+          <div class="fr"><div class="l"><b>받을 알림</b><p>알림이 막혀 있습니다. 브라우저에서 "허용"으로 바꿔 주세요.</p></div>
+            <div class="c">
+              <div class="trow"><span>매수 시그널</span><span class="tog on"></span></div>
+              <div class="trow"><span>비중조절</span><span class="tog on"></span></div>
+              <div class="trow"><span>포트폴리오 리뷰</span><span class="tog on"></span></div>
+              <div class="trow"><span>가입 신청 (관리자)</span><span class="tog on"></span></div></div></div>
+          <div class="fr"><div class="l"><b>받을 때</b><p>하나는 켜 두어야 합니다.</p></div>
+            <div class="c"><div class="trow"><span>아침 7:30</span><span class="tog"></span></div><div class="trow"><span>오후 4시</span><span class="tog on"></span></div></div></div>
+        </div>
+        <div class="sh">AI 키</div>
+        <div class="form">
+          <div class="fr"><div class="l"><b>AI 회사와 키</b><p>키는 이 기기의 브라우저에만 저장됩니다. 서버는 저장하지 않습니다.</p></div>
+            <div class="c"><div class="row"><span class="in">Claude (Anthropic) ▾</span><span class="in ph">sk-ant-…</span></div><div class="row"><span class="btn">키 확인</span><span class="btn pri">저장</span></div></div></div>
+        </div>
+        <div class="sh">서버 상태 <small>관리자만</small></div>
+        <div class="form"><div class="fr"><div class="l"><b>요약</b><p>오류 0건, 경고 1건</p></div><div class="c"><span class="dim">일본 시세 받기 막힘. 11월 22일 이후 2종목 실패.</span><span class="btn">자세히</span></div></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ───────── 다 ───────── -->
+<div class="cap">다 요약 타일 <small>위 타일 여섯은 지금 상태 한눈에(누르면 가운데 창에서 자세히), 아래는 자주 바꾸는 것만 바로 고친다</small></div>
+<div class="frame">
+  <div class="nav"><div class="logo"><i>₩</i>자산관리</div><a>홈</a><a>재무</a><a>리밸런싱</a><a>매크로</a><div class="r"><span class="dim">● 방금 받음</span><span class="gear">⚙</span></div></div>
+  <div class="page">
+    <div class="headrow"><h2>설정</h2><div class="who"><span class="av">o</span><span><b>owner</b> <span class="faint">owner@example.com</span></span><span class="badge">관리자</span><span class="btn">나가기</span></div></div>
+    <div class="tiles">
+      <div class="tile"><div class="t">알림 <span class="badge amber">막힘</span></div><div class="v">4종류 켬</div><div class="s">오후 4시, 1종목 끔</div></div>
+      <div class="tile"><div class="t">AI 키 <span class="badge green">저장됨</span></div><div class="v">Claude</div><div class="s">이 기기에 기억</div></div>
+      <div class="tile att"><div class="t">서버 상태 <span class="badge amber">경고 1</span></div><div class="v">일본 시세 막힘</div><div class="s">11월 24일 02:29 확인</div></div>
+      <div class="tile att"><div class="t">사용자 <span class="badge amber">대기 1</span></div><div class="v">4명</div><div class="s">가입 신청 1건이 기다립니다</div></div>
+      <div class="tile"><div class="t">백업</div><div class="v">11월 24일 02:29</div><div class="s">매일, 최근 7개 남김</div></div>
+      <div class="tile"><div class="t">정보</div><div class="v">v0.47.0</div><div class="s">약관, 만든 이와 글꼴</div></div>
+    </div>
+    <div class="mini">
+      <div class="form">
+        <div class="fr"><div class="l"><b>테마</b></div><div class="c"><span class="seg"><span class="on">기기 설정</span><span>밝게</span><span>어둡게</span></span></div></div>
+        <div class="fr"><div class="l"><b>상승 색</b></div><div class="c"><div class="row"><span class="seg"><span class="on">초록</span><span>빨강</span></span><span class="up">+2.40%</span></div></div></div>
+      </div>
+      <div class="form">
+        <div class="fr"><div class="l"><b>받을 알림</b></div><div class="c"><div class="trow"><span>매수 시그널</span><span class="tog on"></span></div><div class="trow"><span>비중조절</span><span class="tog on"></span></div><div class="trow"><span>포트폴리오 리뷰</span><span class="tog on"></span></div></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
