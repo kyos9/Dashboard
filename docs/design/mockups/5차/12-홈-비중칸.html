@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ko" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>5차 홈 비중 칸</title>
+<!--
+  디자인 5차 목업 12: 홈 보유 표의 "비중" 칸 (주인: 종목 안 비중 막대 둘을 여기에도 쓸 수 있나).
+  지금은 "33.9%" 아래 "목표 6%" 글자. 같은 네 종목으로 넷. 막대 자는 표 전체가 같다(가장 큰 값 기준) — 종목끼리 견줄 수 있게.
+-->
+<link rel="stylesheet" href="../../../../frontend/src/styles/tokens.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:#5f646b}
+body{font-family:var(--font-sans);word-break:keep-all;padding:28px 20px 40px;color:#fff;font-size:14px}
+.part{max-width:1400px;margin:0 auto 14px;font-size:22px;font-weight:700}
+.part small{display:block;font-size:14px;font-weight:400;opacity:.9;margin-top:6px;line-height:1.55}
+.cap{max-width:1400px;margin:34px auto 10px;font-size:17px;font-weight:700}
+.cap small{font-size:13px;font-weight:400;opacity:.88;margin-left:8px}
+.frame{width:1400px;min-height:860px;margin:0 auto;background:var(--bg);color:var(--text);border-radius:10px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.dim{color:var(--text-dim)}.faint{color:var(--text-faint)}
+.nav{height:60px;display:flex;align-items:center;gap:6px;padding:0 32px;background:var(--panel);border-bottom:1px solid var(--border)}
+.logo{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:700;margin-right:28px}
+.logo i{width:30px;height:30px;border-radius:8px;background:var(--brand);color:var(--on-brand);display:grid;place-items:center;font-style:normal;font-size:15px;font-weight:800}
+.nav a{height:60px;display:inline-flex;align-items:center;padding:0 14px;font-size:15px;font-weight:600;color:var(--text-dim);border-bottom:3px solid transparent}
+.nav a.on{color:var(--accent);border-bottom-color:var(--accent)}
+.nav .r{margin-left:auto}
+.btn{height:36px;padding:0 16px;border:1px solid var(--border);border-radius:8px;background:var(--panel);font-size:13px;font-weight:600;color:var(--text);display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn.big{height:44px;font-size:14px;padding:0 22px}
+.g{width:18px;height:18px;border-radius:50%;background:#fff;display:inline-grid;place-items:center;font-size:12px;font-weight:800;color:#4285f4}
+.page{padding:24px 32px 32px}
+.box{background:var(--panel);border:1px solid var(--border);border-radius:12px}
+.hint{font-size:12px;color:var(--text-faint);line-height:1.55}
+.up{color:#15803d}.down{color:#b91c1c}
+h2{font-size:20px}
+.sec-h{display:flex;align-items:baseline;justify-content:space-between;margin:0 0 10px}
+.sec-h h3{font-size:16px}
+.sec-h a{font-size:13px;color:var(--accent);font-weight:600}
+
+
+
+.frame{width:1100px;min-height:0;padding:0;margin:0 auto}
+table{width:100%;border-collapse:collapse;font-size:14px;background:var(--panel)}
+th{font-size:12px;color:var(--text-faint);font-weight:600;padding:12px 16px;border-bottom:1px solid var(--border);text-align:center;background:var(--panel-soft)}
+td{padding:12px 16px;border-bottom:1px solid var(--border);text-align:center}
+th:first-child,td:first-child{text-align:left}
+td small{display:block;font-size:12px;color:var(--text-dim);font-weight:500}
+.w{width:240px}
+.bars{display:grid;grid-template-columns:28px 1fr 46px;gap:4px 8px;align-items:center;font-size:12px}
+.bars .l{color:var(--text-faint);text-align:left}.bars b{text-align:right}
+.tr{height:8px;border-radius:99px;background:var(--panel-soft);position:relative;overflow:hidden}
+.tr i{position:absolute;left:0;top:0;bottom:0;border-radius:99px}
+.one{display:flex;align-items:center;gap:10px}
+.one .tr{flex:1;height:10px;overflow:visible}
+.one .tr u{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--text);margin-left:-1px}
+.acc{color:var(--accent)}
+.bd{font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;background:var(--accent-soft);color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="part">홈 보유 표의 비중 칸 넷
+<small>같은 네 종목. 막대 자는 표 전체에서 하나(가장 큰 값 기준)라 종목끼리 길이를 견줄 수 있다. 다른 열은 지금 그대로.</small></div>
+<div class="cap">가 지금 <small>숫자 아래 "목표 n%"</small></div><div class="frame" id="f1"></div>
+<div class="cap">나 막대 둘 <small>종목 안 비중 카드와 같은 모양을 작게. 현재 파랑, 목표 회색</small></div><div class="frame" id="f2"></div>
+<div class="cap">다 막대 하나 + 목표 금 <small>현재 막대 위에 목표 자리를 세로 금으로. 한 줄이라 줄 높이가 그대로</small></div><div class="frame" id="f3"></div>
+<div class="cap">라 숫자 + 차이 <small>그래프 없이 "33.9% / 6%" 와 차이 +27.9%p</small></div><div class="frame" id="f4"></div>
+<script>
+const R=[['TIGER 미국필라델피아반도체나스닥','2,000주','₩87,298','+13.6%','₩174,596,000',33.9,6,true,'◆ 비중 초과'],['삼성전자','1,500주','₩45,293','-7.4%','₩67,939,500',13.2,10,false,'▲ 매수'],['삼성전자우','600주','₩107,984','+11.1%','₩64,790,400',12.6,4,true,'◆ 비중 초과'],['AAPL','30주','$1,439.64','+17.6%','₩59,825,680',11.6,5,true,'◆ 비중 초과']]
+const M=36
+const w=v=>`${v/M*100}%`
+const tone=c=>c.startsWith('-')?'color:#b91c1c':'color:#15803d'
+const table=cell=>`<table><tr><th>종목</th><th>현재가</th><th>수익률</th><th>평가금액</th><th class="w">비중</th><th>신호</th></tr>${R.map(r=>`<tr><td><b>${r[0]}</b><small>${r[1]}</small></td><td><b>${r[2]}</b></td><td style="${tone(r[3])}">${r[3]}</td><td><b>${r[4]}</b></td><td class="w">${cell(r)}</td><td><span class="bd">${r[8]}</span></td></tr>`).join('')}</table>`
+f1.innerHTML=table(r=>`<b>${r[5]}%</b><small>목표 ${r[6]}%</small>`)
+f2.innerHTML=table(r=>`<div class="bars"><span class="l">현재</span><span class="tr"><i style="width:${w(r[5])};background:var(--accent)"></i></span><b class="${r[7]?'acc':''}">${r[5]}%</b><span class="l">목표</span><span class="tr"><i style="width:${w(r[6])};background:var(--text-faint)"></i></span><b>${r[6]}%</b></div>`)
+f3.innerHTML=table(r=>`<div class="one"><span class="tr"><i style="width:${w(r[5])};background:${r[7]?'var(--accent)':'var(--text-faint)'}"></i><u style="left:${w(r[6])}"></u></span><b class="${r[7]?'acc':''}" style="width:46px;text-align:right">${r[5]}%</b></div><small style="text-align:left;margin-top:4px">목표 ${r[6]}%</small>`)
+f4.innerHTML=table(r=>`<b>${r[5]}%</b> <span style="color:var(--text-faint)">/ ${r[6]}%</span><small class="${r[7]?'acc':''}" style="${r[7]?'color:var(--accent)':''}">차이 ${(r[5]-r[6]>0?'+':'')+(r[5]-r[6]).toFixed(1)}%p</small>`)
+</script>
+</body>
+</html>
