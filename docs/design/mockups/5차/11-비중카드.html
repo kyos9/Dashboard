@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ko" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>5차 비중 카드</title>
+<!--
+  디자인 5차 목업 11: 종목 안 오른쪽 "비중" 카드 (주인: 비중 그래프 다른 거 없으려나).
+  같은 숫자(AAPL 현재 11.6%, 목표 5.0%, 밴드 ±5%p, 비중 초과)로 여섯.
+-->
+<link rel="stylesheet" href="../../../../frontend/src/styles/tokens.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:#5f646b}
+body{font-family:var(--font-sans);word-break:keep-all;padding:28px 20px 40px;color:#fff;font-size:14px}
+.part{max-width:1400px;margin:0 auto 14px;font-size:22px;font-weight:700}
+.part small{display:block;font-size:14px;font-weight:400;opacity:.9;margin-top:6px;line-height:1.55}
+.cap{max-width:1400px;margin:34px auto 10px;font-size:17px;font-weight:700}
+.cap small{font-size:13px;font-weight:400;opacity:.88;margin-left:8px}
+.frame{width:1400px;min-height:860px;margin:0 auto;background:var(--bg);color:var(--text);border-radius:10px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.dim{color:var(--text-dim)}.faint{color:var(--text-faint)}
+.nav{height:60px;display:flex;align-items:center;gap:6px;padding:0 32px;background:var(--panel);border-bottom:1px solid var(--border)}
+.logo{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:700;margin-right:28px}
+.logo i{width:30px;height:30px;border-radius:8px;background:var(--brand);color:var(--on-brand);display:grid;place-items:center;font-style:normal;font-size:15px;font-weight:800}
+.nav a{height:60px;display:inline-flex;align-items:center;padding:0 14px;font-size:15px;font-weight:600;color:var(--text-dim);border-bottom:3px solid transparent}
+.nav a.on{color:var(--accent);border-bottom-color:var(--accent)}
+.nav .r{margin-left:auto}
+.btn{height:36px;padding:0 16px;border:1px solid var(--border);border-radius:8px;background:var(--panel);font-size:13px;font-weight:600;color:var(--text);display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn.big{height:44px;font-size:14px;padding:0 22px}
+.g{width:18px;height:18px;border-radius:50%;background:#fff;display:inline-grid;place-items:center;font-size:12px;font-weight:800;color:#4285f4}
+.page{padding:24px 32px 32px}
+.box{background:var(--panel);border:1px solid var(--border);border-radius:12px}
+.hint{font-size:12px;color:var(--text-faint);line-height:1.55}
+.up{color:#15803d}.down{color:#b91c1c}
+h2{font-size:20px}
+.sec-h{display:flex;align-items:baseline;justify-content:space-between;margin:0 0 10px}
+.sec-h h3{font-size:16px}
+.sec-h a{font-size:13px;color:var(--accent);font-weight:600}
+
+
+.grid{max-width:1400px;margin:0 auto;display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
+.cell .cap{margin:0 0 8px}
+.frame{width:auto;min-height:0;padding:22px;background:var(--bg)}
+.card{width:340px;margin:0 auto;padding:16px 18px;background:var(--panel);border:1px solid var(--border);border-radius:12px}
+.card h3{font-size:15px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
+.bd{font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;background:var(--accent-soft);color:var(--accent)}
+.nums{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:12px}
+.nums .n{font-size:12px;color:var(--text-dim)}.nums .v{font-size:18px;font-weight:800;margin-top:2px}
+.acc{color:var(--accent)}
+.row{display:flex;align-items:center;gap:10px;font-size:13px;margin:8px 0}
+.row .l{width:34px;color:var(--text-dim)}
+.row .t{flex:1;height:12px;border-radius:99px;background:var(--panel-soft);position:relative;overflow:hidden}
+.row .t i{position:absolute;left:0;top:0;bottom:0;border-radius:99px}
+.row .v{width:46px;text-align:right;font-weight:700}
+.hint2{font-size:12px;color:var(--text-dim);margin-top:10px;line-height:1.55}
+</style>
+</head>
+<body>
+<div class="part">비중 카드 여섯
+<small>모두 같은 숫자: 현재 11.6%, 목표 5.0%, 밴드 ±5%p (허용 0 ~ 10%), 비중 초과. 카드 폭은 앱 오른쪽 칸과 같은 340px.</small></div>
+<div class="grid">
+<div class="cell"><div class="cap">가 지금 <small>숫자 셋 + 허용 폭 눈금</small></div><div class="frame" id="f1"></div></div>
+<div class="cell"><div class="cap">나 막대 둘 <small>같은 자로 현재와 목표</small></div><div class="frame" id="f2"></div></div>
+<div class="cell"><div class="cap">다 도넛 <small>바깥 현재, 안쪽 목표</small></div><div class="frame" id="f3"></div></div>
+<div class="cell"><div class="cap">라 전체 중 이 종목 <small>포트폴리오 100% 띠 위 조각</small></div><div class="frame" id="f4"></div></div>
+<div class="cell"><div class="cap">마 할 일 한 줄 <small>그래프 없이 숫자와 몇 주</small></div><div class="frame" id="f5"></div></div>
+<div class="cell"><div class="cap">바 온도계 <small>세로 대신 가로, 구간 색</small></div><div class="frame" id="f6"></div></div>
+</div>
+<script>
+const nums=`<div class="nums"><div><div class="n">현재</div><div class="v">11.6%</div></div><div><div class="n">목표</div><div class="v">5.0%</div></div><div><div class="n">차이</div><div class="v acc">+6.6%p</div></div></div>`
+const head=`<h3>비중<span class="bd">◆ 비중 초과</span></h3>`
+const S=14 // 자 끝 14%
+const p=v=>`${v/S*100}%`
+f1.innerHTML=`<div class="card">${head}${nums}<div style="position:relative;height:18px;margin:0 6px"><div style="position:absolute;left:0;right:0;top:8px;height:2px;background:var(--border)"></div><div style="position:absolute;top:4px;height:10px;left:0;width:${p(10)};background:var(--accent-soft);border-radius:4px"></div><div style="position:absolute;top:1px;left:${p(5)};width:2px;height:16px;background:var(--text-dim)"></div><div style="position:absolute;top:3px;left:${p(11.6)};margin-left:-6px;width:12px;height:12px;border-radius:50%;background:var(--accent)"></div></div><div class="hint2">허용 0.0 ~ 10.0%</div></div>`
+f2.innerHTML=`<div class="card">${head}<div class="row"><span class="l">현재</span><span class="t"><i style="width:${p(11.6)};background:var(--accent)"></i></span><span class="v acc">11.6%</span></div><div class="row"><span class="l">목표</span><span class="t"><i style="width:${p(5)};background:var(--text-faint)"></i></span><span class="v">5.0%</span></div><div class="hint2">목표보다 <b class="acc">6.6%p</b> 많습니다. 허용은 10.0%까지.</div></div>`
+const ring=(r,w,v,c)=>{const C=2*Math.PI*r;return `<circle r="${r}" cx="60" cy="60" fill="none" stroke="var(--panel-soft)" stroke-width="${w}"/><circle r="${r}" cx="60" cy="60" fill="none" stroke="${c}" stroke-width="${w}" stroke-dasharray="${C*v/100} ${C}" transform="rotate(-90 60 60)" stroke-linecap="round"/>`}
+f3.innerHTML=`<div class="card">${head}<div style="display:flex;align-items:center;gap:18px"><svg width="120" height="120">${ring(50,12,11.6,'var(--accent)')}${ring(33,10,5,'var(--text-faint)')}<text x="60" y="64" text-anchor="middle" font-size="16" font-weight="800" fill="var(--text)">11.6%</text></svg><div style="font-size:13px;line-height:2"><div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--accent);margin-right:6px"></span>현재 <b>11.6%</b></div><div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--text-faint);margin-right:6px"></span>목표 <b>5.0%</b></div><div class="acc" style="font-weight:700">차이 +6.6%p</div></div></div></div>`
+const segs=[['TIGER 필라델피아',33.9],['삼성전자',13.2],['삼성전자우',12.6],['AAPL',11.6],['NVDA',8.4],['나머지',20.3]]
+const tsegs=[['TIGER 필라델피아',6],['삼성전자',10],['삼성전자우',4],['AAPL',5],['NVDA',6],['나머지',69]]
+const bar=a=>`<div style="display:flex;height:16px;border-radius:4px;overflow:hidden;gap:1px">${a.map(x=>`<span style="width:${x[1]}%;background:${x[0]==='AAPL'?'var(--accent)':'var(--panel-soft)'}"></span>`).join('')}</div>`
+f4.innerHTML=`<div class="card">${head}<div class="n" style="font-size:12px;color:var(--text-dim);margin-bottom:4px">현재 <b style="color:var(--text)">11.6%</b></div>${bar(segs)}<div class="n" style="font-size:12px;color:var(--text-dim);margin:10px 0 4px">목표 <b style="color:var(--text)">5.0%</b></div>${bar(tsegs)}<div class="hint2">파란 조각이 AAPL. 회색은 다른 종목과 현금.</div></div>`
+f5.innerHTML=`<div class="card">${head}${nums}<div style="background:var(--accent-soft);border-radius:8px;padding:10px 12px;font-size:13px;line-height:1.6"><b>약 17주 매도</b>하면 목표 5.0%에 맞습니다.<br><span style="color:var(--text-dim)">허용 0 ~ 10%를 1.6%p 넘었습니다.</span></div></div>`
+const zones=`<div style="position:relative;height:14px;border-radius:99px;overflow:hidden;display:flex"><span style="width:${p(10)};background:#dcebdc"></span><span style="flex:1;background:#f6dede"></span></div>`
+f6.innerHTML=`<div class="card">${head}${nums}<div style="position:relative">${zones}<div style="position:absolute;top:-5px;left:${p(11.6)};margin-left:-2px;width:4px;height:24px;border-radius:2px;background:var(--text)"></div><div style="position:absolute;top:-3px;left:${p(5)};margin-left:-1px;width:2px;height:20px;background:var(--text-dim)"></div></div><div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-faint);margin-top:6px"><span>0%</span><span>허용 끝 10%</span><span>14%</span></div></div>`
+</script>
+</body>
+</html>
