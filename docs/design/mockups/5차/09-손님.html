@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="ko" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>5차 손님</title>
+<!--
+  디자인 5차 목업 09 — PC 손님(로그인 전) 첫 화면. 지금: 폰 화면 그대로 왼쪽 절반에 "오늘 매크로" 세 줄 + 로그인 글과 넓은 파란 단추,
+  오른쪽 절반은 비어 있음 · 위 메뉴에 손님은 못 쓰는 재무 · 리밸런싱이 그대로 · 오른쪽 위는 톱니뿐(로그인 단추 없음).
+  4차 15 ③ 에서 고른 "손님 첫 화면은 매크로 목록 먼저"를 지킨다.
+  가 두 단 — 왼쪽 소개와 로그인, 오른쪽 오늘 매크로
+  나 매크로 화면 + 위 로그인 띠 — 손님 첫 화면이 곧 PC 매크로(목록 + 차트), 맨 위 한 줄에 로그인
+  다 예시 미리보기 — 로그인하면 보이는 홈을 흐린 예시로 보여 주고 그 위에 로그인 상자
+  공통: 위 메뉴는 손님이 쓸 수 있는 것만(홈 · 매크로), 오른쪽 위는 "로그인" 글 단추.
+  PC 1400 · 라이트 · 색과 글꼴은 앱 tokens.css · 숫자는 가짜 서버와 같게.
+-->
+<link rel="stylesheet" href="../../../../frontend/src/styles/tokens.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:#5f646b}
+body{font-family:var(--font-sans);word-break:keep-all;padding:28px 20px 40px;color:#fff;font-size:14px}
+.part{max-width:1400px;margin:0 auto 14px;font-size:22px;font-weight:700}
+.part small{display:block;font-size:14px;font-weight:400;opacity:.9;margin-top:6px;line-height:1.55}
+.cap{max-width:1400px;margin:34px auto 10px;font-size:17px;font-weight:700}
+.cap small{font-size:13px;font-weight:400;opacity:.88;margin-left:8px}
+.frame{width:1400px;margin:0 auto;background:var(--bg);color:var(--text);border-radius:10px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.35);position:relative}
+.dim{color:var(--text-dim)}.faint{color:var(--text-faint)}
+.nav{height:60px;display:flex;align-items:center;gap:6px;padding:0 32px;background:var(--panel);border-bottom:1px solid var(--border)}
+.logo{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:700;margin-right:28px}
+.logo i{width:30px;height:30px;border-radius:8px;background:var(--brand);color:var(--on-brand);display:grid;place-items:center;font-style:normal;font-size:15px;font-weight:800}
+.nav a{height:60px;display:inline-flex;align-items:center;padding:0 14px;font-size:15px;font-weight:600;color:var(--text-dim);border-bottom:3px solid transparent}
+.nav a.on{color:var(--accent);border-bottom-color:var(--accent)}
+.nav .r{margin-left:auto}
+.btn{height:36px;padding:0 16px;border:1px solid var(--border);border-radius:8px;background:var(--panel);font-size:13px;font-weight:600;color:var(--text);display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn.big{height:46px;padding:0 22px;font-size:15px}
+.g{width:18px;height:18px;border-radius:50%;background:#fff;display:inline-grid;place-items:center;font-size:12px;font-weight:800;color:#4285f4}
+.page{padding:28px 32px 36px}
+.box{background:var(--panel);border:1px solid var(--border);border-radius:12px}
+.hint{font-size:12px;color:var(--text-faint);line-height:1.55}
+.up{color:#15803d}.down{color:#b91c1c}
+/* 가 */
+.two{display:grid;grid-template-columns:1fr 1fr;gap:28px;align-items:start}
+.intro{padding:36px 36px 30px}
+.intro h1{font-size:28px;line-height:1.35}
+.intro p.lead{font-size:15px;color:var(--text-dim);margin:10px 0 24px;line-height:1.6}
+.feat{display:grid;gap:14px;margin-bottom:26px}
+.feat div{display:grid;grid-template-columns:110px 1fr;gap:12px;font-size:14px}
+.feat b{color:var(--text)}
+.feat span{color:var(--text-dim)}
+.mlist .r{display:flex;justify-content:space-between;align-items:center;padding:13px 20px;border-top:1px solid var(--border)}
+.mlist .r:first-of-type{border-top:0}
+.mlist .r b{font-size:15px}
+.mlist .r small{display:block;font-size:12px;color:var(--text-faint);margin-top:1px}
+.mlist .v{text-align:right}
+.mlist .v small{font-weight:600}
+.mh{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
+.mh h3{font-size:17px}
+/* 나 */
+.loginbar{display:flex;align-items:center;gap:18px;padding:14px 20px;margin-bottom:14px;background:var(--accent-soft);border:1px solid var(--accent);border-radius:12px}
+.loginbar b{font-size:15px}
+.loginbar span{color:var(--text-dim);font-size:13px}
+.loginbar .btn{margin-left:auto}
+.regime{display:flex;gap:24px;align-items:center;padding:14px 20px;margin-bottom:14px}
+.split{display:grid;grid-template-columns:320px 1fr;gap:16px;align-items:start}
+.li{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-top:1px solid var(--border);font-size:14px;font-weight:600}
+.li small{display:block;text-align:right;font-size:11px;font-weight:500;color:var(--text-dim)}
+.li.on{background:var(--accent-soft);box-shadow:inset 3px 0 0 var(--accent);color:var(--accent)}
+.grp{padding:7px 16px;font-size:12px;color:var(--text-faint);background:var(--panel-soft);border-top:1px solid var(--border)}
+.grp:first-child{border-top:0}
+.det{padding:20px 22px}
+.det h3{font-size:18px}
+.det .big{font-size:28px;font-weight:800;margin:6px 0 10px}
+.chart{height:300px;border:1px solid var(--border);border-radius:10px}
+/* 다 */
+.blur{filter:blur(3px);opacity:.55;pointer-events:none}
+.over{position:absolute;inset:60px 0 0 0;display:grid;place-items:center;background:linear-gradient(180deg,rgba(238,242,246,.2),rgba(238,242,246,.85))}
+.card{width:520px;padding:30px 32px;text-align:left;box-shadow:0 18px 50px rgba(15,23,42,.2)}
+.card h1{font-size:24px}
+.card p{color:var(--text-dim);margin:8px 0 20px;line-height:1.6}
+.sum{display:flex;gap:40px;padding:20px 24px;margin-bottom:14px}
+.sum b{font-size:24px}
+table{width:100%;border-collapse:collapse}
+th,td{padding:11px 14px;text-align:center;font-size:14px}
+th{font-size:12px;color:var(--text-dim);border-bottom:1px solid var(--border)}
+td{border-top:1px solid var(--border)}
+td.l,th.l{text-align:left}
+</style>
+</head>
+<body>
+
+<div class="part">손님 PC — 배치 셋
+<small>지금: 폰 화면 그대로 왼쪽 절반에 오늘 매크로 세 줄과 로그인 글, 오른쪽 절반은 비어 있다. 위 메뉴에 손님이 못 쓰는 재무 · 리밸런싱이 그대로 있고, 오른쪽 위는 톱니뿐이다.<br>
+공통: 위 메뉴는 손님이 쓰는 것만(홈, 매크로) · 오른쪽 위에 "로그인" 글 단추 · 4차에서 고른 "손님 첫 화면은 매크로 먼저"를 지킨다.</small></div>
+
+<!-- ───────── 가 ───────── -->
+<div class="cap">가 두 단 <small>왼쪽은 이 앱이 하는 일 세 줄과 로그인, 오른쪽은 오늘 매크로(누르면 매크로 화면)</small></div>
+<div class="frame">
+  <div class="nav"><div class="logo"><i>₩</i>자산관리</div><a class="on">홈</a><a>매크로</a><div class="r"><span class="btn">로그인</span></div></div>
+  <div class="page">
+    <div class="two">
+      <div class="box intro">
+        <h1>담아 둔 종목의 매수, 매도 시그널과<br>리밸런싱을 한 화면에</h1>
+        <p class="lead">승인받은 사람이 쓰는 개인 포트폴리오 신호판입니다. 모든 숫자는 참고용이고 자동 매매는 없습니다.</p>
+        <div class="feat">
+          <div><b>시그널</b><span>무릎에서 사기, 어깨에서 팔기. 종목마다 조건이 몇 개 맞는지 봅니다.</span></div>
+          <div><b>리밸런싱</b><span>목표 비중에서 벗어난 종목과 몇 주를 사고팔면 되는지 봅니다.</span></div>
+          <div><b>재무와 매크로</b><span>PER, 실적, 금리와 물가를 한곳에서 봅니다.</span></div>
+        </div>
+        <span class="btn pri big"><span class="g">G</span>구글 계정으로 로그인</span>
+        <p class="hint" style="margin-top:14px">처음 들어오면 승인을 기다립니다. 로그인하면 <u>개인정보처리방침과 이용약관</u>에 동의하는 것으로 봅니다.</p>
+      </div>
+      <div>
+        <div class="mh"><h3>오늘 매크로</h3><span class="hint">11월 24일 기준</span></div>
+        <div class="box mlist">
+          <div class="r"><span><b>VIX</b><small>변동성 지수, 시장의 공포</small></span><span class="v"><b>22.4</b><small class="up"> +2.5</small></span></div>
+          <div class="r"><span><b>장단기 금리차</b><small>10년물 − 2년물, 정상</small></span><span class="v"><b>+0.21%p</b><small class="up"> +0.12%p</small></span></div>
+          <div class="r"><span><b>공포·탐욕 지수</b><small>공포 구간 25~44</small></span><span class="v"><b>43.2</b><small class="down"> −2.7</small></span></div>
+          <div class="r"><span><b>S&amp;P 500</b><small>미국 대형주 500개</small></span><span class="v"><b>5,745.5</b><small class="up"> +32.7</small></span></div>
+          <div class="r"><span><b>미 10년물 금리</b><small>장기 금리의 기준</small></span><span class="v"><b>4.25%</b><small class="up"> +0.06%p</small></span></div>
+        </div>
+        <p style="margin-top:10px"><span class="btn">매크로 지표 모두 보기</span></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ───────── 나 ───────── -->
+<div class="cap">나 매크로 화면 + 위 로그인 띠 <small>손님 첫 화면이 곧 PC 매크로(목록 + 차트). 맨 위 한 줄에 무엇을 더 볼 수 있는지와 로그인</small></div>
+<div class="frame">
+  <div class="nav"><div class="logo"><i>₩</i>자산관리</div><a class="on">매크로</a><div class="r"><span class="btn">로그인</span></div></div>
+  <div class="page">
+    <div class="loginbar"><b>로그인하면 내 종목의 시그널과 리밸런싱을 봅니다</b><span>승인받은 사람만 씁니다. 처음이면 승인을 기다립니다.</span><span class="btn pri"><span class="g">G</span>구글 계정으로 로그인</span></div>
+    <div class="box regime"><b>눈에 띄는 국면 없음</b><span class="dim">장단기 금리차 <b style="color:var(--text)">+0.21%p</b> 정상</span><span class="hint" style="margin-left:auto">여기 숫자는 매수, 매도 시그널에 들어가지 않습니다.</span></div>
+    <div class="split">
+      <div class="box">
+        <div class="grp">주식</div>
+        <div class="li on">S&amp;P 500<span>5,745.5<small>+32.7</small></span></div>
+        <div class="li">코스피<span>3,241.3<small>+22.1</small></span></div>
+        <div class="li">VIX<span>22.4<small>+2.5</small></span></div>
+        <div class="li">공포·탐욕 지수<span>43.2<small>−2.7</small></span></div>
+        <div class="grp">금리</div>
+        <div class="li">미 10년물 금리<span>4.25%<small>+0.06%p</small></span></div>
+        <div class="li">미 2년물 금리<span>4.04%<small>−0.06%p</small></span></div>
+      </div>
+      <div class="box det">
+        <h3>S&amp;P 500 <span class="hint">미국 대형주 500개</span></h3>
+        <div class="big">5,745.5 <span class="dim" style="font-size:14px">+32.7</span></div>
+        <div class="chart"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ───────── 다 ───────── -->
+<div class="cap">다 예시 미리보기 <small>로그인하면 보이는 홈을 흐린 예시로 깔고 그 위에 로그인 상자. 매크로는 위 메뉴로</small></div>
+<div class="frame">
+  <div class="nav"><div class="logo"><i>₩</i>자산관리</div><a class="on">홈</a><a>매크로</a><div class="r"><span class="btn">로그인</span></div></div>
+  <div class="page blur">
+    <div class="box sum"><div><span class="hint">총 평가금액</span><br><b>₩518,853,891</b></div><div><span class="hint">평가손익</span><br><b class="up">+₩42,120,500</b></div><div><span class="hint">다음 리뷰</span><br><b>D-37</b></div></div>
+    <div class="box"><table><tr><th class="l">종목</th><th>현재가</th><th>평가금액</th><th>수익률</th><th>비중</th><th>신호</th></tr>
+      <tr><td class="l">TIGER 미국필라델피아반도체나스닥</td><td>₩21,450</td><td>₩175,920,000</td><td class="up">+18.2%</td><td>33.9%</td><td>▼</td></tr>
+      <tr><td class="l">삼성전자</td><td>₩45,600</td><td>₩68,400,000</td><td class="down">−4.1%</td><td>13.2%</td><td>—</td></tr>
+      <tr><td class="l">AAPL</td><td>$198.20</td><td>₩59,460,000</td><td class="up">+9.7%</td><td>11.5%</td><td>▼</td></tr>
+      <tr><td class="l">NVDA</td><td>$95.10</td><td>₩43,060,000</td><td class="up">+31.0%</td><td>8.3%</td><td>—</td></tr>
+      <tr><td class="l">VOO</td><td>$512.30</td><td>₩5,690,000</td><td class="up">+4.2%</td><td>1.1%</td><td>▲</td></tr></table></div>
+  </div>
+  <div class="over"><div class="box card">
+    <h1>내 포트폴리오를 이렇게 봅니다</h1>
+    <p>담아 둔 종목의 매수, 매도 시그널과 리밸런싱을 한 화면에. 뒤의 숫자는 예시입니다.</p>
+    <span class="btn pri big"><span class="g">G</span>구글 계정으로 로그인</span>
+    <p class="hint" style="margin:14px 0 0">처음 들어오면 승인을 기다립니다. 로그인 없이 <u>매크로 지표</u>는 볼 수 있습니다.</p>
+  </div></div>
+</div>
+</body>
+</html>
