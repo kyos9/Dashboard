@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="ko" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>5차 손님 홈 미리보기</title>
+<!--
+  디자인 5차 목업 09d (09c 나 고름, "매크로 지표는 굳이 저기 있어야 할까?"): 손님 홈 "너무 모바일 화면 같아. 화면이 비어 있잖아"(주인).
+  지금 손님 홈은 왼쪽 반에 매크로 세 줄과 로그인 단추, 오른쪽 반이 빈다.
+  PC 너비를 다 쓰는 손님 홈 셋:
+  가 시장판: 위 머리(오늘 시장 + 로그인), 가운데 지표 카드 여덟(작은 선), 아래 로그인하면 보는 것 셋
+  나 미리보기: 왼쪽 넓게 예시 포트폴리오(흐리게, 가운데 로그인), 오른쪽 오늘 시장 목록
+  다 반반: 왼쪽 오늘 시장(지표 줄과 선), 오른쪽 내 포트폴리오 자리(잠긴 칸 셋 + 로그인)
+  공통: 위 메뉴는 홈, 매크로. 오른쪽 위 "로그인".
+-->
+<link rel="stylesheet" href="../../../../frontend/src/styles/tokens.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:#5f646b}
+body{font-family:var(--font-sans);word-break:keep-all;padding:28px 20px 40px;color:#fff;font-size:14px}
+.part{max-width:1400px;margin:0 auto 14px;font-size:22px;font-weight:700}
+.part small{display:block;font-size:14px;font-weight:400;opacity:.9;margin-top:6px;line-height:1.55}
+.cap{max-width:1400px;margin:34px auto 10px;font-size:17px;font-weight:700}
+.cap small{font-size:13px;font-weight:400;opacity:.88;margin-left:8px}
+.frame{width:1400px;min-height:860px;margin:0 auto;background:var(--bg);color:var(--text);border-radius:10px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.dim{color:var(--text-dim)}.faint{color:var(--text-faint)}
+.nav{height:60px;display:flex;align-items:center;gap:6px;padding:0 32px;background:var(--panel);border-bottom:1px solid var(--border)}
+.logo{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:700;margin-right:28px}
+.logo i{width:30px;height:30px;border-radius:8px;background:var(--brand);color:var(--on-brand);display:grid;place-items:center;font-style:normal;font-size:15px;font-weight:800}
+.nav a{height:60px;display:inline-flex;align-items:center;padding:0 14px;font-size:15px;font-weight:600;color:var(--text-dim);border-bottom:3px solid transparent}
+.nav a.on{color:var(--accent);border-bottom-color:var(--accent)}
+.nav .r{margin-left:auto}
+.btn{height:36px;padding:0 16px;border:1px solid var(--border);border-radius:8px;background:var(--panel);font-size:13px;font-weight:600;color:var(--text);display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn.big{height:44px;font-size:14px;padding:0 22px}
+.g{width:18px;height:18px;border-radius:50%;background:#fff;display:inline-grid;place-items:center;font-size:12px;font-weight:800;color:#4285f4}
+.page{padding:24px 32px 32px}
+.box{background:var(--panel);border:1px solid var(--border);border-radius:12px}
+.hint{font-size:12px;color:var(--text-faint);line-height:1.55}
+.up{color:#15803d}.down{color:#b91c1c}
+h2{font-size:20px}
+.sec-h{display:flex;align-items:baseline;justify-content:space-between;margin:0 0 10px}
+.sec-h h3{font-size:16px}
+.sec-h a{font-size:13px;color:var(--accent);font-weight:600}
+/* 가 */
+.hero{display:grid;grid-template-columns:1fr auto;gap:24px;align-items:center;padding:22px 26px;margin-bottom:18px}
+.hero .sub{display:flex;gap:22px;margin-top:8px;font-size:13px;color:var(--text-dim)}
+.hero .sub b{color:var(--text)}
+.hero .login{display:flex;flex-direction:column;align-items:flex-end;gap:6px;padding-left:26px;border-left:1px solid var(--border)}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px}
+.card{padding:14px 16px 10px}
+.card .n{font-size:13px;font-weight:600;color:var(--text-dim);display:flex;justify-content:space-between}
+.card .n span{font-weight:500;color:var(--text-faint);font-size:11px}
+.card .v{font-size:22px;font-weight:800;margin:4px 0 2px}
+.card .c{font-size:12px;font-weight:600}
+.feats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.feat{padding:18px 20px;display:flex;gap:14px;align-items:flex-start}
+.feat .ic{width:36px;height:36px;border-radius:9px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-weight:800;flex:none}
+.feat b{display:block;font-size:15px;margin-bottom:4px}
+.feat p{font-size:13px;color:var(--text-dim);line-height:1.55}
+/* 나 */
+.two{display:grid;grid-template-columns:1fr 380px;gap:18px;align-items:start}
+.preview{position:relative;overflow:hidden}
+.preview .inner{filter:blur(2.5px);opacity:.55;pointer-events:none;padding:18px 20px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}
+.kpi{border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+.kpi .n{font-size:12px;color:var(--text-dim)}.kpi .v{font-size:20px;font-weight:800;margin-top:4px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{font-size:12px;color:var(--text-faint);font-weight:600;text-align:center;padding:9px 8px;border-bottom:1px solid var(--border)}
+td{padding:11px 8px;border-bottom:1px solid var(--border);text-align:center}
+th:first-child,td:first-child{text-align:left}
+.pill{display:inline-block;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:700;background:var(--accent-soft);color:var(--accent)}
+.lock{position:absolute;inset:0;display:grid;place-items:center}
+.lock .card2{background:var(--panel);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow-modal);padding:28px 32px;text-align:center;max-width:430px}
+.lock h3{font-size:19px;margin-bottom:8px}
+.lock p{font-size:13px;color:var(--text-dim);line-height:1.6;margin-bottom:18px}
+.tag{position:absolute;top:14px;left:16px;font-size:11px;font-weight:700;color:var(--text-faint);border:1px solid var(--border);border-radius:6px;padding:2px 8px;background:var(--panel)}
+.li{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:11px 18px;border-top:1px solid var(--border);font-size:14px;font-weight:600}
+.li .sp{flex:1;max-width:110px}
+.li .v{text-align:right;min-width:86px}.li small{display:block;font-size:11px;font-weight:600}
+.grp{padding:7px 18px;font-size:12px;color:var(--text-faint);background:var(--panel-soft);border-top:1px solid var(--border)}
+.boxhead{padding:16px 18px 12px}
+.boxhead h3{font-size:16px}.boxhead p{margin-top:4px}
+/* 다 */
+.half{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:stretch}
+.slot{border:1px dashed var(--border);border-radius:10px;padding:16px 18px;display:flex;gap:14px;align-items:center;margin-bottom:12px;background:var(--panel-soft)}
+.slot .ic{width:40px;height:40px;border-radius:10px;background:var(--panel);border:1px solid var(--border);display:grid;place-items:center;color:var(--text-faint);font-weight:800;flex:none}
+.slot b{display:block;font-size:15px;margin-bottom:3px}
+.slot p{font-size:13px;color:var(--text-dim)}
+.mine{padding:22px 24px;display:flex;flex-direction:column}
+.mine .end{margin-top:auto;padding-top:16px;border-top:1px solid var(--border);display:flex;align-items:center;gap:16px}
+.mline{display:flex;gap:24px;align-items:center;padding:14px 20px;margin-bottom:14px;font-size:14px}.mline a{margin-left:auto;color:var(--accent);font-weight:600;font-size:13px}
+.preview .inner{padding:22px 26px}
+</style>
+</head>
+<body>
+<div class="part">손님 홈 PC: 나 미리보기에서 오른쪽 지표 빼기
+<small>매크로 지표는 위 메뉴 "매크로"에 다 있다. 홈은 "로그인하면 이렇게 보인다"만 말한다.</small></div>
+<div class="cap">나-1 넓게 <small>오른쪽 칸을 빼고 예시 화면을 화면 너비 다 쓰게. 매크로는 위 메뉴로만</small></div>
+<div class="frame" id="f1"></div>
+<div class="cap">나-2 한 줄만 <small>예시 화면 위에 오늘 시장 한 줄(눌러서 매크로로). 지표 목록은 없음</small></div>
+<div class="frame" id="f2"></div>
+
+<script>
+const D=[['주식','S&P 500','5,745.5','+32.7','미국 대형주'],['주식','코스피','3,241.3','+22.1','한국 대표'],['주식','VIX','22.4','+2.5','변동성'],['주식','공포·탐욕 지수','43.2','−2.7','공포 구간'],
+ ['금리','미 10년물 금리','4.25%','+0.06%p','장기 금리'],['금리','미 2년물 금리','4.04%','−0.06%p','단기 금리'],['금리','미 기준금리','4.33%','±0.00%p','연준'],
+ ['물가','근원 PCE','3.03%','−0.10%p','물가'],['물가','CPI','2.65%','−0.37%p','소비자물가'],['고용','미 실업률','4.10%','+0.03%p','고용']]
+const tone=c=>c.startsWith('+')?'up':c.startsWith('−')?'down':'dim'
+function line(w,h,seed=7,color='var(--accent)'){let s=seed;const r=()=>(s=(s*9301+49297)%233280)/233280;let y=.6,p=[];for(let i=0;i<80;i++){y+=(r()-.47)*.08;y=Math.max(.08,Math.min(.92,y));p.push(`${(i/79*w).toFixed(1)},${(h-y*h).toFixed(1)}`)}
+ return `<svg width="100%" height="${h}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><polyline fill="none" stroke="${color}" stroke-width="1.6" points="${p.join(' ')}"/></svg>`}
+const nav=`<div class="nav"><div class="logo"><i>₩</i>자산관리</div><a class="on">홈</a><a>매크로</a><div class="r"><span class="btn">로그인</span></div></div>`
+const G='<span class="g">G</span>구글 계정으로 로그인'
+const today=`<span>장단기 금리차 <b>+0.21%p</b> 정상</span><span>공포·탐욕 <b>43.2</b> 공포 구간</span><span class="faint">11월 24일 02:29 기준</span>`
+
+
+const rows=[['삼성전자','42','71,300','무릎','12.4%','15%'],['Apple','18','$228.5','보통','18.1%','15%'],['SCHD','60','$27.9','보통','21.0%','20%'],['NVIDIA','12','$141.2','어깨','16.7%','10%'],['TIGER 미국S&P500','85','21,450','보통','19.6%','25%'],['KODEX 단기채권','30','108,200','보통','12.2%','15%'],['Microsoft','9','$415.3','보통','8.4%','10%']]
+ .map(r=>`<tr><td><b>${r[0]}</b></td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]==='보통'?'<span class="dim">보통</span>':`<span class="pill">${r[3]}</span>`}</td><td>${r[4]}</td><td>${r[5]}</td></tr>`).join('')
+const prev=(n)=>`<div class="box preview"><div class="inner">
+  <div class="kpis"><div class="kpi"><div class="n">총 평가금액</div><div class="v">48,215,000원</div></div><div class="kpi"><div class="n">총 수익</div><div class="v up">+6,830,000원</div></div><div class="kpi"><div class="n">수익률</div><div class="v up">+16.5%</div></div><div class="kpi"><div class="n">시그널</div><div class="v">2종목</div></div></div>
+  <table><tr><th>종목</th><th>수량</th><th>현재</th><th>시그널</th><th>비중</th><th>목표</th></tr>${rows}${n>7?rows:''}</table>
+ </div>
+ <span class="tag">예시 화면</span>
+ <div class="lock"><div class="card2"><h3>로그인하면 내 포트폴리오가 이렇게 보입니다</h3><p>담아 둔 종목의 시그널, 수익, 리밸런싱을 한 화면에서 봅니다. 승인받은 사람만 쓰며 처음이면 승인을 기다립니다.</p><span class="btn pri big">${G}</span><p class="hint" style="margin:12px 0 0">로그인하면 <u>방침과 약관</u>에 동의하는 것으로 봅니다.</p></div></div>
+ </div>`
+f1.innerHTML=nav+`<div class="page">${prev(14)}</div>`
+f2.innerHTML=nav+`<div class="page"><div class="box mline"><b>오늘 시장: 눈에 띄는 국면 없음</b><span class="dim">장단기 금리차 <b style="color:var(--text)">+0.21%p</b> 정상</span><span class="dim">공포·탐욕 <b style="color:var(--text)">43.2</b> 공포 구간</span><a>매크로 지표 보기</a></div>${prev(14)}</div>`
+</script>
+</body>
+</html>
