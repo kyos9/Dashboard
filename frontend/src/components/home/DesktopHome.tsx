@@ -211,9 +211,6 @@ function AiBand() {
   const when = last ? dayLabel(last.generated_at) : null
   return (
     <section className="ai-band" aria-label="AI 포트폴리오 점검">
-      <span className="ai-band-ico" aria-hidden="true">
-        <Icon name="ai" size={18} />
-      </span>
       <div className="ai-band-text">
         <b>AI 포트폴리오 점검</b>
         <span>

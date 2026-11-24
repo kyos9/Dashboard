@@ -104,8 +104,8 @@ describe('관리자 헤더', () => {
       locked: true, authenticated: true, mode: 'google', config_problem: null, pending_count: 2,
       user: { email: 'me@example.com', name: '나', is_owner: true, status: 'active' },
     })
-    // 설정 탭을 열지 않아도 보인다 — 탭 아이콘에 수를 붙인다 (예전 메뉴 단추의 수)
-    expect(await screen.findByLabelText('가입 신청 2건', { selector: '.tab-badge' })).toHaveTextContent('2')
+    // 설정 탭을 열지 않아도 보인다 — PC 톱니는 점 하나(주인: 숫자와 점을 같이 두지 않는다), 몇 건인지는 읽기 이름에
+    expect(await screen.findByLabelText('가입 신청 2건', { selector: '.tab-dot' })).toHaveTextContent('')
     const button = screen.getByRole('button', { name: /^사용자/ })
     expect(within(button).getByLabelText('가입 신청 2건')).toHaveTextContent('2')
   })
@@ -149,14 +149,14 @@ describe('관리자 헤더', () => {
       </MemoryRouter>,
     )
 
-    await screen.findByLabelText('가입 신청 1건', { selector: '.tab-badge' })
+    await screen.findByLabelText('가입 신청 1건', { selector: '.tab-dot' })
     await userEvent.click(screen.getByRole('button', { name: /^사용자/ }))
     const row = await screen.findByTestId('user-7')
     await userEvent.click(within(row).getByRole('button', { name: '승인' }))
 
     expect(api.setUserStatus).toHaveBeenCalledWith(7, 'active')
     await waitFor(() => expect(within(row).getByText('사용 중')).toBeInTheDocument())
-    await waitFor(() => expect(document.querySelector('.tab-badge')).toBeNull())
+    await waitFor(() => expect(document.querySelector('.tab-dot')).toBeNull())
   })
 })
 

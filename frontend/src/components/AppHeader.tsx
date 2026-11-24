@@ -110,15 +110,10 @@ export function AppHeader() {
   // 관리자가 볼 것이 있으면 설정 톱니에 점 · 숫자 — 폰 아래 탭과 같은 규칙(TabBar)
   const diag = isAdmin ? diagnosticsReason(backupAttention, refreshAttention) : null
   const count = isAdmin ? pendingCount : 0
-  const settingsMark = (
-    <>
-      {count > 0 && (
-        <span className="badge badge-amber count-badge tab-badge" aria-label={`가입 신청 ${count}건`}>
-          {count}
-        </span>
-      )}
-      {diag && <span className={`tab-dot${count > 0 ? ' tab-dot-aside' : ''}`} aria-label={`서버 상태를 확인하세요 — ${diag}`} role="img" />}
-    </>
+  // 주인: 숫자와 점이 같이 있으면 어지럽다 → 점 하나만. 무엇 때문인지는 읽기 이름 · 툴팁에 (설정 화면에 들어가면 자세히)
+  const markReasons = [count > 0 ? `가입 신청 ${count}건` : null, diag ? `서버 상태를 확인하세요 (${diag})` : null].filter(Boolean)
+  const settingsMark = markReasons.length > 0 && (
+    <span className="tab-dot" role="img" aria-label={markReasons.join(', ')} title={markReasons.join(', ')} />
   )
 
   return (

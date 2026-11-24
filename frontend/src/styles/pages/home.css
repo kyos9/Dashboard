@@ -1178,3 +1178,8 @@ a.sig-item.settings-item:hover {
 .weight-bars-track i.target {
   background: var(--text-faint);
 }
+
+/* PC 설정 한 장 안의 링크도 강조색 — 브라우저 기본 파랑이 테마(로즈)와 따로 놀았다 */
+.settings-page-pc a:not(.link-button) {
+  color: var(--accent);
+}
