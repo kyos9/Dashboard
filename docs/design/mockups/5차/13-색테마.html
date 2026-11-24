@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>5차 색 테마</title>
+<!--
+  디자인 5차 목업 13: 색 테마 넷 (주인이 고른 colorhunt 조합 넷을 PC 홈에 맞춤). 밝게 · 어둡게 두 벌씩.
+  블루  #f9f7f7 #dbe2ef #3f72af #112d4e
+  네이비 #213448 #547792 #94b4c1 #eae0cf
+  세이지 #f6f0d7 #c5d89d #9cab84 #89986d
+  로즈  #fcf8f8 #fbefef #f9dfdf #f5afaf
+  조합 색이 글자로 쓰기에 옅은 곳(로즈 #f5afaf, 세이지 #89986d)은 같은 색을 진하게 한 "글자용 강조색"을 따로 둔다(대비 4.5 이상).
+  신호: 매수 초록 · 매도 빨강은 모든 테마 같음. 비중 신호는 테마 강조색, 단 로즈(매도 빨강과 섞임) · 세이지(매수 초록과 섞임)는 따로.
+-->
+<link rel="stylesheet" href="../../../../frontend/src/styles/tokens.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:#5f646b}
+body{font-family:var(--font-sans);word-break:keep-all;padding:28px 20px 40px;color:#fff;font-size:14px}
+.part{max-width:1500px;margin:0 auto 14px;font-size:22px;font-weight:700}
+.part small{display:block;font-size:14px;font-weight:400;opacity:.9;margin-top:6px;line-height:1.55}
+.cap{font-size:17px;font-weight:700;margin:26px 0 10px}
+.cap small{font-size:13px;font-weight:400;opacity:.88;margin-left:8px}
+.sw{display:inline-flex;vertical-align:middle;margin-left:10px;border-radius:4px;overflow:hidden}
+.sw i{width:22px;height:16px}
+.grid{max-width:1500px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.frame{background:var(--bg);color:var(--text);border-radius:10px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.35);font-size:13px}
+.nav{height:48px;display:flex;align-items:center;gap:4px;padding:0 20px;background:var(--nav);border-bottom:1px solid var(--line)}
+.logo{display:flex;align-items:center;gap:8px;font-weight:800;margin-right:18px;color:var(--nav-text)}
+.logo i{width:24px;height:24px;border-radius:6px;background:var(--brand);color:var(--on-brand);display:grid;place-items:center;font-style:normal;font-size:12px}
+.nav a{height:48px;display:inline-flex;align-items:center;padding:0 10px;font-weight:600;color:var(--nav-dim);border-bottom:3px solid transparent}
+.nav a.on{color:var(--nav-on);border-bottom-color:var(--nav-on)}
+.nav .r{margin-left:auto;width:26px;height:26px;border-radius:50%;background:var(--soft);display:grid;place-items:center;font-size:11px;font-weight:700;color:var(--acc-text)}
+.page{padding:16px 20px 20px}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:10px}
+.sum{display:flex;align-items:flex-end;padding:16px 18px;margin-bottom:10px}
+.sum .n{font-size:11px;color:var(--dim)}.sum .v{font-size:24px;font-weight:800;margin-top:2px}
+.sum .p{font-weight:700;color:var(--buy)}
+.sum .rv{margin-left:auto;text-align:right;font-size:11px;color:var(--dim)}.sum .rv b{display:block;font-size:14px;color:var(--text)}
+.ai{display:flex;align-items:center;gap:10px;padding:10px 14px;margin-bottom:12px;background:var(--soft);border:1px solid var(--line);border-radius:10px}
+.ai b{color:var(--acc-text)}.ai span{color:var(--dim);font-size:12px}
+.btn{margin-left:auto;padding:7px 14px;border-radius:7px;background:var(--acc-fill);color:var(--on-acc);font-weight:700;font-size:12px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:8px}
+.tabs span{padding:8px 10px;font-weight:600;color:var(--dim);border-bottom:2px solid transparent}
+.tabs span.on{color:var(--acc-text);border-bottom-color:var(--acc-fill)}
+.tabs .c{font-size:10px;margin-left:4px;padding:1px 6px;border-radius:99px;background:var(--soft)}
+.tabs .tools{margin-left:auto;display:flex;gap:6px;align-items:center}
+.tabs .tools em{font-style:normal;padding:5px 10px;border:1px solid var(--line);border-radius:7px;background:var(--panel);font-size:11px;font-weight:600;color:var(--text)}
+table{width:100%;border-collapse:collapse}
+th{font-size:11px;color:var(--faint);font-weight:600;padding:8px 10px;text-align:center;background:var(--head);border-bottom:1px solid var(--line)}
+td{padding:9px 10px;border-bottom:1px solid var(--line);text-align:center}
+th:first-child,td:first-child{text-align:left}
+td small{display:block;font-size:11px;color:var(--dim)}
+.up{color:var(--buy)}.down{color:var(--sell)}
+.wb{display:grid;grid-template-columns:24px 1fr 38px;gap:2px 6px;align-items:center;font-size:10px;min-width:140px}
+.wb .l{color:var(--faint);text-align:left}.wb b,.wb span.m{text-align:right}
+.wb b.o{color:var(--acc-text)}
+.tr{height:6px;border-radius:99px;background:var(--soft);position:relative;overflow:hidden}
+.tr i{position:absolute;left:0;top:0;bottom:0;border-radius:99px}
+.bd{display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;margin:1px}
+.bd.w{background:var(--w-soft);color:var(--w)}.bd.b{background:var(--buy-soft);color:var(--buy)}.bd.s{background:var(--sell-soft);color:var(--sell)}
+.legend{margin-top:10px;display:flex;gap:12px;font-size:11px;color:var(--dim)}
+</style>
+</head>
+<body>
+<div class="part">색 테마 넷: 밝게 · 어둡게
+<small>고르신 조합 넷을 PC 홈에 맞췄다. 왼쪽 밝게, 오른쪽 어둡게.<br>
+조합 색이 글자로 쓰기엔 옅은 곳(로즈 분홍, 세이지 올리브)은 같은 색을 진하게 한 글자용 강조색을 따로 둔다. 매수 초록 · 매도 빨강은 모든 테마 같고, 비중 신호는 테마마다 섞이지 않는 색.</small></div>
+<div id="out" style="max-width:1500px;margin:0 auto"></div>
+<script>
+const T={
+ '블루':{pal:['#f9f7f7','#dbe2ef','#3f72af','#112d4e'],
+  light:{bg:'#f9f7f7',panel:'#ffffff',head:'#f3f5fa',soft:'#dbe2ef',line:'#e2e7f0',text:'#112d4e',dim:'#4a5d78',faint:'#7a8aa3',nav:'#ffffff','nav-text':'#112d4e','nav-dim':'#4a5d78','nav-on':'#3f72af',brand:'#112d4e','on-brand':'#fff','acc-text':'#3f72af','acc-fill':'#3f72af','on-acc':'#fff',w:'#3f72af','w-soft':'#dbe2ef'},
+  dark:{bg:'#0c1626',panel:'#112d4e',head:'#14345a',soft:'#1d3f68',line:'#24476f',text:'#f9f7f7',dim:'#b9c6db',faint:'#8a9bb6',nav:'#0c1626','nav-text':'#f9f7f7','nav-dim':'#b9c6db','nav-on':'#8fb3e3',brand:'#3f72af','on-brand':'#fff','acc-text':'#8fb3e3','acc-fill':'#3f72af','on-acc':'#fff',w:'#8fb3e3','w-soft':'#1d3f68'}},
+ '네이비':{pal:['#213448','#547792','#94b4c1','#eae0cf'],
+  light:{bg:'#f4efe6',panel:'#fffdf9',head:'#f1ebe0',soft:'#e3ecf0',line:'#e2d9c8',text:'#213448',dim:'#4d6073',faint:'#7d8c99',nav:'#213448','nav-text':'#eae0cf','nav-dim':'#94b4c1','nav-on':'#eae0cf',brand:'#eae0cf','on-brand':'#213448','acc-text':'#547792','acc-fill':'#547792','on-acc':'#fff',w:'#547792','w-soft':'#e3ecf0'},
+  dark:{bg:'#18242f',panel:'#213448',head:'#283d53',soft:'#2f4a63',line:'#33495f',text:'#eae0cf',dim:'#b8c6cf',faint:'#8ea3b0',nav:'#18242f','nav-text':'#eae0cf','nav-dim':'#94b4c1','nav-on':'#eae0cf',brand:'#94b4c1','on-brand':'#213448','acc-text':'#94b4c1','acc-fill':'#547792','on-acc':'#fff',w:'#94b4c1','w-soft':'#2f4a63'}},
+ '세이지':{pal:['#f6f0d7','#c5d89d','#9cab84','#89986d'],
+  light:{bg:'#f6f0d7',panel:'#fffdf4',head:'#f3eed8',soft:'#e6edd3',line:'#e4dfc4',text:'#2f3522',dim:'#5b6448',faint:'#858d72',nav:'#fffdf4','nav-text':'#2f3522','nav-dim':'#5b6448','nav-on':'#5c6a42',brand:'#89986d','on-brand':'#fff','acc-text':'#5c6a42','acc-fill':'#89986d','on-acc':'#1f2414',w:'#3f6f8f','w-soft':'#e1ebf0'},
+  dark:{bg:'#1b1e15',panel:'#25291d',head:'#2c3123',soft:'#343b28',line:'#3a412d',text:'#f6f0d7',dim:'#c7c9b0',faint:'#9ca189',nav:'#1b1e15','nav-text':'#f6f0d7','nav-dim':'#c7c9b0','nav-on':'#c5d89d',brand:'#89986d','on-brand':'#fff','acc-text':'#c5d89d','acc-fill':'#89986d','on-acc':'#1f2414',w:'#8ec1dc','w-soft':'#22343d'}},
+ '로즈':{pal:['#fcf8f8','#fbefef','#f9dfdf','#f5afaf'],
+  light:{bg:'#fcf8f8',panel:'#ffffff',head:'#fdf5f5',soft:'#fbefef',line:'#f4e2e2',text:'#3b2a2d',dim:'#6e5a5e',faint:'#9a888b',nav:'#ffffff','nav-text':'#3b2a2d','nav-dim':'#6e5a5e','nav-on':'#b5536a',brand:'#f5afaf','on-brand':'#3b2a2d','acc-text':'#b5536a','acc-fill':'#d9788c','on-acc':'#2a1a1e',w:'#7656b8','w-soft':'#efe9f8'},
+  dark:{bg:'#1f1719',panel:'#2a1f22',head:'#32262a',soft:'#3b2c30',line:'#43323a',text:'#fcf8f8',dim:'#d6c4c7',faint:'#a8969a',nav:'#1f1719','nav-text':'#fcf8f8','nav-dim':'#d6c4c7','nav-on':'#f5afaf',brand:'#f5afaf','on-brand':'#3b2a2d','acc-text':'#f5afaf','acc-fill':'#d9788c','on-acc':'#2a1a1e',w:'#b9a3ec','w-soft':'#33294a'}},
+}
+const SIG={light:{buy:'#15803d','buy-soft':'#e5f4ea',sell:'#b91c1c','sell-soft':'#fbe7e7'},dark:{buy:'#5fd08a','buy-soft':'#173a26',sell:'#f08a8a','sell-soft':'#3d1d1d'}}
+const R=[['TIGER 미국필라델피아반도체','2,000주','₩87,298','+13.6%','₩174,596,000',33.9,6,'w'],['삼성전자','1,500주','₩45,293','-7.4%','₩67,939,500',13.2,10,'b'],['AAPL','30주','$1,439.64','+17.6%','₩59,825,680',11.6,5,'s'],['NVDA','45주','$695.71','+66.7%','₩43,366,387',8.4,6,'b']]
+const M=36,w=v=>`${v/M*100}%`
+const BD={w:'◆ 비중 초과',b:'▲ 매수',s:'▼ 매도'}
+function screen(v){return `<div class="nav"><div class="logo"><i>₩</i>자산관리</div><a class="on">홈</a><a>재무</a><a>리밸런싱</a><a>매크로</a><span class="r">o</span></div>
+<div class="page"><div class="box sum"><div><div class="n">총 평가금액</div><div class="v">₩515,754,211</div><div class="p">+₩56,895,704 (+12.4%)</div></div><div class="rv">다음 리뷰<b>12월 30일</b></div></div>
+<div class="ai"><b>AI 포트폴리오 점검</b><span>비중, 수익, 신호를 한 번에 봅니다</span><span class="btn">점검하기</span></div>
+<div class="tabs"><span class="on">보유 종목<span class="c">15</span></span><span>관심 종목<span class="c">0</span></span><span>시그널<span class="c">11</span></span><span class="tools"><em>종목 추가</em><em>종목 수정</em></span></div>
+<div class="box" style="overflow:hidden"><table><tr><th>종목</th><th>현재가</th><th>수익률</th><th>평가금액</th><th>비중</th><th>신호</th></tr>
+${R.map(r=>`<tr><td><b>${r[0]}</b><small>${r[1]}</small></td><td><b>${r[2]}</b></td><td class="${r[3][0]=='-'?'down':'up'}">${r[3]}</td><td><b>${r[4]}</b></td><td><div class="wb"><span class="l">현재</span><span class="tr"><i style="width:${w(r[5])};background:var(--acc-fill)"></i></span><b class="${r[7]=='w'?'o':''}">${r[5]}%</b><span class="l">목표</span><span class="tr"><i style="width:${w(r[6])};background:var(--faint)"></i></span><span class="m">${r[6]}%</span></div></td><td><span class="bd ${r[7]}">${BD[r[7]]}</span></td></tr>`).join('')}</table></div>
+<div class="legend"><span class="bd b">▲ 매수</span><span class="bd s">▼ 매도</span><span class="bd w">◆ 비중</span></div></div>`}
+let h=''
+for(const [name,t] of Object.entries(T)){
+ h+=`<div class="cap">${name}<span class="sw">${t.pal.map(c=>`<i style="background:${c}"></i>`).join('')}</span></div><div class="grid">`
+ for(const mode of ['light','dark']){
+  const vars={...t[mode],...SIG[mode]}
+  h+=`<div class="frame" style="${Object.entries(vars).map(([k,v])=>`--${k}:${v}`).join(';')}">${screen(mode)}</div>`
+ }
+ h+='</div>'
+}
+out.innerHTML=h
+</script>
+</body>
+</html>
