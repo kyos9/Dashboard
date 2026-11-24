@@ -1,7 +1,9 @@
 /* ---------- 페이지 ---------- */
 
 .page {
-  max-width: 1440px;
+  /* 본문 폭은 모든 화면이 1240 하나 — 홈 · 종목 안 · 설정과 리밸런싱 · 매크로 · 재무가 달라 보였다 (주인: 통일) */
+  max-width: calc(1240px + var(--gutter-left) + var(--gutter-right));
+  box-sizing: border-box;
   margin: 0 auto;
   padding: 24px var(--gutter-right) calc(72px + env(safe-area-inset-bottom, 0px)) var(--gutter-left);
 }
