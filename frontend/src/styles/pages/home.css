@@ -842,7 +842,9 @@ button.sig-item.active {
   line-height: 1.8;
 }
 .settings-page.settings-page-pc {
-  max-width: none;
+  /* 홈 · 종목 안과 같은 폭으로 가운데 — 끝까지 펴면 카드 오른쪽이 비고 좌우가 맞지 않았다 (주인) */
+  max-width: 1240px;
+  margin: 0 auto;
 }
 a.sig-item.settings-item {
   padding: 11px 16px;
