@@ -1,12 +1,11 @@
+import { ModalOrPane } from './ui/ModalOrPane'
 import { useCallback, useEffect, useState } from 'react'
 import { ApiError, api } from '../api/client'
-import { useBackToClose } from '../lib/backToClose'
 import { disablePush, enablePush, pushState, type PushState } from '../lib/push'
 import { kindText, STATE_TEXT } from '../lib/pushText'
 import { stockLabel } from '../lib/display'
 import type { PushKind, PushSettings, PushSlot, Stock } from '../types'
 import { ErrorNotice } from './ErrorNotice'
-import { lockBodyScroll } from '../lib/scrollLock'
 
 /**
  * 알림 설정 — 이 기기에서 켜고 끄기, 받을 종류, 시험 알림 (ROADMAP 6단계).
@@ -38,7 +37,7 @@ function load(account: string): Promise<[PushState, PushSettings]> {
   return Promise.all([pushState(account).catch(() => 'unsupported' as const), api.getPushSettings()])
 }
 
-export function PushModal({ account, onClose }: { account: string; onClose: () => void }) {
+export function PushModal({ account, onClose, inline = false }: { account: string; onClose: () => void; inline?: boolean }) {
   const [state, setState] = useState<PushState | null>(null)
   const [settings, setSettings] = useState<PushSettings | null>(null)
   const [busy, setBusy] = useState(false)
@@ -85,18 +84,6 @@ export function PushModal({ account, onClose }: { account: string; onClose: () =
     }
   }, [])
 
-  // 폰의 뒤로가기로도 닫힌다
-  useBackToClose(onClose)
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
-    document.addEventListener('keydown', onKey)
-    const release = lockBodyScroll()
-    return () => {
-      document.removeEventListener('keydown', onKey)
-      release()
-    }
-  }, [onClose])
 
   async function run(action: () => Promise<void>, done?: string) {
     setBusy(true)
@@ -148,25 +135,14 @@ export function PushModal({ account, onClose }: { account: string; onClose: () =
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div
-        className="modal push-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-label="알림"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="modal-head">
-          <div className="modal-title">
-            <h3>알림</h3>
-            {settings && settings.devices > 0 && (
-              <span className="hint">알림을 켜 둔 기기 {settings.devices}대</span>
-            )}
-          </div>
-          <button className="icon-btn" onClick={onClose} aria-label="닫기">
-            ✕
-          </button>
-        </div>
+    <ModalOrPane
+      inline={inline}
+      label="알림"
+      className="push-modal"
+      title="알림"
+      sub={settings && settings.devices > 0 && <span className="hint">알림을 켜 둔 기기 {settings.devices}대</span>}
+      onClose={onClose}
+    >
 
         <ErrorNotice error={error} onDismiss={() => setError(null)} />
 
@@ -327,7 +303,6 @@ export function PushModal({ account, onClose }: { account: string; onClose: () =
           신호로 매일 울리지 않고, 새로 생겼을 때 한 번만 옵니다. 나가기를 누르면 이 기기의 알림도
           꺼집니다.
         </p>
-      </div>
-    </div>
+    </ModalOrPane>
   )
 }

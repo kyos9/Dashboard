@@ -35,3 +35,24 @@ export function pretendPhone() {
 export function forgetPhone() {
   Reflect.deleteProperty(window, 'matchMedia')
 }
+
+/**
+ * 폭 1100 이하 PC 흉내 — 머리줄은 PC 그대로, 리밸런싱 · 매크로 · 설정만 예전(목록 + 창) 배치로 그린다.
+ * 설정 탭을 여는 예전 시험들이 쓴다 (디자인 5차 목업 08 가 — PC 설정은 왼쪽 메뉴 + 오른쪽 내용).
+ */
+export function pretendMidWidth() {
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    writable: true,
+    value: (media: string) => ({
+      matches: media === '(max-width: 1100px)',
+      media,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    }),
+  })
+}

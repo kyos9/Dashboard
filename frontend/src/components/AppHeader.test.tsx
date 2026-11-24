@@ -1,7 +1,8 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { forgetPhone, pretendMidWidth } from '../test/phone'
 import { AppStateProvider } from '../AppState'
 import { ApiError, GOOGLE_LOGIN_URL, api } from '../api/client'
 import type { RefreshResult } from '../types'
@@ -36,7 +37,11 @@ function renderHeader() {
   )
 }
 
+afterEach(() => forgetPhone())
+
+// 설정 탭의 예전 목록 + 창 배치를 본다 — PC 설정(왼쪽 메뉴 + 오른쪽 내용)은 SettingsPage.pc.test
 beforeEach(() => {
+  pretendMidWidth()
   vi.restoreAllMocks()
   vi.spyOn(api, 'refreshSymbolListing').mockResolvedValue({} as never)
   localStorage.clear()
@@ -56,7 +61,7 @@ describe('버전 표시', () => {
 
     // 시간대는 보는 사람의 것이므로 날짜 문자열을 고정하지 않는다.
     // 확인할 것은 "버전 옆에 무언가 더 붙었는가"다.
-    const badge = await screen.findByText(/^v0\.4\.0 · /)
+    const badge = await screen.findByText(/^v0\.4\.0 \(/)
     expect(badge).toBeInTheDocument()
   })
 

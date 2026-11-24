@@ -7,7 +7,8 @@
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { forgetPhone, pretendMidWidth } from '../test/phone'
 
 vi.mock('../lib/push', async (importOriginal) => {
   const real = await importOriginal<typeof import('../lib/push')>()
@@ -34,7 +35,11 @@ import { PushModal } from './PushModal'
 
 const USER_SETTINGS: PushSettings = { kinds: ['buy', 'band', 'review'], available: ['buy', 'band', 'review'], devices: 0 }
 
+afterEach(() => forgetPhone())
+
+// 설정 탭의 예전 목록 + 창 배치를 본다 — PC 설정(왼쪽 메뉴 + 오른쪽 내용)은 SettingsPage.pc.test
 beforeEach(() => {
+  pretendMidWidth()
   vi.restoreAllMocks()
   vi.mocked(pushState).mockReset().mockResolvedValue('off')
   vi.mocked(enablePush).mockReset().mockResolvedValue(undefined)

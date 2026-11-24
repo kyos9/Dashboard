@@ -177,7 +177,7 @@ describe('설정 탭의 줄', () => {
   it('화면 — 지금 값이 줄에 보이고, 팝업에서 바꾸면 따라 바뀐다', async () => {
     renderAs(FRIEND)
     const row = await screen.findByRole('button', { name: /^화면/ })
-    expect(row).toHaveTextContent('기기 설정 · 상승 초록')
+    expect(row).toHaveTextContent('기기 설정, 상승 초록')
     await userEvent.click(row)
     // 팝업 코드는 누를 때 받는다 — 받는 동안의 틀을 지나 진짜 팝업을 기다린다
     await screen.findByRole('group', { name: '상승 색' })

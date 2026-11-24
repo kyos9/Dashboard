@@ -1,7 +1,5 @@
-import { useEffect } from 'react'
-import { useBackToClose } from '../lib/backToClose'
+import { ModalOrPane } from './ui/ModalOrPane'
 import { setRise, setThemeChoice, usePrefs, type Rise, type ThemeChoice } from '../lib/prefs'
-import { lockBodyScroll } from '../lib/scrollLock'
 
 /**
  * 화면 설정 — 테마 · 상승 색 (ROADMAP 8-4).
@@ -20,40 +18,12 @@ const RISES: { key: Rise; label: string }[] = [
   { key: 'red', label: '빨강' },
 ]
 
-export function DisplayModal({ onClose }: { onClose: () => void }) {
+export function DisplayModal({ onClose, inline = false }: { onClose: () => void; inline?: boolean }) {
   const prefs = usePrefs()
 
-  // 폰의 뒤로가기로도 닫힌다
-  useBackToClose(onClose)
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
-    document.addEventListener('keydown', onKey)
-    const release = lockBodyScroll()
-    return () => {
-      document.removeEventListener('keydown', onKey)
-      release()
-    }
-  }, [onClose])
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div
-        className="modal display-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-label="화면 설정"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="modal-head">
-          <div className="modal-title">
-            <h3>화면 설정</h3>
-            <span className="hint">이 기기에만 적용됩니다</span>
-          </div>
-          <button className="icon-btn" onClick={onClose} aria-label="닫기">
-            ✕
-          </button>
-        </div>
+    <ModalOrPane inline={inline} label="화면 설정" className="display-modal" title="화면 설정" sub={<span className="hint">이 기기에만 적용됩니다</span>} onClose={onClose}>
 
         <section className="display-row">
           <h4 id="display-theme">테마</h4>
@@ -96,7 +66,6 @@ export function DisplayModal({ onClose }: { onClose: () => void }) {
             늘 글자나 모양이 같이 붙습니다.
           </p>
         </section>
-      </div>
-    </div>
+    </ModalOrPane>
   )
 }

@@ -781,3 +781,75 @@ button.sig-item.active {
   margin: 0;
   font-size: var(--fs-body);
 }
+
+/* ---- PC 설정 (디자인 5차 목업 08 가) — 왼쪽 메뉴 + 오른쪽 내용, 창 없음 ---- */
+.sig-panel.settings-panel-pc {
+  grid-template-columns: 280px 1fr;
+}
+.settings-list-pc li.settings-me {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  padding: 14px 16px;
+}
+.settings-list-pc li.settings-me .hint {
+  flex-basis: 100%;
+  margin: 0;
+}
+.sig-list .settings-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  font-weight: 600;
+  text-align: left;
+  text-decoration: none;
+  color: var(--text);
+}
+.settings-item-value {
+  font-size: var(--fs-caption);
+  font-weight: 500;
+  color: var(--text-faint);
+}
+.settings-pane-head {
+  margin-bottom: 14px;
+}
+.settings-pane .icon-btn[aria-label='닫기'] {
+  display: none;
+}
+.settings-detail .diag-body,
+.settings-detail .users-list {
+  max-height: none;
+}
+.settings-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.settings-actions button {
+  min-height: 38px;
+  padding: 0 16px;
+}
+.settings-actions .danger {
+  color: var(--signal-sell);
+}
+.settings-credits-list {
+  margin: 0;
+  padding-left: 18px;
+  line-height: 1.8;
+}
+.settings-page.settings-page-pc {
+  max-width: none;
+}
+a.sig-item.settings-item {
+  padding: 11px 16px;
+}
+a.sig-item.settings-item:hover {
+  background: var(--panel-soft);
+}
+.settings-detail {
+  max-width: 880px;
+}

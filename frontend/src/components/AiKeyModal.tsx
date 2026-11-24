@@ -1,47 +1,23 @@
-import { useEffect } from 'react'
-import { useBackToClose } from '../lib/backToClose'
+import { ModalOrPane } from './ui/ModalOrPane'
 import { AiKeyForm } from './AiKeyForm'
-import { lockBodyScroll } from '../lib/scrollLock'
 
 /**
  * 헤더의 "AI" — 내 AI 키 넣기·바꾸기·지우기 (ROADMAP 3c).
  *
  * 분석은 대시보드 맨 오른쪽 버튼·종목 팝업의 "AI 분석" 탭에서 받는다. 여기는 키만 다룬다.
  */
-export function AiKeyModal({ account, onClose }: { account: string; onClose: () => void }) {
-  // 폰의 뒤로가기로도 닫힌다
-  useBackToClose(onClose)
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
-    document.addEventListener('keydown', onKey)
-    const release = lockBodyScroll()
-    return () => {
-      document.removeEventListener('keydown', onKey)
-      release()
-    }
-  }, [onClose])
+export function AiKeyModal({ account, onClose, inline = false }: { account: string; onClose: () => void; inline?: boolean }) {
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div
-        className="modal ai-key-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-label="AI 키 설정"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="modal-head">
-          <div className="modal-title">
-            <h3>AI 키</h3>
-            <span className="hint">시그널 목록 · 종목 팝업의 "AI 분석"과 AI 정리 화면에 씁니다</span>
-          </div>
-          <button className="icon-btn" onClick={onClose} aria-label="닫기">
-            ✕
-          </button>
-        </div>
+    <ModalOrPane
+      inline={inline}
+      label="AI 키 설정"
+      className="ai-key-modal"
+      title="AI 키"
+      sub={<span className="hint">시그널 목록, 종목 화면의 &ldquo;AI 분석&rdquo;과 AI 정리 화면에 씁니다</span>}
+      onClose={onClose}
+    >
         <AiKeyForm account={account} />
-      </div>
-    </div>
+    </ModalOrPane>
   )
 }

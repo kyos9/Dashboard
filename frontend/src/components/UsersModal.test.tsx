@@ -1,7 +1,8 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { forgetPhone, pretendMidWidth } from '../test/phone'
 import { AppStateProvider } from '../AppState'
 import { ApiError, api } from '../api/client'
 import type { AdminUser, AuthStatus } from '../types'
@@ -51,7 +52,11 @@ function renderApp(status: AuthStatus, body: React.ReactNode = null) {
   )
 }
 
+afterEach(() => forgetPhone())
+
+// 설정 탭의 예전 목록 + 창 배치를 본다 — PC 설정(왼쪽 메뉴 + 오른쪽 내용)은 SettingsPage.pc.test
 beforeEach(() => {
+  pretendMidWidth()
   vi.restoreAllMocks()
   resetBackToClose() // 앞 시험이 닫은 팝업의 기록 칸 빼기가 다음 시험의 목록을 닫지 않게
   localStorage.clear()

@@ -1,11 +1,10 @@
+import { ModalOrPane } from './ui/ModalOrPane'
 import { useEffect, useState } from 'react'
 import { api, ApiError } from '../api/client'
-import { useBackToClose } from '../lib/backToClose'
 import { ConfirmDialog } from './ConfirmDialog'
 import { ErrorNotice } from './ErrorNotice'
 import { whenLabel } from '../lib/display'
 import type { AdminUser, AppSettings, UserStatus } from '../types'
-import { lockBodyScroll } from '../lib/scrollLock'
 
 /**
  * 관리자 — 사용자 목록과 가입 승인 (ROADMAP 4-4b).
@@ -28,7 +27,7 @@ const STATUS_META: Record<UserStatus, { label: string; badge: string }> = {
   blocked: { label: '차단', badge: 'badge-red' },
 }
 
-export function UsersModal({ onClose, onChanged }: { onClose: () => void; onChanged: () => void }) {
+export function UsersModal({ onClose, onChanged, inline = false }: { onClose: () => void; onChanged: () => void; inline?: boolean }) {
   const [users, setUsers] = useState<AdminUser[] | null>(null)
   const [error, setError] = useState<unknown>(null)
   const [busyId, setBusyId] = useState<number | null>(null)
@@ -54,18 +53,6 @@ export function UsersModal({ onClose, onChanged }: { onClose: () => void; onChan
     }
   }
 
-  // 폰의 뒤로가기로도 닫힌다
-  useBackToClose(onClose)
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !confirmBlock && !confirmDelete && onClose()
-    document.addEventListener('keydown', onKey)
-    const release = lockBodyScroll()
-    return () => {
-      document.removeEventListener('keydown', onKey)
-      release()
-    }
-  }, [onClose, confirmBlock, confirmDelete])
 
   async function change(user: AdminUser, status: Exclude<UserStatus, 'pending'>) {
     setBusyId(user.id)
@@ -104,29 +91,19 @@ export function UsersModal({ onClose, onChanged }: { onClose: () => void; onChan
 
   return (
     <>
-      <div className="modal-backdrop" onClick={onClose}>
-        <div
-          className="modal users-modal"
-          role="dialog"
-          aria-modal="true"
-          aria-label="사용자"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="modal-head">
-            <div className="modal-title">
-              <h3>사용자</h3>
-              <span className="hint">
-                {users === null
-                  ? ''
-                  : waiting > 0
-                    ? `가입 신청 ${waiting}건이 기다리고 있습니다`
-                    : `${users.length}명 · 기다리는 신청 없음`}
-              </span>
-            </div>
-            <button className="icon-btn" onClick={onClose} aria-label="닫기">
-              ✕
-            </button>
-          </div>
+      <ModalOrPane
+        inline={inline}
+        label="사용자"
+        className="users-modal"
+        title="사용자"
+        escBlocked={!!confirmBlock || !!confirmDelete}
+        sub={
+          <span className="hint">
+            {users === null ? '' : waiting > 0 ? `가입 신청 ${waiting}건이 기다리고 있습니다` : `${users.length}명, 기다리는 신청 없음`}
+          </span>
+        }
+        onClose={onClose}
+      >
 
           <ErrorNotice error={error} onDismiss={() => setError(null)} />
 
@@ -217,8 +194,7 @@ export function UsersModal({ onClose, onChanged }: { onClose: () => void; onChan
               )
             })}
           </div>
-        </div>
-      </div>
+      </ModalOrPane>
 
       {/* 목록 창 바깥에 둔다 — 안에 두면 확인 창 바깥을 누른 것이 목록 창까지 닫는다 */}
       {confirmBlock && (

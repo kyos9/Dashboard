@@ -1,12 +1,11 @@
+import { ModalOrPane } from './ui/ModalOrPane'
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { backupWarnings } from '../lib/backupWarnings'
 import { parseInstant, whenText } from '../lib/diagTime'
 import { refreshLine } from '../lib/refreshText'
-import { useBackToClose } from '../lib/backToClose'
 import { ErrorNotice } from './ErrorNotice'
 import type { BackupStatus, LogsResponse, RecordsStatus, RefreshStatus, SignalRulesStatus, SlowRequestsResponse } from '../types'
-import { lockBodyScroll } from '../lib/scrollLock'
 
 /**
  * 진단 — 서버가 남긴 기록 중 **잘못된 것만** 본다.
@@ -283,7 +282,7 @@ export function RecordsLine({ status, now }: { status: RecordsStatus; now: numbe
   )
 }
 
-export function DiagnosticsModal({ onClose }: { onClose: () => void }) {
+export function DiagnosticsModal({ onClose, inline = false }: { onClose: () => void; inline?: boolean }) {
   const [level, setLevel] = useState<'warning' | 'all'>('warning')
   const [logs, setLogs] = useState<LogsResponse | null>(null)
   const [error, setError] = useState<unknown>(null)
@@ -322,55 +321,32 @@ export function DiagnosticsModal({ onClose }: { onClose: () => void }) {
       .finally(() => setLoading(false))
   }, [level])
 
-  // 폰의 뒤로가기로도 닫힌다
-  useBackToClose(onClose)
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
-    document.addEventListener('keydown', onKey)
-    const release = lockBodyScroll()
-    return () => {
-      document.removeEventListener('keydown', onKey)
-      release()
-    }
-  }, [onClose])
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div
-        className="modal diag-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-label="서버 상태"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="modal-head">
-          <div className="modal-title">
-            <h3>서버 상태</h3>
-            <SummaryLine
-              logs={logs}
-              backupWarn={records?.status.backup ? backupWarnings(records.status.backup, records.at).any : false}
-              refreshWarn={(records?.status.refresh ?? []).some((r) => r.blocked)}
-            />
-          </div>
-          <div className="chip-row">
-            <button
-              className={`chip${level === 'warning' ? ' active' : ''}`}
-              onClick={() => setLevel('warning')}
-            >
-              경고·오류만
-            </button>
-            <button
-              className={`chip${level === 'all' ? ' active' : ''}`}
-              onClick={() => setLevel('all')}
-            >
-              전체
-            </button>
-          </div>
-          <button className="icon-btn" onClick={onClose} aria-label="닫기">
-            ✕
+    <ModalOrPane
+      inline={inline}
+      label="서버 상태"
+      className="diag-modal"
+      title="서버 상태"
+      sub={
+        <SummaryLine
+          logs={logs}
+          backupWarn={records?.status.backup ? backupWarnings(records.status.backup, records.at).any : false}
+          refreshWarn={(records?.status.refresh ?? []).some((r) => r.blocked)}
+        />
+      }
+      headExtra={
+        <div className="chip-row">
+          <button className={`chip${level === 'warning' ? ' active' : ''}`} onClick={() => setLevel('warning')}>
+            경고·오류만
+          </button>
+          <button className={`chip${level === 'all' ? ' active' : ''}`} onClick={() => setLevel('all')}>
+            전체
           </button>
         </div>
+      }
+      onClose={onClose}
+    >
 
         <ErrorNotice error={error} onDismiss={() => setError(null)} />
 
@@ -418,7 +394,6 @@ export function DiagnosticsModal({ onClose }: { onClose: () => void }) {
             로그 파일 받기
           </a>
         </div>
-      </div>
-    </div>
+    </ModalOrPane>
   )
 }
