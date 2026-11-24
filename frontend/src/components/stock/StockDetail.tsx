@@ -7,7 +7,7 @@ import { useAppState } from '../../AppState'
 import { useCachedLoad } from '../../lib/cache'
 import { useNarrow } from '../../lib/narrow'
 import { showsSellConditions, useSignalRules } from '../../lib/signalRules'
-import { METRIC_GROUPS, emptyReason, metricValue, perPositionText, type ChartTab } from '../../lib/fundamentals'
+import { METRIC_GROUPS, emptyReason, metricValue, type ChartTab } from '../../lib/fundamentals'
 import { cardSignals, tone as toneOf } from '../../lib/portfolio'
 import { MARKET_LABEL, num, price, signed, trafficLight } from '../../lib/display'
 import { pushAccount } from '../../lib/push'
@@ -16,6 +16,7 @@ import { useAuth } from '../AuthGate'
 import { ChartLegend, PriceChart } from '../PriceChart'
 import { ErrorNotice } from '../ErrorNotice'
 import { FundamentalsPanel } from '../FundamentalsPanel'
+import { FundamentalsDetail } from '../fundamentals/DesktopFundamentals'
 import { AiPanel } from '../AiPanel'
 import { ReasonTag } from '../SignalShape'
 import { SignalBadges } from '../ui/SignalBadges'
@@ -44,52 +45,69 @@ function AiView({ onBack, children }: { onBack: () => void; children: ReactNode 
   )
 }
 
-/** PC 오른쪽 "비중" 카드 — 현재와 목표를 막대 하나에 (목업 10 나). 숫자는 홈·리밸런싱과 같은 응답 */
+/**
+ * PC 오른쪽 "비중" 카드 (목업 10 나, 주인: 막대 말고 다른 것) — 숫자 셋(현재 · 목표 · 차이)과 그 아래 허용 폭 눈금:
+ * 옅은 띠가 목표 ± 밴드, 세로 금이 목표, 점이 현재. 띠 밖이면 점이 비중 신호 색. 숫자는 홈·리밸런싱과 같은 응답
+ */
 function WeightCard({ row, card }: { row: RebalanceRow | null; card: DashboardCard }) {
   const reasons = card.rebalance_signal?.reasons ?? []
-  const scale = row ? Math.max(row.actual_weight_pct, row.target_weight_pct + row.band_pct, 1) * 1.15 : 1
-  const pct = (v: number) => `${Math.min(100, (v / scale) * 100)}%`
+  if (!row) {
+    return (
+      <section className="detail-card side-card" aria-label="비중">
+        <h3 className="detail-card-title">비중</h3>
+        <p className="hint">보유수량을 적으면 지금 비중이 나옵니다.</p>
+      </section>
+    )
+  }
+  const lo = Math.max(0, row.target_weight_pct - row.band_pct)
+  const hi = row.target_weight_pct + row.band_pct
+  const top = Math.max(row.actual_weight_pct, hi) * 1.2 || 1
+  const at = (v: number) => `${Math.min(100, Math.max(0, (v / top) * 100))}%`
+  const gap = row.actual_weight_pct - row.target_weight_pct
+  const out = row.actual_weight_pct < lo || row.actual_weight_pct > hi
   return (
     <section className="detail-card side-card" aria-label="비중">
       <h3 className="detail-card-title">비중</h3>
-      {row ? (
-        <>
-          <p className="side-weight-nums">
-            <span>
-              현재 <b className="mono">{num(row.actual_weight_pct, 1)}%</b>
-            </span>
-            <span>
-              목표 <b className="mono">{num(row.target_weight_pct, 1)}%</b> <span className="hint nowrap">(밴드 ±{num(row.band_pct, 1)}%p)</span>
-            </span>
-          </p>
-          <div className="side-weight-bar" aria-hidden="true">
-            <i style={{ width: pct(row.actual_weight_pct) }} />
-            <u style={{ left: pct(row.target_weight_pct) }} />
-          </div>
-        </>
-      ) : (
-        <p className="hint">보유수량을 적으면 지금 비중이 나옵니다.</p>
-      )}
-      {reasons.length > 0 ? (
-        <div className="badge-row">
-          {reasons.map((r) => (
-            <ReasonTag key={r} reason={r} />
-          ))}
+      <dl className="side-weight-nums">
+        <div>
+          <dt>현재</dt>
+          <dd className="mono">{num(row.actual_weight_pct, 1)}%</dd>
         </div>
-      ) : (
-        row && <p className="hint">목표 비중에서 벗어나지 않았습니다.</p>
-      )}
+        <div>
+          <dt>목표</dt>
+          <dd className="mono">{num(row.target_weight_pct, 1)}%</dd>
+        </div>
+        <div>
+          <dt>차이</dt>
+          <dd className={`mono${out ? ' side-weight-out' : ''}`}>{signed(gap, 1, '%p')}</dd>
+        </div>
+      </dl>
+      <div className="side-weight-gauge" aria-hidden="true">
+        <span className="band" style={{ left: at(lo), width: `calc(${at(hi)} - ${at(lo)})` }} />
+        <span className="target" style={{ left: at(row.target_weight_pct) }} />
+        <span className={`now${out ? ' out' : ''}`} style={{ left: at(row.actual_weight_pct) }} />
+      </div>
+      <p className="side-weight-scale hint">
+        <span>허용 {num(lo, 1)} ~ {num(hi, 1)}%</span>
+        {reasons.length > 0 && (
+          <span className="badge-row">
+            {reasons.map((r) => (
+              <ReasonTag key={r} reason={r} />
+            ))}
+          </span>
+        )}
+      </p>
     </section>
   )
 }
 
-const SUMMARY_KEYS: FundamentalKey[] = ['per', 'roe', 'revenue_yoy', 'debt_ratio']
+const SUMMARY_KEYS: FundamentalKey[] = ['roe', 'revenue_yoy', 'debt_ratio']
 const METRIC_LABEL = Object.fromEntries(METRIC_GROUPS.flatMap((g) => g.items.map((i) => [i.key, i.key === 'revenue_yoy' ? '매출 (전년 같은 분기)' : i.label])))
 
 /** PC 오른쪽 "재무 요약" 카드 — 넷만, 자세히는 아래 (목업 10 나) */
 function FundSummary({ data, failed, onMore }: { data: FundamentalsResponse | null; failed: boolean; onMore: () => void }) {
   const byKey = new Map(data?.metrics.map((m) => [m.key, m]) ?? [])
-  const position = data?.per_range ? perPositionText(data.per_range) : null
+  const perMean = data?.per_range?.mean ?? null
   const has = !!data && data.state !== 'none' && data.metrics.length > 0
   return (
     <section className="detail-card side-card" aria-label="재무 요약">
@@ -104,6 +122,14 @@ function FundSummary({ data, failed, onMore }: { data: FundamentalsResponse | nu
       {has ? (
         <>
           <dl className="detail-kv side-kv">
+            <div>
+              <dt>PER</dt>
+              <dd className="mono">{metricValue(byKey.get('per'), data.currency)}</dd>
+            </div>
+            <div>
+              <dt>PER 5년 평균</dt>
+              <dd className="mono">{perMean == null ? '—' : `${num(perMean, 1)}배`}</dd>
+            </div>
             {SUMMARY_KEYS.map((key) => (
               <div key={key}>
                 <dt>{METRIC_LABEL[key]}</dt>
@@ -111,7 +137,6 @@ function FundSummary({ data, failed, onMore }: { data: FundamentalsResponse | nu
               </div>
             ))}
           </dl>
-          {position && <p className="hint">{position}</p>}
         </>
       ) : (
         <p className="hint">{data ? emptyReason(data) : failed ? '재무를 불러오지 못했습니다.' : '재무를 불러오는 중…'}</p>
@@ -288,7 +313,7 @@ export function StockDetail({ ticker, name, card, initialTab = 'chart', lead, tr
                   {rangeSeg}
                 </div>
                 <ErrorNotice error={error} onDismiss={() => setError(null)} />
-                <PriceChart history={history} height={400} />
+                <PriceChart history={history} height={400} zoomControls />
                 {conditions}
                 {coverage}
               </section>
@@ -308,7 +333,7 @@ export function StockDetail({ ticker, name, card, initialTab = 'chart', lead, tr
                     </Link>
                   )}
                 </div>
-                <FundamentalsPanel data={fundamentals} />
+                <FundamentalsDetail row={fundamentals} embedded />
               </section>
             )}
           </>

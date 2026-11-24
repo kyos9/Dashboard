@@ -60,7 +60,9 @@ type Mode = 'quarter' | 'year'
 
 function ResultsTable({ row, results, mode }: { row: FundamentalsResponse; results: Results; mode: Mode }) {
   const all = mode === 'quarter' ? results.quarters : results.years
-  const shown = all.slice(0, 4)
+  // 기본 넷, "더보기"로 그 이전 (주인 요청, 종목 안 재무 자세히)
+  const [more, setMore] = useState(false)
+  const shown = more ? all : all.slice(0, 4)
   if (shown.length === 0) {
     return <p className="hint">{mode === 'quarter' ? '분기 실적이 없습니다.' : '연 실적이 없습니다.'}</p>
   }
@@ -81,13 +83,8 @@ function ResultsTable({ row, results, mode }: { row: FundamentalsResponse; resul
             const prev = all[i + 1]
             return (
               <tr key={q.period_end}>
-                <th scope="row">
-                  {quarterName(q.period_end)}
-                  <small>
-                    공시 {dayLabel(q.filed_at)}
-                    {q.estimated ? ' (추정)' : ''}
-                  </small>
-                </th>
+                {/* 공시일은 뺐다 — 숫자만 (주인 요청) */}
+                <th scope="row">{quarterName(q.period_end)}</th>
                 {QUARTER_COLUMNS.map((c) => {
                   const value = q[c.key] as number | null
                   const pick = (o: FundamentalQuarter | undefined) => (o ? (o[c.key] as number | null) : null)
@@ -103,6 +100,11 @@ function ResultsTable({ row, results, mode }: { row: FundamentalsResponse; resul
           })}
         </tbody>
       </table>
+      {all.length > 4 && (
+        <button type="button" className="link-like fd-more" aria-expanded={more} onClick={() => setMore((v) => !v)}>
+          {more ? '접기' : `더보기 (${all.length - 4})`}
+        </button>
+      )}
     </div>
   )
 }
@@ -123,7 +125,11 @@ function Card({ title, lines }: { title: string; lines: { label: string; value: 
   )
 }
 
-function Detail({ row }: { row: FundamentalsResponse }) {
+/**
+ * 고른 종목의 재무 — PER · 가치 · 수익성 · 성장 · 안정 카드와 실적.
+ * `embedded` 는 PC 종목 안 "재무 자세히"(디자인 5차 목업 10 나) — 머리(이름 · 공시 출처)와 가이던스 줄을 빼고 숫자만 (주인 요청)
+ */
+export function FundamentalsDetail({ row, embedded = false }: { row: FundamentalsResponse; embedded?: boolean }) {
   const results = useResults(row)
   const [mode, setMode] = useState<Mode>('quarter')
   if (row.metrics.length === 0) {
@@ -146,6 +152,7 @@ function Detail({ row }: { row: FundamentalsResponse }) {
 
   return (
     <article className="sig-detail fd-detail" aria-label={`${rowLabel(row)} 재무`}>
+      {!embedded && (
       <header className="sig-detail-head">
         <h3>{rowLabel(row)}</h3>
         <span className="hint">
@@ -153,6 +160,7 @@ function Detail({ row }: { row: FundamentalsResponse }) {
           {priceDay ? `, 종가는 ${priceDay}` : ''}
         </span>
       </header>
+      )}
 
       {/* PER 카드는 다른 묶음과 같은 모양 · 같은 글자 크기 (주인: PER 만 크면 통일성이 없다) */}
       <div className="fd-cards">
@@ -180,14 +188,19 @@ function Detail({ row }: { row: FundamentalsResponse }) {
         ))}
       </div>
 
-      <div className="fd-line" aria-label="회사 가이던스">
-        <h4>회사 가이던스</h4>
-        <span>아직 모으지 않습니다</span>
-      </div>
+      {!embedded && (
+        <div className="fd-line" aria-label="회사 가이던스">
+          <h4>회사 가이던스</h4>
+          <span>아직 모으지 않습니다</span>
+        </div>
+      )}
 
       <section className="fd-sec" aria-label="실적">
         <div className="fd-sec-head">
-          <h4>실적</h4>
+          <h4>
+            실적
+            {latest && <small className="fd-latest">최근 분기 {quarterName(latest.period_end)}</small>}
+          </h4>
           <div className="seg fd-seg" role="group" aria-label="실적 단위">
             {(['quarter', 'year'] as const).map((m) => (
               <button key={m} type="button" className={mode === m ? 'active' : undefined} aria-pressed={mode === m} onClick={() => setMode(m)}>
@@ -196,7 +209,7 @@ function Detail({ row }: { row: FundamentalsResponse }) {
             ))}
           </div>
         </div>
-        {results === null ? <p className="hint">실적을 받는 중입니다.</p> : <ResultsTable row={row} results={results} mode={mode} />}
+        {results === null ? <p className="hint">실적을 받는 중입니다.</p> : <ResultsTable key={mode} row={row} results={results} mode={mode} />}
 
       </section>
     </article>
@@ -241,7 +254,7 @@ export function DesktopFundamentals({
         )}
         {hidden.map(item)}
       </ul>
-      <Detail row={row} />
+      <FundamentalsDetail row={row} />
     </div>
   )
 }

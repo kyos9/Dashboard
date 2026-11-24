@@ -189,9 +189,12 @@ export function HoldingTab({
           <button type="button" className="sm" onClick={() => void refresh()} disabled={refreshing} aria-label={`${label} 시세 갱신`}>
             {refreshing ? '갱신 중…' : '시세 갱신'}
           </button>
-          <button type="button" className="ghost sm" onClick={() => void toggleActive()} aria-label={`${label} ${stock.active ? '비활성화' : '활성화'}`}>
-            {stock.active ? '비활성화' : '활성화'}
-          </button>
+          {/* 비활성화는 뺐다 (주인: 왜 있는지 모르겠다). 이미 꺼 둔 종목만 다시 켜는 단추 */}
+          {!stock.active && (
+            <button type="button" className="ghost sm" onClick={() => void toggleActive()} aria-label={`${label} 활성화`}>
+              활성화
+            </button>
+          )}
           <button type="button" className="danger sm" onClick={() => setPurging(true)} aria-label={`${label} 삭제`}>
             삭제
           </button>

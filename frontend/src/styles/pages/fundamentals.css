@@ -617,3 +617,16 @@ button.sig-item.fd-item.off {
 .fd-quarters td small em {
   font-style: normal;
 }
+
+/* 실적 머리의 "최근 분기 …" 와 아래 "더보기" (주인 요청) */
+.fd-sec-head h4 .fd-latest {
+  margin-left: 10px;
+  font-size: var(--fs-caption);
+  font-weight: 500;
+  color: var(--text-dim);
+}
+.fd-more {
+  display: block;
+  margin: 10px auto 0;
+  font-size: var(--fs-sub);
+}

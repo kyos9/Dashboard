@@ -36,17 +36,19 @@ interface ChartHandles {
 interface Props {
   history: HistoryResponse | null
   height?: number
+  /** PC 종목 안 — ◀ ▶ 대신 확대 · 축소 · 처음대로 (주인: 증권사처럼). 휠 · 끌기는 원래 된다 */
+  zoomControls?: boolean
 }
 
 /**
- * 로그 스케일 종가 차트 + 매수/매도 시그널 마커.
+ * 종가 차트 + 매수/매도 시그널 마커. 세로축은 증권사 기본과 같은 보통 눈금(주인: 로그는 왜곡돼 보인다, 디자인 5차).
  *
  * 차트를 붙일 DOM을 `useRef`가 아니라 **콜백 ref + state**로 받는다. ref는 값이
  * 채워져도 다시 렌더되지 않아서, 컨테이너가 나중에 나타나는 화면(종목을 불러오는
  * 동안 안내 문구만 보여주다가 표를 그리는 경우, 모달로 띄우는 경우)에서는 차트를
  * 만드는 effect가 영영 다시 돌지 않는다. 실제로 그렇게 차트가 안 뜨는 버그가 있었다.
  */
-export function PriceChart({ history, height = 440 }: Props) {
+export function PriceChart({ history, height = 440, zoomControls = false }: Props) {
   const [container, setContainer] = useState<HTMLDivElement | null>(null)
   const [handles, setHandles] = useState<ChartHandles | null>(null)
   const themeKey = useChartThemeKey()
@@ -68,7 +70,7 @@ export function PriceChart({ history, height = 440 }: Props) {
         vertLines: { color: orUndefined(palette.grid) },
         horzLines: { color: orUndefined(palette.grid) },
       },
-      rightPriceScale: { mode: PriceScaleMode.Logarithmic, borderColor: orUndefined(palette.grid) },
+      rightPriceScale: { mode: PriceScaleMode.Normal, borderColor: orUndefined(palette.grid) },
       // 오른쪽에 몇 칸 비워 둔다 — 오늘 찍은 ▲ 가 끝에서 반쯤 잘리고 현재가 이름표와 겹쳤다 (B 사용자 확인)
       timeScale: { borderColor: orUndefined(palette.grid), tickMarkFormatter: chartTick, rightOffset: 3 },
       crosshair: {
@@ -326,6 +328,15 @@ export function PriceChart({ history, height = 440 }: Props) {
     if (from < 0 || !prices?.[from + by]) return
     pick(from + by)
   }
+  /** 보이는 구간을 가운데 기준으로 factor 배 — 1 보다 작으면 확대 (MacroChart 와 같다) */
+  const zoom = (factor: number) => {
+    const ts = handles?.chart.timeScale()
+    const range = ts?.getVisibleLogicalRange()
+    if (!ts || !range) return
+    const center = (range.from + range.to) / 2
+    const half = Math.max(5, ((range.to - range.from) / 2) * factor)
+    ts.setVisibleLogicalRange({ from: center - half, to: center + half })
+  }
   const atStart = from <= 0
   const atEnd = !prices || from === prices.length - 1
 
@@ -353,7 +364,7 @@ export function PriceChart({ history, height = 440 }: Props) {
                   </span>
                 )}
               </span>
-            ) : (
+            ) : zoomControls ? null : (
               /* 고른 뒤에도 같은 길이의 풀이를 둔다 — 풀이가 빠지면 폰에서 두 줄이 한 줄이 되어 단추·차트가 20px 뛰었다(검토·사용자 확인) */
               <span className="hint">
                 {current && current.date !== last?.date ? ' (▶ 나 오른쪽 끝을 누르면 마지막 날)' : ' (마지막 날 · 차트를 누르면 그 날)'}
@@ -361,6 +372,19 @@ export function PriceChart({ history, height = 440 }: Props) {
             )}
           </p>
           {/* 1년 보기에서 1px 이 하루쯤이라 바로 옆 거래일을 손가락으로 짚기 어려웠다 (0.45.2 C2). 끝에서는 꺼 두되 포커스는 남긴다(aria-disabled) */}
+          {zoomControls ? (
+            <div className="chart-tools chart-zoom-tools" role="group" aria-label="차트 확대 축소">
+              <button type="button" className="icon-btn" onClick={() => zoom(0.6)} aria-label="확대" title="확대 (휠로도 됩니다)">
+                +
+              </button>
+              <button type="button" className="icon-btn" onClick={() => zoom(1 / 0.6)} aria-label="축소" title="축소">
+                −
+              </button>
+              <button type="button" className="icon-btn" onClick={() => handles?.chart.timeScale().fitContent()} aria-label="처음대로" title="처음대로">
+                ↺
+              </button>
+            </div>
+          ) : (
           <div className="chart-tools">
             <button
               type="button"
@@ -397,6 +421,7 @@ export function PriceChart({ history, height = 440 }: Props) {
               전체 보기
             </button>
           </div>
+          )}
         </div>
       )}
       <div ref={setContainer} className="chart-canvas" style={{ width: '100%' }} />
@@ -450,7 +475,7 @@ export function ChartLegend({
         {loading
           ? '불러오는 중…'
           : history
-            ? `${history.prices.length}거래일 표시 · 세로축 로그 스케일`
+            ? `${history.prices.length}거래일 표시`
             : ''}
         {/* 손가락으로 밀면 차트가 통째로 밀린다 — 날짜를 따라가게 하는 길 (0.45.2 C3). 마우스는 올리기만 해도 따라와 손가락 기기에만 */}
         {!loading && history && <span className="touch-only"> · 길게 누른 채 밀면 날짜가 따라옵니다</span>}

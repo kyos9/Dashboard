@@ -76,7 +76,7 @@ describe('PC 재무 화면 (디자인 5차)', () => {
     expect(screen.getByRole('button', { name: '연' })).toHaveAttribute('aria-pressed', 'true')
     const table = within(screen.getByRole('region', { name: '실적' })).getByRole('table')
     const first = within(table).getAllByRole('row')[1]
-    expect(within(first).getByRole('rowheader')).toHaveTextContent('2026년 2분기공시 7월 30일')
+    expect(within(first).getByRole('rowheader')).toHaveTextContent(/^2026년 2분기$/) // 공시일은 뺐다 (주인: 숫자만)
     const revenue = within(first).getAllByRole('cell')[0]
     expect(revenue).toHaveTextContent('전년 +20.0%')
     expect(revenue).not.toHaveTextContent('전분기')
@@ -103,5 +103,18 @@ describe('PC 재무 화면 (디자인 5차)', () => {
     expect(growth(110, 100)).toBeCloseTo(10)
     expect(growth(5, -2)).toBeNull()
     expect(growth(null, 3)).toBeNull()
+  })
+})
+
+describe('실적 — 넷만, 더보기로 그 이전 (주인 요청)', () => {
+  it('다섯 분기면 넷이 보이고 "더보기 (1)" 을 누르면 다섯, 머리에 최근 분기', async () => {
+    const q = (end: string) => ({ ...FUNDAMENTALS.quarters[0], period_end: end })
+    const many = { ...GOOG, quarters: [q('2026-06-30'), q('2026-03-31'), q('2025-12-31'), q('2025-09-30'), q('2025-06-30')] }
+    render(<Harness rows={[many]} />)
+    const sec = screen.getByRole('region', { name: '실적' })
+    expect(sec).toHaveTextContent('최근 분기 2026년 2분기')
+    expect(within(sec).getAllByRole('row')).toHaveLength(5)
+    await userEvent.click(within(sec).getByRole('button', { name: '더보기 (1)' }))
+    expect(within(sec).getAllByRole('row')).toHaveLength(6)
   })
 })
