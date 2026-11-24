@@ -30,7 +30,7 @@ import { placeAt } from '../../lib/reorder'
 import { readAiResult } from '../../lib/aiKey'
 import { pushAccount } from '../../lib/push'
 import { setHideAmounts, usePrefs } from '../../lib/prefs'
-import type { DashboardCard, RebalanceCurrent, Stock } from '../../types'
+import type { DashboardCard, RebalanceCurrent, RebalanceRow, Stock } from '../../types'
 import type { HoldingValues } from '../../lib/stockEdit'
 
 type HomeTab = 'held' | 'watch' | 'signal'
@@ -142,6 +142,26 @@ function PopMenu({
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+/** 보유 표 "비중" 칸 — 디자인 5차 목업 12 나(주인 고름): 현재(파랑) · 목표(회색) 막대 둘, 종목 안 비중 카드를 작게. 허용 폭 밖이면 현재 숫자가 강조색 */
+function WeightBars({ row, top }: { row: RebalanceRow; top: number }) {
+  const width = (v: number) => `${Math.min(100, Math.max(0, (v / top) * 100))}%`
+  const out = Math.abs(row.actual_weight_pct - row.target_weight_pct) > row.band_pct
+  return (
+    <div className="weight-bars" aria-label={`비중 ${num(row.actual_weight_pct, 1)}%, 목표 ${pctText(row.target_weight_pct)}%`} role="img">
+      <span className="weight-bars-label">현재</span>
+      <span className="weight-bars-track">
+        <i className="now" style={{ width: width(row.actual_weight_pct) }} />
+      </span>
+      <b className={`mono${out ? ' out' : ''}`}>{num(row.actual_weight_pct, 1)}%</b>
+      <span className="weight-bars-label">목표</span>
+      <span className="weight-bars-track">
+        <i className="target" style={{ width: width(row.target_weight_pct) }} />
+      </span>
+      <span className="mono">{pctText(row.target_weight_pct)}%</span>
     </div>
   )
 }
@@ -481,6 +501,8 @@ export function DesktopHome({ current, cards, stocks, canAdvise, canEditThreshol
     )
   }
 
+  // 비중 막대의 자 — 표 전체가 하나라 종목끼리 길이를 견줄 수 있다 (목업 12 나)
+  const weightTop = Math.max(1, ...held.map((h) => Math.max(h.row.actual_weight_pct, h.row.target_weight_pct))) * 1.05
   const heldTable = (
     <table className="data-table home-table">
       <thead>
@@ -518,8 +540,7 @@ export function DesktopHome({ current, cards, stocks, canAdvise, canEditThreshol
               </td>
               <td className={`mono ${tone(pnl.value)}`}>{signedAmount(pnl.value, pnl.currency)}</td>
               <td>
-                <b className="mono">{num(row.actual_weight_pct, 1)}%</b>
-                <span className="cell-sub mono">목표 {pctText(row.target_weight_pct)}%</span>
+                <WeightBars row={row} top={weightTop} />
               </td>
               <td>{badges(item)}</td>
             </tr>

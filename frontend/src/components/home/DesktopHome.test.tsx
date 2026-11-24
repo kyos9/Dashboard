@@ -236,7 +236,7 @@ describe('보유 종목 탭', () => {
     expect(samsung).toHaveTextContent('₩45,467')
     expect(samsung).toHaveTextContent('₩49,104')
     expect(samsung).toHaveTextContent('13.2%')
-    expect(samsung).toHaveTextContent('목표 10%')
+    expect(within(samsung).getByRole('img', { name: '비중 13.2%, 목표 10%' })).toBeInTheDocument() // 막대 둘 (목업 12 나)
     expect(within(table).queryByText('NVDA')).not.toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /관심 종목/ })).toHaveTextContent('1')
   })

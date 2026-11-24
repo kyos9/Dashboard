@@ -1137,3 +1137,44 @@ a.sig-item.settings-item:hover {
 .login-dialog .consent-line a {
   color: var(--accent);
 }
+
+/* 홈 보유 표 비중 칸 — 목업 12 나: 막대 둘(현재 · 목표), 자는 표 전체가 하나 */
+.weight-bars {
+  display: grid;
+  grid-template-columns: auto minmax(64px, 1fr) 48px;
+  align-items: center;
+  gap: 3px 8px;
+  min-width: 190px;
+  font-size: var(--fs-caption);
+}
+.weight-bars-label {
+  color: var(--text-faint);
+  text-align: left;
+}
+.weight-bars > b,
+.weight-bars > .mono {
+  text-align: right;
+}
+.weight-bars > b.out {
+  color: var(--accent);
+}
+.weight-bars-track {
+  position: relative;
+  height: 7px;
+  border-radius: 99px;
+  background: var(--panel-soft);
+  overflow: hidden;
+}
+.weight-bars-track i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 99px;
+}
+.weight-bars-track i.now {
+  background: var(--accent);
+}
+.weight-bars-track i.target {
+  background: var(--text-faint);
+}
