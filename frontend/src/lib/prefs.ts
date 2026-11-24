@@ -18,9 +18,16 @@ import { setAmountsHidden } from './display'
 export type ThemeChoice = 'system' | 'light' | 'dark'
 export type Theme = 'light' | 'dark'
 export type Rise = 'green' | 'red'
+/** 색 테마 — 블루 기본, 로즈 선택 (디자인 5차 목업 13) */
+export type Palette = 'blue' | 'rose'
+export const PALETTES: { key: Palette; label: string }[] = [
+  { key: 'blue', label: '블루' },
+  { key: 'rose', label: '로즈' },
+]
 
 export const THEME_KEY = 'dashboard.theme'
 export const RISE_KEY = 'dashboard.rise'
+export const PALETTE_KEY = 'dashboard.palette'
 export const HIDE_AMOUNTS_KEY = 'dashboard.hide-amounts'
 /** 8-4 전의 키. 예전 앱은 켤 때마다 'dark' 를 적었으므로 'dark' 는 고른 것인지 알 수 없다 —
  * 'light' 만 사람이 고른 것으로 인정한다. */
@@ -56,6 +63,10 @@ export function readRise(): Rise {
   return read(RISE_KEY) === 'red' ? 'red' : 'green'
 }
 
+export function readPalette(): Palette {
+  return read(PALETTE_KEY) === 'rose' ? 'rose' : 'blue'
+}
+
 export function readHideAmounts(): boolean {
   return read(HIDE_AMOUNTS_KEY) === '1'
 }
@@ -82,6 +93,7 @@ interface Prefs {
   choice: ThemeChoice
   theme: Theme
   rise: Rise
+  palette: Palette
   hideAmounts: boolean
 }
 
@@ -90,7 +102,7 @@ const listeners = new Set<() => void>()
 
 function load(): Prefs {
   const choice = readThemeChoice()
-  return { choice, theme: resolveTheme(choice), rise: readRise(), hideAmounts: readHideAmounts() }
+  return { choice, theme: resolveTheme(choice), rise: readRise(), palette: readPalette(), hideAmounts: readHideAmounts() }
 }
 
 function get(): Prefs {
@@ -102,10 +114,11 @@ function get(): Prefs {
 }
 
 /** `<html>` 에 붙이고, 폰의 주소창·상태바 색을 배경에 맞춘다 */
-export function applyPrefs(prefs: { theme: Theme; rise: Rise }) {
+export function applyPrefs(prefs: { theme: Theme; rise: Rise; palette?: Palette }) {
   const root = document.documentElement
   root.setAttribute('data-theme', prefs.theme)
   root.setAttribute('data-rise', prefs.rise)
+  root.setAttribute('data-palette', prefs.palette ?? 'blue')
   // index.css 의 --bg 를 그대로 읽는다 — 색을 여기에 또 적으면 언젠가 둘이 어긋난다
   const meta = document.querySelector('meta[name="theme-color"]')
   const bg = getComputedStyle(root).getPropertyValue('--bg').trim()
@@ -129,6 +142,11 @@ export function setThemeChoice(choice: ThemeChoice) {
 export function setRise(rise: Rise) {
   write(RISE_KEY, rise)
   set({ ...get(), rise })
+}
+
+export function setPalette(palette: Palette) {
+  write(PALETTE_KEY, palette === 'blue' ? null : palette)
+  set({ ...get(), palette })
 }
 
 export function setHideAmounts(hideAmounts: boolean) {

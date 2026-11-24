@@ -504,7 +504,7 @@ button.stock-wide-ai.active {
   text-align: right;
 }
 .side-bar b.side-weight-out {
-  color: var(--accent);
+  color: var(--signal-weight);
 }
 .side-bar-track {
   position: relative;

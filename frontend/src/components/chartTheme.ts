@@ -38,12 +38,12 @@ export function readChartPalette(): ChartPalette {
 export function useChartThemeKey(): string {
   const now = () => {
     const root = document.documentElement
-    return `${root.getAttribute('data-theme') ?? ''}|${root.getAttribute('data-rise') ?? ''}`
+    return `${root.getAttribute('data-theme') ?? ''}|${root.getAttribute('data-rise') ?? ''}|${root.getAttribute('data-palette') ?? ''}`
   }
   const [key, setKey] = useState(now)
   useEffect(() => {
     const observer = new MutationObserver(() => setKey(now()))
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-rise'] })
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-rise', 'data-palette'] })
     return () => observer.disconnect()
   }, [])
   return key

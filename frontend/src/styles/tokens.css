@@ -43,34 +43,36 @@
 /*
  * 색표 — 디자인 4차 (DESIGN_PROMPT v6 "만드는 법 다섯" 3: 색은 정해 준다). **이 파일 밖에서 색 값을 쓰지 않는다.**
  *
- * 메인 색은 청람 하나다 — IBM Carbon cyan 80(#00539a)의 채도를 높인 #0051a8 (목업 03e, 주인 고름).
- * 진하기만 바꿔 쓴다: 라이트 머리줄·링크 #0051a8, 다크 머리줄 #002f67, 다크 글자·링크 #92b1db.
+ * 색 테마 — 디자인 5차 목업 13 (주인 고름): 기본 **블루**(colorhunt #f9f7f7 #dbe2ef #3f72af #112d4e), 화면 설정에서 **로즈**
+ * (#fcf8f8 #fbefef #f9dfdf #f5afaf)를 고를 수 있다(`data-palette='rose'`, 아래 블록). 주인: "대비가 안 좋아 잘 안 보인다" →
+ * 조합 색을 그대로 글자로 쓰지 않고 같은 색을 진하게 한 글자용 값을 뽑았다. 모든 글자 색이 바탕 · 카드 · 옅은 카드 위 4.5 이상
+ * (가장 옅은 --text-faint 도 6 이상). 블루: 라이트 글자 · 링크 #2b5c9c(6.7), 남색 #112d4e 는 머리 · 로고, 다크 글자 · 링크 #93b8e8.
  * 뜻 색은 정해진 자리에만: 매수 초록 · 매도 빨강 · 비중조절 청람(--signal-*), 가격 오르내림(--up/--down),
  * 주의 호박, 오류 빨강. 회색은 청람으로 살짝 물들였다. 값은 hex — 자동 검사(audit.mjs)와 차트가 읽을 수 있게.
  *
  * 글자로 써도 되는 쌍 (대비, WCAG) — 다크: --text·--text-dim·--text-faint·--accent·--green·--red 는 --bg·--panel·
  * --panel-soft 위에서 4.5 이상. --on-brand(#fff)는 --brand(#002f67) 위 13.1. 주 단추는 --accent 바탕 + --on-accent(어두운 글자).
- * 라이트: 같은 이름들이 --bg(#eef2f6)·--panel(#fff) 위 4.5 이상(초록 #18694a 5.9 · 빨강 #b02a2a 5.8 · 청람 #0051a8 6.4~7.7).
+ * 라이트: 같은 이름들이 --bg · --panel · --panel-soft 위 4.5 이상(초록 #18694a · 빨강 #b02a2a · 강조 #2b5c9c).
  * 라이트의 글자 회색 · 뜻 색은 Tailwind 기본값을 버리고 청람 쪽 먹색으로 다시 뽑았다(목업 13 ① 나 "청람 먹", AI 티 점검).
  */
 :root {
   color-scheme: dark;
 
-  --bg: #0a0f18;
-  --bg-elevated: #0d1627;
-  --panel: #0d1627;
-  --panel-soft: #122036;
-  --border: #1d2a40;
-  --border-strong: #2a3a55;
+  --bg: #0a1322;
+  --bg-elevated: #0f1f36;
+  --panel: #0f1f36;
+  --panel-soft: #152a47;
+  --border: #1f3557;
+  --border-strong: #2c4a75;
 
-  --text: #e6ebf2;
-  --text-dim: #c3cad5;
-  --text-faint: #909aab;
+  --text: #eef3fa;
+  --text-dim: #c6d3e6;
+  --text-faint: #9db0cb;
 
   /* 청람 */
-  --brand: #002f67; /* 머리줄 바탕 */
+  --brand: #112d4e; /* 머리줄 바탕 */
   --on-brand: #ffffff;
-  --on-brand-dim: #b9c8dd; /* 머리줄 위 옅은 글자 — 8.0 */
+  --on-brand-dim: #c9d6e8; /* 머리줄 위 옅은 글자 — 8.0 */
   --on-brand-soft: rgba(255, 255, 255, 0.12);
   --on-brand-line: rgba(255, 255, 255, 0.3);
   /* 머리줄(청람) 위의 상태 점·알림 배지 — 바탕이 어두운 청람이라 밝은 단계 (두 테마 같음) */
@@ -78,10 +80,10 @@
   --on-brand-warn: #fbbf24;
   --on-brand-bad: #fca5a5;
   --on-brand-warn-ink: #1a1203;
-  --accent: #92b1db; /* 글자·링크·고른 탭 — 다크에서 #0051a8 를 글자로 쓰면 2.4:1 이라 밝은 단계 */
-  --on-accent: #0b0f18; /* 강조색 바탕 위 글자 — 흰 글자는 2.2:1 */
-  --accent-soft: rgba(146, 177, 219, 0.14);
-  --accent-line: rgba(146, 177, 219, 0.4);
+  --accent: #93b8e8; /* 글자·링크·고른 탭 — 다크에서 #0051a8 를 글자로 쓰면 2.4:1 이라 밝은 단계 */
+  --on-accent: #0a1322; /* 강조색 바탕 위 글자 — 흰 글자는 2.2:1 */
+  --accent-soft: rgba(147, 184, 232, 0.14);
+  --accent-line: rgba(147, 184, 232, 0.4);
 
   /* 뜻 색 */
   --green: #3ccf71;
@@ -101,8 +103,8 @@
   --rise-down-line: rgba(122, 167, 255, 0.4);
   --teal-sig-line: rgba(45, 212, 191, 0.4);
   --slate-soft: rgba(195, 202, 213, 0.12);
-  --text-line: rgba(230, 235, 242, 0.18);
-  --amber-tint: #282927; /* 호박 12% 를 --panel 에 섞은 불투명 바탕 */
+  --text-line: rgba(238, 243, 250, 0.18);
+  --amber-tint: #2a3134; /* 호박 12% 를 --panel 에 섞은 불투명 바탕 */
 
   /* 예전 이름 — 정보·링크의 파랑은 청람으로 모았다(메인 색 하나) */
   --blue: var(--accent);
@@ -155,30 +157,30 @@
 :root[data-theme='light'] {
   color-scheme: light;
 
-  --bg: #eef2f6;
+  --bg: #f4f6fa;
   --bg-elevated: #ffffff;
   --panel: #ffffff;
-  --panel-soft: #f6f8fb;
-  --border: #dfe4ea;
-  --border-strong: #c5cdd8;
+  --panel-soft: #eef2f8;
+  --border: #dbe2ef;
+  --border-strong: #b9c6dc;
 
-  --text: #0e1b2e;
-  --text-dim: #334459;
-  --text-faint: #5a6a7f;
+  --text: #0f2440;
+  --text-dim: #2f4566;
+  --text-faint: #4f6383;
 
-  --brand: #0051a8;
+  --brand: #112d4e;
   --on-brand: #ffffff;
-  --on-brand-dim: #d6e2f2; /* 머리줄 위 옅은 글자 — 5.9 */
+  --on-brand-dim: #c9d6e8; /* 머리줄 위 옅은 글자 — 5.9 */
   --on-brand-soft: rgba(255, 255, 255, 0.14);
   --on-brand-line: rgba(255, 255, 255, 0.35);
   --on-brand-ok: #4ade80;
   --on-brand-warn: #fbbf24;
   --on-brand-bad: #fca5a5;
   --on-brand-warn-ink: #1a1203;
-  --accent: #0051a8;
+  --accent: #2b5c9c;
   --on-accent: #ffffff;
-  --accent-soft: rgba(0, 81, 168, 0.08);
-  --accent-line: rgba(0, 81, 168, 0.35);
+  --accent-soft: rgba(43, 92, 156, 0.08);
+  --accent-line: rgba(43, 92, 156, 0.35);
 
   --green: #18694a;
   --green-soft: rgba(24, 105, 74, 0.09);
@@ -196,8 +198,8 @@
   --rise-down-soft: rgba(31, 80, 194, 0.08);
   --rise-down-line: rgba(31, 80, 194, 0.35);
   --teal-sig-line: rgba(11, 106, 111, 0.35);
-  --slate-soft: rgba(51, 68, 89, 0.1);
-  --text-line: rgba(14, 27, 46, 0.18);
+  --slate-soft: rgba(47, 69, 102, 0.1);
+  --text-line: rgba(15, 36, 64, 0.18);
   --amber-tint: #f4eae1;
 
   --shadow-1: 0 4px 16px rgba(17, 24, 39, 0.12);
@@ -207,6 +209,59 @@
   --shadow-up: 0 -10px 30px rgba(17, 24, 39, 0.1);
   --scrim: rgba(10, 15, 24, 0.45);
 }
+
+/*
+ * 로즈 테마 — 디자인 5차 목업 13 라 (주인: 블루 기본 + 로즈 선택). 분홍 #f5afaf 는 글자로 쓰면 1.8 이라
+ * 채우는 곳(로고 · 막대)에만, 글자 · 링크는 같은 색을 진하게 한 #a33b55(6.3). 비중 신호는 매도 빨강과 섞여 보라.
+ */
+:root[data-palette='rose']:not([data-theme='light']) {
+  --bg: #1b1315;
+  --bg-elevated: #251a1d;
+  --panel: #251a1d;
+  --panel-soft: #302226;
+  --border: #3d2c31;
+  --border-strong: #553e45;
+  --text: #fbf3f4;
+  --text-dim: #e0cdd0;
+  --text-faint: #b39ca1;
+  --brand: #4a2a33;
+  --on-brand: #ffffff;
+  --on-brand-dim: #e8cfd5;
+  --accent: #f5afaf;
+  --on-accent: #2a1a1e;
+  --accent-soft: rgba(245, 175, 175, 0.14);
+  --accent-line: rgba(245, 175, 175, 0.4);
+  --amber-tint: #3e2c1e;
+  --text-line: rgba(251, 243, 244, 0.18);
+  --rose-weight: #c4aef2;
+  --rose-weight-soft: rgba(196, 174, 242, 0.14);
+  --rose-weight-line: rgba(196, 174, 242, 0.4);
+  --scrim: rgba(14, 8, 10, 0.66);
+}
+
+:root[data-palette='rose'][data-theme='light'] {
+  --bg: #fcf8f8;
+  --panel-soft: #fbefef;
+  --border: #f2dede;
+  --border-strong: #e2c0c4;
+  --text: #2e1d21;
+  --text-dim: #573f45;
+  --text-faint: #77595f;
+  --brand: #f5afaf;
+  --on-brand: #2e1d21;
+  --on-brand-dim: #5a3a40;
+  --on-brand-soft: rgba(46, 29, 33, 0.08);
+  --on-brand-line: rgba(46, 29, 33, 0.25);
+  --accent: #a33b55;
+  --accent-soft: rgba(163, 59, 85, 0.08);
+  --accent-line: rgba(163, 59, 85, 0.35);
+  --slate-soft: rgba(87, 63, 69, 0.1);
+  --text-line: rgba(46, 29, 33, 0.18);
+  --rose-weight: #6a4aa8;
+  --rose-weight-soft: rgba(106, 74, 168, 0.08);
+  --rose-weight-line: rgba(106, 74, 168, 0.35);
+}
+
 
 /*
  * 오르내림 색 (ROADMAP 8-4). 가격 등락·수익률·평가손익만 이 둘을 쓴다.
@@ -240,6 +295,15 @@
   --chart-line: var(--accent);
   --chart-bg: var(--panel);
   --chart-zero: var(--border-strong);
+}
+
+/* 로즈의 비중 신호는 보라 — 분홍 강조색은 매도 빨강과 섞인다. 상승 빨강 설정(아래)이면 그쪽 청록이 이긴다 */
+:root[data-palette='rose'] {
+  --signal-weight: var(--rose-weight);
+  --signal-weight-soft: var(--rose-weight-soft);
+  --signal-weight-line: var(--rose-weight-line);
+  /* 차트 선 — 진한 분홍은 매도 화살표(빨강)와 섞여 먹색으로 */
+  --chart-line: var(--text-dim);
 }
 
 :root[data-rise='red'] {

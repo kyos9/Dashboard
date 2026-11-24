@@ -1,5 +1,5 @@
 import { ModalOrPane } from './ui/ModalOrPane'
-import { setRise, setThemeChoice, usePrefs, type Rise, type ThemeChoice } from '../lib/prefs'
+import { PALETTES, setPalette, setRise, setThemeChoice, usePrefs, type Rise, type ThemeChoice } from '../lib/prefs'
 
 /**
  * 화면 설정 — 테마 · 상승 색 (ROADMAP 8-4).
@@ -42,6 +42,17 @@ export function DisplayModal({ onClose, inline = false }: { onClose: () => void;
         </section>
 
         <section className="display-row">
+          <h4 id="display-palette">색</h4>
+          <div className="view-switch" role="group" aria-labelledby="display-palette">
+            {PALETTES.map((c) => (
+              <button key={c.key} aria-pressed={prefs.palette === c.key} onClick={() => setPalette(c.key)}>
+                {c.label}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="display-row">
           <h4 id="display-rise">상승 색</h4>
           <div className="view-switch" role="group" aria-labelledby="display-rise">
             {RISES.map((r) => (
@@ -61,8 +72,8 @@ export function DisplayModal({ onClose, inline = false }: { onClose: () => void;
               : '오르면 초록, 내리면 빨강입니다.'}{' '}
             가격 등락·수익률·평가손익에 쓰입니다.{' '}
             {prefs.rise === 'red'
-              ? '시그널도 따라갑니다 — 매수 ▲ 빨강, 매도 ▼ 파랑, 비중조절 ◆ 청록이고,'
-              : '시그널은 매수 ▲ 초록, 매도 ▼ 빨강, 비중조절 ◆ 청람이고,'}{' '}
+              ? '시그널도 따라갑니다. 매수 ▲ 빨강, 매도 ▼ 파랑, 비중조절 ◆ 청록이고,'
+              : `시그널은 매수 ▲ 초록, 매도 ▼ 빨강, 비중조절 ◆ ${prefs.palette === 'rose' ? '보라' : '파랑'}이고,`}{' '}
             늘 글자나 모양이 같이 붙습니다.
           </p>
         </section>

@@ -1156,7 +1156,7 @@ a.sig-item.settings-item:hover {
   text-align: right;
 }
 .weight-bars > b.out {
-  color: var(--accent);
+  color: var(--signal-weight);
 }
 .weight-bars-track {
   position: relative;

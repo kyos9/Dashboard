@@ -12,7 +12,7 @@ import { AiKeyModal, DiagnosticsModal, DisplayModal, PushModal, UsersModal } fro
 import { POLICY_PATH } from '../lib/policy'
 import { diagnosticsReason } from '../lib/refreshText'
 import { pushAccount } from '../lib/push'
-import { setRise, setThemeChoice, usePrefs, type Rise, type ThemeChoice } from '../lib/prefs'
+import { PALETTES, setPalette, setRise, setThemeChoice, usePrefs, type Rise, type ThemeChoice } from '../lib/prefs'
 import { useMedia, useNarrow } from '../lib/narrow'
 import type { HealthInfo } from '../types'
 import tfScreen from '../assets/tossface/u1F5A5.svg'
@@ -197,7 +197,7 @@ export function SettingsPage() {
     ]
       .filter(Boolean)
       .join('\n') || undefined
-  const displayValue = `${prefs.choice === 'dark' ? '어둡게' : prefs.choice === 'light' ? '밝게' : '기기 설정'}, 상승 ${prefs.rise === 'red' ? '빨강' : '초록'}`
+  const displayValue = `${prefs.choice === 'dark' ? '어둡게' : prefs.choice === 'light' ? '밝게' : '기기 설정'}, ${prefs.palette === 'rose' ? '로즈' : '블루'}, 상승 ${prefs.rise === 'red' ? '빨강' : '초록'}`
 
   const noop = () => {}
   const credits = (
@@ -358,6 +358,17 @@ export function SettingsPage() {
                     {THEME_CHOICES.map((t) => (
                       <button key={t.key} type="button" className={prefs.choice === t.key ? 'active' : undefined} aria-pressed={prefs.choice === t.key} onClick={() => setThemeChoice(t.key)}>
                         {t.label}
+                      </button>
+                    ))}
+                  </div>,
+                )}
+                {row(
+                  '색',
+                  '블루가 기본입니다.',
+                  <div className="seg set-seg" role="group" aria-label="색">
+                    {PALETTES.map((c) => (
+                      <button key={c.key} type="button" className={prefs.palette === c.key ? 'active' : undefined} aria-pressed={prefs.palette === c.key} onClick={() => setPalette(c.key)}>
+                        {c.label}
                       </button>
                     ))}
                   </div>,
