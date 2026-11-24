@@ -307,14 +307,14 @@ describe('받을 때 · 종목별 알림 (0.45.0)', () => {
     expect(morning).toBeChecked()
   })
 
-  it('종목별 알림 — 접혀 있고 끈 수만, 펼치면 내 종목(숨긴 것은 빼고)', async () => {
+  it('종목별 알림 접혀 있고 끈 수만, 펼치면 내 종목(숨긴 것은 빼고)', async () => {
     // OLD 는 숨긴 종목인데 끈 채로 남아 있다 — 목록에도 수에도 넣지 않는다
     vi.spyOn(api, 'getPushSettings').mockResolvedValue({ ...NEW, muted: ['SCHD', 'OLD'] })
     vi.spyOn(api, 'listStocks').mockResolvedValue([stock('VOO'), stock('SCHD'), stock('005930.KS', '삼성전자'), stock('OLD', null, false)])
     const save = vi.spyOn(api, 'setPushPrefs').mockResolvedValue({ ...NEW, muted: ['SCHD', 'VOO'] })
     renderModal()
     const summary = await screen.findByText('종목별 알림')
-    expect(summary.closest('summary')).toHaveTextContent('종목별 알림 — 1종목 끔')
+    expect(summary.closest('summary')).toHaveTextContent('종목별 알림 1종목 끔')
     const box = summary.closest('details') as HTMLDetailsElement
     expect(box.open).toBe(false)
     await userEvent.click(summary)
@@ -329,7 +329,7 @@ describe('받을 때 · 종목별 알림 (0.45.0)', () => {
     vi.spyOn(api, 'getPushSettings').mockResolvedValue(NEW)
     vi.spyOn(api, 'listStocks').mockResolvedValue([stock('VOO')])
     renderModal()
-    expect((await screen.findByText('종목별 알림')).closest('summary')).toHaveTextContent('종목별 알림 — 모두 받음')
+    expect((await screen.findByText('종목별 알림')).closest('summary')).toHaveTextContent('종목별 알림 모두 받음')
   })
 
   it('옛 서버(칸 없음)면 두 칸이 없다', async () => {
@@ -360,7 +360,7 @@ describe('받을 때 · 종목별 알림 (0.45.0)', () => {
     vi.spyOn(api, 'listStocks').mockResolvedValue([stock('VOO'), stock('OLD', null, false)])
     renderModal()
     const summary = await screen.findByText('종목별 알림')
-    expect(summary.closest('summary')).toHaveTextContent('종목별 알림 — 모두 받음')
+    expect(summary.closest('summary')).toHaveTextContent('종목별 알림 모두 받음')
     expect(screen.queryByRole('button', { name: '모두 다시 받기' })).toBeNull()
   })
 

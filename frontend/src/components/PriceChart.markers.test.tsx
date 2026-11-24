@@ -211,16 +211,16 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
 
   it('처음에는 마지막 날의 날짜·종가, 그 날이 "마지막 날"임을 말한다', () => {
     const { line } = shown()
-    expect(line()).toHaveTextContent('2026-09-16 · 종가 102.00')
-    expect(line()).toHaveTextContent('마지막 날 · 차트를 누르면 그 날')
+    expect(line()).toHaveTextContent('2026-09-16 종가 102.00')
+    expect(line()).toHaveTextContent('마지막 날, 차트를 누르면 그 날')
   })
 
   it('짧게 탭하면 십자선을 그 자리로 옮기고, 한 줄이 그 날을 말한다', async () => {
     const { canvas, line } = shown()
     await tap(canvas, 0)
     expect(chart.setCrosshairPosition).toHaveBeenLastCalledWith(100, '2026-09-14', series)
-    expect(line()).toHaveTextContent('2026-09-14 · 종가 100.00')
-    expect(line()).not.toHaveTextContent('(마지막 날 ·')
+    expect(line()).toHaveTextContent('2026-09-14 종가 100.00')
+    expect(line()).not.toHaveTextContent('(마지막 날,')
     // 풀이는 같은 길이로 남는다 — 빠지면 폰에서 줄 수가 바뀌어 단추·차트가 뛰었다
     expect(line()).toHaveTextContent('(▶ 나 오른쪽 끝을 누르면 마지막 날)')
   })
@@ -231,9 +231,9 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
     expect(chart.subscribeDblClick).not.toHaveBeenCalled()
     await tap(canvas, 0, 100, 0)
     await tap(canvas, 200, 100, 300)
-    expect(line()).toHaveTextContent('2026-09-16 · 종가 102.00')
+    expect(line()).toHaveTextContent('2026-09-16 종가 102.00')
     await tap(canvas, 100, 100, 600)
-    expect(line()).toHaveTextContent('2026-09-15 · 종가 101.00')
+    expect(line()).toHaveTextContent('2026-09-15 종가 101.00')
   })
 
   it('밀기·늦게 떼기·두 손가락·취소·오른쪽 단추·축 위는 탭이 아니다', async () => {
@@ -269,7 +269,7 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
     const { canvas, line } = shown()
     act(() => hoverOn(canvas, '2026-09-15', 101))
     await tap(canvas, 0)
-    expect(line()).toHaveTextContent('2026-09-14 · 종가 100.00')
+    expect(line()).toHaveTextContent('2026-09-14 종가 100.00')
   })
 
   it('길게 누른 뒤 떼면 라이브러리가 touchend 에서 십자선을 지운다 — 그 뒤에 놓는다', async () => {
@@ -281,7 +281,7 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
     expect(chart.setCrosshairPosition).not.toHaveBeenCalled()
     await act(() => new Promise((r) => setTimeout(r, 0)))
     expect(chart.setCrosshairPosition).toHaveBeenLastCalledWith(100, '2026-09-14', series)
-    expect(line()).toHaveTextContent('2026-09-14 · 종가 100.00')
+    expect(line()).toHaveTextContent('2026-09-14 종가 100.00')
   })
 
   it('손가락으로 탭한 뒤 오는 흉내 마우스의 가리킴은 받지 않는다 — ◀ 를 눌러도 엉뚱한 날이 남았다 (BC 사용자 확인)', async () => {
@@ -289,14 +289,14 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
     const { canvas, line, getByRole } = shown()
     await tap(canvas, 100)
     act(() => handler(chart.subscribeCrosshairMove)(at('2026-09-16', 102)))
-    expect(line()).toHaveTextContent('2026-09-15 · 종가 101.00')
+    expect(line()).toHaveTextContent('2026-09-15 종가 101.00')
     // ◀ 를 손가락으로 — 화면이 밀려 흉내 마우스가 차트 위에 떨어져도
     const prev = getByRole('button', { name: '이전 거래일' })
     pointer(prev, 'pointerdown', { x: 0, y: 0, t: 5000 })
     pointer(prev, 'pointerup', { x: 0, y: 0, t: 5050 })
     act(() => prev.click())
     act(() => handler(chart.subscribeCrosshairMove)(at('2026-09-16', 102)))
-    expect(line()).toHaveTextContent('2026-09-14 · 종가 100.00')
+    expect(line()).toHaveTextContent('2026-09-14 종가 100.00')
   })
 
   it('겸용 기기: 손가락 뒤에 마우스를 움직이면 다시 가리킴을 받는다 (끝 검토)', async () => {
@@ -307,7 +307,7 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
       pointer(canvas, 'pointermove', { x: 150, y: 100, t: 3000, kind: 'mouse' })
       handler(chart.subscribeCrosshairMove)(at('2026-09-15', 101))
     })
-    expect(line()).toHaveTextContent('2026-09-15 · 종가 101.00')
+    expect(line()).toHaveTextContent('2026-09-15 종가 101.00')
   })
 
   it('마우스로 끌어 민 뒤 떼면 가리킨 날을 고르지 않는다 — 고른 날은 그대로 (끝 검토)', async () => {
@@ -324,7 +324,7 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
     })
     await act(() => new Promise((r) => setTimeout(r, 0)))
     expect(chart.setCrosshairPosition).not.toHaveBeenCalled()
-    expect(line()).toHaveTextContent('2026-09-14 · 종가 100.00')
+    expect(line()).toHaveTextContent('2026-09-14 종가 100.00')
   })
 
   it('손가락으로 길게 누른 채 밀어 간 날은 뗀 뒤에도 그 날 — ◀ 가 거기서 (BC 사용자 확인)', async () => {
@@ -342,7 +342,7 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
     })
     await act(() => new Promise((r) => setTimeout(r, 0)))
     expect(chart.setCrosshairPosition).toHaveBeenLastCalledWith(101, '2026-09-15', series)
-    expect(line()).toHaveTextContent('2026-09-15 · 종가 101.00')
+    expect(line()).toHaveTextContent('2026-09-15 종가 101.00')
   })
 
   it('종목·기간을 바꾸면 날짜·값이 같아도 고른 날을 버리고 십자선을 지운다 (사용자 확인)', async () => {
@@ -351,7 +351,7 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
     const clear = vi.fn()
     ;(chart as unknown as { clearCrosshairPosition: () => void }).clearCrosshairPosition = clear
     rerender(<PriceChart history={{ ...history([]) }} />)
-    expect(line()).toHaveTextContent('2026-09-16 · 종가 102.00')
+    expect(line()).toHaveTextContent('2026-09-16 종가 102.00')
     expect(clear).toHaveBeenCalled()
   })
 
@@ -413,7 +413,7 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
     await tap(canvas, 100, 100, 0, { kind: 'mouse' })
     act(() => leave(canvas))
     act(() => handler(chart.subscribeCrosshairMove)(at('2026-09-14', 100)))
-    expect(line()).toHaveTextContent('2026-09-15 · 종가 101.00')
+    expect(line()).toHaveTextContent('2026-09-15 종가 101.00')
   })
 
   it('손가락 누름이 취소되면(세로 스크롤로 넘어감) 그 뒤의 가리킴을 받지 않는다 (끝 검토 세 번째)', async () => {
@@ -425,7 +425,7 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
       pointer(window as unknown as Element, 'pointercancel', { x: 0, y: 100, t: 2050 })
       handler(chart.subscribeCrosshairMove)(at('2026-09-14', 100))
     })
-    expect(line()).toHaveTextContent('2026-09-15 · 종가 101.00')
+    expect(line()).toHaveTextContent('2026-09-15 종가 101.00')
   })
 
   it('터치 노트북: 마우스가 차트 위에 있어도 손가락이 닿으면 그 가리킴을 놓는다 (끝 검토 세 번째)', async () => {
@@ -433,7 +433,7 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
     const { canvas, line, getByRole } = shown()
     await tap(canvas, 100)
     act(() => hoverOn(canvas, '2026-09-16', 102))
-    expect(line()).toHaveTextContent('2026-09-16 · 종가 102.00')
+    expect(line()).toHaveTextContent('2026-09-16 종가 102.00')
     const prev = getByRole('button', { name: '이전 거래일' })
     act(() => {
       pointer(prev, 'pointerdown', { x: 0, y: 0, t: 5000 })
@@ -441,7 +441,7 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
       prev.click()
       handler(chart.subscribeCrosshairMove)(at('2026-09-16', 102))
     })
-    expect(line()).toHaveTextContent('2026-09-14 · 종가 100.00')
+    expect(line()).toHaveTextContent('2026-09-14 종가 100.00')
   })
 
   it('터치 노트북: 손가락이 ◀ 가 아닌 곳(빈 곳·전체 보기)에 닿아도 읽기 줄은 고른 날, 구간이 바뀌면 십자선도 고른 날로 (끝 검토 네 번째)', async () => {
@@ -450,7 +450,7 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
     await tap(canvas, 100)
     act(() => hoverOn(canvas, '2026-09-16', 102))
     act(() => pointer(document.body, 'pointerdown', { x: 5, y: 5, t: 6000 }))
-    expect(line()).toHaveTextContent('2026-09-15 · 종가 101.00')
+    expect(line()).toHaveTextContent('2026-09-15 종가 101.00')
     const onRange = (scale.subscribeVisibleLogicalRangeChange.mock.lastCall as [() => void])[0]
     chart.setCrosshairPosition.mockClear()
     act(() => onRange())
@@ -464,9 +464,9 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
     await tap(canvas, 100)
     act(() => hoverOn(canvas, '2026-09-16', 102))
     act(() => pointer(canvas, 'pointerdown', { x: 0, y: 100, t: 7000, kind: 'mouse' }))
-    expect(line()).toHaveTextContent('2026-09-16 · 종가 102.00')
+    expect(line()).toHaveTextContent('2026-09-16 종가 102.00')
     act(() => pointer(canvas, 'pointerdown', { x: 0, y: 100, t: 7100, kind: 'pen', id: 3 }))
-    expect(line()).toHaveTextContent('2026-09-16 · 종가 102.00')
+    expect(line()).toHaveTextContent('2026-09-16 종가 102.00')
   })
 
   it('펜은 마우스처럼 띄운 채 가리킨다 (끝 검토)', async () => {
@@ -476,14 +476,14 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
       pointer(canvas, 'pointerenter', { x: 0, y: 100, t: 0, kind: 'pen' })
       handler(chart.subscribeCrosshairMove)(at('2026-09-15', 101))
     })
-    expect(line()).toHaveTextContent('2026-09-15 · 종가 101.00')
+    expect(line()).toHaveTextContent('2026-09-15 종가 101.00')
     // 손가락은 차트를 누르고 있을 때만
     act(() => pointer(canvas, 'pointerleave', { x: 0, y: 0, t: 0, kind: 'pen' }))
     act(() => {
       pointer(canvas, 'pointerenter', { x: 0, y: 100, t: 0, kind: 'touch' })
       handler(chart.subscribeCrosshairMove)(at('2026-09-15', 101))
     })
-    expect(line()).toHaveTextContent('2026-09-16 · 종가 102.00')
+    expect(line()).toHaveTextContent('2026-09-16 종가 102.00')
   })
 
   it('고른 날이 시그널 날이면 풀이 대신 그 말 — 이어진 날 가운데 날도, 같은 날 둘 다도 (0.45.3 E)', async () => {
@@ -495,34 +495,34 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
     ])
     const { canvas, line } = shown(h)
     // 마지막 날(09-16, 오늘까지 이어진 매도)
-    expect(line()).toHaveTextContent('2026-09-16 · 종가 102.00 · 매도 시그널(참고)')
-    expect(line()).not.toHaveTextContent('마지막 날 ·')
+    expect(line()).toHaveTextContent('2026-09-16 종가 102.00 매도 시그널(참고)')
+    expect(line()).not.toHaveTextContent('마지막 날,')
     // 첫날
     await tap(canvas, 0)
-    expect(line()).toHaveTextContent('2026-09-14 · 종가 100.00 · 매수 시그널')
+    expect(line()).toHaveTextContent('2026-09-14 종가 100.00 매수 시그널')
     expect(line()).not.toHaveTextContent('매도')
     // 이어진 매수의 둘째 날(차트에는 점이 없다) + 같은 날 매도
     await tap(canvas, 100, 100, 1000)
-    expect(line()).toHaveTextContent('2026-09-15 · 종가 101.00 · 매수 시그널 · 매도 시그널(참고)')
+    expect(line()).toHaveTextContent('2026-09-15 종가 101.00 매수 시그널 매도 시그널(참고)')
   })
 
   it('시그널이 없는 날은 풀이 그대로', async () => {
     const { canvas, line } = shown(history([{ date: '2026-09-16', kind: 'buy' }]))
     await tap(canvas, 0)
-    expect(line()).toHaveTextContent('2026-09-14 · 종가 100.00 (▶ 나 오른쪽 끝을 누르면 마지막 날)')
+    expect(line()).toHaveTextContent('2026-09-14 종가 100.00 (▶ 나 오른쪽 끝을 누르면 마지막 날)')
     expect(line()).not.toHaveTextContent('시그널')
   })
 
   it('마지막 날을 고르면 풀이도 "마지막 날"', async () => {
     const { canvas, line } = shown()
     await tap(canvas, 290)
-    expect(line()).toHaveTextContent('(마지막 날 · 차트를 누르면 그 날)')
+    expect(line()).toHaveTextContent('(마지막 날, 차트를 누르면 그 날)')
   })
 
   it('마우스 왼쪽 클릭도 같은 길', async () => {
     const { canvas, line } = shown()
     await tap(canvas, 100, 100, 0, { kind: 'mouse' })
-    expect(line()).toHaveTextContent('2026-09-15 · 종가 101.00')
+    expect(line()).toHaveTextContent('2026-09-15 종가 101.00')
   })
 
   it('오른쪽 빈 칸(날이 없는 자리)을 탭하면 마지막 날로 — 오늘로 돌아가는 길', async () => {
@@ -530,25 +530,25 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
     await tap(canvas, 0)
     await tap(canvas, 290, 100, 1000)
     expect(chart.setCrosshairPosition).toHaveBeenLastCalledWith(102, '2026-09-16', series)
-    expect(line()).toHaveTextContent('2026-09-16 · 종가 102.00')
+    expect(line()).toHaveTextContent('2026-09-16 종가 102.00')
   })
 
   it('십자선이 움직이면 그 날, 차트를 떠나면 **고른 날**(없으면 마지막 날)로 돌아간다 (0.45.2 C2)', async () => {
     const { act } = await import('@testing-library/react')
     const { canvas, line } = shown()
     act(() => hoverOn(canvas, '2026-09-15', 101))
-    expect(line()).toHaveTextContent('2026-09-15 · 종가 101.00')
+    expect(line()).toHaveTextContent('2026-09-15 종가 101.00')
     act(() => leave(canvas))
-    expect(line()).toHaveTextContent('2026-09-16 · 종가 102.00')
+    expect(line()).toHaveTextContent('2026-09-16 종가 102.00')
 
     await tap(canvas, 0)
     act(() => hoverOn(canvas, '2026-09-15', 101))
     act(() => leave(canvas))
-    expect(line()).toHaveTextContent('2026-09-14 · 종가 100.00')
+    expect(line()).toHaveTextContent('2026-09-14 종가 100.00')
 
     // 차트 밖(단추 위)에서 오는 가리킴은 받지 않는다 — 코드로 놓은 십자선이 구간이 바뀌어 새 날로 알려도 (끝 검토 다시)
     act(() => handler(chart.subscribeCrosshairMove)(at('2026-09-16', 102)))
-    expect(line()).toHaveTextContent('2026-09-14 · 종가 100.00')
+    expect(line()).toHaveTextContent('2026-09-14 종가 100.00')
   })
 
   it('◀ ▶ 는 고른 날(없으면 마지막 날)에서 한 거래일씩 — 끝에서는 꺼지지만 포커스는 남는다 (0.45.2 C2)', async () => {
@@ -562,22 +562,22 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
     expect(prev).toHaveAttribute('aria-disabled', 'false')
 
     await user.click(prev)
-    expect(line()).toHaveTextContent('2026-09-15 · 종가 101.00')
+    expect(line()).toHaveTextContent('2026-09-15 종가 101.00')
     expect(chart.setCrosshairPosition).toHaveBeenLastCalledWith(101, '2026-09-15', series)
     await user.click(prev)
-    expect(line()).toHaveTextContent('2026-09-14 · 종가 100.00')
+    expect(line()).toHaveTextContent('2026-09-14 종가 100.00')
     expect(prev).toHaveAttribute('aria-disabled', 'true')
     await user.click(prev)
-    expect(line()).toHaveTextContent('2026-09-14 · 종가 100.00')
+    expect(line()).toHaveTextContent('2026-09-14 종가 100.00')
     expect(prev).toHaveFocus()
 
     // PC: 차트를 누른 뒤 마우스가 차트를 떠나 ◀ 로 가도 그 날에서 (계획 검토)
     await tap(canvas, 200, 100, 0, { kind: 'mouse' })
     act(() => handler(chart.subscribeCrosshairMove)(at(undefined)))
     await user.click(prev)
-    expect(line()).toHaveTextContent('2026-09-15 · 종가 101.00')
+    expect(line()).toHaveTextContent('2026-09-15 종가 101.00')
     await user.click(next)
-    expect(line()).toHaveTextContent('2026-09-16 · 종가 102.00')
+    expect(line()).toHaveTextContent('2026-09-16 종가 102.00')
   })
 
   it('종목을 바꾸면 고른 날을 버리고 새 종목의 마지막 날 (그 날·값이 새 데이터에 없다)', async () => {
@@ -585,7 +585,7 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
     await tap(canvas, 0)
     const other = { ...history([]), ticker: 'QQQ', prices: [{ date: '2026-09-14', close: 300 }, { date: '2026-09-16', close: 310 }] }
     rerender(<PriceChart history={other} />)
-    expect(container.querySelector('.chart-readout')).toHaveTextContent('2026-09-16 · 종가 310.00')
+    expect(container.querySelector('.chart-readout')).toHaveTextContent('2026-09-16 종가 310.00')
   })
 
   it('"전체 보기"는 사람이 밀거나 키운 뒤에만 — 누르면 처음처럼, 데이터가 바뀌면 내린다 (0.45.2 C3)', async () => {
@@ -656,7 +656,7 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
     pointer(canvas, 'pointermove', { x: 60, y: 100, t: 50, kind: 'mouse' })
     pointer(window as unknown as Element, 'pointerup', { x: 400, y: 100, t: 100, kind: 'mouse' })
     await tap(canvas, 100, 100, 1000, { kind: 'mouse' })
-    expect(line()).toHaveTextContent('2026-09-15 · 종가 101.00')
+    expect(line()).toHaveTextContent('2026-09-15 종가 101.00')
   })
 
   it('◀ 는 마우스가 가리키는 날이 아니라 고른 날에서 (C 검토)', async () => {
@@ -667,9 +667,9 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
     await tap(canvas, 100, 100, 0, { kind: 'mouse' })
     // 고른 날 2026-09-15, 가리키는 날 2026-09-16 (마우스가 차트 위에 있다)
     act(() => hoverOn(canvas, '2026-09-16', 102))
-    expect(line()).toHaveTextContent('2026-09-16 · 종가 102.00')
+    expect(line()).toHaveTextContent('2026-09-16 종가 102.00')
     await user.click(getByRole('button', { name: '이전 거래일' }))
-    expect(line()).toHaveTextContent('2026-09-14 · 종가 100.00')
+    expect(line()).toHaveTextContent('2026-09-14 종가 100.00')
   })
 
   it('"전체 보기"를 누르면 포커스가 옆 ◀ 로 — 숨는 단추에 남아 화면 맨 위로 빠졌다 (C 검토)', async () => {
@@ -687,7 +687,7 @@ describe('차트 위 한 줄과 탭 (0.44.0 C1 · 0.45.2 C1~C3)', () => {
   it('한 줄의 값은 그 종목의 통화 꼴 — 원화는 소수점 없이', () => {
     const krw = { ...history([]), ticker: '005930.KS', prices: [{ date: '2026-09-15', close: 67_900 }, { date: '2026-09-16', close: 68_000 }] }
     const { line } = shown(krw)
-    expect(line()).toHaveTextContent('2026-09-16 · 종가 68,000')
+    expect(line()).toHaveTextContent('2026-09-16 종가 68,000')
     expect(line().textContent).not.toMatch(/68,000\.00/)
   })
 

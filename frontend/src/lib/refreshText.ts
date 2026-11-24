@@ -37,7 +37,7 @@ export function refreshLine(state: RefreshStatus): string {
 
 /** 진단의 어느 칸을 봐야 하나 — ⋯ 의 점 풀이에 붙인다. 없으면 null */
 export function diagnosticsReason(backup: boolean, refresh: boolean): string | null {
-  if (backup && refresh) return '백업 · 시세 받기'
+  if (backup && refresh) return '백업, 시세 받기'
   if (backup) return '백업'
   if (refresh) return '시세 받기'
   return null

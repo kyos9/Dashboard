@@ -96,7 +96,7 @@ describe('차트 팝업', () => {
     const buy = screen.getByRole('button', { name: /매수 조건/ })
     expect(buy).toHaveAttribute('aria-expanded', 'false')
     // 접힌 채로도 기준일 — 지난 날을 골라도 칩은 이 날의 것(사용자 확인)
-    expect(buy).toHaveTextContent('1/4 · 10-22')
+    expect(buy).toHaveTextContent('1/4 10-22')
     expect(container.querySelector('.cond-explain')).toBeNull()
 
     await user.click(buy)
@@ -120,12 +120,12 @@ describe('차트 팝업', () => {
     await user.keyboard('{Enter}')
     expect(buy).toHaveAttribute('aria-expanded', 'true')
     // 기준일은 월-일 꼴로 맨 앞에 (D 검토)
-    expect(document.getElementById(buy.getAttribute('aria-controls')!)!.querySelector('p')!.textContent).toMatch(/^10-22 기준 · /)
+    expect(document.getElementById(buy.getAttribute('aria-controls')!)!.querySelector('p')!.textContent).toMatch(/^10-22 기준\. /)
 
     // 매도 줄도 따로 펼쳐진다 — 조건 셋, 회색 칩의 풀이 (D 검토)
     const sell = screen.getByRole('button', { name: /매도 조건/ })
     // 매도 이름표에도 기준일
-    expect(sell).toHaveTextContent('3/3 · 10-22')
+    expect(sell).toHaveTextContent('3/3 10-22')
     await user.click(sell)
     const sellPanel = document.getElementById(sell.getAttribute('aria-controls')!)!
     const sellItems = [...sellPanel.querySelectorAll('li')].map((li) => li.textContent)

@@ -41,9 +41,28 @@
 
 /* 선택칸·입력칸 안의 글자는 줄을 못 바꾼다 — 칸이 좁아 잘리지 않게, 좁은 화면에서는 한 줄에 하나씩 */
 .ai-key-grid {
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  /* 칸 아래 안내 줄 길이가 달라도 이름표·칸은 위에서부터 맞춘다 (폼 기본은 아래 맞춤) */
-  align-items: start;
+  /* 회사 · 키 · 키 확인 — 키 확인 단추는 칸 줄 바닥에 맞춘다 */
+  grid-template-columns: minmax(180px, 1fr) minmax(200px, 1fr) auto;
+  align-items: end;
+}
+.ai-key-check {
+  white-space: nowrap;
+}
+.ai-key-save-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+.ai-key-save-row .ai-key-actions {
+  margin-left: auto;
+}
+@media (max-width: 720px) {
+  .ai-key-grid {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
 }
 
 /* 선택칸과 입력칸은 브라우저가 주는 높이가 다르다(35·33px, 폰에서는 선택칸만 44px) — 나란히 놓이므로 같게 */

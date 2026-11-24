@@ -100,8 +100,8 @@ export function AppHeader() {
       className="top-icon"
       onClick={() => void Promise.allSettled([refreshAll(), api.refreshSymbolListing()])}
       disabled={refreshing}
-      aria-label="새로고침 — 시세와 거래소 목록"
-      title={refreshing ? '갱신 중…' : '새로고침 — 시세와 거래소 목록'}
+      aria-label="새로고침 (시세와 거래소 목록)"
+      title={refreshing ? '갱신 중…' : '새로고침 (시세와 거래소 목록)'}
     >
       <Icon name="refresh" size={20} className={refreshing ? 'spin' : undefined} />
     </button>

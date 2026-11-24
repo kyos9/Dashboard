@@ -47,7 +47,9 @@
 .push-blocked {
   padding: 8px 12px;
   border-radius: var(--radius-sm);
+  border: 1px solid var(--amber-line);
   background: var(--amber-soft);
+  color: var(--amber);
   line-height: 1.55;
 }
 

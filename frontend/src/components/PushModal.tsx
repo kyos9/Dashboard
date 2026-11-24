@@ -204,7 +204,7 @@ export function PushModal({ account, onClose, inline = false }: { account: strin
                 />
                 <span>
                   <b>{text.label}</b>
-                  <span className="hint"> — {text.hint}</span>
+                  <span className="hint push-hint">{text.hint}</span>
                 </span>
               </label>
               )
@@ -233,7 +233,7 @@ export function PushModal({ account, onClose, inline = false }: { account: strin
                   />
                   <span>
                     <b>{SLOT_TEXT[slot].label}</b>
-                    <span className="hint"> — {SLOT_TEXT[slot].hint}</span>
+                    <span className="hint push-hint">{SLOT_TEXT[slot].hint}</span>
                     {/* 눌리지 않는 까닭 — 없으면 고장으로 보였다(B 사용자 확인) */}
                     {last && <span className="hint"> (하나는 받아야 합니다)</span>}
                   </span>
@@ -254,7 +254,7 @@ export function PushModal({ account, onClose, inline = false }: { account: strin
               <span className="hint">
                 {' '}
                 {/* 보이는 목록의 것만 센다 — 숨긴 종목을 끈 채로 두면 "1종목 끔"인데 목록에 꺼진 줄이 없었다(B 검토) */}
-                — {(() => {
+                {(() => {
                   const off = stocks.filter((s) => settings.muted!.includes(s.ticker)).length
                   return off > 0 ? `${off}종목 끔` : '모두 받음'
                 })()}
@@ -299,7 +299,7 @@ export function PushModal({ account, onClose, inline = false }: { account: strin
         )}
 
         <p className="hint push-foot">
-          장 마감 뒤 시세를 받은 다음에 옵니다 — 아침은 밤사이 미국 장, 오후는 일본·한국 장을 받은 뒤(두 번 모두 모든 종목을 봅니다). 같은
+          장 마감 뒤 시세를 받은 다음에 옵니다. 아침은 밤사이 미국 장, 오후는 일본·한국 장을 받은 뒤(두 번 모두 모든 종목을 봅니다). 같은
           신호로 매일 울리지 않고, 새로 생겼을 때 한 번만 옵니다. 나가기를 누르면 이 기기의 알림도
           꺼집니다.
         </p>

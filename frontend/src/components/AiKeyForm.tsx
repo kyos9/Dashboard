@@ -51,7 +51,7 @@ export function AiKeyForm({ account, onSaved }: { account: string; onSaved?: () 
         <div className="ai-saved-row">
           <p className="ai-saved">
             저장된 키: <b>{providerLabel(saved.provider)}</b> <span className="mono">{maskKey(saved.key)}</span>
-            {!saved.remember && ' · 이 탭을 닫으면 지워짐'}
+            {!saved.remember && ', 이 탭을 닫으면 지워짐'}
           </p>
           <div className="ai-key-actions">
             {current && (
@@ -301,29 +301,34 @@ function NewKey({
             spellCheck={false}
           />
         </label>
-      </div>
-
-      <div className="ai-key-actions">
-        <button onClick={() => void check()} disabled={busy || key === ''}>
+        {/* 키 확인은 키 칸 바로 옆 — 아래 줄에 따로 떠 있었다 (주인: 단추 자리가 어색) */}
+        <button className="ai-key-check" onClick={() => void check()} disabled={busy || key === ''}>
           {busy ? '확인 중…' : '키 확인'}
         </button>
-        {models && checkedKey === key && <ModelSelect models={models} value={model} onChange={setModel} />}
       </div>
 
-      <label className="check-line">
-        <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
-        이 기기에 기억 (끄면 이 탭을 닫을 때 지워집니다. 공용 PC라면 끄세요)
-      </label>
+      {models && checkedKey === key && (
+        <div className="ai-key-actions">
+          <ModelSelect models={models} value={model} onChange={setModel} />
+        </div>
+      )}
 
-      <div className="ai-key-actions">
-        <button className="primary" onClick={save} disabled={!canSave}>
-          저장
-        </button>
-        {onCancel && (
-          <button className="ghost" onClick={onCancel}>
-            취소 (저장된 키 쓰기)
+      {/* 기억하기와 저장은 한 줄 — 저장은 오른쪽 끝 */}
+      <div className="ai-key-save-row">
+        <label className="check-line">
+          <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+          이 기기에 기억 (끄면 이 탭을 닫을 때 지워집니다. 공용 PC라면 끄세요)
+        </label>
+        <div className="ai-key-actions">
+          {onCancel && (
+            <button className="ghost" onClick={onCancel}>
+              취소 (저장된 키 쓰기)
+            </button>
+          )}
+          <button className="primary" onClick={save} disabled={!canSave}>
+            저장
           </button>
-        )}
+        </div>
       </div>
 
       <ErrorNotice error={error} onDismiss={() => setError(null)} />

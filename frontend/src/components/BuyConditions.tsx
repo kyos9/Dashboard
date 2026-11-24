@@ -66,7 +66,7 @@ function RowLabel({
       <span className="nowrap">
         <span className="mono">{count}</span>
         {/* 기준일을 접힌 채로도 — 차트에서 지난 날을 골라도 칩은 이 날의 것인데 펼쳐야만 보였다(사용자 확인) */}
-        {date && <span className="mono"> · {date.slice(5)}</span>} <span aria-hidden="true">{open ? '▴' : '▾'}</span>
+        {date && <span className="mono"> {date.slice(5)}</span>} <span aria-hidden="true">{open ? '▴' : '▾'}</span>
       </span>
     </button>
   )
@@ -86,7 +86,7 @@ function Explain({
 }) {
   return (
     <div className="cond-explain" id={id}>
-      {date && <p className="hint">{date.slice(5)} 기준 · 차트에서 다른 날을 골라도 이 날의 조건입니다</p>}
+      {date && <p className="hint">{date.slice(5)} 기준. 차트에서 다른 날을 골라도 이 날의 조건입니다</p>}
       <ul>
         {conditions.map((condition) => {
           const mark = conditionMark(states[condition.key])

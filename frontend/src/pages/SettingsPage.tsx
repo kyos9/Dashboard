@@ -155,7 +155,7 @@ export function SettingsPage() {
       const unknown = e instanceof ApiError && (e.status === 404 || e.status === 405)
       setEverywhereError(
         unknown
-          ? '서버가 아직 이 기능을 모릅니다 — 서버 업데이트가 끝난 뒤 다시 눌러 주세요. 이 기기에서만 나가려면 "나가기"를 누르세요.'
+          ? '서버가 아직 이 기능을 모릅니다. 서버 업데이트가 끝난 뒤 다시 눌러 주세요. 이 기기에서만 나가려면 "나가기"를 누르세요.'
           : e instanceof Error
             ? e.message
             : String(e),
@@ -182,7 +182,7 @@ export function SettingsPage() {
   // 모든 기기에서 나가기 (0.45.4) — 구글 로그인으로 들어와 쓰는 사람만. 승인 대기는 서버가 401 이다
   const canLogoutAll = mode === 'google' && !!user && !pending && !guest
   const diagReason = diagnosticsReason(backupAttention, refreshAttention)
-  const diagDot = diagReason ? `서버 상태를 확인하세요 — ${diagReason}` : undefined
+  const diagDot = diagReason ? `서버 상태를 확인하세요 (${diagReason})` : undefined
   const version = health?.version
     ? `v${health.version}${buildLabel(health.built_at) ? ` (${buildLabel(health.built_at)})` : ''}`
     : null
@@ -191,7 +191,7 @@ export function SettingsPage() {
     [
       health?.revision ? `커밋 ${health.revision}` : null,
       health?.providers_by_market
-        ? `시세 제공자 — 해외: ${health.providers_by_market.US.join(' → ')}` +
+        ? `시세 제공자. 해외: ${health.providers_by_market.US.join(' → ')}` +
           ` / 국내: ${health.providers_by_market.KR.join(' → ')}`
         : null,
     ]
@@ -203,13 +203,13 @@ export function SettingsPage() {
   const credits = (
     <ul className="settings-credits-list">
       <li>
-        Pretendard — Kil Hyung-jin, SIL Open Font License 1.1 (<a href="/licenses/pretendard.txt">전문</a>)
+        Pretendard: Kil Hyung-jin, SIL Open Font License 1.1 (<a href="/licenses/pretendard.txt">전문</a>)
       </li>
       <li>
-        Spoqa Han Sans Neo — Spoqa, SIL Open Font License 1.1 (<a href="/licenses/spoqa-han-sans-neo.txt">전문</a>)
+        Spoqa Han Sans Neo: Spoqa, SIL Open Font License 1.1 (<a href="/licenses/spoqa-han-sans-neo.txt">전문</a>)
       </li>
       <li>
-        토스페이스 — © Viva Republica, Inc., 토스페이스 라이선스 (<a href="/licenses/tossface.txt">전문</a>). 원본 그대로 씁니다.
+        토스페이스: © Viva Republica, Inc., 토스페이스 라이선스 (<a href="/licenses/tossface.txt">전문</a>). 원본 그대로 씁니다.
       </li>
     </ul>
   )
@@ -574,7 +574,7 @@ export function SettingsPage() {
       )}
 
       <Group title="보기">
-        <Row face={tfScreen} label="화면" value={displayValue} title="테마 · 상승 색" onClick={() => setShowDisplay(true)} />
+        <Row face={tfScreen} label="화면" value={displayValue} title="테마, 색, 상승 색" onClick={() => setShowDisplay(true)} />
         {member && <Row face={tfBell} label="알림" onClick={() => setShowPush(true)} />}
         {install.available && <Row face={tfInstall} label="앱 설치" title="홈 화면에 앱으로 추가합니다" onClick={install.start} />}
       </Group>
@@ -622,13 +622,13 @@ export function SettingsPage() {
           </summary>
           <ul>
             <li>
-              Pretendard — Kil Hyung-jin · SIL Open Font License 1.1 (<a href="/licenses/pretendard.txt">전문</a>)
+              Pretendard: Kil Hyung-jin, SIL Open Font License 1.1 (<a href="/licenses/pretendard.txt">전문</a>)
             </li>
             <li>
-              Spoqa Han Sans Neo — Spoqa · SIL Open Font License 1.1 (<a href="/licenses/spoqa-han-sans-neo.txt">전문</a>)
+              Spoqa Han Sans Neo: Spoqa, SIL Open Font License 1.1 (<a href="/licenses/spoqa-han-sans-neo.txt">전문</a>)
             </li>
             <li>
-              토스페이스 — © Viva Republica, Inc. · 토스페이스 라이선스 (<a href="/licenses/tossface.txt">전문</a>). 원본 그대로
+              토스페이스: © Viva Republica, Inc., 토스페이스 라이선스 (<a href="/licenses/tossface.txt">전문</a>). 원본 그대로
               씁니다.
             </li>
           </ul>

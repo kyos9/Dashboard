@@ -345,7 +345,7 @@ export function PriceChart({ history, height = 440, zoomControls = false }: Prop
       {shown && history && (
         <div className="chart-top">
           <p className="chart-readout" aria-live="polite">
-            <span className="mono">{shown.date}</span> · 종가{' '}
+            <span className="mono">{shown.date}</span> 종가{' '}
             <span className="mono">{chartPrice(shown.close, currencyOfTicker(history.ticker))}</span>
             {/* 그 날이 시그널 날이면 풀이 대신 그 말 — 차트의 점은 이어진 날의 첫날만 찍혀 가운데 날은 점이 없고, 고른 점에 화살표가 가렸다(0.45.2 사용자 확인).
                 점이 아닌 시그널 날 전부(원본 markers). 풀이보다 짧아 줄이 늘지 않는다 — 두 줄 자리는 CSS 가 잡는다 */}
@@ -353,13 +353,13 @@ export function PriceChart({ history, height = 440, zoomControls = false }: Prop
               <span className="chart-day-signal">
                 {daySignals.includes('buy') && (
                   <span className="nowrap">
-                    {' · '}
+                    {' '}
                     <SignalShape kind="buy" /> 매수 시그널
                   </span>
                 )}
                 {daySignals.includes('sell') && (
                   <span className="nowrap">
-                    {' · '}
+                    {' '}
                     <SignalShape kind="sell" /> 매도 시그널(참고)
                   </span>
                 )}
@@ -367,7 +367,7 @@ export function PriceChart({ history, height = 440, zoomControls = false }: Prop
             ) : zoomControls ? null : (
               /* 고른 뒤에도 같은 길이의 풀이를 둔다 — 풀이가 빠지면 폰에서 두 줄이 한 줄이 되어 단추·차트가 20px 뛰었다(검토·사용자 확인) */
               <span className="hint">
-                {current && current.date !== last?.date ? ' (▶ 나 오른쪽 끝을 누르면 마지막 날)' : ' (마지막 날 · 차트를 누르면 그 날)'}
+                {current && current.date !== last?.date ? ' (▶ 나 오른쪽 끝을 누르면 마지막 날)' : ' (마지막 날, 차트를 누르면 그 날)'}
               </span>
             )}
           </p>
@@ -444,7 +444,7 @@ export function useMarkerCounts(history: HistoryResponse | null) {
 export function coverageText(history: HistoryResponse | null): string {
   const coverage = history?.coverage
   if (!coverage || !coverage.first_date || !coverage.last_date) return '저장된 시세 없음'
-  return `저장된 시세 ${coverage.first_date} ~ ${coverage.last_date} · ${coverage.rows.toLocaleString('ko-KR')}거래일`
+  return `저장된 시세 ${coverage.first_date} ~ ${coverage.last_date}, ${coverage.rows.toLocaleString('ko-KR')}거래일`
 }
 
 const STREAK_HINT = '시그널이 뜬 날 수. 괄호는 며칠 이어서 뜬 것을 한 번으로 센 횟수(차트의 점 하나가 한 번)'
@@ -478,7 +478,7 @@ export function ChartLegend({
             ? `${history.prices.length}거래일 표시`
             : ''}
         {/* 손가락으로 밀면 차트가 통째로 밀린다 — 날짜를 따라가게 하는 길 (0.45.2 C3). 마우스는 올리기만 해도 따라와 손가락 기기에만 */}
-        {!loading && history && <span className="touch-only"> · 길게 누른 채 밀면 날짜가 따라옵니다</span>}
+        {!loading && history && <span className="touch-only">, 길게 누른 채 밀면 날짜가 따라옵니다</span>}
       </span>
     </div>
   )

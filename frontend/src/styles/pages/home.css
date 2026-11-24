@@ -1183,3 +1183,8 @@ a.sig-item.settings-item:hover {
 .settings-page-pc a:not(.link-button) {
   color: var(--accent);
 }
+
+/* 알림 종류 · 받을 때 — 이름 옆 풀이 (" — " 대신 띄움) */
+.push-hint {
+  margin-left: 6px;
+}
