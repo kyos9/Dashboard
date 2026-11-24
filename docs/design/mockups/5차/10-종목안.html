@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="ko" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>5차 종목 안</title>
+<!--
+  디자인 5차 목업 10: 종목 안(종목을 눌러 들어가는 화면) PC.
+  지금: 폰 화면을 넓힌 모양. 탭 넷(차트 · 신호 · 재무 · 보유)이 화면 너비로 늘어나고, 신호 · 보유 탭은 위 반만 차고 아래가 빈다.
+  셋:
+  가 탭 다듬기: 보유 숫자를 머리 오른쪽으로 올리고 탭은 차트 · 신호 · 재무 셋(왼쪽 정렬)
+  나 두 단: 왼쪽 차트 + 조건, 오른쪽 보유 · 비중 · 재무 요약. 아래 재무 자세히(분기 표). 탭 없음
+  다 한 장 + 왼쪽 목차: 설정처럼 왼쪽 목차(차트 · 신호 · 보유 · 재무), 오른쪽은 위에서 아래로 이어짐
+-->
+<link rel="stylesheet" href="../../../../frontend/src/styles/tokens.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:#5f646b}
+body{font-family:var(--font-sans);word-break:keep-all;padding:28px 20px 40px;color:#fff;font-size:14px}
+.part{max-width:1400px;margin:0 auto 14px;font-size:22px;font-weight:700}
+.part small{display:block;font-size:14px;font-weight:400;opacity:.9;margin-top:6px;line-height:1.55}
+.cap{max-width:1400px;margin:34px auto 10px;font-size:17px;font-weight:700}
+.cap small{font-size:13px;font-weight:400;opacity:.88;margin-left:8px}
+.frame{width:1400px;min-height:860px;margin:0 auto;background:var(--bg);color:var(--text);border-radius:10px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.dim{color:var(--text-dim)}.faint{color:var(--text-faint)}
+.nav{height:60px;display:flex;align-items:center;gap:6px;padding:0 32px;background:var(--panel);border-bottom:1px solid var(--border)}
+.logo{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:700;margin-right:28px}
+.logo i{width:30px;height:30px;border-radius:8px;background:var(--brand);color:var(--on-brand);display:grid;place-items:center;font-style:normal;font-size:15px;font-weight:800}
+.nav a{height:60px;display:inline-flex;align-items:center;padding:0 14px;font-size:15px;font-weight:600;color:var(--text-dim);border-bottom:3px solid transparent}
+.nav a.on{color:var(--accent);border-bottom-color:var(--accent)}
+.nav .r{margin-left:auto}
+.btn{height:36px;padding:0 16px;border:1px solid var(--border);border-radius:8px;background:var(--panel);font-size:13px;font-weight:600;color:var(--text);display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn.big{height:44px;font-size:14px;padding:0 22px}
+.g{width:18px;height:18px;border-radius:50%;background:#fff;display:inline-grid;place-items:center;font-size:12px;font-weight:800;color:#4285f4}
+.page{padding:24px 32px 32px}
+.box{background:var(--panel);border:1px solid var(--border);border-radius:12px}
+.hint{font-size:12px;color:var(--text-faint);line-height:1.55}
+.up{color:#15803d}.down{color:#b91c1c}
+h2{font-size:20px}
+.sec-h{display:flex;align-items:baseline;justify-content:space-between;margin:0 0 10px}
+.sec-h h3{font-size:16px}
+.sec-h a{font-size:13px;color:var(--accent);font-weight:600}
+
+.hd{display:flex;align-items:flex-start;gap:24px;margin-bottom:18px}
+.back{width:36px;height:36px;border:1px solid var(--border);border-radius:8px;display:grid;place-items:center;color:var(--text-dim);background:var(--panel);flex:none;margin-top:2px}
+.ttl h2{font-size:22px}.ttl h2 small{font-size:13px;font-weight:500;color:var(--text-faint);margin-left:8px}
+.px{display:flex;align-items:baseline;gap:10px;margin-top:6px}.px b{font-size:28px;font-weight:800}
+.badges{display:flex;gap:6px;margin-top:8px}
+.bd{font-size:12px;font-weight:700;padding:2px 9px;border-radius:99px}
+.bd.sell{background:#fde8e8;color:#b91c1c}.bd.w{background:var(--accent-soft);color:var(--accent)}
+.hd .acts{margin-left:auto;display:flex;gap:8px}
+.hold{display:flex;gap:0;margin-left:auto;padding:14px 4px}
+.hold > div{padding:0 22px;border-left:1px solid var(--border)}.hold > div:first-child{border-left:0}
+.hold .n{font-size:12px;color:var(--text-dim)}.hold .v{font-size:18px;font-weight:800;margin-top:3px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:16px}
+.tabs > span{padding:12px 16px;font-size:15px;font-weight:600;color:var(--text-dim);border-bottom:3px solid transparent}
+.tabs > span.on{color:var(--accent);border-bottom-color:var(--accent)}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;height:32px;background:var(--panel)}
+.seg > span{padding:0 12px;display:grid;place-items:center;font-size:12px;font-weight:600;color:var(--text-dim);border-left:1px solid var(--border)}
+.seg > span:first-child{border-left:0}.seg > span.on{background:var(--accent);color:var(--on-accent)}
+.chartbox{padding:16px 18px}
+.ch{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.cond{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 0;border-top:1px solid var(--border);font-size:13px}
+.cond > b{width:110px;font-size:13px}
+.cond .c{padding:3px 9px;border-radius:6px;background:var(--panel-soft);font-size:12px;font-weight:600;color:var(--text-dim)}
+.cond .c.ok{background:#e7f6ec;color:#15803d}
+.cond .sum{margin-left:auto;font-size:12px;color:var(--text-faint)}
+.card{padding:16px 18px;margin-bottom:14px}
+.card h3{font-size:15px;display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.card h3 a{font-size:12px;color:var(--accent);font-weight:600}
+.kv{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px}
+.kv .n{font-size:12px;color:var(--text-dim)}.kv .v{font-size:16px;font-weight:800;margin-top:2px}
+.bar{height:10px;border-radius:99px;background:var(--panel-soft);position:relative;margin:10px 0 6px}
+.bar i{position:absolute;left:0;top:0;bottom:0;width:58%;background:var(--accent);border-radius:99px}
+.bar u{position:absolute;left:25%;top:-4px;bottom:-4px;width:2px;background:var(--text)}
+.links{display:flex;gap:14px;margin-top:12px;font-size:12px}.links a{color:var(--text-dim);text-decoration:underline}.links a.del{color:#b91c1c}
+.two{display:grid;grid-template-columns:1fr 340px;gap:16px;align-items:start}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{font-size:12px;color:var(--text-faint);font-weight:600;text-align:right;padding:8px 10px;border-bottom:1px solid var(--border)}
+td{padding:9px 10px;border-bottom:1px solid var(--border);text-align:right}
+th:first-child,td:first-child{text-align:left}
+.fin-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}
+.fin-grid .card{margin:0}
+.toc-wrap{display:grid;grid-template-columns:180px 1fr;gap:20px;align-items:start}
+.toc{position:sticky;top:20px;display:flex;flex-direction:column;gap:2px}
+.toc span{padding:9px 12px;border-radius:8px;font-size:14px;font-weight:600;color:var(--text-dim)}
+.toc span.on{background:var(--accent-soft);color:var(--accent)}
+.sec-t{font-size:16px;font-weight:700;margin:4px 0 10px}
+</style>
+</head>
+<body>
+<div class="part">종목 안 PC: 셋
+<small>지금은 폰 화면을 넓힌 모양이다. 탭 넷이 화면 너비로 늘어나고, 신호와 보유 탭은 위 반만 차고 아래가 빈다.<br>
+숫자는 가짜 서버 AAPL 그대로. 단추는 글자만, 또는 아이콘만.</small></div>
+<div class="cap">가 탭 다듬기 <small>보유 숫자를 머리 오른쪽으로 올림. 탭은 차트, 신호, 재무 셋(왼쪽 정렬). 차트 탭 모습</small></div>
+<div class="frame" id="f1"></div>
+<div class="cap">나 두 단 <small>왼쪽 차트와 매수, 매도 조건. 오른쪽 보유, 비중, 재무 요약. 아래로 내리면 재무 자세히(분기 표). 탭 없음</small></div>
+<div class="frame" id="f2"></div>
+<div class="cap">다 한 장 + 왼쪽 목차 <small>설정과 같은 틀. 왼쪽 목차를 누르면 그 자리로 내려감</small></div>
+<div class="frame" id="f3"></div>
+<script>
+function line(w,h,seed=11){let s=seed;const r=()=>(s=(s*9301+49297)%233280)/233280;let y=.3,p=[];for(let i=0;i<160;i++){y+=(r()-.46)*.035+(i>115?.012:0);y=Math.max(.05,Math.min(.95,y));p.push(`${(i/159*w).toFixed(1)},${(h-y*h).toFixed(1)}`)}
+ return `<svg width="100%" height="${h}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><polyline fill="none" stroke="var(--accent)" stroke-width="1.8" points="${p.join(' ')}"/></svg>`}
+const nav=`<div class="nav"><div class="logo"><i>₩</i>자산관리</div><a class="on">홈</a><a>재무</a><a>리밸런싱</a><a>매크로</a><div class="r"><span class="btn">owner</span></div></div>`
+const title=`<span class="back">‹</span><div class="ttl"><h2>Apple<small>AAPL 미국 알파</small></h2><div class="px"><b>$1,439.64</b><span class="up" style="font-weight:700">+1.02%</span><span class="hint">11월 24일 종가</span></div><div class="badges"><span class="bd sell">▼ 매도</span><span class="bd w">◆ 비중 초과</span></div></div>`
+const seg=`<span class="seg"><span>6개월</span><span class="on">1년</span><span>5년</span><span>전체</span></span>`
+const conds=`<div class="cond"><b>매수 조건 2/4</b><span class="c">이격도 &lt; 0</span><span class="c ok">ADX &gt; 20</span><span class="c">DI 약세</span><span class="c ok">변동성, 거래량</span><span class="sum">11월 24일 기준</span></div>
+<div class="cond"><b>매도 조건 3/3</b><span class="c ok">MA50 위</span><span class="c ok">ADX 상승</span><span class="c ok">거래량 받침</span><span class="sum">참고</span></div>`
+const chart=(h)=>`<div class="box chartbox"><div class="ch"><span class="hint">▲ 매수 4번, ▼ 매도 14번 (1년)</span>${seg}</div>${line(1000,h)}${conds}</div>`
+const holdKv=`<div class="kv"><div><div class="n">수량</div><div class="v">30주</div></div><div><div class="n">평단가</div><div class="v">$1,223.69</div></div><div><div class="n">평가금액</div><div class="v">₩59,825,680</div></div><div><div class="n">수익률</div><div class="v up">+17.6%</div></div><div><div class="n">매수 환율</div><div class="v">1,343.64</div></div><div><div class="n">구분</div><div class="v">알파</div></div></div>`
+const weight=`<div class="box card"><h3>비중</h3><div style="display:flex;justify-content:space-between;font-size:13px"><span>현재 <b>11.6%</b></span><span>목표 <b>5.0%</b> (밴드 ±5%p)</span></div><div class="bar"><i style="width:46%"></i><u style="left:20%"></u></div><span class="bd w">◆ 비중 초과</span></div>`
+const finSum=`<div class="box card"><h3>재무 요약<a>재무 자세히</a></h3><div class="kv"><div><div class="n">PER</div><div class="v">17.5배</div></div><div><div class="n">ROE</div><div class="v">14.5%</div></div><div><div class="n">매출 (전년 같은 분기)</div><div class="v up">+4.4%</div></div><div><div class="n">부채비율</div><div class="v">70.0%</div></div></div><p class="hint" style="margin-top:10px">PER은 지난 5년 중 가장 높은 쪽입니다.</p></div>`
+const Q=[['2026.09','$18.6B','$5.3B','$4.1B','$23.99'],['2026.06','$17.2B','$4.1B','$3.2B','$18.72'],['2026.03','$17.1B','$4.5B','$3.5B','$20.51'],['2025.12','$17.5B','$4.2B','$3.2B','$19.00']]
+const qt=`<table><tr><th>분기</th><th>매출</th><th>영업이익</th><th>순이익</th><th>EPS</th></tr>${Q.map(q=>`<tr><td><b>${q[0]}</b></td>${q.slice(1).map(v=>`<td>${v}</td>`).join('')}</tr>`).join('')}</table>`
+
+/* 가 */
+f1.innerHTML=nav+`<div class="page"><div class="hd">${title}<div class="box hold"><div><div class="n">수량</div><div class="v">30주</div></div><div><div class="n">평가금액</div><div class="v">₩59,825,680</div></div><div><div class="n">수익률</div><div class="v up">+17.6%</div></div><div><div class="n">비중 / 목표</div><div class="v">11.6% / 5.0%</div></div><div style="display:flex;align-items:center"><span class="btn">수정</span></div></div></div>
+<div class="tabs"><span class="on">차트</span><span>신호</span><span>재무</span><span style="margin-left:auto;font-size:13px;color:var(--accent)">AI 분석</span></div>${chart(380)}</div>`
+
+/* 나 */
+f2.innerHTML=nav+`<div class="page"><div class="hd">${title}<div class="acts"><span class="btn">AI 분석</span><span class="btn">시세 갱신</span></div></div>
+<div class="two"><div>${chart(400)}</div><div><div class="box card"><h3>보유<span class="btn" style="height:30px">수정</span></h3>${holdKv}<div class="links"><a>비활성화</a><a class="del">삭제</a></div></div>${weight}${finSum}</div></div>
+<div class="sec-t" style="margin-top:20px">재무 자세히</div><div class="box card">${qt}</div></div>`
+
+/* 다 */
+f3.innerHTML=nav+`<div class="page"><div class="hd">${title}<div class="acts"><span class="btn">AI 분석</span><span class="btn">시세 갱신</span></div></div>
+<div class="toc-wrap"><div class="toc"><span class="on">차트</span><span>신호</span><span>보유</span><span>재무</span></div><div>${chart(340)}
+<div class="sec-t" style="margin-top:20px">보유</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:14px"><div class="box card"><h3>보유<span class="btn" style="height:30px">수정</span></h3>${holdKv}</div>${weight}</div>
+<div class="sec-t">재무</div><div class="box card">${qt}</div></div></div></div>`
+</script>
+</body>
+</html>
