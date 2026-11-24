@@ -8,6 +8,7 @@ import { StockDetail } from '../components/stock/StockDetail'
 import { ErrorNotice } from '../components/ErrorNotice'
 import { Icon } from '../components/icons/Icon'
 import type { ChartTab } from '../lib/fundamentals'
+import { useMedia, useNarrow } from '../lib/narrow'
 
 const TABS: ChartTab[] = ['chart', 'signal', 'fundamentals', 'holding', 'ai']
 
@@ -25,6 +26,11 @@ export function StockDetailPage() {
   const { ticker = '' } = useParams()
   const navigate = useNavigate()
   const { refreshKey } = useAppState()
+  // PC 는 두 단 (디자인 5차 목업 10 나). 1100 이하와 폰은 탭 그대로(폰 ④ 에서)
+  // 훅은 둘 다 늘 부른다 — `||` 로 줄이면 폭에 따라 부르는 훅 수가 바뀌어 화면이 넘어졌다
+  const mid = useMedia('(max-width: 1100px)')
+  const narrow = useNarrow()
+  const wide = !(mid || narrow)
   const [cards, setCards] = useState<DashboardCard[] | null>(null)
   const [stocks, setStocks] = useState<Stock[] | null>(null)
   const [listError, setListError] = useState<unknown>(null)
@@ -103,7 +109,8 @@ export function StockDetailPage() {
         card={card}
         initialTab={wanted && TABS.includes(wanted) ? wanted : 'chart'}
         onPurged={() => navigate('/stocks', { replace: true, state: { purged: match?.name ?? shown } })}
-        lead={lead}
+        lead={wide ? undefined : lead}
+        wide={wide}
       />
     </>
   )

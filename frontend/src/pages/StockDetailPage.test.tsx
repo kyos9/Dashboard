@@ -2,7 +2,8 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Fragment } from 'react'
 import { BrowserRouter, Link, MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { forgetPhone, pretendMidWidth } from '../test/phone'
 import { AppStateProvider } from '../AppState'
 import { api } from '../api/client'
 import { clearCache } from '../lib/cache'
@@ -87,6 +88,8 @@ function renderAt(path: string) {
 beforeEach(() => {
   vi.restoreAllMocks()
   clearCache()
+  // 아래 탭 테스트들은 1100 이하 폭(탭 그대로). PC 두 단은 맨 아래 묶음 (디자인 5차 목업 10 나)
+  pretendMidWidth()
   vi.spyOn(api, 'getHistory').mockResolvedValue({
     ticker: 'VOO',
     prices: [{ date: '2026-09-16', close: 100 }],
@@ -97,6 +100,8 @@ beforeEach(() => {
   vi.spyOn(api, 'listStocks').mockResolvedValue([stock('VOO'), stock('QQQ'), stock('GOOG'), stock('NEW')])
   vi.spyOn(api, 'listHoldings').mockResolvedValue([])
 })
+
+afterEach(() => forgetPhone())
 
 describe('종목 안 화면 (/stocks/:ticker — 묶음 3, 목업 11 가)', () => {
   it('머리에 현재가 · 등락 · 신호 배지, 위 탭 넷 — 신호가 있으면 신호 탭이 알린다', async () => {
@@ -327,5 +332,24 @@ describe('종목 탭 · 부품', () => {
     rerender(<Sparkline values={[5]} />)
     expect(container.querySelector('svg')).toBeNull()
     expect(container.querySelector('.sparkline-empty')).not.toBeNull()
+  })
+})
+
+describe('PC 종목 안 — 두 단 (디자인 5차 목업 10 나)', () => {
+  it('경로 줄 "홈 › 이름", 탭 없이 차트 · 보유 · 비중 · 재무 요약이 한 화면, 아래 재무 자세히', async () => {
+    forgetPhone()
+    vi.spyOn(api, 'getDashboard').mockResolvedValue([dashCard({ ticker: 'VOO', name: 'Vanguard S&P 500' })])
+    vi.spyOn(api, 'getRebalanceCurrent').mockRejectedValue(new Error('x'))
+    vi.spyOn(api, 'getSettings').mockRejectedValue(new Error('x'))
+    renderAt('/stocks/VOO')
+    const crumbs = await screen.findByRole('navigation', { name: '경로' })
+    expect(within(crumbs).getByRole('link', { name: '홈' })).toHaveAttribute('href', '/')
+    expect(crumbs).toHaveTextContent('Vanguard S&P 500')
+    expect(screen.queryByRole('tablist')).toBeNull()
+    expect(screen.queryByRole('button', { name: '종목 목록으로' })).toBeNull()
+    expect(screen.getByRole('group', { name: '기간' })).toBeInTheDocument()
+    const side = screen.getByRole('complementary', { name: '이 종목' })
+    expect(within(side).getByRole('region', { name: '재무 요약' })).toBeInTheDocument()
+    expect(await screen.findByRole('region', { name: '재무 자세히' })).toBeInTheDocument()
   })
 })

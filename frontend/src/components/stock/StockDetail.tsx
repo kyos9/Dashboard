@@ -2,12 +2,12 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useInRouterContext } from 'react-router-dom'
 import { useBackToClose } from '../../lib/backToClose'
 import { api } from '../../api/client'
-import type { DashboardCard, FundamentalsResponse, HistoryResponse, RebalanceCurrent } from '../../types'
+import type { DashboardCard, FundamentalKey, FundamentalsResponse, HistoryResponse, RebalanceCurrent, RebalanceRow } from '../../types'
 import { useAppState } from '../../AppState'
 import { useCachedLoad } from '../../lib/cache'
 import { useNarrow } from '../../lib/narrow'
 import { showsSellConditions, useSignalRules } from '../../lib/signalRules'
-import { emptyReason, type ChartTab } from '../../lib/fundamentals'
+import { METRIC_GROUPS, emptyReason, metricValue, perPositionText, type ChartTab } from '../../lib/fundamentals'
 import { cardSignals, tone as toneOf } from '../../lib/portfolio'
 import { MARKET_LABEL, num, price, signed, trafficLight } from '../../lib/display'
 import { pushAccount } from '../../lib/push'
@@ -44,6 +44,82 @@ function AiView({ onBack, children }: { onBack: () => void; children: ReactNode 
   )
 }
 
+/** PC 오른쪽 "비중" 카드 — 현재와 목표를 막대 하나에 (목업 10 나). 숫자는 홈·리밸런싱과 같은 응답 */
+function WeightCard({ row, card }: { row: RebalanceRow | null; card: DashboardCard }) {
+  const reasons = card.rebalance_signal?.reasons ?? []
+  const scale = row ? Math.max(row.actual_weight_pct, row.target_weight_pct + row.band_pct, 1) * 1.15 : 1
+  const pct = (v: number) => `${Math.min(100, (v / scale) * 100)}%`
+  return (
+    <section className="detail-card side-card" aria-label="비중">
+      <h3 className="detail-card-title">비중</h3>
+      {row ? (
+        <>
+          <p className="side-weight-nums">
+            <span>
+              현재 <b className="mono">{num(row.actual_weight_pct, 1)}%</b>
+            </span>
+            <span>
+              목표 <b className="mono">{num(row.target_weight_pct, 1)}%</b> <span className="hint nowrap">(밴드 ±{num(row.band_pct, 1)}%p)</span>
+            </span>
+          </p>
+          <div className="side-weight-bar" aria-hidden="true">
+            <i style={{ width: pct(row.actual_weight_pct) }} />
+            <u style={{ left: pct(row.target_weight_pct) }} />
+          </div>
+        </>
+      ) : (
+        <p className="hint">보유수량을 적으면 지금 비중이 나옵니다.</p>
+      )}
+      {reasons.length > 0 ? (
+        <div className="badge-row">
+          {reasons.map((r) => (
+            <ReasonTag key={r} reason={r} />
+          ))}
+        </div>
+      ) : (
+        row && <p className="hint">목표 비중에서 벗어나지 않았습니다.</p>
+      )}
+    </section>
+  )
+}
+
+const SUMMARY_KEYS: FundamentalKey[] = ['per', 'roe', 'revenue_yoy', 'debt_ratio']
+const METRIC_LABEL = Object.fromEntries(METRIC_GROUPS.flatMap((g) => g.items.map((i) => [i.key, i.key === 'revenue_yoy' ? '매출 (전년 같은 분기)' : i.label])))
+
+/** PC 오른쪽 "재무 요약" 카드 — 넷만, 자세히는 아래 (목업 10 나) */
+function FundSummary({ data, failed, onMore }: { data: FundamentalsResponse | null; failed: boolean; onMore: () => void }) {
+  const byKey = new Map(data?.metrics.map((m) => [m.key, m]) ?? [])
+  const position = data?.per_range ? perPositionText(data.per_range) : null
+  const has = !!data && data.state !== 'none' && data.metrics.length > 0
+  return (
+    <section className="detail-card side-card" aria-label="재무 요약">
+      <div className="detail-card-head">
+        <h3 className="detail-card-title">재무 요약</h3>
+        {has && (
+          <button type="button" className="link-like" onClick={onMore}>
+            재무 자세히
+          </button>
+        )}
+      </div>
+      {has ? (
+        <>
+          <dl className="detail-kv side-kv">
+            {SUMMARY_KEYS.map((key) => (
+              <div key={key}>
+                <dt>{METRIC_LABEL[key]}</dt>
+                <dd className="mono">{metricValue(byKey.get(key), data.currency)}</dd>
+              </div>
+            ))}
+          </dl>
+          {position && <p className="hint">{position}</p>}
+        </>
+      ) : (
+        <p className="hint">{data ? emptyReason(data) : failed ? '재무를 불러오지 못했습니다.' : '재무를 불러오는 중…'}</p>
+      )}
+    </section>
+  )
+}
+
 const TAB_LABEL: Record<Exclude<ChartTab, 'ai'>, string> = {
   chart: '차트',
   signal: '신호',
@@ -63,6 +139,11 @@ interface Props {
   trail?: ReactNode
   /** 종목을 지웠을 때 (보유 탭) — 화면이면 종목 목록으로 */
   onPurged?: () => void
+  /**
+   * PC 종목 안 화면 (디자인 5차 목업 10 나) — 탭 없이 두 단: 왼쪽 차트와 매수 · 매도 조건, 오른쪽 보유 · 비중 · 재무 요약,
+   * 아래 재무 자세히. 맨 위에 경로 줄 "홈 › 이름"(‹ 대신). 팝업과 폰은 탭 그대로
+   */
+  wide?: boolean
 }
 
 /**
@@ -71,7 +152,7 @@ interface Props {
  * 종목 탭에서 들어오는 화면(/stocks/:ticker)과 홈·시그널 목록의 차트 팝업이 이 하나를 쓴다 —
  * 어디서 열든 같은 자리에 같은 것이 있게. 데이터는 화면이 받던 그대로(시세·재무·카드), 새 계산은 없다.
  */
-export function StockDetail({ ticker, name, card, initialTab = 'chart', lead, trail, onPurged }: Props) {
+export function StockDetail({ ticker, name, card, initialTab = 'chart', lead, trail, onPurged, wide = false }: Props) {
   const narrow = useNarrow()
   // 차트 위 매수 조건 한 줄이 있으면 폰 첫 화면에 날짜 축이 들어오게 줄인다 (0.45.0 C · 0.45.2 C2 와 같은 이유)
   const chartHeight = !narrow ? 380 : card && showsSellConditions(card) ? 256 : 316
@@ -132,19 +213,25 @@ export function StockDetail({ ticker, name, card, initialTab = 'chart', lead, tr
   const quiet = state === 'watch'
   const change = ind?.change_pct ?? null
 
-  return (
-    <div className="stock-detail">
-      <div className="stock-detail-bar">
-        {typeof lead === 'function' ? lead({ aiOpen: activeTab === 'ai' }) : lead}
-        <h2 className="stock-detail-name">{label}</h2>
-        {/* AI 분석은 머리 오른쪽 작은 한 줄 — 첫 화면에서 보이게(사용자 확인 찾지 못한 것 1). 시그널 목록 머리의 "AI 종목 정리"와 같은 모양 */}
-        {member && (
-          <button type="button" className={`ai-mini${activeTab === 'ai' ? ' active' : ''}`} aria-pressed={activeTab === 'ai'} onClick={() => setTab('ai')}>
-            AI 분석
-          </button>
-        )}
-        {trail}
-      </div>
+  const rangeSeg = (
+    <div className={`seg stock-ranges${wide ? '' : ' full'}`} role="group" aria-label="기간">
+      {RANGE_OPTIONS.map((r) => (
+        <button key={r.value} type="button" className={range === r.value ? 'active' : undefined} aria-pressed={range === r.value} onClick={() => setRange(r.value)}>
+          {r.label}
+        </button>
+      ))}
+    </div>
+  )
+  const conditions = card && (
+    <div className="signal-rows chart-conditions">
+      <BuyConditions card={card} explain />
+      <SellConditions card={card} explain />
+    </div>
+  )
+  const coverage = (
+    <ChartCoverage ticker={ticker} history={history} range={range} onReloaded={() => setReloadKey((k) => k + 1)} onError={setError} />
+  )
+  const hero = (
       <div className="stock-hero">
         <p className="stock-hero-sub">
           {/* 띄어 쓴 가운뎃점 대신 사이 띄움으로 (목업 13 ④) */}
@@ -163,6 +250,87 @@ export function StockDetail({ ticker, name, card, initialTab = 'chart', lead, tr
         {/* 오늘 매수·매도가 아니면 한 줄로 — 아래 "매수 조건 n/4"가 사라는 뜻으로 읽혔다(사용자 확인 헷갈린 말 1) */}
         {card && quiet && <p className="hint stock-hero-state">오늘은 매수·매도 신호가 없습니다. 아래 조건 줄은 몇 개가 맞는지만 보입니다.</p>}
       </div>
+  )
+
+  if (wide) {
+    const toFund = () => document.getElementById('stock-fund')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+    return (
+      <div className="stock-detail stock-wide">
+        <nav className="crumbs" aria-label="경로">
+          {inRouter ? <Link to="/">홈</Link> : <span>홈</span>}
+          <span className="crumbs-sep" aria-hidden="true">
+            ›
+          </span>
+          <span aria-current="page">{label}</span>
+        </nav>
+        <div className="stock-wide-head">
+          <div className="stock-wide-title">
+            <h2 className="stock-detail-name">{label}</h2>
+            {hero}
+          </div>
+          {member && (
+            <button type="button" className={`stock-wide-ai${activeTab === 'ai' ? ' active' : ''}`} aria-pressed={activeTab === 'ai'} onClick={() => setTab(activeTab === 'ai' ? 'chart' : 'ai')}>
+              {activeTab === 'ai' ? '차트로' : 'AI 분석'}
+            </button>
+          )}
+        </div>
+        {member && <CurrentLoader onLoad={setCurrent} />}
+        {activeTab === 'ai' ? (
+          <AiView onBack={() => setTab('chart')}>
+            <AiPanel target={canAdvise ? { kind: 'research', ticker } : { kind: 'stock', ticker }} account={pushAccount(user)} />
+          </AiView>
+        ) : (
+          <>
+            <div className="stock-wide-two">
+              <section className="stock-wide-chart" aria-label="차트">
+                <div className="stock-wide-chart-head">
+                  <ChartLegend history={history} loading={loading} />
+                  {rangeSeg}
+                </div>
+                <ErrorNotice error={error} onDismiss={() => setError(null)} />
+                <PriceChart history={history} height={400} />
+                {conditions}
+                {coverage}
+              </section>
+              <aside className="stock-wide-side" aria-label="이 종목">
+                {member && <HoldingTab side ticker={ticker} row={row} baseCurrency={current?.base_currency ?? 'KRW'} onPurged={onPurged} />}
+                {member && card && <WeightCard row={row} card={card} />}
+                <FundSummary data={fundamentals} failed={fundFailed} onMore={toFund} />
+              </aside>
+            </div>
+            {fundamentals && fundamentals.state !== 'none' && fundamentals.metrics.length > 0 && (
+              <section id="stock-fund" className="stock-wide-fund" aria-label="재무 자세히">
+                <div className="stock-wide-fund-head">
+                  <h3>재무 자세히</h3>
+                  {inRouter && member && (
+                    <Link to="/fundamentals" className="detail-link">
+                      여러 종목 재무 한눈에 ›
+                    </Link>
+                  )}
+                </div>
+                <FundamentalsPanel data={fundamentals} />
+              </section>
+            )}
+          </>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="stock-detail">
+      <div className="stock-detail-bar">
+        {typeof lead === 'function' ? lead({ aiOpen: activeTab === 'ai' }) : lead}
+        <h2 className="stock-detail-name">{label}</h2>
+        {/* AI 분석은 머리 오른쪽 작은 한 줄 — 첫 화면에서 보이게(사용자 확인 찾지 못한 것 1). 시그널 목록 머리의 "AI 종목 정리"와 같은 모양 */}
+        {member && (
+          <button type="button" className={`ai-mini${activeTab === 'ai' ? ' active' : ''}`} aria-pressed={activeTab === 'ai'} onClick={() => setTab('ai')}>
+            AI 분석
+          </button>
+        )}
+        {trail}
+      </div>
+      {hero}
 
       <div className="stock-tabs" role="tablist" aria-label={`${label} 보기`}>
         {tabs.map((t) => (

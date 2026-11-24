@@ -9,7 +9,6 @@ import type { Currency, Holding, RebalanceRow, Stock } from '../../types'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { ErrorNotice } from '../ErrorNotice'
 import { StockEditModal } from '../StockEditModal'
-import { Icon } from '../icons/Icon'
 
 /**
  * 종목 안 "보유" 탭 — 수량 · 평단가 · 평가금액 · 수익률 · 지금 비중과 구분 · 목표 · 밴드를 보이고, 고치기는 "종목 한 번에 수정"
@@ -21,8 +20,11 @@ export function HoldingTab({
   row = null,
   baseCurrency = 'KRW',
   onPurged,
+  side = false,
 }: {
   ticker: string
+  /** PC 종목 안 오른쪽 칸 (디자인 5차 목업 10 나) — 카드 하나: 보유 숫자 두 줄씩 + 아래 시세 갱신 · 비활성화 · 삭제. 비중은 옆 비중 카드가 맡는다 */
+  side?: boolean
   /** 홈·리밸런싱과 같은 응답의 이 종목 줄 — 평가금액 · 수익률 · 지금 비중. 없으면 그 칸을 그리지 않는다 */
   row?: RebalanceRow | null
   baseCurrency?: Currency
@@ -103,7 +105,7 @@ export function HoldingTab({
   }
 
   return (
-    <div className="stock-holding">
+    <div className={side ? 'stock-holding stock-holding-side' : 'stock-holding'}>
       <ErrorNotice error={error} onDismiss={() => setError(null)} />
       {notice && (
         <p className="hint saved-note" role="status">
@@ -113,8 +115,8 @@ export function HoldingTab({
       <section className="detail-card">
         <div className="detail-card-head">
           <h3 className="detail-card-title">보유</h3>
-          <button type="button" className="ghost sm detail-card-action" onClick={() => setEditing(true)} aria-label={`${label} 보유 고치기`}>
-            <Icon name="edit" size={16} /> 고치기
+          <button type="button" className="ghost sm detail-card-action" onClick={() => setEditing(true)} aria-label={`${label} 보유 수정`}>
+            수정
           </button>
         </div>
         <dl className="detail-kv">
@@ -128,7 +130,7 @@ export function HoldingTab({
           </div>
           {stock.currency !== 'KRW' && (
             <div>
-              <dt>산 환율</dt>
+              <dt>매수 환율</dt>
               <dd className="mono">
                 {held && holding!.avg_fx ? // 엔은 100엔 값으로 받고 보인다(입력과 같은 단위, ROADMAP 8-3)
                   `${num(stock.currency === 'JPY' ? holding!.avg_fx * 100 : holding!.avg_fx, 2)} ${fxUnitLabel(stock.currency)}` : <span className="hint">—</span>}
@@ -156,6 +158,8 @@ export function HoldingTab({
             <dt>구분</dt>
             <dd>{stock.category ?? <span className="hint">없음</span>}</dd>
           </div>
+          {!side && (
+          <>
           <div>
             <dt>{row ? '비중 현재 / 목표' : '목표 비중'}</dt>
             <dd className="mono">
@@ -167,15 +171,38 @@ export function HoldingTab({
             <dt>밴드</dt>
             <dd className="mono">{stock.rebalance_band_pct === null ? <span className="hint">기본값</span> : `±${num(stock.rebalance_band_pct, 1)}%p`}</dd>
           </div>
+          </>
+          )}
         </dl>
-        {!held && <p className="hint">관심 종목입니다 — 수량을 넣으면 홈 · 리밸런싱의 보유로 들어갑니다.</p>}
+        {!held && <p className="hint">관심 종목입니다. 수량을 넣으면 홈과 리밸런싱의 보유로 들어갑니다.</p>}
       </section>
 
+      {side ? (
+        <>
+          {(!stock.active || stock.data_status === 'failed') && (
+            <p className="hint side-status">
+              {!stock.active && '비활성입니다. 기록은 남고 홈, 시그널, 리밸런싱에서 빠집니다.'}
+              {stock.data_status === 'failed' && ` 시세를 받지 못했습니다${stock.data_hint ? `. ${stock.data_hint}` : ''}.`}
+            </p>
+          )}
+          <div className="btn-group side-actions">
+          <button type="button" className="sm" onClick={() => void refresh()} disabled={refreshing} aria-label={`${label} 시세 갱신`}>
+            {refreshing ? '갱신 중…' : '시세 갱신'}
+          </button>
+          <button type="button" className="ghost sm" onClick={() => void toggleActive()} aria-label={`${label} ${stock.active ? '비활성화' : '활성화'}`}>
+            {stock.active ? '비활성화' : '활성화'}
+          </button>
+          <button type="button" className="danger sm" onClick={() => setPurging(true)} aria-label={`${label} 삭제`}>
+            삭제
+          </button>
+          </div>
+        </>
+      ) : (
       <section className="detail-card">
         <h3 className="detail-card-title">이 종목</h3>
         <p className="hint">
-          {stock.active ? '켜져 있습니다 — 홈 · 시그널 · 리밸런싱에 나옵니다.' : '비활성 — 기록은 남고 홈 · 시그널 · 리밸런싱에서 빠집니다.'}
-          {stock.data_status === 'failed' && ` 시세를 받지 못했습니다${stock.data_hint ? ` — ${stock.data_hint}` : ''}.`}
+          {stock.active ? '켜져 있습니다. 홈, 시그널, 리밸런싱에 나옵니다.' : '비활성입니다. 기록은 남고 홈, 시그널, 리밸런싱에서 빠집니다.'}
+          {stock.data_status === 'failed' && ` 시세를 받지 못했습니다${stock.data_hint ? `. ${stock.data_hint}` : ''}.`}
         </p>
         <div className="btn-group detail-actions">
           <button type="button" onClick={() => void refresh()} disabled={refreshing} aria-label={`${label} 시세 갱신`}>
@@ -189,6 +216,7 @@ export function HoldingTab({
           </button>
         </div>
       </section>
+      )}
 
       {editing && stocks && (
         <StockEditModal

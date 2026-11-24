@@ -554,7 +554,7 @@ describe('차트 팝업 · 키보드 (디자인 2차 검토)', () => {
         </AppStateProvider>
       </MemoryRouter>,
     )
-    await user.click(await screen.findByRole('button', { name: /보유 고치기/ }))
+    await user.click(await screen.findByRole('button', { name: /보유 수정/ }))
     expect(await screen.findByRole('dialog', { name: 'GOOG 수정' })).toBeInTheDocument()
     await user.keyboard('{Escape}')
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'GOOG 수정' })).toBeNull())
@@ -582,7 +582,7 @@ describe('차트 팝업 · 키보드 (디자인 2차 검토)', () => {
         </AppStateProvider>
       </MemoryRouter>,
     )
-    await user.click(await screen.findByRole('button', { name: /보유 고치기/ }))
+    await user.click(await screen.findByRole('button', { name: /보유 수정/ }))
     const edit = await screen.findByRole('dialog', { name: 'GOOG 수정' })
     await user.type(within(edit).getByRole('textbox', { name: 'GOOG 보유수량' }), '5')
     await user.keyboard('{Escape}')
@@ -614,7 +614,7 @@ describe('차트 팝업 · 키보드 (디자인 2차 검토)', () => {
         </AppStateProvider>
       </MemoryRouter>,
     )
-    await user.click(await screen.findByRole('button', { name: /보유 고치기/ }))
+    await user.click(await screen.findByRole('button', { name: /보유 수정/ }))
     const edit = await screen.findByRole('dialog', { name: 'GOOG 수정' })
     for (let i = 0; i < 12; i++) {
       await user.tab()

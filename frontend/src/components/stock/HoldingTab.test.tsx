@@ -67,12 +67,12 @@ describe('종목 안 · 보유 탭 (묶음 3 — 종목 관리 표의 줄이 여
     expect(screen.getByText('알파')).toBeInTheDocument()
     expect(screen.getByText('12.5%')).toBeInTheDocument()
     expect(screen.getByText('기본값')).toBeInTheDocument()
-    // 원화 종목에는 산 환율 칸이 없다
-    expect(screen.queryByText('산 환율')).toBeNull()
+    // 원화 종목에는 매수 환율 칸이 없다
+    expect(screen.queryByText('매수 환율')).toBeNull()
     expect(screen.queryAllByRole('textbox')).toHaveLength(0)
   })
 
-  it('엔 종목의 산 환율은 100엔 값으로 — 넣을 때와 같은 단위', async () => {
+  it('엔 종목의 매수 환율은 100엔 값으로 — 넣을 때와 같은 단위', async () => {
     mockApi(
       [stock({ ticker: '7203.T', name: '도요타', market: 'JP', currency: 'JPY', rebalance_band_pct: 3 })],
       [{ ticker: '7203.T', quantity: 100, avg_cost: 2850, avg_fx: 9.1, updated_at: '2026-09-01T00:00:00' }],
@@ -99,14 +99,14 @@ describe('종목 안 · 보유 탭 (묶음 3 — 종목 관리 표의 줄이 여
     expect(screen.getByText('비중 현재 / 목표')).toBeInTheDocument()
   })
 
-  it('고치기는 이 종목 칸만 연다 — 다른 종목 칸이 없고, 수량 칸에 커서 (사용자 확인 막힌 곳 2)', async () => {
+  it('수정은 이 종목 칸만 연다 — 다른 종목 칸이 없고, 수량 칸에 커서 (사용자 확인 막힌 곳 2)', async () => {
     mockApi(
       [stock({ ticker: 'VOO' }), stock({ ticker: 'QQQ' })],
       [{ ticker: 'QQQ', quantity: 3, avg_cost: null, avg_fx: null, updated_at: '2026-09-01T00:00:00' }],
     )
     const user = userEvent.setup()
     renderTab('QQQ')
-    await user.click(await screen.findByRole('button', { name: 'QQQ 보유 고치기' }))
+    await user.click(await screen.findByRole('button', { name: 'QQQ 보유 수정' }))
     const dialog = await screen.findByRole('dialog', { name: 'QQQ 수정' })
     await waitFor(() => expect(within(dialog).getByRole('textbox', { name: 'QQQ 보유수량' })).toHaveFocus())
     expect(within(dialog).queryByRole('textbox', { name: 'VOO 보유수량' })).toBeNull()
@@ -134,7 +134,7 @@ describe('종목 안 · 보유 탭 (묶음 3 — 종목 관리 표의 줄이 여
     mockApi([stock({ ticker: 'VOO' })])
     const user = userEvent.setup()
     renderTab('VOO')
-    const edit = await screen.findByRole('button', { name: 'VOO 보유 고치기' })
+    const edit = await screen.findByRole('button', { name: 'VOO 보유 수정' })
     await user.click(edit)
     const dialog = await screen.findByRole('dialog', { name: 'VOO 수정' })
     for (let i = 0; i < 12; i++) {
@@ -162,7 +162,7 @@ describe('종목 안 · 보유 탭 (묶음 3 — 종목 관리 표의 줄이 여
     mockApi([stock({ ticker: 'VOO' })], [{ ticker: 'VOO', quantity: 3, avg_cost: null, avg_fx: null, updated_at: '2026-09-01T00:00:00' }])
     const user = userEvent.setup()
     renderTab('VOO')
-    await user.click(await screen.findByRole('button', { name: 'VOO 보유 고치기' }))
+    await user.click(await screen.findByRole('button', { name: 'VOO 보유 수정' }))
     const dialog = await screen.findByRole('dialog', { name: 'VOO 수정' })
     await user.type(within(dialog).getByRole('textbox', { name: 'VOO 보유수량' }), '5')
     await user.keyboard('{Escape}')
