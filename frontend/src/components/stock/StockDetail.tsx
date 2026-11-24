@@ -46,11 +46,18 @@ function AiView({ onBack, children }: { onBack: () => void; children: ReactNode 
 }
 
 /**
- * PC 오른쪽 "비중" 카드 (목업 10 나, 주인: 막대 말고 다른 것) — 숫자 셋(현재 · 목표 · 차이)과 그 아래 허용 폭 눈금:
- * 옅은 띠가 목표 ± 밴드, 세로 금이 목표, 점이 현재. 띠 밖이면 점이 비중 신호 색. 숫자는 홈·리밸런싱과 같은 응답
+ * PC 오른쪽 "비중" 카드 — 목업 11 나(주인 고름): 같은 자 위 막대 둘(현재 · 목표)과 한 줄 풀이.
+ * 자 끝은 현재 · 허용 끝 중 큰 쪽의 1.2배. 숫자는 홈·리밸런싱과 같은 응답
  */
 function WeightCard({ row, card }: { row: RebalanceRow | null; card: DashboardCard }) {
   const reasons = card.rebalance_signal?.reasons ?? []
+  const badges = reasons.length > 0 && (
+    <span className="badge-row">
+      {reasons.map((r) => (
+        <ReasonTag key={r} reason={r} />
+      ))}
+    </span>
+  )
   if (!row) {
     return (
       <section className="detail-card side-card" aria-label="비중">
@@ -62,41 +69,36 @@ function WeightCard({ row, card }: { row: RebalanceRow | null; card: DashboardCa
   const lo = Math.max(0, row.target_weight_pct - row.band_pct)
   const hi = row.target_weight_pct + row.band_pct
   const top = Math.max(row.actual_weight_pct, hi) * 1.2 || 1
-  const at = (v: number) => `${Math.min(100, Math.max(0, (v / top) * 100))}%`
+  const width = (v: number) => `${Math.min(100, Math.max(0, (v / top) * 100))}%`
   const gap = row.actual_weight_pct - row.target_weight_pct
   const out = row.actual_weight_pct < lo || row.actual_weight_pct > hi
+  const line =
+    Math.abs(gap) < 0.05
+      ? '목표와 같습니다.'
+      : `목표보다 ${num(Math.abs(gap), 1)}%p ${gap > 0 ? '많습니다' : '적습니다'}. 허용은 ${num(lo, 1)} ~ ${num(hi, 1)}%.`
   return (
     <section className="detail-card side-card" aria-label="비중">
-      <h3 className="detail-card-title">비중</h3>
-      <dl className="side-weight-nums">
-        <div>
-          <dt>현재</dt>
-          <dd className="mono">{num(row.actual_weight_pct, 1)}%</dd>
-        </div>
-        <div>
-          <dt>목표</dt>
-          <dd className="mono">{num(row.target_weight_pct, 1)}%</dd>
-        </div>
-        <div>
-          <dt>차이</dt>
-          <dd className={`mono${out ? ' side-weight-out' : ''}`}>{signed(gap, 1, '%p')}</dd>
-        </div>
-      </dl>
-      <div className="side-weight-gauge" aria-hidden="true">
-        <span className="band" style={{ left: at(lo), width: `calc(${at(hi)} - ${at(lo)})` }} />
-        <span className="target" style={{ left: at(row.target_weight_pct) }} />
-        <span className={`now${out ? ' out' : ''}`} style={{ left: at(row.actual_weight_pct) }} />
+      <div className="detail-card-head">
+        <h3 className="detail-card-title">비중</h3>
+        {badges}
       </div>
-      <p className="side-weight-scale hint">
-        <span>허용 {num(lo, 1)} ~ {num(hi, 1)}%</span>
-        {reasons.length > 0 && (
-          <span className="badge-row">
-            {reasons.map((r) => (
-              <ReasonTag key={r} reason={r} />
-            ))}
+      <div className="side-bars">
+        <div className="side-bar">
+          <span className="side-bar-label">현재</span>
+          <span className="side-bar-track" aria-hidden="true">
+            <i className="now" style={{ width: width(row.actual_weight_pct) }} />
           </span>
-        )}
-      </p>
+          <b className={`mono${out ? ' side-weight-out' : ''}`}>{num(row.actual_weight_pct, 1)}%</b>
+        </div>
+        <div className="side-bar">
+          <span className="side-bar-label">목표</span>
+          <span className="side-bar-track" aria-hidden="true">
+            <i className="target" style={{ width: width(row.target_weight_pct) }} />
+          </span>
+          <b className="mono">{num(row.target_weight_pct, 1)}%</b>
+        </div>
+      </div>
+      <p className="hint side-weight-line">{line}</p>
     </section>
   )
 }

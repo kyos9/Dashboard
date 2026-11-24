@@ -481,75 +481,52 @@ button.stock-wide-ai.active {
   display: flex;
   gap: 6px;
 }
-.side-weight-nums {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  margin: 0 0 14px;
+/* 비중 카드 — 목업 11 나: 같은 자 위 막대 둘 */
+.side-card .detail-card-head .badge-row {
+  margin: 0 0 0 auto;
 }
-.side-weight-nums dt {
-  font-size: var(--fs-caption);
+.side-bars {
+  display: grid;
+  gap: 10px;
+  margin: 4px 0 10px;
+}
+.side-bar {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 52px;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--fs-sub);
+}
+.side-bar-label {
   color: var(--text-dim);
 }
-.side-weight-nums dd {
-  margin: 2px 0 0;
-  font-size: 18px;
-  font-weight: 800;
+.side-bar b {
+  text-align: right;
 }
-.side-weight-nums dd.side-weight-out {
+.side-bar b.side-weight-out {
   color: var(--accent);
 }
-/* 허용 폭 눈금 — 가는 선 위에 옅은 띠(목표 ± 밴드), 세로 금(목표), 점(현재) */
-.side-weight-gauge {
+.side-bar-track {
   position: relative;
-  height: 18px;
-  margin: 0 6px;
+  height: 12px;
+  border-radius: 99px;
+  background: var(--panel-soft);
+  overflow: hidden;
 }
-.side-weight-gauge::before {
-  content: '';
+.side-bar-track i {
   position: absolute;
   left: 0;
-  right: 0;
-  top: 8px;
-  height: 2px;
-  background: var(--border);
+  top: 0;
+  bottom: 0;
+  border-radius: 99px;
 }
-.side-weight-gauge .band {
-  position: absolute;
-  top: 4px;
-  height: 10px;
-  border-radius: 4px;
-  background: var(--accent-soft);
-}
-.side-weight-gauge .target {
-  position: absolute;
-  top: 1px;
-  width: 2px;
-  height: 16px;
-  margin-left: -1px;
-  background: var(--text-dim);
-}
-.side-weight-gauge .now {
-  position: absolute;
-  top: 3px;
-  width: 12px;
-  height: 12px;
-  margin-left: -6px;
-  border-radius: 50%;
-  background: var(--text);
-  box-shadow: 0 0 0 2px var(--panel);
-}
-.side-weight-gauge .now.out {
+.side-bar-track i.now {
   background: var(--accent);
 }
-.side-weight-scale {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin: 8px 0 0;
+.side-bar-track i.target {
+  background: var(--text-faint);
 }
-.side-weight-scale .badge-row {
+.side-weight-line {
   margin: 0;
 }
 .side-card .detail-card-head .link-like {
