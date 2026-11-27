@@ -76,7 +76,7 @@
 }
 
 .data-table tr.cash-row td {
-  background: var(--panel-soft);
+  background: var(--panel);
 }
 
 .trade-row td {

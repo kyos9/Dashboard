@@ -38,8 +38,10 @@ describe('PC 재무 화면 (디자인 5차)', () => {
     render(<Harness rows={[GOOG, ETF]} />)
     const list = screen.getByRole('listbox', { name: '종목' })
     const options = within(list).getAllByRole('option')
-    expect(options.map((o) => o.textContent)).toEqual(['GOOG', 'VOO'])
-    expect(within(list).getByText('재무가 없는 종목')).toBeInTheDocument()
+    expect(options.map((o) => o.textContent)).toEqual(['GOOG'])
+    // 재무가 없는 종목은 따로 이름 붙은 목록
+    const off = screen.getByRole('listbox', { name: '재무가 없는 종목' })
+    expect(within(off).getAllByRole('option').map((o) => o.textContent)).toEqual(['VOO'])
     expect(options[0]).toHaveAttribute('aria-selected', 'true')
   })
 

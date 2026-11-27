@@ -533,26 +533,6 @@ button.stock-wide-ai.active {
   margin-left: auto;
   font-size: var(--fs-caption);
 }
-.stock-wide-fund {
-  margin-top: 24px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 16px 18px;
-}
-.stock-wide-fund-head {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  margin-bottom: 8px;
-}
-.stock-wide-fund-head h3 {
-  margin: 0;
-  font-size: var(--fs-title);
-}
-.stock-wide-fund-head .detail-link {
-  margin: 0 0 0 auto;
-}
 /* 차트는 바깥 카드 하나 — 안쪽 차트 틀 테두리를 뺀다(이중 테두리) */
 .stock-wide-chart .chart-shell {
   border: 0;
@@ -569,9 +549,3 @@ button.stock-wide-ai.active {
   font-size: var(--fs-caption);
 }
 
-/* 재무 자세히 = 재무 화면 카드와 실적 (주인: 묶음이 구분되게, 숫자만) */
-.stock-wide-fund .fd-detail {
-  border: 0;
-  padding: 0;
-  background: none;
-}

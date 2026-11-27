@@ -8,7 +8,7 @@
  * - 매도: 수량만 뺀다. 평단가는 판다고 바뀌지 않는다 (남은 주식을 산 값은 그대로다)
  * - 전부 팔면 평단가를 비운다 — 다음에 새로 사면 그 값이 곧 평단가다
  *
- * **산 환율**(외화 종목, ROADMAP 8-3)도 평단가와 같은 길을 간다. 살 때 그날 환율을 받아 **금액 가중
+ * **매수 환율**(외화 종목, ROADMAP 8-3)도 평단가와 같은 길을 간다. 살 때 그날 환율을 받아 **금액 가중
  * 평균**으로 — `(기존 수량×평단×기존 환율 + 산 수량×산 값×그날 환율) ÷ (기존 수량×평단 + 산 수량×산 값)`.
  * 수량 가중이 아니다: 같은 10주라도 비싸게 산 몫이 더 많은 원화를 치렀다. 팔 때는 그대로다.
  */
@@ -19,7 +19,7 @@ export interface Position {
   quantity: number
   /** 모르면 null */
   avg_cost: number | null
-  /** 산 환율 (외화 종목만). 모르면 null, 원화 종목은 없다 */
+  /** 매수 환율 (외화 종목만). 모르면 null, 원화 종목은 없다 */
   avg_fx?: number | null
 }
 
@@ -73,7 +73,7 @@ export function applyTrade(
   }
   if (!foreign) return { ok: true, position: { quantity: total, avg_cost: avg } }
 
-  // 산 환율 — 평단가와 같은 규칙. 들고 있던 몫의 원가나 환율을 모르면 평균을 지어내지 않는다
+  // 매수 환율 — 평단가와 같은 규칙. 들고 있던 몫의 원가나 환율을 모르면 평균을 지어내지 않는다
   let avgFx: number | null
   if (position.quantity <= 0) {
     avgFx = fx as number

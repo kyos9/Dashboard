@@ -139,7 +139,7 @@ export function StockManager() {
   const [moved, setMoved] = useState<string | null>(null)
 
   const sheetOpen = picked !== null || rawTicker !== null
-  // 산 환율은 목록에서 고른 외화 종목만 받는다
+  // 매수 환율은 목록에서 고른 외화 종목만 받는다
   const pickedCurrency = picked ? CURRENCY_BY_MARKET[picked.market] : null
 
   // 시세를 뒤에서 받는 중인 종목. 다음에 목록을 받았을 때 여기서 빠진 종목이 "다 받은" 종목이다.

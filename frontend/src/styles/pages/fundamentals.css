@@ -440,11 +440,17 @@ button.sig-item.fd-item.off {
   color: var(--text-faint);
 }
 
-.sig-list li.fd-group {
-  padding: 8px 16px;
-  font-size: var(--fs-caption);
-  color: var(--text-faint);
-  background: var(--panel-soft);
+.fd-lists {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.fd-group-title {
+  margin: 24px 0 8px 4px;
+  font-size: var(--fs-sub);
+  font-weight: 600;
+  color: var(--text-dim);
 }
 
 .fd-detail .sig-detail-head {

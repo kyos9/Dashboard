@@ -18,7 +18,7 @@ export interface TargetLine {
 
 /**
  * 목표 비중 · 밴드 한 번에 고치기 (디자인 4차 목업 12c · 주인 답 "목표 · 밴드만 한 시트").
- * 수량 · 평단가 · 산 환율은 종목 탭의 "한 번에 수정"과 종목 안 "보유"에서 고친다 — 같은 칸이 두 곳에 있었다.
+ * 수량 · 평단가 · 매수 환율은 종목 탭의 "한 번에 수정"과 종목 안 "보유"에서 고친다 — 같은 칸이 두 곳에 있었다.
  * 값 · 저장 · 되돌리기는 리밸런싱 화면이 들고 있다(지금까지의 "바뀐 N줄 저장"과 같은 일).
  */
 export function TargetSheet({
@@ -135,7 +135,7 @@ export function TargetSheet({
             </table>
           </div>
           <div className="sheet-foot">
-            <p className="hint">수량, 평단가, 산 환율은 종목 수정에서 고칩니다.</p>
+            <p className="hint">수량, 평단가, 매수 환율은 종목 수정에서 고칩니다.</p>
             <button type="button" className="ghost" onClick={onReset} disabled={saving || dirtyCount === 0}>
               되돌리기
             </button>
@@ -182,7 +182,7 @@ export function TargetSheet({
         ))}
       </ul>
       <p className="hint">
-        밴드를 비워 두면 기본 밴드 {defaultBand}%p를 씁니다(설정에서 바꿉니다). 수량, 평단가, 산 환율은 종목 수정에서 고칩니다.
+        밴드를 비워 두면 기본 밴드 {defaultBand}%p를 씁니다(설정에서 바꿉니다). 수량, 평단가, 매수 환율은 종목 수정에서 고칩니다.
       </p>
       <div className="target-actions">
         <button type="button" onClick={onReset} disabled={saving || dirtyCount === 0}>

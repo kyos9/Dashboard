@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 
 /**
- * PC 리밸런싱 요약 띠 (디자인 5차 목업 05 가) — 전체 자금 · 팔 것 · 살 것 · 목표 합계 · 새로 넣을 돈을 한 줄 칸 다섯에.
+ * PC 리밸런싱 요약 띠 (디자인 5차 목업 05 가) — 전체 자금 · 매도 · 매수 · 목표 합계 · 새로 넣을 돈을 한 줄 칸 다섯에.
  * 칸 제목은 위, 숫자는 왼쪽에 두고 남은 높이의 가운데 (주인: "위쪽 정렬이라 별로, 숫자는 왼쪽 가운데").
  */
 export function RebalanceStrip({
@@ -37,13 +37,13 @@ export function RebalanceStrip({
         </div>
       </div>
       <div className="rb-strip-cell">
-        <span className="rb-strip-k">팔 것 {sellCount}종목</span>
+        <span className="rb-strip-k">매도 {sellCount}종목</span>
         <div className="rb-strip-v">
           <b className="mono tone-sell">{sellText}</b>
         </div>
       </div>
       <div className="rb-strip-cell">
-        <span className="rb-strip-k">살 것 {buyCount}종목</span>
+        <span className="rb-strip-k">매수 {buyCount}종목</span>
         <div className="rb-strip-v">
           <b className="mono tone-buy">{buyText}</b>
         </div>

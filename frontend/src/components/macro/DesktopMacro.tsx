@@ -126,7 +126,7 @@ export function DesktopMacro({
   }
   const group = (title: ReactNode, list: MacroSeriesInfo[], key: string) =>
     list.length > 0 && [
-      <li key={`g-${key}`} className="fd-group" role="presentation">
+      <li key={`g-${key}`} className="macro-group" role="presentation">
         {title}
       </li>,
       ...list.map(item),

@@ -336,7 +336,7 @@ describe('종목 탭 · 부품', () => {
 })
 
 describe('PC 종목 안 — 두 단 (디자인 5차 목업 10 나)', () => {
-  it('경로 줄 "홈 › 이름", 탭 없이 차트 · 보유 · 비중 · 재무 요약이 한 화면, 아래 재무 자세히', async () => {
+  it('경로 줄 "홈 › 이름", 탭 없이 차트 · 보유 · 비중 · 재무 요약이 한 화면, 자세히는 재무 화면으로', async () => {
     forgetPhone()
     vi.spyOn(api, 'getDashboard').mockResolvedValue([dashCard({ ticker: 'VOO', name: 'Vanguard S&P 500' })])
     vi.spyOn(api, 'getRebalanceCurrent').mockRejectedValue(new Error('x'))
@@ -350,6 +350,7 @@ describe('PC 종목 안 — 두 단 (디자인 5차 목업 10 나)', () => {
     expect(screen.getByRole('group', { name: '기간' })).toBeInTheDocument()
     const side = screen.getByRole('complementary', { name: '이 종목' })
     expect(within(side).getByRole('region', { name: '재무 요약' })).toBeInTheDocument()
-    expect(await screen.findByRole('region', { name: '재무 자세히' })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: '재무 자세히' })).toBeNull()
+    expect(screen.queryByRole('region', { name: '실적' })).toBeNull()
   })
 })

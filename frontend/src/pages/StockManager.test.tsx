@@ -288,7 +288,7 @@ describe('종목 등록', () => {
     expect(sent.target_weight_pct).toBe(0)
   })
 
-  it('외화 종목을 고르면 산 환율 칸이 생기고, 엔은 100엔 값을 1엔 값으로 보낸다 (ROADMAP 8-3)', async () => {
+  it('외화 종목을 고르면 매수 환율 칸이 생기고, 엔은 100엔 값을 1엔 값으로 보낸다 (ROADMAP 8-3)', async () => {
     mockApi()
     vi.spyOn(api, 'searchSymbols').mockResolvedValue([
       { ...SAMSUNG, ticker: '7203.T', name: '도요타', market: 'JP' },
@@ -298,25 +298,25 @@ describe('종목 등록', () => {
     renderManager()
 
     // 고르기 전에는 없다 — 이름만 치면 원화 종목일 수도 있다
-    expect(screen.queryByLabelText(/산 환율/)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/매수 환율/)).not.toBeInTheDocument()
     await user.type(symbolInput(), '도요타')
     await user.click(await screen.findByText('도요타'))
     await user.type(screen.getByLabelText('보유 수량'), '100')
-    await user.type(screen.getByLabelText('산 환율 (원/100엔)'), '910')
+    await user.type(screen.getByLabelText('매수 환율 (원/100엔)'), '910')
     await user.click(screen.getByRole('button', { name: /종목 추가/ }))
 
     await waitFor(() => expect(create).toHaveBeenCalled())
     expect(create.mock.calls[0][0]).toMatchObject({ ticker: '7203.T', quantity: 100, avg_fx: 9.1 })
   })
 
-  it('원화 종목에는 산 환율 칸이 없다', async () => {
+  it('원화 종목에는 매수 환율 칸이 없다', async () => {
     mockApi()
     const create = vi.spyOn(api, 'createStock').mockResolvedValue(created())
     const user = userEvent.setup()
     renderManager()
     await user.type(symbolInput(), '삼성전자')
     await user.click(await screen.findByText('삼성전자'))
-    expect(screen.queryByLabelText(/산 환율/)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/매수 환율/)).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /종목 추가/ }))
     await waitFor(() => expect(create).toHaveBeenCalled())
     expect(create.mock.calls[0][0]).not.toHaveProperty('avg_fx')
@@ -441,7 +441,7 @@ describe('등록된 종목 목록', () => {
     expect(within(dialog).getByRole('textbox', { name: '삼성전자 보유수량' })).toHaveValue('12.5')
     expect(within(dialog).getByRole('textbox', { name: '삼성전자 평단가' })).toHaveValue('71,234.56')
     // 엔은 100엔 단위로 보이고, 고치지 않으면 보내지 않는다
-    expect(within(dialog).getByRole('textbox', { name: 'Toyota 산 환율' })).toHaveValue('910')
+    expect(within(dialog).getByRole('textbox', { name: 'Toyota 매수 환율' })).toHaveValue('910')
 
     const quantity = within(dialog).getByRole('textbox', { name: '삼성전자 보유수량' })
     await user.clear(quantity)
@@ -475,7 +475,7 @@ describe('등록된 종목 목록', () => {
     expect(screen.queryByText(/종목을 저장했습니다/)).not.toBeInTheDocument()
   })
 
-  it('엔 종목의 산 환율을 고치면 100엔 값을 1엔 값으로 보낸다', async () => {
+  it('엔 종목의 매수 환율을 고치면 100엔 값을 1엔 값으로 보낸다', async () => {
     mockApi(
       [stock({ ticker: '7203.T', name: '도요타', market: 'JP', currency: 'JPY' })],
       {},
@@ -487,7 +487,7 @@ describe('등록된 종목 목록', () => {
     renderManager()
     await user.click(await screen.findByRole('button', { name: '종목 한 번에 수정' }))
     const dialog = await screen.findByRole('dialog', { name: '종목 한 번에 수정' })
-    await user.type(within(dialog).getByRole('textbox', { name: '도요타 산 환율' }), '910')
+    await user.type(within(dialog).getByRole('textbox', { name: '도요타 매수 환율' }), '910')
     await user.click(within(dialog).getByRole('button', { name: '1종목 저장' }))
     expect(update).toHaveBeenCalledWith('7203.T', 100, 2850, 9.1)
   })

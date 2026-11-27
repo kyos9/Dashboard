@@ -106,7 +106,7 @@ function draftOf(row: Row): HoldingDraft {
   }
 }
 
-/** 무엇이 바뀌었나 — 보유(수량·평단가·산 환율)와 목표(비중·밴드)는 저장하는 곳이 다르다 */
+/** 무엇이 바뀌었나 — 보유(수량·평단가와 매수 환율)와 목표(비중·밴드)는 저장하는 곳이 다르다 */
 function changesOf(row: Row, draft: HoldingDraft | undefined): { holding: boolean; fx: boolean; target: boolean } {
   if (!draft) return { holding: false, fx: false, target: false }
   const saved = draftOf(row)
@@ -125,7 +125,7 @@ async function saveRow(row: Row, draft: HoldingDraft) {
       row.ticker,
       Number(draft.quantity || 0),
       draft.avg_cost === '' ? null : Number(draft.avg_cost),
-      // 산 환율은 고쳤을 때만 보낸다 — 엔은 100엔 단위로 받아 되돌리므로 안 고친 값도 끝자리가 흔들린다
+      // 매수 환율은 고쳤을 때만 보낸다 — 엔은 100엔 단위로 받아 되돌리므로 안 고친 값도 끝자리가 흔들린다
       change.fx ? fxFromInput(draft.avg_fx, row.current.currency) : undefined,
     )
   }
@@ -261,7 +261,7 @@ function TradeForm({
         {problem ??
           (side === 'buy'
             ? foreign
-              ? '수량을 더하고 평단가·산 환율을 금액 가중평균으로 다시 계산합니다.'
+              ? '수량을 더하고 평단가와 매수 환율을 금액 가중평균으로 다시 계산합니다.'
               : '수량을 더하고 평단가를 가중평균으로 다시 계산합니다.'
             : '수량만 뺍니다. 평단가는 그대로입니다.')}
       </span>
@@ -882,7 +882,7 @@ export function RebalancePanel() {
       }))
       setRows(nextRows)
       // 고치던 목표 · 밴드는 다시 받아 와도 남긴다 — 실패한 줄, 그리고 저장하지 않고 시트를 닫은 채 거래를 반영한 줄(묶음 4 검토 조건 6).
-      // 수량 · 평단가 · 산 환율은 리밸런싱에서 고치지 않으니 서버 값으로 — 옛 수량을 다시 보내지 않게
+      // 수량 · 평단가 · 매수 환율은 리밸런싱에서 고치지 않으니 서버 값으로 — 옛 수량을 다시 보내지 않게
       const kept = { ...unsavedRef.current, ...keepDrafts.current }
       setDrafts(
         Object.fromEntries(
@@ -1034,7 +1034,7 @@ export function RebalancePanel() {
     return (['USD', 'JPY'] as Currency[]).filter((c) => c !== baseCurrency && held.has(c))
   }, [rows, baseCurrency])
 
-  /** 산 환율 칸 — 외화 종목이 하나라도 있을 때만 */
+  /** 매수 환율 칸 — 외화 종목이 하나라도 있을 때만 */
   const showFxColumn = rows.some((r) => r.current.currency !== 'KRW')
 
   /** 현금 칸 — 원·달러는 늘, 엔은 일본 종목이나 엔 현금이 있을 때만 */
@@ -1330,11 +1330,14 @@ export function RebalancePanel() {
       </OrderTableRow>
     )
   }
-  const groupRow = (title: string, orders: OrderLine[]) =>
-    orders.length > 0 && (
-      <tr className="order-group-row">
+  // 묶음 소제목 — 매도 · 매수는 색, 개수는 옅게 (주인: 대제목과 구분이 안 된다)
+  const groupRow = (title: string, orders: OrderLine[] | null, kind: 'sell' | 'buy' | 'hold' | 'cash') =>
+    (orders === null || orders.length > 0) && (
+      <tr className={`order-group-row is-${kind}`}>
         <th colSpan={8} scope="colgroup">
-          {title} {orders.length}종목
+          {title}
+          {orders && ' '}
+          {orders && <span className="order-group-count">{orders.length}종목</span>}
         </th>
       </tr>
     )
@@ -1581,12 +1584,13 @@ export function RebalancePanel() {
                 </tr>
               </thead>
               <tbody>
-                {groupRow('팔 것', sells)}
+                {groupRow('매도', sells, 'sell')}
                 {sells.map(tableRow)}
-                {groupRow('살 것', buys)}
+                {groupRow('매수', buys, 'buy')}
                 {buys.map(tableRow)}
-                {groupRow('유지', holds)}
+                {groupRow('유지', holds, 'hold')}
                 {holds.map(tableRow)}
+                {groupRow('현금', null, 'cash')}
                 <tr className="cash-row">
                   <td>
                     <div
@@ -1594,8 +1598,7 @@ export function RebalancePanel() {
                       title={plan.newMoney > 0 ? `현재 ${amount(cash?.value_base ?? 0, baseCurrency)} + 새로 넣을 돈` : undefined}
                     >
                       <div className="stock-line">
-                        <span className="ticker-name">현금</span>
-                        <span className="rb-kind">예수금</span>
+                        <span className="ticker-name">예수금</span>
                       </div>
                     </div>
                   </td>
@@ -1924,8 +1927,8 @@ export function RebalancePanel() {
                 </label>
                 <p className="kpi-foot">
                   {baseCurrency !== 'KRW'
-                    ? '기준통화가 원일 때만 켤 수 있습니다. 달러·엔 기준이면 "산 환율"의 뜻이 종목마다 달라집니다.'
-                    : '켜면 산 환율을 적은 외화 종목의 수익률·평가손익을 원화로 따집니다. 비중에는 영향이 없습니다.'}
+                    ? '기준통화가 원일 때만 켤 수 있습니다. 달러·엔 기준이면 "매수 환율"의 뜻이 종목마다 달라집니다.'
+                    : '켜면 매수 환율을 적은 외화 종목의 수익률·평가손익을 원화로 따집니다. 비중에는 영향이 없습니다.'}
                 </p>
               </>
             )}

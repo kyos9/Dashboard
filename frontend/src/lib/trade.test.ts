@@ -55,7 +55,7 @@ it('수량이 0 이하면 거절한다', () => {
   expect(applyTrade({ quantity: 1, avg_cost: 1 }, 'sell', -1, null).ok).toBe(false)
 })
 
-describe('applyTrade — 산 환율 (ROADMAP 8-3)', () => {
+describe('applyTrade — 매수 환율 (ROADMAP 8-3)', () => {
   it('금액 가중 평균 — 손으로 계산한 값과 같다', () => {
     // 10주 @$400 @1,200원 + 30주 @$500 @1,400원
     // (10×400×1200 + 30×500×1400) ÷ (10×400 + 30×500) = (4,800,000 + 21,000,000) ÷ 19,000 = 1,357.894…
@@ -68,7 +68,7 @@ describe('applyTrade — 산 환율 (ROADMAP 8-3)', () => {
     expect(r.position.avg_cost).toBe(475)
   })
 
-  it('처음 사면 그날 환율이 곧 산 환율이다', () => {
+  it('처음 사면 그날 환율이 곧 매수 환율이다', () => {
     expect(applyTrade({ quantity: 0, avg_cost: null, avg_fx: null }, 'buy', 3, 410, 1380)).toEqual({
       ok: true,
       position: { quantity: 3, avg_cost: 410, avg_fx: 1380 },
@@ -90,14 +90,14 @@ describe('applyTrade — 산 환율 (ROADMAP 8-3)', () => {
     expect(applyTrade({ quantity: 1, avg_cost: 1, avg_fx: 1300 }, 'buy', 1, 1, 0).ok).toBe(false)
   })
 
-  it('팔면 산 환율은 그대로, 전부 팔면 비운다', () => {
+  it('팔면 매수 환율은 그대로, 전부 팔면 비운다', () => {
     const some = applyTrade({ quantity: 10, avg_cost: 400, avg_fx: 1250 }, 'sell', 4, null, 1400)
     expect(some).toEqual({ ok: true, position: { quantity: 6, avg_cost: 400, avg_fx: 1250 } })
     const all = applyTrade({ quantity: 10, avg_cost: 400, avg_fx: 1250 }, 'sell', 10, null, 1400)
     expect(all).toEqual({ ok: true, position: { quantity: 0, avg_cost: null, avg_fx: null } })
   })
 
-  it('원화 종목은 환율을 넘기지 않고, 결과에도 산 환율이 없다', () => {
+  it('원화 종목은 환율을 넘기지 않고, 결과에도 매수 환율이 없다', () => {
     const r = applyTrade({ quantity: 10, avg_cost: 400 }, 'buy', 30, 500)
     expect(r).toEqual({ ok: true, position: { quantity: 40, avg_cost: 475 } })
   })

@@ -5,7 +5,7 @@ export interface NewStockForm {
   targetWeight: string
   quantity: string
   avgCost: string
-  /** 산 환율 — 달러는 원/$, 엔은 원/100엔으로 받는다 */
+  /** 매수 환율 — 달러는 원/$, 엔은 원/100엔으로 받는다 */
   avgFx: string
 }
 

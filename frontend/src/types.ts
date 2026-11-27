@@ -82,7 +82,7 @@ export interface StockCreateInput {
   quantity?: number
   /** 평균 매입단가 (종목의 거래 통화) */
   avg_cost?: number | null
-  /** 산 환율 — 외화 종목을 1단위에 몇 원에 샀는지 (엔은 1엔 값) */
+  /** 매수 환율 — 외화 종목을 1단위에 몇 원에 샀는지 (엔은 1엔 값) */
   avg_fx?: number | null
 }
 
@@ -341,7 +341,7 @@ export interface Holding {
   quantity: number
   /** 평균 매입단가 (거래 통화). 모르면 null — 손익만 비고 비중은 그대로 계산된다 */
   avg_cost: number | null
-  /** 산 환율 (1단위에 몇 원). 모르면 null */
+  /** 매수 환율 (1단위에 몇 원). 모르면 null */
   avg_fx?: number | null
   updated_at: string
 }
@@ -426,15 +426,15 @@ export interface RebalanceRow {
   /** 최근 거래일 대비 평가금액 변동 (거래 통화 / 기준통화, 지금 환율) */
   day_change?: number | null
   day_change_base?: number | null
-  /** 산 환율 (1단위에 몇 원) */
+  /** 매수 환율 (1단위에 몇 원) */
   avg_fx?: number | null
-  /** 화면에 보일 손익 — 환율 효과를 켜고 산 환율을 적은 외화 종목은 원화, 나머지는 거래 통화 */
+  /** 화면에 보일 손익 — 환율 효과를 켜고 매수 환율을 적은 외화 종목은 원화, 나머지는 거래 통화 */
   shown_pnl?: number | null
   shown_return_pct?: number | null
   shown_currency?: Currency
   /** 환율 효과를 넣은 수익률을 둘로 — 합계는 (1+주가)(1+환율)−1 */
   fx_split?: { price_pct: number; fx_pct: number } | null
-  /** 환율 효과를 켰는데 산 환율이 없어 주가만으로 낸 줄 */
+  /** 환율 효과를 켰는데 매수 환율이 없어 주가만으로 낸 줄 */
   fx_missing?: boolean
 }
 
@@ -471,7 +471,7 @@ export interface RebalanceCurrent {
   /** 최근 거래일 대비 — 종목마다 자기 시장의 전일 대비를 더한 값. 모르면 null */
   day_change_base?: number | null
   day_change_pct?: number | null
-  /** 환율 효과를 실제로 쓰는지와, 산 환율이 없어 빠진 종목 수 */
+  /** 환율 효과를 실제로 쓰는지와, 매수 환율이 없어 빠진 종목 수 */
   include_fx_effect?: boolean
   fx_missing_count?: number
   cash: CashRow

@@ -90,7 +90,7 @@ const FIELD_LABEL: Record<string, string> = {
   cash_target_pct: '현금 목표 비중',
   quantity: '수량',
   avg_cost: '평단가',
-  avg_fx: '산 환율',
+  avg_fx: '매수 환율',
   note: '메모',
   value: '예상치',
   // 0.45.4 — 글자·목록 한도
@@ -392,7 +392,7 @@ export const api = {
     }),
 
   listHoldings: () => request<Holding[]>('/rebalance/holdings'),
-  /** 평단가(`avgCost`)·산 환율(`avgFx`)은 넘겼을 때만 바뀐다. null이면 "모름"으로 지운다 */
+  /** 평단가(`avgCost`)·매수 환율(`avgFx`)은 넘겼을 때만 바뀐다. null이면 "모름"으로 지운다 */
   updateHolding: (ticker: string, quantity: number, avgCost?: number | null, avgFx?: number | null) =>
     request<Holding>(`/rebalance/holdings/${ticker}`, {
       method: 'PUT',

@@ -546,7 +546,7 @@ function ReturnCell({ item, onEnter }: { item: PortfolioItem; onEnter: () => voi
         {signed(value, 1, '%')}
       </span>
       {row.fx_missing && (
-        <span className="fx-missing" title="산 환율이 없어 주가만으로 냈습니다. 보유 종목 위의 수정에서 넣을 수 있습니다.">
+        <span className="fx-missing" title="매수 환율이 없어 주가만으로 냈습니다. 보유 종목 위의 수정에서 넣을 수 있습니다.">
           환율 미반영
         </span>
       )}

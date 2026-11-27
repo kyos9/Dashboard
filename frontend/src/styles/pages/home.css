@@ -628,6 +628,18 @@ button.sig-item.active {
 .sig-panel.macro-panel-pc {
   grid-template-columns: 320px 1fr;
 }
+/* 묶음 소제목 (주식 · 금리 …) — 줄보다 크고 진하게, 위를 띄운다 (주인: 소제목이 구분이 안 된다) */
+.macro-list-pc li.macro-group {
+  padding: 16px 16px 8px;
+  font-size: var(--fs-body);
+  font-weight: 700;
+  color: var(--text);
+  background: var(--panel);
+  border-bottom: 2px solid var(--border-strong);
+}
+.macro-list-pc li.macro-group + li.macro-item {
+  border-top: 0;
+}
 .macro-list-pc li.macro-item {
   display: flex;
   align-items: center;

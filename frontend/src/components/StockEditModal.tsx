@@ -39,7 +39,7 @@ interface Props {
  * 그래서 어느 화면에서 고쳐도 나머지 화면이 같은 값을 본다.
  *
  * - 바뀐 종목의 바뀐 쪽만 보낸다. 한 종목이 실패해도 나머지는 저장되고, 실패한 종목만 남는다.
- * - 산 환율은 **고쳤을 때만** 보낸다 — 엔은 100엔 단위로 받아 되돌리므로 안 고친 값도 끝자리가
+ * - 매수 환율은 **고쳤을 때만** 보낸다 — 엔은 100엔 단위로 받아 되돌리므로 안 고친 값도 끝자리가
  *   흔들린다(리밸런싱 탭과 같은 규칙).
  * - 폰의 뒤로가기·취소·✕·Esc·바깥 누르기는 **저장 안 한 것이 있으면 묻는다**
  *   (0.45.0 — 전에는 그대로 닫아, 저장에 실패한 종목이 남은 채 뒤로가기를 누르면 말없이 사라졌다).
@@ -390,9 +390,9 @@ function StockFields({
         </label>
         {foreign && (
           <label className="field" data-field="avgFx">
-            <span>산 환율</span>
+            <span>매수 환율</span>
             <span className="input-with-button tight">
-              <NumberInput value={draft.avgFx} onChange={(v) => onChange('avgFx', v)} placeholder="모름" aria-label={`${label} 산 환율`} />
+              <NumberInput value={draft.avgFx} onChange={(v) => onChange('avgFx', v)} placeholder="모름" aria-label={`${label} 매수 환율`} />
               <span className="unit">{fxUnitLabel(stock.currency)}</span>
             </span>
           </label>

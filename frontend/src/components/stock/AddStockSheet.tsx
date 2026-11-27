@@ -118,10 +118,10 @@ export function AddStockSheet({ title, sub, form, onChange, currency, currencySy
               <NumberInput id="new-cost" placeholder="모르면 비움" value={form.avgCost} onChange={(v) => onChange({ ...form, avgCost: v })} />
             </div>
           </div>
-          {/* 산 환율은 목록에서 고른 외화 종목만 — 이름을 쳐서 넣으면 원화 종목일 수도 있다 (그러면 서버가 거절한다) */}
+          {/* 매수 환율은 목록에서 고른 외화 종목만 — 이름을 쳐서 넣으면 원화 종목일 수도 있다 (그러면 서버가 거절한다) */}
           {foreign && (
             <div className="field">
-              <label htmlFor="new-fx">산 환율 ({fxUnitLabel(currency)})</label>
+              <label htmlFor="new-fx">매수 환율 ({fxUnitLabel(currency)})</label>
               <NumberInput id="new-fx" placeholder="모르면 비움" value={form.avgFx} onChange={(v) => onChange({ ...form, avgFx: v })} />
             </div>
           )}
@@ -130,7 +130,7 @@ export function AddStockSheet({ title, sub, form, onChange, currency, currencySy
           </button>
         </form>
         <p className="hint add-sheet-hint">
-          목표 비중은 <b>현금을 포함한 전체 자금</b> 중 이 종목의 비중입니다. 이미 들고 있으면 수량·평단가도 적으세요. 평단가(
+          목표 비중은 <b>현금을 포함한 전체 자금</b> 중 이 종목의 비중입니다. 이미 들고 있으면 수량과 평단가도 적으세요. 평단가(
           {currencyLabel ? `${currencyLabel} 기준` : '그 종목을 거래하는 통화 기준'})는 손익에만 쓰이고 비중에는 영향이 없습니다. 둘 다
           나중에 종목 안의 "보유"에서 고칠 수 있습니다. 시세를 못 받아도 종목은 남고 나중에 다시 받습니다.
         </p>

@@ -7,7 +7,7 @@
  * - 신호 점을 누르면 시그널 보기로 넘어가 그 종목을 보여주고, 뒤로가기면 포트폴리오로 돌아온다.
  * - 평단가가 없으면 그 자리에서 넣는다. 환율 효과는 풀이가 붙고, 빠진 종목은 빠졌다고 적는다.
  * - 수량은 제 칸이 있다 (9-10). 평가손익은 종목별 통화 또는 고른 한 통화로 (9-12).
- * - 위의 "수정" 하나로 모든 종목의 구분·목표·밴드·수량·평단가·산 환율을 한 번에 고친다 (9-11).
+ * - 위의 "수정" 하나로 모든 종목의 구분·목표·밴드·수량·평단가와 매수 환율을 한 번에 고친다 (9-11).
  *   소수도 받는다 (9-2).
  * - "금액 가리기"를 켜면 금액·수량이 ••••• 가 되고 %는 남는다. 기기에 기억한다 (9-3).
  * - 고른 보기·정렬은 기기에 기억한다.
@@ -319,7 +319,7 @@ describe('금액 가리기 (9-3)', () => {
 
 describe('보유 종목 표', () => {
 
-  it('여러 종목의 여러 칸을 한 번에 — 바뀐 종목의 바뀐 쪽만 보낸다. 소수 수량을 받고, 산 환율은 고쳤을 때만', async () => {
+  it('여러 종목의 여러 칸을 한 번에 — 바뀐 종목의 바뀐 쪽만 보낸다. 소수 수량을 받고, 매수 환율은 고쳤을 때만', async () => {
     mockApi()
     const update = vi.spyOn(api, 'updateHolding').mockResolvedValue({} as never)
     const updateStock = vi.spyOn(api, 'updateStock').mockResolvedValue({} as never)
@@ -331,7 +331,7 @@ describe('보유 종목 표', () => {
     const quantity = within(dialog).getByRole('textbox', { name: 'SCHD 보유수량' })
     await userEvent.clear(quantity)
     await userEvent.type(quantity, '100.5')
-    await userEvent.type(within(dialog).getByRole('textbox', { name: 'QQQ 산 환율' }), '1350.5')
+    await userEvent.type(within(dialog).getByRole('textbox', { name: 'QQQ 매수 환율' }), '1350.5')
     await userEvent.type(within(dialog).getByRole('combobox', { name: '삼성전자 구분' }), '알파')
     const target = within(dialog).getByRole('textbox', { name: '삼성전자 목표 비중' })
     await userEvent.clear(target)

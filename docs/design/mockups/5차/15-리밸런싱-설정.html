@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="ko" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>5차 리밸런싱 설정</title>
+<!--
+  디자인 5차 목업 15: 리밸런싱 설정 창 (주인: 네 칸으로 나뉜 것처럼 보인다, 다른 형식으로).
+  같은 값(분기, 현금 0, 원 기준, $1 1,385.20, ¥1 9.31, 밴드 5)으로 셋.
+-->
+<link rel="stylesheet" href="../../../../frontend/src/styles/tokens.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:#5f646b}
+body{font-family:var(--font-sans);word-break:keep-all;padding:28px 20px 40px;color:#fff;font-size:14px}
+.part{max-width:1400px;margin:0 auto 14px;font-size:22px;font-weight:700}
+.part small{display:block;font-size:14px;font-weight:400;opacity:.9;margin-top:6px;line-height:1.55}
+.cap{max-width:1400px;margin:34px auto 10px;font-size:17px;font-weight:700}
+.cap small{font-size:13px;font-weight:400;opacity:.88;margin-left:8px}
+.stage{max-width:1400px;margin:0 auto;background:rgba(15,36,64,.45);border-radius:10px;padding:40px 0;display:flex;justify-content:center}
+.dlg{width:720px;background:var(--panel);color:var(--text);border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.35);overflow:hidden}
+.dlg.wide{width:860px}
+.dh{display:flex;justify-content:space-between;align-items:center;padding:18px 24px;border-bottom:1px solid var(--border)}
+.dh h3{font-size:16px}
+.x{font-size:18px;font-weight:700}
+.df{display:flex;justify-content:flex-end;gap:8px;padding:14px 24px;border-top:1px solid var(--border)}
+.btn{height:38px;padding:0 18px;border:1px solid var(--border);border-radius:8px;background:var(--panel);font-size:13px;font-weight:600;color:var(--text);display:inline-flex;align-items:center}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.seg{display:inline-flex;padding:3px;border:1px solid var(--border);border-radius:9px;background:var(--panel-soft)}
+.seg b{padding:7px 14px;font-size:13px;font-weight:600;color:var(--text-dim);border-radius:7px}
+.seg b.on{background:var(--accent);color:var(--on-accent)}
+.in{height:34px;min-width:120px;padding:0 10px;border:1px solid var(--border);border-radius:7px;display:inline-flex;align-items:center;justify-content:flex-end;font-size:13px;background:var(--panel)}
+.in.l{justify-content:flex-start;color:var(--text-faint)}
+.u{font-size:13px;color:var(--text-dim)}
+.hint{font-size:12px;color:var(--text-faint);line-height:1.55}
+.link{color:var(--accent);text-decoration:underline;font-size:12px}
+.ck{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600}
+.ck i{width:18px;height:18px;border:1.5px solid var(--border-strong);border-radius:4px}
+.ctl{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+
+/* 가 줄 목록 */
+.rows .r{display:grid;grid-template-columns:200px 1fr;gap:20px;padding:18px 24px;border-bottom:1px solid var(--border)}
+.rows .r:last-child{border-bottom:0}
+.rows .k b{display:block;font-size:14px;margin-bottom:4px}
+.stack{display:flex;flex-direction:column;gap:8px}
+.cash{display:grid;grid-template-columns:repeat(4,auto) 1fr;gap:8px;align-items:center}
+.cash .in{min-width:96px}
+
+/* 나 탭 */
+.tabs{display:flex;gap:4px;padding:0 24px;border-bottom:1px solid var(--border)}
+.tabs b{padding:12px 14px;font-size:14px;font-weight:600;color:var(--text-dim);border-bottom:3px solid transparent}
+.tabs b.on{color:var(--accent);border-bottom-color:var(--accent)}
+.tb{padding:22px 24px;min-height:260px}
+.tb h4{font-size:15px;margin-bottom:12px}
+
+/* 다 왼쪽 목차 */
+.two{display:grid;grid-template-columns:170px 1fr;min-height:380px}
+.toc{border-right:1px solid var(--border);padding:14px 0;background:var(--panel-soft)}
+.toc b{display:block;padding:10px 20px;font-size:14px;font-weight:600;color:var(--text-dim)}
+.toc b.on{color:var(--accent);background:var(--panel);box-shadow:inset 3px 0 0 var(--accent)}
+.body{padding:20px 24px}
+.body h4{font-size:15px;margin:0 0 10px}
+.body h4:not(:first-child){margin-top:24px;padding-top:18px;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+<div class="part">리밸런싱 설정 창 셋
+  <small>주인: "네 칸으로 구분되어 있는 것처럼 보인다, 다른 형식으로". 지금은 2×2 네모(리뷰 주기, 현금, 기준통화와 환율, 기본 밴드).
+  값과 저장 방식(바뀐 값만 한 번에 저장)은 그대로, 모양만 셋.</small>
+</div>
+
+<div class="cap">가 줄 목록<small>설정 화면(PC)과 같은 모양. 왼쪽 이름과 짧은 풀이, 오른쪽 고치는 칸. 위에서 아래로 한 줄씩</small></div>
+<div class="stage">
+  <div class="dlg">
+    <div class="dh"><h3>리밸런싱 설정</h3><span class="x">✕</span></div>
+    <div class="rows">
+      <div class="r"><div class="k"><b>리뷰 주기</b><span class="hint">다음 리뷰일을 정합니다</span></div>
+        <div class="stack"><div class="ctl"><span class="seg"><b class="on">분기</b><b>반기</b><b>연 1회</b></span></div>
+        <div class="ctl"><span class="in l">날짜 고르기</span><span class="hint">다음 리뷰일을 직접 정할 때만</span></div></div></div>
+      <div class="r"><div class="k"><b>현금</b><span class="hint">예수금. 현재 0.0%, 목표 0.0%</span></div>
+        <div class="cash"><span class="u">₩</span><span class="in">0</span><span class="u">$</span><span class="in">0</span><span></span>
+        <span class="u">¥</span><span class="in">0</span><span class="u">목표</span><span class="in">0 %</span><span></span></div></div>
+      <div class="r"><div class="k"><b>기준통화</b><span class="hint">금액을 이 통화로 봅니다</span></div>
+        <div class="stack"><div class="ctl"><span class="seg"><b class="on">₩ 원</b><b>$ 달러</b><b>¥ 엔</b></span></div>
+        <div class="ctl"><span class="u">$1</span><span class="in">1,385.20</span><span class="u">원 자동</span><span class="u" style="margin-left:14px">¥1</span><span class="in">9.31</span><span class="u">원 자동</span><span class="link">전체 조회</span></div>
+        <span class="ck"><i></i>수익률에 환율 효과 포함</span></div></div>
+      <div class="r"><div class="k"><b>기본 밴드</b><span class="hint">종목마다 비워 두면 이 값</span></div>
+        <div class="ctl"><span class="in">5</span><span class="u">%p</span><span class="hint">목표에서 이만큼 벗어나면 차이 칸에 색이 듭니다</span></div></div>
+    </div>
+    <div class="df"><span class="btn">취소</span><span class="btn pri">저장</span></div>
+  </div>
+</div>
+
+<div class="cap">나 위 탭<small>주기, 현금, 환율, 밴드 탭 넷, 한 번에 하나만. 창이 작고 깔끔하지만 다른 값은 눌러야 보인다</small></div>
+<div class="stage">
+  <div class="dlg">
+    <div class="dh"><h3>리밸런싱 설정</h3><span class="x">✕</span></div>
+    <div class="tabs"><b class="on">리뷰 주기</b><b>현금</b><b>기준통화와 환율</b><b>기본 밴드</b></div>
+    <div class="tb">
+      <h4>리뷰 주기</h4>
+      <div class="stack"><div class="ctl"><span class="seg"><b class="on">분기</b><b>반기</b><b>연 1회</b></span></div>
+      <div class="ctl"><span class="in l">날짜 고르기</span><span class="hint">다음 리뷰일을 직접 정할 때만</span></div>
+      <p class="hint">직접 정한 날 무렵 기록을 남기면 다시 주기로 돌아갑니다.</p></div>
+    </div>
+    <div class="df"><span class="btn">취소</span><span class="btn pri">저장</span></div>
+  </div>
+</div>
+
+<div class="cap">다 왼쪽 목차 + 한 장<small>넓은 창. 왼쪽 목차를 누르면 그 자리로 내려가고, 오른쪽은 위에서 아래로 이어지는 한 장(소제목과 가는 줄로 나눔)</small></div>
+<div class="stage">
+  <div class="dlg wide">
+    <div class="dh"><h3>리밸런싱 설정</h3><span class="x">✕</span></div>
+    <div class="two">
+      <div class="toc"><b class="on">리뷰 주기</b><b>현금</b><b>기준통화와 환율</b><b>기본 밴드</b></div>
+      <div class="body">
+        <h4>리뷰 주기</h4>
+        <div class="stack"><div class="ctl"><span class="seg"><b class="on">분기</b><b>반기</b><b>연 1회</b></span><span class="in l">날짜 고르기</span><span class="hint">직접 정할 때만</span></div></div>
+        <h4>현금 <span class="hint">현재 0.0%, 목표 0.0%</span></h4>
+        <div class="ctl"><span class="u">₩</span><span class="in">0</span><span class="u">$</span><span class="in">0</span><span class="u">¥</span><span class="in">0</span><span class="u">목표</span><span class="in">0 %</span></div>
+        <h4>기준통화와 환율</h4>
+        <div class="stack"><div class="ctl"><span class="seg"><b class="on">₩ 원</b><b>$ 달러</b><b>¥ 엔</b></span></div>
+        <div class="ctl"><span class="u">$1</span><span class="in">1,385.20</span><span class="u">원</span><span class="u" style="margin-left:10px">¥1</span><span class="in">9.31</span><span class="u">원</span><span class="link">전체 조회</span></div>
+        <span class="ck"><i></i>수익률에 환율 효과 포함</span></div>
+        <h4>기본 밴드</h4>
+        <div class="ctl"><span class="in">5</span><span class="u">%p</span><span class="hint">종목마다 비워 두면 이 값</span></div>
+      </div>
+    </div>
+    <div class="df"><span class="btn">취소</span><span class="btn pri">저장</span></div>
+  </div>
+</div>
+</body>
+</html>

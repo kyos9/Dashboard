@@ -60,7 +60,7 @@ type Mode = 'quarter' | 'year'
 
 function ResultsTable({ row, results, mode }: { row: FundamentalsResponse; results: Results; mode: Mode }) {
   const all = mode === 'quarter' ? results.quarters : results.years
-  // 기본 넷, "더보기"로 그 이전 (주인 요청, 종목 안 재무 자세히)
+  // 기본 넷, "더보기"로 그 이전 (주인 요청)
   const [more, setMore] = useState(false)
   const shown = more ? all : all.slice(0, 4)
   if (shown.length === 0) {
@@ -127,9 +127,8 @@ function Card({ title, lines }: { title: string; lines: { label: string; value: 
 
 /**
  * 고른 종목의 재무 — PER · 가치 · 수익성 · 성장 · 안정 카드와 실적.
- * `embedded` 는 PC 종목 안 "재무 자세히"(디자인 5차 목업 10 나) — 머리(이름 · 공시 출처)와 가이던스 줄을 빼고 숫자만 (주인 요청)
  */
-export function FundamentalsDetail({ row, embedded = false }: { row: FundamentalsResponse; embedded?: boolean }) {
+function FundamentalsDetail({ row }: { row: FundamentalsResponse }) {
   const results = useResults(row)
   const [mode, setMode] = useState<Mode>('quarter')
   if (row.metrics.length === 0) {
@@ -152,7 +151,6 @@ export function FundamentalsDetail({ row, embedded = false }: { row: Fundamental
 
   return (
     <article className="sig-detail fd-detail" aria-label={`${rowLabel(row)} 재무`}>
-      {!embedded && (
       <header className="sig-detail-head">
         <h3>{rowLabel(row)}</h3>
         <span className="hint">
@@ -160,7 +158,6 @@ export function FundamentalsDetail({ row, embedded = false }: { row: Fundamental
           {priceDay ? `, 종가는 ${priceDay}` : ''}
         </span>
       </header>
-      )}
 
       {/* PER 카드는 다른 묶음과 같은 모양 · 같은 글자 크기 (주인: PER 만 크면 통일성이 없다) */}
       <div className="fd-cards">
@@ -188,12 +185,10 @@ export function FundamentalsDetail({ row, embedded = false }: { row: Fundamental
         ))}
       </div>
 
-      {!embedded && (
-        <div className="fd-line" aria-label="회사 가이던스">
-          <h4>회사 가이던스</h4>
-          <span>아직 모으지 않습니다</span>
-        </div>
-      )}
+      <div className="fd-line" aria-label="회사 가이던스">
+        <h4>회사 가이던스</h4>
+        <span>아직 모으지 않습니다</span>
+      </div>
 
       <section className="fd-sec" aria-label="실적">
         <div className="fd-sec-head">
@@ -245,15 +240,22 @@ export function DesktopFundamentals({
   )
   return (
     <div className="sig-panel fd-panel">
-      <ul className="sig-list" role="listbox" aria-label="종목">
-        {shown.map(item)}
+      {/* 재무가 없는 종목은 따로 한 상자 — 한 목록에 이어 붙어 구분이 안 됐다(주인) */}
+      <div className="fd-lists">
+        <ul className="sig-list" role="listbox" aria-label="종목">
+          {shown.map(item)}
+        </ul>
         {hidden.length > 0 && (
-          <li className="fd-group" role="presentation">
-            재무가 없는 종목
-          </li>
+          <>
+            <h3 className="fd-group-title" id="fd-off">
+              재무가 없는 종목
+            </h3>
+            <ul className="sig-list" role="listbox" aria-labelledby="fd-off">
+              {hidden.map(item)}
+            </ul>
+          </>
         )}
-        {hidden.map(item)}
-      </ul>
+      </div>
       <FundamentalsDetail row={row} />
     </div>
   )

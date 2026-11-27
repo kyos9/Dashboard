@@ -16,7 +16,6 @@ import { useAuth } from '../AuthGate'
 import { ChartLegend, PriceChart } from '../PriceChart'
 import { ErrorNotice } from '../ErrorNotice'
 import { FundamentalsPanel } from '../FundamentalsPanel'
-import { FundamentalsDetail } from '../fundamentals/DesktopFundamentals'
 import { AiPanel } from '../AiPanel'
 import { ReasonTag } from '../SignalShape'
 import { SignalBadges } from '../ui/SignalBadges'
@@ -106,8 +105,8 @@ function WeightCard({ row, card }: { row: RebalanceRow | null; card: DashboardCa
 const SUMMARY_KEYS: FundamentalKey[] = ['roe', 'revenue_yoy', 'debt_ratio']
 const METRIC_LABEL = Object.fromEntries(METRIC_GROUPS.flatMap((g) => g.items.map((i) => [i.key, i.key === 'revenue_yoy' ? '매출 (전년 같은 분기)' : i.label])))
 
-/** PC 오른쪽 "재무 요약" 카드 — 넷만, 자세히는 아래 (목업 10 나) */
-function FundSummary({ data, failed, onMore }: { data: FundamentalsResponse | null; failed: boolean; onMore: () => void }) {
+/** PC 오른쪽 "재무 요약" 카드 — 다섯만. "자세히"는 재무 화면의 이 종목으로 (주인: 종목 안 아래 재무 자세히 · 실적은 뺌) */
+function FundSummary({ data, failed, moreTo }: { data: FundamentalsResponse | null; failed: boolean; moreTo: string | null }) {
   const byKey = new Map(data?.metrics.map((m) => [m.key, m]) ?? [])
   const perMean = data?.per_range?.mean ?? null
   const has = !!data && data.state !== 'none' && data.metrics.length > 0
@@ -115,10 +114,10 @@ function FundSummary({ data, failed, onMore }: { data: FundamentalsResponse | nu
     <section className="detail-card side-card" aria-label="재무 요약">
       <div className="detail-card-head">
         <h3 className="detail-card-title">재무 요약</h3>
-        {has && (
-          <button type="button" className="link-like" onClick={onMore}>
-            재무 자세히
-          </button>
+        {has && moreTo && (
+          <Link to={moreTo} className="link-like">
+            자세히
+          </Link>
         )}
       </div>
       {has ? (
@@ -167,8 +166,8 @@ interface Props {
   /** 종목을 지웠을 때 (보유 탭) — 화면이면 종목 목록으로 */
   onPurged?: () => void
   /**
-   * PC 종목 안 화면 (디자인 5차 목업 10 나) — 탭 없이 두 단: 왼쪽 차트와 매수 · 매도 조건, 오른쪽 보유 · 비중 · 재무 요약,
-   * 아래 재무 자세히. 맨 위에 경로 줄 "홈 › 이름"(‹ 대신). 팝업과 폰은 탭 그대로
+   * PC 종목 안 화면 (디자인 5차 목업 10 나) — 탭 없이 두 단: 왼쪽 차트와 매수 · 매도 조건, 오른쪽 보유 · 비중 · 재무 요약
+   * (자세히는 재무 화면으로). 맨 위에 경로 줄 "홈 › 이름"(‹ 대신). 팝업과 폰은 탭 그대로
    */
   wide?: boolean
 }
@@ -280,7 +279,6 @@ export function StockDetail({ ticker, name, card, initialTab = 'chart', lead, tr
   )
 
   if (wide) {
-    const toFund = () => document.getElementById('stock-fund')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
     return (
       <div className="stock-detail stock-wide">
         <nav className="crumbs" aria-label="경로">
@@ -322,22 +320,13 @@ export function StockDetail({ ticker, name, card, initialTab = 'chart', lead, tr
               <aside className="stock-wide-side" aria-label="이 종목">
                 {member && <HoldingTab side ticker={ticker} row={row} baseCurrency={current?.base_currency ?? 'KRW'} onPurged={onPurged} />}
                 {member && card && <WeightCard row={row} card={card} />}
-                <FundSummary data={fundamentals} failed={fundFailed} onMore={toFund} />
+                <FundSummary
+                  data={fundamentals}
+                  failed={fundFailed}
+                  moreTo={inRouter && member ? `/fundamentals?ticker=${encodeURIComponent(ticker)}` : null}
+                />
               </aside>
             </div>
-            {fundamentals && fundamentals.state !== 'none' && fundamentals.metrics.length > 0 && (
-              <section id="stock-fund" className="stock-wide-fund" aria-label="재무 자세히">
-                <div className="stock-wide-fund-head">
-                  <h3>재무 자세히</h3>
-                  {inRouter && member && (
-                    <Link to="/fundamentals" className="detail-link">
-                      여러 종목 재무 한눈에 ›
-                    </Link>
-                  )}
-                </div>
-                <FundamentalsDetail row={fundamentals} embedded />
-              </section>
-            )}
           </>
         )}
       </div>

@@ -391,7 +391,7 @@ describe('리밸런싱 · 평단가와 거래 입력', () => {
     await user.type(priceBox, '500')
     await user.click(screen.getByRole('button', { name: '반영' }))
 
-    // 외화 종목이라 산 환율도 같이 — 들고 있던 몫의 환율을 모르니 평균을 지어내지 않는다
+    // 외화 종목이라 매수 환율도 같이 — 들고 있던 몫의 환율을 모르니 평균을 지어내지 않는다
     await waitFor(() => expect(update).toHaveBeenCalledWith('VOO', 4, 450, null))
   })
 
@@ -436,7 +436,7 @@ describe('리밸런싱 · 평단가와 거래 입력', () => {
     expect(live()).not.toHaveTextContent('‘매도’를')
   })
 
-  it('리밸런싱에는 보유수량 · 평단가 · 산 환율 칸이 없다 — 종목 탭 "한 번에 수정"으로 안내한다 (주인 답 "목표 · 밴드만")', async () => {
+  it('리밸런싱에는 보유수량 · 평단가 · 매수 환율 칸이 없다 — 종목 탭 "한 번에 수정"으로 안내한다 (주인 답 "목표 · 밴드만")', async () => {
     mockApi(HELD)
     const user = userEvent.setup()
     renderPanel()
@@ -444,8 +444,8 @@ describe('리밸런싱 · 평단가와 거래 입력', () => {
     expect(within(sheet).getByLabelText('VOO 목표 비중')).toHaveValue('60')
     expect(screen.queryByLabelText('VOO 보유수량')).toBeNull()
     expect(screen.queryByLabelText('VOO 평단가')).toBeNull()
-    expect(screen.queryByLabelText('VOO 산 환율')).toBeNull()
-    expect(sheet).toHaveTextContent('수량, 평단가, 산 환율은 종목 수정에서 고칩니다')
+    expect(screen.queryByLabelText('VOO 매수 환율')).toBeNull()
+    expect(sheet).toHaveTextContent('수량, 평단가, 매수 환율은 종목 수정에서 고칩니다')
   })
 
 })
@@ -555,7 +555,7 @@ describe('리밸런싱 · 리뷰와 기록', () => {
   })
 })
 
-/* ---------- 8-3 — 답을 먼저 · 한 번에 저장 · 산 환율 · 폰 카드 ---------- */
+/* ---------- 8-3 — 답을 먼저 · 한 번에 저장 · 매수 환율 · 폰 카드 ---------- */
 
 describe('리밸런싱 · 답을 먼저 (ROADMAP 8-3)', () => {
   it('PC: 머리에 다음 리뷰와 도구 글 단추 셋, 요약 띠 → 주문 표 — 아래 목록 한 장은 없다 (디자인 5차 목업 05 가)', async () => {
@@ -568,13 +568,13 @@ describe('리밸런싱 · 답을 먼저 (ROADMAP 8-3)', () => {
     expect(screen.queryByRole('heading', { name: '주문 가이드' })).toBeNull()
   })
 
-  it('요약 띠: 전체 자금 · 팔 것 · 살 것 · 목표 합계 · 새로 넣을 돈 — 손익은 홈에', async () => {
+  it('요약 띠: 전체 자금 · 매도 · 매수 · 목표 합계 · 새로 넣을 돈 — 손익은 홈에', async () => {
     mockApi({ ...CURRENT, day_change_base: 13_000, day_change_pct: 0.62 })
     renderPanel()
     const strip = await screen.findByRole('region', { name: '요약' })
     expect(strip).toHaveTextContent('전체 자금 (현금 포함)₩2,100,000')
-    expect(strip).toHaveTextContent(/팔 것 \d종목/)
-    expect(strip).toHaveTextContent(/살 것 \d종목/)
+    expect(strip).toHaveTextContent(/매도 \d종목/)
+    expect(strip).toHaveTextContent(/매수 \d종목/)
     expect(within(strip).getByRole('button', { name: '목표 합계 100.0%, 목표 수정' })).not.toHaveClass('warn')
     expect(within(strip).getByLabelText('이번에 새로 넣을 돈')).toBeInTheDocument()
     expect(strip).not.toHaveTextContent('+₩13,000')
@@ -675,7 +675,7 @@ describe('리밸런싱 · 보유·목표는 한 번에 저장', () => {
 
 })
 
-describe('리밸런싱 · 산 환율과 환율 효과', () => {
+describe('리밸런싱 · 매수 환율과 환율 효과', () => {
   const JP: RebalanceCurrent = {
     ...CURRENT,
     fx: {
@@ -705,7 +705,7 @@ describe('리밸런싱 · 산 환율과 환율 효과', () => {
     expect(screen.queryByRole('dialog', { name: '목표 수정' })).toBeNull()
   })
 
-  it('원화 종목만 있으면 산 환율 칸도 환율 효과 설정도 없다', async () => {
+  it('원화 종목만 있으면 매수 환율 칸도 환율 효과 설정도 없다', async () => {
     // 칸마다 저장하는 예전 설정 창은 폰에 남았다 — PC 는 한 번에 저장(아래 'PC 설정 창')
     pretendPhone()
     onTestFinished(forgetPhone)
@@ -713,11 +713,11 @@ describe('리밸런싱 · 산 환율과 환율 효과', () => {
     renderPanel()
     await openSettings()
     await screen.findByRole('region', { name: '주문 가이드' })
-    expect(screen.queryByText('산 환율')).not.toBeInTheDocument()
+    expect(screen.queryByText('매수 환율')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('수익률에 환율 효과 포함')).not.toBeInTheDocument()
   })
 
-  it('외화 종목을 사면 그날 환율(기본은 지금 환율)로 산 환율을 금액 가중 평균한다', async () => {
+  it('외화 종목을 사면 그날 환율(기본은 지금 환율)로 매수 환율을 금액 가중 평균한다', async () => {
     mockApi(JP)
     const holding = vi.spyOn(api, 'updateHolding').mockResolvedValue({} as never)
     const user = userEvent.setup()
@@ -1081,7 +1081,7 @@ describe('리밸런싱 · 주문 옆 거래 입력 (디자인 2차, 주인 결�
     expect(Array.from(tables[0].querySelectorAll('thead th')).map((h) => h.textContent)).toEqual([
       '종목', '현재', '목표', '차이', '주문', '금액', '이번 분기 매도 시그널', '거래',
     ])
-    expect(within(tables[0]).getAllByRole('columnheader', { name: /^(팔 것|살 것) \d종목$/ })).toHaveLength(2)
+    expect(within(tables[0]).getAllByRole('columnheader', { name: /^(매도|매수) \d종목$/ })).toHaveLength(2)
     const voo = await orderRow('VOO')
     // VOO 61.9% → 20% — 밴드(5) 밖이 아니면 회색 칩, 막대는 없다
     expect(voo.querySelector('.drift-chip')).toHaveTextContent('+41.9%p')
@@ -1237,7 +1237,7 @@ describe('리밸런싱 · 디자인 4차 목업 12c', () => {
       .map((tr) => tr.querySelector('.ticker-name, th')?.textContent ?? '')
       .filter(Boolean)
     // 줄일: VOO −88만 · 늘릴: QQQ +63만(30%) > 삼성 +25만(50% 105만 − 80만)
-    expect(order).toEqual(['팔 것 1종목', 'VOO', '살 것 2종목', 'QQQ', '삼성전자', '현금'])
+    expect(order).toEqual(['매도 1종목', 'VOO', '매수 2종목', 'QQQ', '삼성전자', '현금', '예수금'])
   })
 })
 

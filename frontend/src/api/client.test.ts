@@ -93,7 +93,7 @@ describe('오류 응답 해석', () => {
       [{ type: 'string_too_long', loc: ['body', 'note'], ctx: { max_length: 200 } }, '메모는 200자 이하여야 합니다'],
       [{ type: 'missing', loc: ['body', 'quantity'] }, '수량은 필요합니다'],
       [{ type: 'float_parsing', loc: ['body', 'avg_cost'] }, '평단가는 숫자여야 합니다'],
-      [{ type: 'greater_than', loc: ['body', 'avg_fx'], ctx: { gt: 0 } }, '산 환율은 0보다 커야 합니다'],
+      [{ type: 'greater_than', loc: ['body', 'avg_fx'], ctx: { gt: 0 } }, '매수 환율은 0보다 커야 합니다'],
       [{ type: 'value_error', loc: ['body', 'mystery'] }, '입력값은 올바르지 않습니다'],
       [{ type: 'less_than', loc: ['body', 'quantity'], ctx: { lt: 10 } }, '수량은 10보다 작아야 합니다'],
       // 0.45.4 — 글자 한도는 "자", 목록 한도는 "개"
